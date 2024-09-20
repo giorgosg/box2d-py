@@ -1,3 +1,9 @@
 
 /src/box2d_py.egg-info
 /dist
+.\#pyproject.toml
+base.h.cffi
+*.cffi
+combined_header.h.modified
+/src/box2d-py/__pycache__
+/src/box2d-py/box2d_py.egg-info
