@@ -46,7 +46,7 @@ source_files = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endsw
 print(source_files)
 
 ffibuilder.set_source(
-    "box2d_py._box2d",
+    "box2d._box2d",
     """#include "box2d/box2d.h"
     """,
     sources=source_files,

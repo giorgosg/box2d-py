@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(use_scm_version={"local_scheme": "no-local-version"},
       package_dir={"": "src"},
-      cffi_modules=["src/box2d-py/build_cffi.py:ffibuilder"],
+      cffi_modules=["src/box2d/build_cffi.py:ffibuilder"],
       packages=find_packages(where="src"),
       )
 
