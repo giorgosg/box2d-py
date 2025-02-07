@@ -1,5 +1,5 @@
 from box2d._box2d import lib, ffi
-from .vec2 import Vec2
+from .math import Vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon
 
 class BodyBuilder:

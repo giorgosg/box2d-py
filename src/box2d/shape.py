@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from abc import ABC, abstractmethod
-from .vec2 import Vec2
+from .math import Vec2
 
 class Shape(ABC):
     """Base class for all shapes. Provides common functionality for all shape types."""

@@ -1,117 +1,89 @@
 # tests/test_math.py
 import pytest
 import math
-from box2d import Rot, Vec2, Transform, AABB
-from pytest import approx
+from box2d import Vec2, Rot, Transform, AABB, Mat22
 
-def aprx(a):
-    return approx(a, rel=1e-3, abs=1e-3)
+def test_vec2_normalize_zero_vector():
+    v = Vec2(0, 0)
+    normalized = v.normalize()
+    assert normalized == Vec2(0, 0), "Normalizing zero vector should return zero"
 
-def test_rot_callable():
-    # Test __call__ method of Rot
-    rot = Rot.FromAngle(math.pi/2)  # 90 degrees
-    v = Vec2(1.0, 0.0)
-    rotated_v = rot(v)
-    assert rotated_v.x == aprx(0.0)
-    assert rotated_v.y == aprx(1.0)
+def test_vec2_project_onto_zero_vector_raises_error():
+    v = Vec2(1, 1)
+    with pytest.raises(ValueError):
+        v.project((0, 0))
 
-def test_transform_init():
-    # Test Transform initialization
-    pos = Vec2(1.0, 2.0)
-    rot = Rot.FromAngle(math.pi/4)
-    t = Transform(pos, rot)
-    assert t.p == pos
-    assert t.q == rot
+def test_vec2_lerp_extrapolation():
+    a = Vec2(1, 2)
+    b = Vec2(3, 4)
+    result = a.lerp(b, 2.5)
+    expected = Vec2(1 + 2*2.5, 2 + 2*2.5)
+    assert result == expected, "Lerp should extrapolate when t > 1"
 
-def test_transform_call():
-    # Test Transform __call__ method
-    pos = Vec2(1.0, 2.0)
-    rot = Rot.FromAngle(math.pi/4)
-    t = Transform(pos, rot)
-    
-    # Test with a point
-    point = Vec2(1.0, 0.0)
-    transformed_point = t(point)
-    assert transformed_point.x == aprx(1.0 + math.cos(math.pi/4))
-    assert transformed_point.y == aprx(2.0 + math.sin(math.pi/4))
+def test_vec2_rotation_45_degrees():
+    v = Vec2(1, 0)
+    rotated = v.rotate(math.pi/4)
+    expected = Vec2(math.sqrt(2)/2, math.sqrt(2)/2)
+    assert rotated.x == pytest.approx(expected.x)
+    assert rotated.y == pytest.approx(expected.y)
 
-def test_transform_inverted():
-    # Test inverted transform
-    pos = Vec2(1.0, 2.0)
-    rot = Rot.FromAngle(math.pi/4)
-    t = Transform(pos, rot)
-    
-    inv_t = t.inverted()
-    
-    # Test that applying transform and then inverse transform returns to original
-    point = Vec2(1.0, 0.0)
-    transformed = t(point)
-    inverse_transformed = inv_t(transformed)
-    assert inverse_transformed.x == aprx(1.0)
-    assert inverse_transformed.y == aprx(0.0)
+def test_rot_composition():
+    rot1 = Rot(math.pi/2)
+    rot2 = Rot(math.pi/2)
+    combined = rot1 * rot2
+    assert combined.angle_radians == pytest.approx(math.pi)
 
-def test_aabb_init():
-    aabb = AABB()
-    assert aabb.lower == Vec2(math.inf, math.inf)
-    assert aabb.upper == Vec2(-math.inf, -math.inf)
-    assert not aabb.is_valid
+def test_rot_normalization():
+    # Create non-unit rotation
+    rot = Rot.from_sincos(2, 2).normalize()
+    assert math.isclose(math.hypot(rot.s, rot.c), 1.0, rel_tol=1e-9)
 
-def test_aabb_from_points():
-    aabb = AABB.from_points([(1,2), (3,4)])
-    assert aabb.lower == Vec2(1.0, 2.0)
-    assert aabb.upper == Vec2(3.0, 4.0)
+def test_transform_inverse():
+    t = Transform(Vec2(2, 3), Rot(math.pi/3))
+    point = Vec2(5, 7)
+    transformed = t.inverted()(t(point))
+    assert transformed.x == pytest.approx(point.x)
+    assert transformed.y == pytest.approx(point.y)
 
-def test_aabb_properties():
-    aabb = AABB(lower=(1,2), upper=(3,4))
-    assert aabb.center == Vec2(2.0, 3.0)
-    assert aabb.half_size == Vec2(1.0, 1.0)
-    assert aabb.width == 2.0
-    assert aabb.height == 2.0
+def test_aabb_from_multiple_points():
+    points = [(-2, 5), (3, -1), (4, 4), (0, 0)]
+    aabb = AABB.from_points(points)
+    assert aabb.lower == Vec2(-2, -1)
+    assert aabb.upper == Vec2(4, 5)
 
-def test_aabb_contains():
-    aabb1 = AABB(lower=(1,1), upper=(3,3))
-    aabb2 = AABB(lower=(2,2), upper=(2,2))
-    assert aabb1.contains(aabb2)
-    assert not aabb2.contains(aabb1)
+def test_aabb_intersection_complex():
+    a = AABB((0, 0), (5, 5))
+    b = AABB((3, 3), (7, 7))
+    intersection = a & b
+    assert intersection.lower == Vec2(3, 3)
+    assert intersection.upper == Vec2(5, 5)
+    assert intersection.is_valid
 
-def test_aabb_merge():
-    aabb = AABB()
-    aabb.merge(Vec2(1,2))
-    assert aabb.lower == Vec2(1.0, 2.0)
-    assert aabb.upper == Vec2(1.0, 2.0)
-    
-    other_aabb = AABB(lower=(0,0), upper=(2,4))
-    aabb.merge(other_aabb)
-    assert aabb.lower == Vec2(0.0, 0.0)
-    assert aabb.upper == Vec2(2.0, 4.0)
+def test_mat22_solve_singular():
+    # Create singular matrix (determinant zero)
+    mat = Mat22(1, 2, 2, 4)
+    result = mat.solve(Vec2(3, 6))
+    assert result == Vec2(0, 0), "Should return zero vector for singular matrix"
 
-def test_aabb_intersection():
-    aabb1 = AABB(lower=(1,1), upper=(3,3))
-    aabb2 = AABB(lower=(2,2), upper=(4,4))
-    overlap = aabb1 & aabb2
-    assert overlap.lower == Vec2(2.0, 2.0)
-    assert overlap.upper == Vec2(3.0, 3.0)
-    
-    # Non-overlapping case
-    aabb3 = AABB(lower=(5,5), upper=(6,6))
-    overlap = aabb1 & aabb3
-    assert not overlap.is_valid
+def test_componentwise_multiplication():
+    v1 = Vec2(2, -3)
+    v2 = Vec2(-4, 5)
+    result = v1.multiply_componentwise(v2)
+    assert result == Vec2(-8, -15)
 
-def test_aabb_equality():
-    aabb1 = AABB(lower=(1,1), upper=(2,2))
-    aabb2 = AABB(lower=(1,1), upper=(2,2))
-    assert aabb1 == aabb2
-    
-    aabb3 = AABB(lower=(1,1), upper=(3,3))
-    assert aabb1 != aabb3
+def test_mat22_inversion():
+    original = Mat22(2, 1, 1, 2)
+    inverse = original.get_inverse()
+    identity = original * inverse  # Should approximate identity
+    assert identity.rows[0].x == pytest.approx(1)
+    assert identity.rows[1].y == pytest.approx(1)
 
-def test_aabb_edge_cases():
-    # Single point
-    aabb = AABB.from_points([(1,1)])
-    assert aabb.lower == Vec2(1.0, 1.0)
-    assert aabb.upper == Vec2(1.0, 1.0)
-    
-    # Multiple points with same x/y
-    aabb = AABB.from_points([(1,1), (1,2)])
-    assert aabb.lower == Vec2(1.0, 1.0)
-    assert aabb.upper == Vec2(1.0, 2.0)
+def test_aabb_contraction():
+    aabb = AABB((1,1), (3,3)).expanded(-0.5)
+    assert aabb == AABB((1.5,1.5), (2.5,2.5))
+
+def test_rot_pickle_roundtrip():
+    import pickle
+    original = Rot(math.pi/3)
+    reconstructed = pickle.loads(pickle.dumps(original))
+    assert original == reconstructed

@@ -1,9 +1,9 @@
 # src/box3d/world.py
 
-from box2d._box2d import lib, ffi
-from box2d.body import BodyBuilder
-from box2d.vec2 import Vec2
-from box2d.debug_draw import DebugDraw
+from ._box2d import lib, ffi
+from .body import BodyBuilder
+from .math import Vec2
+from .debug_draw import DebugDraw
 class World:
     def __init__(self, gravity=(0, -10)):
         world_def = lib.b2DefaultWorldDef()
