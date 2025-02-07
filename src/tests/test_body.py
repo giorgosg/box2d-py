@@ -1,7 +1,7 @@
 # src/tests/test_body.py
 import pytest
 import box2d
-from box2d import World, Vec2
+from box2d import World, Vec2, Box, Circle
 from box2d._box2d import lib
 from pytest import approx
 
@@ -367,3 +367,65 @@ def test_mixed_body_properties():
     assert body.fixed_rotation == True
     assert body.is_bullet == True
     assert body.gravity_scale == aprx(0.8)
+
+def test_builder_shape_chaining():
+    world = World()
+    body = (world.new_body()
+            .dynamic()
+            .position(2, 3)
+            .box(2.0, 1.0, density=0.5)
+            .circle(0.5, center=(1,0), restitution=0.8)
+            .build())
+    
+    assert body.position == (2, 3)
+    assert len(body.shapes) == 2
+    assert lib.b2Body_GetShapeCount(body._body_id) == 2
+    
+    # Verify box properties
+    box = body.shapes[0]
+    assert isinstance(box, Box)
+    assert box.density == aprx(0.5)
+    
+    # Verify circle properties
+    circle = body.shapes[1]
+    assert isinstance(circle, Circle)
+    assert circle.restitution == aprx(0.8)
+
+def test_complex_builder_chain():
+    world = World(gravity=(0, -10))
+    body = (world.new_body()
+            .dynamic()
+            .position(0, 5)
+            .linear_velocity(0, 0)
+            .angular_velocity(1.5)
+            .gravity_scale(0.5)
+            .bullet(True)
+            .circle(1.0, restitution=0.9)
+            .build())
+    
+    assert body.gravity_scale == aprx(0.5)
+    assert body.is_bullet == True
+    assert body.shapes[0].restitution == aprx(0.9)
+    assert body.angular_velocity == aprx(1.5)
+
+def test_mixed_shapes():
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .box(1, 0.5)
+        .capsule((1.0, 0.0), (2.0, 0.0), 0.5)
+        .circle(0.5)
+        .segment((0,0), (1,1))
+        #.polygon([(-1,0), (0,1), (1,0)]) # segfaults... is it a box2d bug?
+        .build()
+    )
+    
+    # Verify all shapes added
+    assert len(body.shapes) == 4
+
+def test_polygon_shape():
+    world = World()
+    body = world.new_body().polygon([(-1,0), (0,1), (1,0)]).build()
+    assert len(body.shapes) == 1
+

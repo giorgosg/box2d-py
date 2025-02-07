@@ -3,9 +3,15 @@ from .vec2 import Vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon
 
 class BodyBuilder:
-    """Helper class for creating and configuring Box2D bodies.
+    """Builder for creating Box2D bodies with chained configuration methods.
     
-    Provides a fluent interface for setting up body properties before creation.
+    Example:
+        body = (world.new_body()
+                .dynamic()
+                .position(2, 3)
+                .box(half_x=1, half_y=0.5)
+                .circle(radius=0.5, offset=(1, 0))
+                .build())
     """
     def __init__(self, world):
         """Initialize the BodyBuilder with the world context.
@@ -15,7 +21,7 @@ class BodyBuilder:
         """
         self.world = world
         self._def = lib.b2DefaultBodyDef()
-        self._shapes = []
+        self._shape_defs = []
 
     def dynamic(self):
         """Set the body type to dynamic.
@@ -162,18 +168,149 @@ class BodyBuilder:
         self._def.sleepThreshold = threshold
         return self
 
-    def build(self):
-        """Finalize body creation.
+    def box(self, width: float, height: float, 
+           density: float = 1.0, friction: float = 0.2, 
+           restitution: float = 0.0, is_sensor: bool = False):
+        """Add a box shape to the body during construction.
+        
+        Args:
+            width: Full width of the box
+            height: Full height of the box
+            density: Mass density (kg/m²)
+            friction: Friction coefficient (0-1)
+            restitution: Bounciness (0-1)
+            is_sensor: True for sensor shape (no collision response)
+        Returns:
+            self for method chaining
+        """
+        self._shape_defs.append({
+            'type': 'box',
+            'params': (width, height),
+            'kwargs': {
+                'density': density,
+                'friction': friction,
+                'restitution': restitution,
+                'is_sensor': is_sensor
+            }
+        })
+        return self
+
+    def circle(self, radius: float, center: tuple = (0,0),
+              density: float = 1.0, friction: float = 0.2,
+              restitution: float = 0.0, is_sensor: bool = False):
+        """Add a circle shape to the body during construction.
+        
+        Args:
+            radius: Radius of the circle
+            center: Local center position (x,y)
+            density: Mass density (kg/m²)
+            friction: Friction coefficient (0-1)
+            restitution: Bounciness (0-1)
+            is_sensor: True for sensor shape
+        Returns:
+            self for method chaining
+        """
+        self._shape_defs.append({
+            'type': 'circle', 
+            'params': (radius, center),
+            'kwargs': {
+                'density': density,
+                'friction': friction,
+                'restitution': restitution,
+                'is_sensor': is_sensor
+            }
+        })
+        return self
+
+    def capsule(self, point1: tuple, point2: tuple, radius: float,
+                density: float = 1.0, friction: float = 0.2, 
+                restitution: float = 0.0, is_sensor: bool = False):
+        """Add a vertical capsule shape (cylinder with hemispherical ends).
+        
+        Args:
+            point1: The first endpoint of the capsule
+            point2: The second endpoint of the capsule
+            radius: Radius of the hemispherical ends
+            density: Mass density (kg/m²)
+            friction: Friction coefficient (0-1)
+            restitution: Bounciness (0-1)
+            is_sensor: True for sensor shape
+        """
+        self._shape_defs.append({
+            'type': 'capsule',
+            'params': (point1, point2, radius),
+            'kwargs': {
+                'density': density,
+                'friction': friction,
+                'restitution': restitution,
+                'is_sensor': is_sensor
+            }
+        })
+        return self
+
+    def polygon(self, vertices: list[tuple], 
+               density: float = 1.0, friction: float = 0.2,
+               restitution: float = 0.0, is_sensor: bool = False):
+        """Add a convex polygon shape.
+        
+        Args:
+            vertices: List of (x,y) coordinates in counter-clockwise order
+            density: Mass density (kg/m²)
+            friction: Friction coefficient (0-1)
+            restitution: Bounciness (0-1)
+            is_sensor: True for sensor shape
+        """
+        self._shape_defs.append({
+            'type': 'polygon',
+            'params': (vertices,),
+            'kwargs': {
+                'density': density,
+                'friction': friction,
+                'restitution': restitution,
+                'is_sensor': is_sensor
+            }
+        })
+        return self
+
+    def segment(self, start: tuple, end: tuple, 
+               density: float = 0.0,
+               friction: float = 0.2, restitution: float = 0.0, 
+               is_sensor: bool = False):
+        """Add a line segment shape with optional edge radius.
+        
+        Args:
+            start: Starting point (x,y) in local coordinates
+            end: Ending point (x,y) in local coordinates
+            density: Typically 0 for static segments
+            friction: Friction coefficient (0-1)
+            restitution: Bounciness (0-1)
+            is_sensor: True for sensor shape
+        """
+        self._shape_defs.append({
+            'type': 'segment',
+            'params': (start, end),
+            'kwargs': {
+                'density': density,
+                'friction': friction,
+                'restitution': restitution,
+                'is_sensor': is_sensor
+            }
+        })
+        return self
+
+    def build(self) -> 'Body':
+        """Finalize the body creation and attach configured shapes.
         
         Creates and configures the body in the world using the specified properties.
         Returns:
             The newly created Body instance
         """
         body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(self._def))
-
         body = Body(body_id)
+        
         # Track the body in the world
         self.world._track_body(body)
+        
         # Apply additional properties after creation
         if self._def.fixedRotation:
             lib.b2Body_SetFixedRotation(body._body_id, True)
@@ -181,6 +318,11 @@ class BodyBuilder:
             lib.b2Body_SetBullet(body._body_id, True)
         lib.b2Body_SetGravityScale(body._body_id, self._def.gravityScale)
 
+        # Create shapes
+        for shape_def in self._shape_defs:
+            method = getattr(body, f'add_{shape_def["type"]}')
+            method(*shape_def['params'], **shape_def['kwargs'])
+       
         return body
 
 
