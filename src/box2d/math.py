@@ -1718,14 +1718,14 @@ class AABB:
         return AABB(self.lower + off, self.upper + off)
 
 class Mat22:
-    """A 2x2 matrix for linear transformations, compatible with Box2D's b2Mat22.
+    """A 2x2 matrix for linear transformations.
     
     Features:
-    - Column-major storage
-    - Matrix-vector/matrix multiplication
-    - Matrix inversion and transpose
-    - Rotation/identity matrix creation
-    - Accepts various input formats (tuples, lists, Vec2s)
+        - Column-major storage
+        - Matrix-vector/matrix multiplication
+        - Matrix inversion and transpose
+        - Rotation/identity matrix creation
+        - Accepts various input formats (tuples, lists, Vec2s)
 
     Example:
         >>> Mat22(1, 2, 3, 4)
@@ -1740,15 +1740,17 @@ class Mat22:
 
         Args:
             *args: Supported formats:
-                - 4 scalars (a, b, c, d) => [[a c]
-                                             [b d]]
+                - 4 scalars (a, b, c, d) => ::
+
+                  [[a b]
+                   [c d]]
+
                 - 2 column vectors
                 - Single iterable with 4 elements
 
         Example:
             >>> Mat22(1, 2, 3, 4)  # Scalar components
             Mat22(Vec2(1.0, 2.0), Vec2(3.0, 4.0))
-            
             >>> Mat22(Vec2(1,2), Vec2(3,4))  # Column vectors
             Mat22(Vec2(1.0, 2.0), Vec2(3.0, 4.0))
         """
