@@ -15,3 +15,4 @@ src/box2d/__pycache__/__init__.cpython-312.pyc
 src/box2d/__pycache__
 src/box2d/box2d_py.egg-info
 comb_box2d.h
+docs/build

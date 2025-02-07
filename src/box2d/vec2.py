@@ -115,7 +115,7 @@ class Vec2:
         return Vec2(-self.x, -self.y)
 
     def __repr__(self):
-        return f"Vec2({self.x:.2f}, {self.y:.2f})"
+        return f"Vec2({self.x:g}, {self.y:g})"
 
     def __hash__(self):
         return hash((self.x, self.y))

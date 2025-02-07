@@ -57,7 +57,7 @@ def test_vec2_iteration():
 
 def test_vec2_repr():
     v = Vec2(1.5, 2.5)
-    assert repr(v) == "Vec2(1.50, 2.50)"
+    assert repr(v) == "Vec2(1.5, 2.5)"
 
 def test_dot_product():
     v1 = Vec2(1.0, 2.0)
