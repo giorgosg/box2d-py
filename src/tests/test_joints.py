@@ -18,8 +18,7 @@ def test_mouse_joint_creation(world_and_bodies):
     initial_target = Vec2(1, 0)
     
     joint = world.add_mouse_joint(
-        body_a=body_a,
-        body_b=body_b,
+        body=body_a,
         target=initial_target,
         max_force=500.0,
         damping_ratio=0.5
@@ -33,7 +32,7 @@ def test_mouse_joint_creation(world_and_bodies):
     
 def test_mouse_joint_target_update(world_and_bodies):
     world, body_a, body_b = world_and_bodies
-    joint = world.add_mouse_joint(body_a, body_b, Vec2(1, 0), 500.0, 0.5)
+    joint = world.add_mouse_joint(body_a, Vec2(1, 0), 500.0, 0.5)
     
     # Test target position updates
     new_target = Vec2(3, 2)
@@ -42,7 +41,7 @@ def test_mouse_joint_target_update(world_and_bodies):
 
 def test_mouse_joint_property_setters(world_and_bodies):
     world, body_a, body_b = world_and_bodies
-    joint = world.add_mouse_joint(body_a, body_b, Vec2(1, 0), 500.0, 0.5)
+    joint = world.add_mouse_joint(body_a, Vec2(1, 0), 500.0, 0.5)
     
     # Test property setters
     joint.max_force = 750.0
@@ -53,9 +52,8 @@ def test_mouse_joint_property_setters(world_and_bodies):
 
 def test_mouse_joint_reaction_forces(world_and_bodies):
     world, body_a, body_b = world_and_bodies
-    static_body = world.new_body().static().position(0, 0).build()  # Static body as anchor
     dyn_body = world.new_body().dynamic().position(10, 10).circle(5,density=1).build()
-    joint = world.add_mouse_joint(static_body, dyn_body, Vec2(5, 3), 500.0, 0.7)
+    joint = world.add_mouse_joint(dyn_body, Vec2(5, 3), 500.0, 0.7)
     
     # Step world to generate forces
     #for _ in range(10):

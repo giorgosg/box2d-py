@@ -154,7 +154,7 @@ class MouseJoint(Joint):
         """
 
     # Auto-create static body for joint anchor
-        self._ground_body = world.create_static_body(position=(0, 0))
+        self._ground_body = world.new_body().static().position(0, 0).build()
         self._target = Vec2(*target)
         self._max_force = max_force
         self._damping_ratio = damping_ratio

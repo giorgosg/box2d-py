@@ -3,11 +3,32 @@
 from ._box2d import lib, ffi
 from .body import BodyBuilder
 from .joint import MouseJoint
-from .math import Vec2
+from .math import Vec2, VectorLike
 from .debug_draw import DebugDraw
 
 class World:
-    def __init__(self, gravity=(0, -10)):
+    """2D physics world containing bodies, joints, and simulation parameters.
+    
+    Manages Box2D world state and provides body creation through a builder pattern.
+    Wraps Box2D's b2World functionality with Pythonic interfaces.
+
+    Example:
+        >>> world = World(gravity=(0, -9.81))
+        >>> body = world.new_body().dynamic().position(0, 5).box(1, 1).build()
+        >>> for _ in range(60):
+        ...     world.step(1/60, 4)
+    """
+    def __init__(self, gravity: VectorLike = (0, -10)):
+        """Initialize physics world with specified gravity vector.
+        
+        Args:
+            gravity: Initial gravitational acceleration (x,y) in m/s². 
+
+        Example:
+            >>> world = World(gravity=(0, -9.8))
+            >>> world.gravity
+            Vec2(0.0, -9.8)
+        """
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
@@ -16,7 +37,14 @@ class World:
 
     @property
     def gravity(self):
-        """Get world gravity vector"""
+        """World gravity vector (m/s²).
+        
+        Example:
+            >>> world = World()
+            >>> world.gravity = (0, -9.81)
+            >>> world.gravity
+            Vec2(0.0, -9.81)
+        """
         g = lib.b2World_GetGravity(self._world_id)
         return Vec2(g.x, g.y)
 
@@ -28,26 +56,48 @@ class World:
         lib.b2World_SetGravity(self._world_id, vec[0])
 
     def step(self, time_step, substep_count = 4):
-        """Simulate one time step"""
+        """Advance simulation by time step.
+        
+        Args:
+            time_step: Time to simulate (seconds)
+            substep_count: Number of solver iterations (default 4)
+                           Higher values improve stability at cost of performance
+
+        Example:
+            >>> world = World()
+            >>> world.step(1/60)  # Default 4 substeps
+            >>> world.step(0.016, 6)  # Custom substep count
+        """
         lib.b2World_Step(self._world_id, time_step, substep_count)
 
     def new_body(self):
-        """Entry point for body creation"""
+        """Create BodyBuilder for constructing bodies. Entry point for body creation.
+        
+        Returns:
+            BodyBuilder: Fluent interface for body configuration
+
+        Example:
+            >>> builder = world.new_body()
+            >>> body = builder.dynamic().position(2,3).circle(1).build()
+        """
         return BodyBuilder(self)
 
-    def add_mouse_joint(self, body_a, body_b, target, max_force=1000.0, damping_ratio=0.7):
+    def add_mouse_joint(self, body, target, max_force=1000.0, damping_ratio=0.7):
         """Create a mouse joint for interactive dragging between bodies
         
         Args:
-            body_a: First connected body (typically static)
-            body_b: Second connected body (dynamic body to drag)
+            body: Body to drag
             target: Initial target position in world coordinates
             max_force: Maximum constraint force (default 1000.0)
             damping_ratio: Response damping ratio (0-1, default 0.7)
+
+        Example:
+            >>> box = world.new_body().dynamic().position(0,5).build()
+            >>> mouse_joint = world.add_mouse_joint(box, (0,5))
         """
-        if body_a._body_id not in self._bodies or body_b._body_id not in self._bodies:
+        if body._body_id not in self._bodies:
             raise ValueError("Bodies must belong to this world")
-        return MouseJoint(self, body_a, body_b, target, max_force, damping_ratio)
+        return MouseJoint(self, body, target, max_force, damping_ratio)
 
     def _track_body(self, body):
         """Store reference to a Body instance"""
