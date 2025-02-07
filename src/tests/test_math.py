@@ -48,7 +48,7 @@ def test_rot_normalization():
 def test_transform_inverse():
     t = Transform(Vec2(2, 3), Rot(math.pi/3))
     point = Vec2(5, 7)
-    transformed = t.inverted()(t(point))
+    transformed = t.inverse(t(point))
     assert transformed.x == pytest.approx(point.x)
     assert transformed.y == pytest.approx(point.y)
 
@@ -80,7 +80,7 @@ def test_componentwise_multiplication():
 
 def test_mat22_inversion():
     original = Mat22(2, 1, 1, 2)
-    inverse = original.get_inverse()
+    inverse = original.inverse
     identity = original * inverse  # Should approximate identity
     assert identity.rows[0].x == pytest.approx(1)
     assert identity.rows[1].y == pytest.approx(1)
