@@ -1,6 +1,6 @@
 from box2d._box2d import lib, ffi
 from .vec2 import Vec2
-from .shape import Box, Circle
+from .shape import Box, Circle, Capsule, Segment, Polygon
 
 class BodyBuilder:
     def __init__(self, world):
@@ -139,15 +139,35 @@ class Body():
         else:
             return "static"
 
-    def add_box(self, width: float, height: float, density=None, friction=None, restitution=None, is_sensor=None):
+    def add_box(self, width: float, height: float, 
+                density=None, friction=None, restitution=None, is_sensor=None):
         shape = Box(self, width, height, density, friction, restitution, is_sensor)
         self._shapes.append(shape)
-        return self
+        return shape
 
-    def add_circle(self, radius: float, center=(0,0), density=None, friction=None, restitution=None, is_sensor=None):
+    def add_circle(self, radius: float, center=(0,0), 
+                   density=None, friction=None, restitution=None, is_sensor=None):
         shape = Circle(self, radius, center, density, friction, restitution, is_sensor)
         self._shapes.append(shape)
-        return self
+        return shape
+
+    def add_capsule(self, point1, point2, radius, 
+                    density=None, friction=None, restitution=None, is_sensor=None):
+        shape = Capsule(self, point1, point2, radius, density, friction, restitution, is_sensor)
+        self._shapes.append(shape)
+        return shape
+
+    def add_polygon(self, vertices, 
+                    density=None, friction=None, restitution=None, is_sensor=None):
+        shape = Polygon(self, vertices, density, friction, restitution, is_sensor)
+        self._shapes.append(shape)
+        return shape
+
+    def add_segment(self, point1, point2, 
+                    density=None, friction=None, restitution=None, is_sensor=None):
+        shape = Segment(self, point1, point2, density, friction, restitution, is_sensor)
+        self._shapes.append(shape)
+        return shape
 
     def remove_shape(self, shape):
         if shape in self._shapes:

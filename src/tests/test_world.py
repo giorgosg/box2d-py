@@ -49,9 +49,9 @@ def test_multiple_step_simulation():
         .dynamic()
         .position(0.0, 10.0)
         .build()
-        .add_box(1.0, 1.0, density=1.0) 
     )
-
+    body.add_box(1.0, 1.0, density=1.0) 
+    
     # Simulate for multiple steps
     initial_pos = body.position
     for _ in range(10):

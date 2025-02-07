@@ -37,3 +37,37 @@ class Box(Shape):
         self._shape_id = lib.b2CreatePolygonShape(body._body_id, ffi.addressof(self._shape_def), box_def)
         self._finalize()
 
+class Capsule(Shape):
+    def __init__(self, body, point1, point2, radius, density=None, friction=None, restitution=None, is_sensor=None):
+        super().__init__(body, density, friction, restitution, is_sensor)
+        capsule_def = ffi.new("b2Capsule*")
+        capsule_def.center1.x, capsule_def.center1.y = point1
+        capsule_def.center2.x, capsule_def.center2.y = point2
+        capsule_def.radius = radius
+        self._shape_id = lib.b2CreateCapsuleShape(body._body_id, ffi.addressof(self._shape_def), capsule_def)
+        self._finalize()
+
+class Segment(Shape):
+    def __init__(self, body, point1, point2, density=None, friction=None, restitution=None, is_sensor=None):
+        super().__init__(body, density, friction, restitution, is_sensor)
+        segment_def = ffi.new("b2Segment*")
+        segment_def.point1.x, segment_def.point1.y = point1
+        segment_def.point2.x, segment_def.point2.y = point2
+        self._shape_id = lib.b2CreateSegmentShape(body._body_id, ffi.addressof(self._shape_def), segment_def)
+        self._finalize()
+
+class Polygon(Shape):
+    def __init__(self, body, vertices, density=None, friction=None, restitution=None, is_sensor=None):
+        super().__init__(body, density, friction, restitution, is_sensor)
+        polygon_def = ffi.new("b2Polygon*")
+        
+        # Validate and convert vertices
+        if len(vertices) < 3 or len(vertices) > 8:
+            raise ValueError("Polygon must have 3-8 vertices")
+            
+        polygon_def.vertices = vertices
+        polygon_def.count = len(vertices)
+        
+        self._shape_id = lib.b2CreatePolygonShape(body._body_id, ffi.addressof(self._shape_def), polygon_def)
+        self._finalize()
+

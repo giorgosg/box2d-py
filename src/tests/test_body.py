@@ -25,19 +25,16 @@ def test_dynamic_body():
 
 def test_box_shape():
     world = World()
-    body = (
-        world.new_body().build()
-        .add_box(1.0, 2.0)
-    )
+    body = world.new_body().build()
+    body.add_box(1.0, 2.0)
     # Basic shape existence check
     assert lib.b2Body_GetShapeCount(body._body_id) == 1
 
 def test_circle_shape():
     world = World()
-    body = (
-        world.new_body().build()
-        .add_circle(1.0)
-    )
+    body = world.new_body().build()
+    body.add_circle(1.0)
+    
     # Verify shape count
     assert lib.b2Body_GetShapeCount(body._body_id) == 1
 
@@ -55,11 +52,10 @@ def test_velocity_properties():
 
 def test_multiple_shapes():
     world = World()
-    body = (
-        world.new_body().build()
-        .add_box(1.0, 2.0)
-        .add_circle(0.5)
-    )
+    body = world.new_body().build()
+    body.add_box(1.0, 2.0)
+    body.add_circle(0.5)
+    
     assert lib.b2Body_GetShapeCount(body._body_id) == 2
 
 def test_position_updates():
@@ -102,10 +98,8 @@ def test_body_type():
 
 def test_circle_shape_with_custom_center():
     world = World()
-    body = (
-        world.new_body().build()
-        .add_circle(0.5, center=(1.0, 2.0), density=0.5)
-    )
+    body = world.new_body().build()
+    body.add_circle(0.5, center=(1.0, 2.0), density=0.5)
     
     # Verify shape count and properties
     assert lib.b2Body_GetShapeCount(body._body_id) == 1
@@ -147,13 +141,8 @@ def test_restitution_and_sensors():
     world = World(gravity=(0, -10))
     
     # Create a bouncing ball
-    ball = (
-        world.new_body()
-        .dynamic()
-        .position(0, 5)
-        .build()
-        .add_circle(0.5, restitution=0.8)  # High restitution
-    )
+    ball = world.new_body().dynamic().position(0, 5).build()
+    ball.add_circle(0.5, restitution=0.8)  # High restitution
     
     # Create static ground
     ground = (
@@ -177,21 +166,12 @@ def test_sensor_shape():
     world = World(gravity=(0, 0))
     
     # Create sensor
-    sensor_body = (
-        world.new_body()
-        .static()
-        .build()
-        .add_box(2, 2, is_sensor=True)
-    )
+    sensor_body = world.new_body().static().build()
+    sensor_body.add_box(2, 2, is_sensor=True)
     
     # Create overlapping dynamic body
-    dynamic_body = (
-        world.new_body()
-        .dynamic()
-        .position(0, 0)
-        .build()
-        .add_box(1, 1)
-    )
+    dynamic_body = world.new_body().dynamic().position(0, 0).build()
+    dynamic_body.add_box(1, 1)
     
     # Sensor should detect overlap but no collision response
     for _ in range(50):
