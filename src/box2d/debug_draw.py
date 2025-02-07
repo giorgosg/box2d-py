@@ -1,6 +1,6 @@
 # debug_draw.py
 from ._box2d import ffi, lib
-from .math import Vec2, Rot, Transform, AABB
+from .math import Vec2, Rot, Transform, AABB, Mat22
 
 class Color:
     def __init__(self, hex_color: int):
@@ -18,118 +18,100 @@ class Color:
         return f"Color(r={self.r}, g={self.g}, b={self.b}, a={self.a})"
 
 
-# Define callback wrappers
+# Define callback wrappers with cffi.callback and conversion logic
+@ffi.callback("void(b2Vec2*, int, b2HexColor, void*)")
 def draw_polygon(vertices, count, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_polygon(vertices, count, Color(color))
+    py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
+    instance._draw_polygon(py_vertices, Color(color))
 
+@ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
 def draw_solid_polygon(transform, vertices, count, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_polygon(transform, vertices, count, radius, Color(color))
+    py_transform = Transform.from_b2Transform(transform)
+    py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
+    instance._draw_solid_polygon(py_transform, py_vertices, radius, Color(color))
 
+@ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_circle(center, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_circle(center, radius, Color(color))
+    py_center = Vec2.from_b2Vec2(center)
+    instance._draw_circle(py_center, radius, Color(color))
 
+@ffi.callback("void(b2Vec2, b2Vec2, b2HexColor, void*)")
 def draw_segment(p1, p2, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_segment(p1, p2, Color(color))
+    py_p1 = Vec2.from_b2Vec2(p1)
+    py_p2 = Vec2.from_b2Vec2(p2)
+    instance._draw_segment(py_p1, py_p2, Color(color))
 
+@ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_point(p, size, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_point(p, size, Color(color))
+    py_p = Vec2.from_b2Vec2(p)
+    instance._draw_point(py_p, size, Color(color))
 
+@ffi.callback("void(b2Vec2, const char*, b2HexColor, void*)")
 def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
-    # Convert C string to Python string
+    py_p = Vec2.from_b2Vec2(p)
     py_str = ffi.string(s).decode('utf-8')
-    instance._draw_string(p, py_str, Color(color))
+    instance._draw_string(py_p, py_str, Color(color))
 
-def draw_capsule(p1, p2, radius, color, context):
-    instance = ffi.from_handle(context)
-    instance._draw_capsule(p1, p2, radius, Color(color))
-
+@ffi.callback("void(b2Vec2, b2Vec2, float, b2HexColor, void*)")
 def draw_solid_capsule(p1, p2, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_capsule(p1, p2, radius, Color(color))
+    py_p1 = Vec2.from_b2Vec2(p1)
+    py_p2 = Vec2.from_b2Vec2(p2)
+    instance._draw_solid_capsule(py_p1, py_p2, radius, Color(color))
 
+@ffi.callback("void(b2Transform, float, b2HexColor, void*)")
 def draw_solid_circle(transform, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_circle(transform, radius, Color(color))
+    py_transform = Transform.from_b2Transform(transform)
+    instance._draw_solid_circle(py_transform, radius, Color(color))
 
+@ffi.callback("void(b2Transform, void*)")
 def draw_transform(transform, context):
     instance = ffi.from_handle(context)
-    instance._draw_transform(Transform(transform))
+    py_transform = Transform.from_b2Transform(transform)
+    instance._draw_transform(py_transform)
+
 
 class DebugDraw:
+    """Abstract base class for custom debug rendering of Box2D simulations.
+    
+    Subclass this and override methods to implement debug visualization of:
+    - Shape outlines and solids
+    - Joints, AABBs, contact points
+    - Physics metrics like mass centers and impulses
+    
+    Set boolean flags (draw_shapes, draw_aabbs etc.) to control which elements are rendered.
+    Uses Box2D's b2DebugDraw callbacks internally.
+    
+    Example:
+        class MyDebugDraw(DebugDraw):
+            def _draw_polygon(self, vertices, color):
+                # Implement polygon drawing with your graphics API
+    
+    """
     def __init__(self):
         # Create a C b2DebugDraw instance
         self._debug_draw = lib.b2DefaultDebugDraw()
-        self._callbacks = {}
+        # Assign context handle to retrieve instance in callbacks
         self._debug_draw.context = ffi.new_handle(self)
    
 
-        # Keep the callbacks in a dictionary so they don't get garbage collected
-        self._callbacks['DrawPolygon'] = ffi.callback(
-            "void(b2Vec2*, int, b2HexColor, void*)", 
-            draw_polygon
-        )
-        self._debug_draw.DrawPolygon = self._callbacks['DrawPolygon']
-
-        self._callbacks['DrawSolidPolygon'] = ffi.callback(
-            "void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)", 
-            draw_solid_polygon
-        )
-        self._debug_draw.DrawSolidPolygon = self._callbacks['DrawSolidPolygon']
-
-        self._callbacks['DrawCircle'] = ffi.callback(
-            "void(b2Vec2, float, b2HexColor, void*)", 
-            draw_circle
-        )
-        self._debug_draw.DrawCircle = self._callbacks['DrawCircle']
-
-        self._callbacks['DrawSegment'] = ffi.callback(
-            "void(b2Vec2, b2Vec2, b2HexColor, void*)", 
-            draw_segment
-        )
-        self._debug_draw.DrawSegment = self._callbacks['DrawSegment']
-
-        self._callbacks['DrawPoint'] = ffi.callback(
-            "void(b2Vec2, float, b2HexColor, void*)", 
-            draw_point
-        )
-        self._debug_draw.DrawPoint = self._callbacks['DrawPoint']
-
-        self._callbacks['DrawString'] = ffi.callback(
-            "void(b2Vec2, const char*, b2HexColor, void*)", 
-            draw_string
-        )
-        self._debug_draw.DrawString = self._callbacks['DrawString']
-
-        self._callbacks['DrawCapsule'] = ffi.callback(
-            "void(b2Vec2, b2Vec2, float, b2HexColor, void*)", 
-            draw_capsule
-        )
-        # there is no DrawCapsule despite the documentation
-        #self._debug_draw.DrawCapsule = self._callbacks['DrawCapsule']
-
-        self._callbacks['DrawSolidCapsule'] = ffi.callback(
-            "void(b2Vec2, b2Vec2, float, b2HexColor, void*)", 
-            draw_solid_capsule
-        )
-        self._debug_draw.DrawSolidCapsule = self._callbacks['DrawSolidCapsule']
-
-        self._callbacks['DrawSolidCircle'] = ffi.callback(
-            "void(b2Transform, float, b2HexColor, void*)", 
-            draw_solid_circle
-        )
-        self._debug_draw.DrawSolidCircle = self._callbacks['DrawSolidCircle']
-
-        self._callbacks['DrawTransform'] = ffi.callback(
-            "void(b2Transform, void*)", 
-            draw_transform
-        )
-        self._debug_draw.DrawTransform = self._callbacks['DrawTransform']
+        # Assign decorated callbacks
+        self._debug_draw.DrawPolygon = draw_polygon
+        self._debug_draw.DrawSolidPolygon = draw_solid_polygon
+        self._debug_draw.DrawCircle = draw_circle
+        self._debug_draw.DrawSegment = draw_segment
+        self._debug_draw.DrawPoint = draw_point
+        self._debug_draw.DrawString = draw_string
+        self._debug_draw.DrawSolidCapsule = draw_solid_capsule
+        self._debug_draw.DrawSolidCircle = draw_solid_circle
+        self._debug_draw.DrawTransform = draw_transform
   
         # Store a handle to this Python object for context
         self._context_handle = ffi.new_handle(self)
@@ -208,43 +190,118 @@ class DebugDraw:
         self._debug_draw.drawJointExtras = bool(value)
 
     # Internal callback handlers (override these in subclasses)
-    def _draw_polygon(self, vertices, vertex_count, color):
-        """Called by C to draw a polygon outline."""
+    def _draw_polygon(self, vertices: list[Vec2], color: Color):
+        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_aabbs/shapes enabled).
+
+        
+        Args:
+            vertices: Polygon vertex coordinates in Counter-Clockwise order
+            color: RGB color with alpha
+        """
         pass  # Override in subclass
 
-    def _draw_solid_polygon(self, transform, vertices, vertex_count, radius, color):
-        """Called by C to draw a filled polygon."""
+    def _draw_solid_polygon(self, transform: Transform, vertices: list[Vec2], 
+                            radius: float, color: Color):
+        """Draw filled convex polygons with optional rounded corners (triggered by draw_shapes flag).
+        
+        Args:
+            transform: Position and rotation of the polygon
+            vertices: Polygon vertices in CCW order
+            radius: Radius for rounded corners (0 for sharp edges)
+            color: Fill color with transparency
+        """
         pass
 
-    def _draw_circle(self, center, radius, color):
-        """Called by C to draw a circle outline."""
+    def _draw_circle(self, center: Vec2, radius: float, color: Color):
+        """Callback for drawing circle outlines.
+        
+        Args:
+            center: World position of circle center
+            radius: Radius in meters
+            color: RGB color of the outline
+        """
         pass
 
-    def _draw_segment(self, p1, p2, color):
-        """Draw a line segment"""
+    def _draw_segment(self, p1: Vec2, p2: Vec2, color: Color):
+        """Draw line segments for joints/contact normals (requires draw_joints or draw_contact_normals).
+        
+        Args:
+            p1: Starting point in world coordinates
+            p2: Ending point in world coordinates
+            color: Color of the line segment
+        """
+
         pass
 
-    def _draw_point(self, p, size, color):
-        """Draw a point"""
+    def _draw_point(self, p: Vec2, size: float, color: Color):
+        """Visualize contact points (draw_contacts) or mass centers (draw_mass).
+        
+        Args:
+            position: World coordinates of the point
+            size: Diameter to render the point (screen pixels or meters)
+            color: RGB color of the point
+            
+        Note:
+            Used for contact points when draw_contacts flag is True
+        """
         pass
 
-    def _draw_string(self, p, s, color):
-        """Draw text"""
+    def _draw_string(self, p: Vec2, s: str, color: Color):
+        """Render debug text for impulse values (draw_contact_impulses/draw_friction_impulses).
+        
+        Args:
+            p: World position where text should be anchored
+            s: Text string to display
+            color: Color of the text
+            
+        Note:
+            Coordinate system depends on your renderer's text handling
+        """
         pass
 
-    def _draw_capsule(self, p1, p2, radius, color):
-        """Draw the outline of a capsule"""
+    def _draw_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
+        """Callback for drawing capsule outlines (line segment with radius).
+        
+        Args:
+            p1: First endpoint of the capsule's centerline
+            p2: Second endpoint of the capsule's centerline
+            radius: Radius of the capsule (extends beyond endpoints)
+            color: Outline color
+            
+        Note:
+            Used for character controllers or rounded collision shapes
+        """
         pass
 
-    def _draw_solid_capsule(self, p1, p2, radius, color):
-        """Draw a solid capsule"""
+    def _draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
+        """Draw filled capsule shapes (triggered by draw_shapes for capsule fixtures).
+        
+        Args:
+            p1: First endpoint of the capsule's axis
+            p2: Second endpoint of the capsule's axis  
+            radius: Radial thickness of the capsule
+            color: Fill color with transparency
+            
+        Note:
+            Rendered as two half-circles connected by a rectangle
+        """
         pass
 
-    def _draw_solid_circle(self, transform, radius, color):
-        """Draw a solid circle (with transform)"""
+    def _draw_solid_circle(self, transform: Transform, radius: float, color: Color):
+        """Draw filled circles with orientation marker (used for circular fixtures when draw_shapes enabled).
+        
+        Args:
+            transform: Center position and rotation (rotation affects orientation line)
+            radius: Circle radius in world units
+            color: Fill color with alpha channel
+        """
         pass
 
-    def _draw_transform(self, transform):
-        """Draw a transform indicator"""
+    def _draw_transform(self, transform: Transform):
+        """Visualize coordinate frames for joint anchors (requires draw_joint_extras flag).
+
+        Args:
+            transform: Contains position and rotation matrix
+            color: Base color for the axes (often overridden)
+        """
         pass
-   # Add other callback handlers...
