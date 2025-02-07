@@ -14,6 +14,9 @@ class Color:
     def hex(self) -> int:
         return self._hex
 
+    def __iter__(self):
+        return iter((self.r, self.g, self.b, self.a))
+
     def __repr__(self) -> str:
         return f"Color(r={self.r}, g={self.g}, b={self.b}, a={self.a})"
 
