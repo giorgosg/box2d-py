@@ -1,0 +1,3 @@
+include box2d/include/box2d/*
+include box2d/src/*.h
+include src/box2d-py/*.py

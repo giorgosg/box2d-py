@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "cffi"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box2d-py"
+version = "0.1.0"
+description = "Bindings for box2d v3"
+authors = [
+    {name = "Giorgos Giagas", email = "giorgosg@gmail.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+readme = "README.md"
+requires-python = ">=3.7"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["box2d-py*"]
+exclude = ["box2d-py.build_cffi"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["build_cffi.py"]
