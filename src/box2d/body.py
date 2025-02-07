@@ -34,8 +34,20 @@ class BodyBuilder:
         self._def.angularVelocity = radians
         return self
 
+    def linear_damping(self, damping: float):
+        self._def.linearDamping = damping
+        return self
+
+    def angular_damping(self, damping: float):
+        self._def.angularDamping = damping
+        return self
+
     def enable_sleep(self, enable: bool):
         self._def.enableSleep = enable
+        return self
+
+    def sleep_threshold(self, threshold: float):
+        self._def.sleepThreshold = threshold
         return self
 
     def build(self):
@@ -93,6 +105,30 @@ class Body():
         lib.b2Body_SetAngularVelocity(self._body_id, float(value))
 
     @property
+    def linear_damping(self):
+        return lib.b2Body_GetLinearDamping(self._body_id)
+
+    @linear_damping.setter
+    def linear_damping(self, value: float):
+        lib.b2Body_SetLinearDamping(self._body_id, float(value))
+
+    @property
+    def angular_damping(self):
+        return lib.b2Body_GetAngularDamping(self._body_id)
+
+    @angular_damping.setter
+    def angular_damping(self, value: float):
+        lib.b2Body_SetAngularDamping(self._body_id, float(value))
+
+    @property
+    def sleep_threshold(self):
+        return lib.b2Body_GetSleepThreshold(self._body_id)
+
+    @sleep_threshold.setter
+    def sleep_threshold(self, value: float):
+        lib.b2Body_SetSleepThreshold(self._body_id, float(value))
+
+    @property
     def type(self):
         """Get body type as string"""
         body_type = lib.b2Body_GetType(self._body_id)
@@ -103,15 +139,21 @@ class Body():
         else:
             return "static"
 
-    def add_box(self, width: float, height: float, density=None, friction=None):
-        shape = Box(self, width, height, density, friction)
+    def add_box(self, width: float, height: float, density=None, friction=None, restitution=None, is_sensor=None):
+        shape = Box(self, width, height, density, friction, restitution, is_sensor)
         self._shapes.append(shape)
         return self
 
-    def add_circle(self, radius: float, center=(0,0), density=None, friction=None):
-        shape = Circle(self, radius, center, density, friction)
+    def add_circle(self, radius: float, center=(0,0), density=None, friction=None, restitution=None, is_sensor=None):
+        shape = Circle(self, radius, center, density, friction, restitution, is_sensor)
         self._shapes.append(shape)
         return self
+
+    def remove_shape(self, shape):
+        if shape in self._shapes:
+            lib.b2DestroyShape(shape._shape_id, True)  # Update body mass
+            self._shapes.remove(shape)
+
 
     def is_sleep_enabled(self):
         """Check if the body is allowed to sleep"""

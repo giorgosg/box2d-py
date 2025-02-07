@@ -55,7 +55,7 @@ def test_multiple_step_simulation():
     # Simulate for multiple steps
     initial_pos = body.position
     for _ in range(10):
-        world.step(1.0/60.0, velocity_iterations=8)
+        world.step(1.0/60.0, substep_count=8)
 
     # Body should have fallen due to gravity
     final_pos = body.position

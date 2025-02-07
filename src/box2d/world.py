@@ -25,17 +25,14 @@ class World:
         vec = ffi.new("b2Vec2*", {'x': value[0], 'y': value[1]})
         lib.b2World_SetGravity(self._world_id, vec[0])
 
-    def step(self, dt, velocity_iterations = 4):
+    def step(self, time_step, substep_count = 4):
         """Simulate one time step"""
-        lib.b2World_Step(self._world_id, dt, velocity_iterations)
-
-    def __del__(self):
-        if hasattr(self, '_world_id'):
-            lib.b2DestroyWorld(self._world_id)
+        lib.b2World_Step(self._world_id, time_step, substep_count)
 
     def new_body(self):
         """Entry point for body creation"""
         return BodyBuilder(self)
+
     def _track_body(self, body):
         """Store reference to a Body instance"""
         self._bodies[body._body_id] = body
