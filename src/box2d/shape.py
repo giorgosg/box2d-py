@@ -67,6 +67,10 @@ class Shape(ABC):
         """Check if this shape is a sensor."""
         return lib.b2Shape_IsSensor(self._shape_id)
 
+    @property
+    def body(self):
+        """Get the body this shape is attached to."""
+        return self._body
 
 class Circle(Shape):
     """A circle shape that can be attached to a body."""

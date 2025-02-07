@@ -218,3 +218,152 @@ def test_body_damping():
     # Velocities should be reduced
     assert body.linear_velocity.x < 9
     assert body.angular_velocity < 4
+
+def test_fixed_rotation():
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .fixed_rotation(True)
+        .build()
+    )
+    
+    # Apply torque
+    body.apply_torque(10.0)
+    world.step(1/60, 6)
+    
+    # With fixed rotation, angular velocity should remain 0
+    assert body.angular_velocity == 0.0
+
+def test_body_bullet_property():
+    world = World()
+    body = world.new_body().bullet(True).build()
+    assert body.is_bullet == True
+    body.is_bullet = False
+    assert body.is_bullet == False
+
+def test_gravity_scale_effect():
+    world = World(gravity=(0, -10))
+    body = (
+        world.new_body()
+        .dynamic()
+        .gravity_scale(0.5)
+        .build()
+    )
+    box = body.add_box(1, 1, density=1)
+    
+    initial_y = body.position.y
+    world.step(1/60, 6)
+    delta_normal = body.position.y - initial_y
+    
+    world.gravity = (0, -10)
+    body2 = (
+        world.new_body()
+        .dynamic()
+        .gravity_scale(2.0)
+        .build()
+    )
+    box = body2.add_box(1, 1, density=1)
+    world.step(1/60, 6)
+    delta_scaled = body2.position.y - initial_y
+    
+    assert abs(delta_scaled) > abs(delta_normal) * 1.5
+
+def test_sleep_threshold_behavior():
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .sleep_threshold(0.1)
+        .linear_velocity(0.2, 0)
+        .build()
+    )
+    
+    for _ in range(100):
+        world.step(1/60, 6)
+    
+    assert body.sleep_threshold == aprx(0.1)
+    assert lib.b2Body_IsAwake(body._body_id) == True
+
+def test_force_application():
+    world = World(gravity=(0, 0))
+    body = world.new_body().dynamic().build()
+    body.add_box(1, 1)
+    
+    for _ in range(60):
+        body.apply_force((10, 0))
+        world.step(1/60, 6)
+    
+    assert body.linear_velocity.x > 1.0
+
+def test_impulse_application():
+    world = World(gravity=(0, 0))
+    body = world.new_body().dynamic().build()
+    body.add_box(1, 1)
+    
+    body.apply_linear_impulse((100, 0), body.position)
+    world.step(1/60, 6)
+    
+    assert body.linear_velocity.x > 20.0
+
+def test_angular_velocity_via_builder():
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .angular_velocity(3.0)
+        .build()
+    )
+    assert body.angular_velocity == pytest.approx(3.0)
+
+def test_extreme_damping_values():
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .linear_damping(10.0)
+        .angular_damping(10.0)
+        .linear_velocity(100, 0)
+        .angular_velocity(100)
+        .build()
+    )
+    
+    world.step(1/60, 6)
+    
+    assert body.linear_velocity.x < 90
+    assert body.angular_velocity < 90
+
+def test_negative_gravity_scale():
+    world = World(gravity=(0, -10))
+    body = (
+        world.new_body()
+        .dynamic()
+        .gravity_scale(-0.5)
+        .build()
+    )
+    body.add_box(1, 1)
+    
+    initial_y = body.position.y
+    world.step(1/60, 6)
+    assert body.position.y > initial_y
+
+def test_mixed_body_properties():
+    world = World(gravity=(0, -10))
+    body = (
+        world.new_body()
+        .dynamic()
+        .position(5, 10)
+        .linear_velocity(2, -1)
+        .angular_velocity(1.5)
+        .fixed_rotation(True)
+        .bullet(True)
+        .gravity_scale(0.8)
+        .build()
+    )
+    
+    assert body.position == (5, 10)
+    assert body.linear_velocity == (2, -1)
+    assert body.angular_velocity == 1.5
+    assert body.fixed_rotation == True
+    assert body.is_bullet == True
+    assert body.gravity_scale == aprx(0.8)
