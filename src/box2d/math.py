@@ -1401,7 +1401,7 @@ class ScaledTransform:
         Vec2(10.0, 22.0)
     """
 
-    __slots__ = ('_position', '_rotation', '_scale')
+    __slots__ = ('_position', '_rotation', '_scale', '_matrix')
 
     def __init__(self,
                 position: VectorLike = Vec2(0, 0),
@@ -1425,14 +1425,39 @@ class ScaledTransform:
             >>> t2 = ScaledTransform(scale=2)  # Uniform scaling
             >>> t3 = ScaledTransform(scale=(1.5, 0.5))  # Non-uniform scaling
         """
-        self.position = position if isinstance(position, Vec2) else Vec2(*position)
-        self.rotation = rotation if isinstance(rotation, Rot) else Rot(rotation)
+        self._position = position if isinstance(position, Vec2) else Vec2(*position)
+        self._rotation = rotation if isinstance(rotation, Rot) else Rot(rotation)
         
         # Handle different scale input types
         if isinstance(scale, (int, float)):
-            self.scale = Vec2(scale, scale)
+            self._scale = Vec2(scale, scale)
         else:
-            self.scale = scale if isinstance(scale, Vec2) else Vec2(*scale)
+            self._scale = scale if isinstance(scale, Vec2) else Vec2(*scale)
+        self._recalc_matrix()
+
+    def _recalc_matrix(self):
+        """
+        Recalculate the transformation matrix and store it.
+        
+        For demonstration, let's assume our matrix is a 2x3 matrix stored as a tuple:
+            (m00, m01, m02, m10, m11, m12)
+        where the transformation is applied as:
+            newX = m00*x + m01*y + m02
+            newY = m10*x + m11*y + m12
+        """
+        r = self._rotation
+        s = self._scale
+        t = self._position
+
+        # Construct the combined matrix: Scale → Rotate → Translate.
+        m00 = r.c * s.x
+        m01 = -r.s * s.y
+        m02 = t.x
+        m10 = r.s * s.x
+        m11 = r.c * s.y
+        m12 = t.y
+
+        self._matrix = (m00, m01, m02, m10, m11, m12)
 
     def __call__(self, point: VectorLike) -> Vec2:
         """Apply the transformation to a point.
@@ -1453,11 +1478,17 @@ class ScaledTransform:
             >>> t((1, 1))  # (1*2, 1*2) → rotated 180° → + (5, 0)
             Vec2(3.0, -2.0)
         """
-        point = Vec2(*point)
-        # Apply scaling first
-        scaled = point.multiply_componentwise(self.scale)
-        # Then apply rotation and translation
-        return self.rotation * scaled + self.position
+        #point = Vec2(*point)
+        ## Apply scaling first
+        #scaled = point.multiply_componentwise(self.scale)
+        ## Then apply rotation and translation
+        #return self.rotation * scaled + self.position
+
+        m00, m01, m02, m10, m11, m12 = self._matrix
+        x, y = Vec2(*point)
+        new_x = m00 * x + m01 * y + m02
+        new_y = m10 * x + m11 * y + m12
+        return Vec2(new_x, new_y)
 
     @property
     def position(self) -> Vec2:
@@ -1477,6 +1508,7 @@ class ScaledTransform:
     @position.setter
     def position(self, value: VectorLike):
         self._position = value if isinstance(value, Vec2) else Vec2(*value)
+        self._recalc_matrix()
 
     @property
     def rotation(self) -> Rot:
@@ -1496,6 +1528,7 @@ class ScaledTransform:
     @rotation.setter
     def rotation(self, value: Union[float, Rot]):
         self._rotation = value if isinstance(value, Rot) else Rot(value)
+        self._recalc_matrix()
 
     @property
     def scale(self) -> Vec2:
@@ -1518,6 +1551,7 @@ class ScaledTransform:
             self._scale = Vec2(value, value)
         else:
             self._scale = value if isinstance(value, Vec2) else Vec2(*value)
+        self._recalc_matrix()
 
     @classmethod
     def from_transform(cls, transform: Transform, 
