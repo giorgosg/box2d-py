@@ -7,3 +7,8 @@ base.h.cffi
 combined_header.h.modified
 /src/box2d-py/__pycache__
 /src/box2d-py/box2d_py.egg-info
+/build
+*.pyc
+*.pyc
+*.so
+src/box2d/__pycache__/__init__.cpython-312.pyc

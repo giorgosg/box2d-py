@@ -1,1 +1,1 @@
-from world import World
+from box2d.world import World

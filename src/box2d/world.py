@@ -1,8 +1,9 @@
-from _box2d import lib as _b2d
-from _box2d import ffi
+from box2d._box2d import lib as _b2d
+from box2d._box2d import ffi
+from box2d.body import Body
 
 class World:
-    def __init__(self, **kwargs):
+    def __init__(self, gravity=None):
         """
         float	contactDampingRatio	Contact bounciness. Non-dimensional.
         float	contactHertz	Contact stiffness. Cycles per second.
@@ -26,8 +27,10 @@ class World:
         """
 
         wdef = _b2d.b2DefaultWorldDef()
-        if 'gravity' in kwargs:
-            wdef.gravity = kwargs.pop('gravity')
+        if gravity is not None:
+            wdef.gravity = gravity
 
-        self.worldid = _b2d.b2CreateWorld(ffi.addressof(wdef))
+        self.world_id = _b2d.b2CreateWorld(ffi.addressof(wdef))
 
+    def create_body(self, **kwargs):
+        return Body(self, **kwargs)
