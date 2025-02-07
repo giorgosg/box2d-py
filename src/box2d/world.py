@@ -1,7 +1,7 @@
 # src/box3d/world.py
 
 from ._box2d import lib, ffi
-from .body import BodyBuilder
+from .body import BodyBuilder, Body
 from .joint import MouseJoint
 from .math import Vec2, VectorLike, AABB
 from .debug_draw import DebugDraw

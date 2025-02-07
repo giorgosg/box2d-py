@@ -5,6 +5,7 @@ import box2d
 from box2d import World, AABB
 import box2d.world as world
 import doctest
+from box2d._box2d import lib
 
 def test_doctests():
     # Run doctests for the specific submodule
