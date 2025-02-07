@@ -252,6 +252,33 @@ class Vec2:
             return self.x == other.x and self.y == other.y
         return tuple(self) == tuple(other)
 
+    def is_close(self, other: VectorLike, tolerance: float = 1e-6) -> bool:
+        """
+        Check if this vector is approximately equal to another vector-like object.
+
+        Args:
+            other: Vector-like to compare (Vec2, tuple, list, etc.)
+            tolerance: Absolute tolerance for component-wise comparison
+
+        Returns:
+            bool: True if both components are within absolute tolerance
+
+        Example:
+            >>> Vec2(1.0, 2.0).is_close((1.0 + 1e-9, 2.0 - 1e-9))
+            True
+            >>> Vec2(1.0, 2.0).is_close((1.1, 2.0), tolerance=0.05)
+            False
+            >>> Vec2(0.0, 0.0).is_close((1e-9, -1e-9), tolerance=1e-8)
+            True
+        """
+        try:
+            other_vec = Vec2(*other)
+            return (abs(self.x - other_vec.x) <= tolerance and 
+                    abs(self.y - other_vec.y) <= tolerance)
+        except (TypeError, ValueError):
+            return False
+        
+
     def __add__(self, other: VectorLike) -> 'Vec2':
         """Return the sum of this vector and another vector or tuple.
 
@@ -1142,6 +1169,7 @@ class Rot:
         """
         return cls(0.0)
 
+    @property
     def inverse(self):
         """
         Create inverse/opposite rotation.
@@ -1150,7 +1178,7 @@ class Rot:
             Rot: New rotation with negated angle
 
         Example:
-            >>> Rot(math.pi/4).inverse().angle_degrees
+            >>> Rot(math.pi/4).inverse.angle_degrees
             -45.0
         """
         return Rot(-self.angle_radians)
@@ -1173,12 +1201,12 @@ class Rot:
         angle = self.angle_radians + t * (other.angle_radians - self.angle_radians)
         return Rot(angle)
 
-    def rotate_vector(self, v):
+    def rotate_vector(self, v: VectorLike) -> Vec2:
         """
         Apply rotation to a vector.
 
         Args:
-            v (Vec2): Vector to rotate
+            v: Vector-like to rotate (supports any VectorLike input)
 
         Returns:
             Vec2: Rotated vector
@@ -1192,7 +1220,7 @@ class Rot:
         y = self.c * v.y + self.s * v.x
         return Vec2(x, y)
 
-    def __call__(self, v):
+    def __call__(self, v: VectorLike) -> Vec2:
         """
         Functional interface for vector rotation.
 
@@ -1339,7 +1367,7 @@ class Transform:
         """
         return f"Transform(p={self.p!r}, q={self.q!r})"
     
-    def __mul__(self, other: 'Transform') -> 'Transform':
+    def __mul__(self, other: Union['Transform', 'ScaledTransform']) -> 'Transform':
         """
         Compose two transformations.
 
@@ -1351,8 +1379,285 @@ class Transform:
        """
         if isinstance(other, Transform):
             return Transform(self.p + self.q * other.p, self.q * other.q)
+        elif isinstance(other, ScaledTransform):
+            # Convert base transform to scaled transform and compose
+            return ScaledTransform.from_transform(self) * other
+        return NotImplemented
+
+class ScaledTransform:
+    """A 2D transformation supporting scaling, rotation, and translation.
+    
+    Designed for visualization purposes - does not affect Box2D physics calculations.
+    Applies transformations in the order: Scale → Rotate → Translate.
+    
+    Attributes:
+        position (Vec2): Translation component of the transform
+        rotation (Rot): Rotation component of the transform
+        scale (Vec2): Scaling factors (x, y). Defaults to (1, 1)
+    
+    Example:
+        >>> t = ScaledTransform(position=(10, 20), rotation=math.pi/2, scale=2)
+        >>> t(Vec2(1, 0))  # Scale first, then rotate, then translate
+        Vec2(10.0, 22.0)
+    """
+
+    __slots__ = ('_position', '_rotation', '_scale')
+
+    def __init__(self,
+                position: VectorLike = Vec2(0, 0),
+                rotation: Union[float, Rot] = Rot(0),
+                scale: Union[float, VectorLike] = Vec2(1, 1)):
+        """Initialize a scaled transform.
+        
+        Args:
+            position: Translation offset as Vec2 or tuple. Defaults to (0, 0)
+            rotation: Rotation angle (radians) or Rot instance. Defaults to 0
+            scale: Scaling factors as Vec2, tuple, or single number for uniform scaling.
+                Defaults to (1, 1)
+        
+        Note:
+            If a single number is provided for scale, it will create uniform scaling
+            in both x and y axes.
+            
+        Example:
+            >>> # Various initialization styles:
+            >>> t1 = ScaledTransform()  # Identity transform
+            >>> t2 = ScaledTransform(scale=2)  # Uniform scaling
+            >>> t3 = ScaledTransform(scale=(1.5, 0.5))  # Non-uniform scaling
+        """
+        self.position = position if isinstance(position, Vec2) else Vec2(*position)
+        self.rotation = rotation if isinstance(rotation, Rot) else Rot(rotation)
+        
+        # Handle different scale input types
+        if isinstance(scale, (int, float)):
+            self.scale = Vec2(scale, scale)
         else:
-            raise TypeError(f"Unsupported operand type(s) for *: 'Transform' and '{type(other)}'")
+            self.scale = scale if isinstance(scale, Vec2) else Vec2(*scale)
+
+    def __call__(self, point: VectorLike) -> Vec2:
+        """Apply the transformation to a point.
+        
+        Transformation order:
+        1. Scale the point
+        2. Apply rotation
+        3. Apply translation
+        
+        Args:
+            point: Vector-like input to transform
+            
+        Returns:
+            Vec2: Transformed point in world coordinates
+            
+        Example:
+            >>> t = ScaledTransform(position=(5, 0), rotation=math.pi, scale=2)
+            >>> t((1, 1))  # (1*2, 1*2) → rotated 180° → + (5, 0)
+            Vec2(3.0, -2.0)
+        """
+        point = Vec2(*point)
+        # Apply scaling first
+        scaled = point.multiply_componentwise(self.scale)
+        # Then apply rotation and translation
+        return self.rotation * scaled + self.position
+
+    @property
+    def position(self) -> Vec2:
+        """Get/set the translation component of the transform.
+        
+        Accepts:
+            VectorLike: Any tuple/list/Vec2 convertible to Vec2
+            
+        Example:
+            >>> t = ScaledTransform()
+            >>> t.position = (5, 2)
+            >>> t.position
+            Vec2(5.0, 2.0)
+        """
+        return self._position
+    
+    @position.setter
+    def position(self, value: VectorLike):
+        self._position = value if isinstance(value, Vec2) else Vec2(*value)
+
+    @property
+    def rotation(self) -> Rot:
+        """Get/set the rotation component.
+        
+        Accepts:
+            float: Angle in radians
+            Rot: Direct rotation instance
+            
+        Example:
+            >>> t = ScaledTransform()
+            >>> t.rotation = math.pi/2  # Set from angle
+            >>> t.rotation = Rot(0)     # Set directly
+        """
+        return self._rotation
+    
+    @rotation.setter
+    def rotation(self, value: Union[float, Rot]):
+        self._rotation = value if isinstance(value, Rot) else Rot(value)
+
+    @property
+    def scale(self) -> Vec2:
+        """Get/set the scaling factors.
+        
+        Accepts:
+            float: Uniform scaling for both axes
+            VectorLike: Separate x/y scaling factors
+            
+        Example:
+            >>> t = ScaledTransform()
+            >>> t.scale = 2.5      # Uniform scaling
+            >>> t.scale = (1, 0.5) # Non-uniform
+        """
+        return self._scale
+    
+    @scale.setter
+    def scale(self, value: Union[float, VectorLike]):
+        if isinstance(value, (int, float)):
+            self._scale = Vec2(value, value)
+        else:
+            self._scale = value if isinstance(value, Vec2) else Vec2(*value)
+
+    @classmethod
+    def from_transform(cls, transform: Transform, 
+                       scale: Union[float, VectorLike] = 1.0) -> 'ScaledTransform':
+        """Create a ScaledTransform from a base Transform and optional scaling.
+        
+        Args:
+            transform: Base Transform containing position and rotation
+            scale: Scaling factor(s). Defaults to 1.0 (no scaling)
+            
+        Example:
+            >>> base = Transform(Vec2(2,3), Rot(math.pi/2))
+            >>> st = ScaledTransform.from_transform(base, scale=2)
+            >>> st.position == base.position
+            True
+            >>> st.rotation == base.rotation
+            True
+        """
+        if isinstance(scale, (int, float)):
+            scale_vec = Vec2(scale, scale)
+        else:
+            scale_vec = Vec2(*scale)
+            
+        return cls(transform.position, transform.rotation, scale_vec)
+    
+    @property
+    def inverse(self) -> 'ScaledTransform':
+        """Calculate inverse transformation that reverses this transformation.
+        
+        Returns:
+            ScaledTransform: Inverse that satisfies inverse(t(p)) == p
+            
+        Note:
+            Handles non-uniform scaling and rotation correctly
+            Will raise ValueError if any scale component is zero
+            
+        Example:
+            >>> t = ScaledTransform(Vec2(2,3), Rot(math.pi/2), scale=2)
+            >>> t_inv = t.inverse
+            >>> t_inv(t(Vec2(1, 0)))  # Should return original point
+            Vec2(1.0, 0.0)
+        """
+        if self.scale.x == 0 or self.scale.y == 0:
+            raise ValueError("Cannot invert transform with zero scale component")
+            
+        inv_scale = Vec2(1/self.scale.x, 1/self.scale.y)
+        inv_rotation = self.rotation.inverse
+        
+        # Calculate inverse position: -(inv_rotation * position) * inv_scale
+        inv_position = (inv_rotation * (-self.position)).multiply_componentwise(inv_scale)
+        
+        return ScaledTransform(
+            position=inv_position,
+            rotation=inv_rotation,
+            scale=inv_scale
+        )
+
+    def __mul__(self, other: Union['ScaledTransform', Transform]) -> 'ScaledTransform':
+        """
+        Compose transformations, handling both ScaledTransform and base Transform.
+    
+        The composition is defined so that (self * other)(x) = self(other(x)).
+        This means the linear (scale/rotation) part of self will act on the other's
+        translation. In particular, if you convert a Transform to a ScaledTransform
+        with an identity scale and then compose it with a ScaledTransform that has
+        nontrivial scaling, the translation from the Transform will be multiplied
+        by those scale factors.
+    
+        Args:
+            other (ScaledTransform|Transform): Transformation to compose.
+    
+        Returns:
+            ScaledTransform: New composite transformation.
+    
+        Examples:
+            >>> tf = Transform((1, 0), Rot(math.pi/2))
+            >>> st = ScaledTransform(scale=2)
+            >>> # When composed in the order below, the translation (1, 0) is scaled to (2, 0)
+            >>> tf * st
+            ScaledTransform(position=Vec2(1.0, 0.0), rotation=Rot(1.570796), scale=Vec2(2.0, 2.0))
+            >>> st * tf
+            ScaledTransform(position=Vec2(2.0, 0.0), rotation=Rot(1.570796), scale=Vec2(2.0, 2.0))
+        """
+        # If the other transform is a plain Transform, convert it to a ScaledTransform
+        if isinstance(other, Transform):
+            other = ScaledTransform.from_transform(other)
+        elif not isinstance(other, ScaledTransform):
+            return NotImplemented
+
+        # Compose transformations in the order: (self ∘ other)(x) = self(other(x))
+        combined_scale = self.scale.multiply_componentwise(other.scale)
+        combined_rotation = self.rotation * other.rotation
+        # Note: other.position is “pre-scaled” by self.scale.
+        combined_position = self.position + self.rotation.rotate_vector(
+            self.scale.multiply_componentwise(other.position))
+    
+        return ScaledTransform(
+            position=combined_position,
+            rotation=combined_rotation,
+            scale=combined_scale)
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality with both ScaledTransform and base Transform.
+        
+        Args:
+            other: Transformation to compare (ScaledTransform/Transform)
+            
+        Returns:
+            bool: True if components match exactly. For Transform comparisons,
+                checks if scale is (1,1) and other components match.
+            
+        Example:
+            >>> st = ScaledTransform(scale=1)
+            >>> tf = Transform()
+            >>> st == tf  # True when scale is identity
+            True
+        """
+        if isinstance(other, Transform):
+            return (self.position == other.position and
+                    self.rotation == other.rotation and
+                    self.scale == (1, 1))
+        if isinstance(other, ScaledTransform):
+            return (self.position == other.position and
+                    self.rotation == other.rotation and
+                    self.scale == other.scale)
+        return False
+
+    def __repr__(self) -> str:
+        """Machine-readable representation of the transform.
+        
+        Returns:
+            str: String that can recreate the transform via eval()
+            
+        Example:
+            >>> t = ScaledTransform(Vec2(1,2), Rot(0.5), (2,3))
+            >>> repr(t)
+            'ScaledTransform(position=Vec2(1.0, 2.0), rotation=Rot(0.500000), scale=Vec2(2.0, 3.0))'
+        """
+        return (f"ScaledTransform(position={self.position!r}, "
+                f"rotation={self.rotation!r}, scale={self.scale!r})")
 
 class AABB:
     """Axis-Aligned Bounding Box (AABB) for 2D spatial queries.
@@ -1372,7 +1677,9 @@ class AABB:
    
     __slots__ = ('_lower', '_upper')
     
-    def __init__(self, lower=(math.inf, math.inf), upper=(-math.inf, -math.inf)):
+    def __init__(self, 
+                 lower: VectorLike = Vec2(math.inf, math.inf), 
+                 upper: VectorLike = Vec2(-math.inf, -math.inf)):
         """
         Initialize AABB with lower and upper bounds.
 
@@ -1717,7 +2024,7 @@ class AABB:
         margin = Vec2(margin, margin)
         return AABB(self.lower - margin, self.upper + margin)
 
-    def translated(self, offset: Union[Vec2, Iterable]) -> 'AABB':
+    def translated(self, offset: VectorLike) -> 'AABB':
         """
         Create translated AABB by given offset.
 
@@ -1885,7 +2192,7 @@ class Mat22:
         """
         return cls(row1[0], row2[0], row1[1], row2[1])
 
-    def __mul__(self, other: Union['Vec2', 'Mat22']) -> Union['Vec2', 'Mat22']:
+    def __mul__(self, other: Union[VectorLike, 'Mat22']) -> Union['Vec2', 'Mat22']:
         """
         Matrix multiplication with vector or matrix.
 
@@ -1903,14 +2210,11 @@ class Mat22:
             >>> Mat22(1,2,3,4) * Mat22(5,6,7,8)
             Mat22(Vec2(23.0, 34.0), Vec2(31.0, 46.0))
         """
-        if isinstance(other, Vec2):
-            return Vec2(self.cx.x * other.x + self.cy.x * other.y,
-                        self.cx.y * other.x + self.cy.y * other.y)
-            
         if isinstance(other, Mat22):
             return Mat22(self * other.cx, self * other.cy)
-            
-        raise TypeError(f"Unsupported operand type for *: Mat22 and {type(other)}")
+        other_vec = Vec2(*other)
+        return Vec2(self.cx.x * other.x + self.cy.x * other.y,
+                    self.cx.y * other.x + self.cy.y * other.y)
 
     def transpose(self) -> 'Mat22':
         """
@@ -1965,9 +2269,12 @@ class Mat22:
             Returns zero vector if matrix is singular (det ≈ 0)
 
         Example:
-            >>> m = Mat22(1, 0, 0, 1)
-            >>> m.solve(Vec2(2, 3))
+            >>> m = Mat22(2, 0, 0, 2)  # Scales by 2
+            >>> m.solve(Vec2(4, 6))     # Should divide by 2
             Vec2(2.0, 3.0)
+            >>> singular = Mat22(1, 1, 1, 1)
+            >>> singular.solve((1, 1))  # Returns zero for singular matrix
+            Vec2(0.0, 0.0)
         """
         det = self.determinant
         if abs(det) < 1e-8:
