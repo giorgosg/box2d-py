@@ -3,7 +3,7 @@
 from ._box2d import lib, ffi
 from .body import BodyBuilder
 from .joint import MouseJoint
-from .math import Vec2, VectorLike
+from .math import Vec2, VectorLike, AABB
 from .debug_draw import DebugDraw
 
 class World:
@@ -77,6 +77,7 @@ class World:
             BodyBuilder: Fluent interface for body configuration
 
         Example:
+            >>> world = World()
             >>> builder = world.new_body()
             >>> body = builder.dynamic().position(2,3).circle(1).build()
         """
@@ -92,6 +93,7 @@ class World:
             damping_ratio: Response damping ratio (0-1, default 0.7)
 
         Example:
+            >>> world = World()
             >>> box = world.new_body().dynamic().position(0,5).build()
             >>> mouse_joint = world.add_mouse_joint(box, (0,5))
         """
@@ -99,20 +101,58 @@ class World:
             raise ValueError("Bodies must belong to this world")
         return MouseJoint(self, body, target, max_force, damping_ratio)
 
-    def _track_body(self, body):
-        """Store reference to a Body instance"""
+    def _track_body(self, body: 'Body'):
+        """Internal method to track body references. Called automatically during body creation.
+    
+        Args:
+            body: Body instance to register in the world
+        """
         self._bodies[body._body_id] = body
 
     def get_bodies(self):
-        """Get list of all current bodies"""
+        """Get list of all active bodies in the world.
+    
+        Returns:
+            list[Body]: Copies of registered body references
+        
+        Example:
+            >>> world = World()
+            >>> box = world.new_body().dynamic().build()
+            >>> len(world.get_bodies())
+            1
+        """
         return list(self._bodies.values())
 
     def draw(self, debug_draw: DebugDraw):
-        """Draw the world"""
+        """Render world state using debug drawing interface.
+        
+        Args:
+            debug_draw: Configured DebugDraw instance for visualization
+            
+        Example:
+            >>> world = World()
+            >>> debug_draw = DebugDraw()
+            >>> world.draw(debug_draw)
+        """
         lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
 
-    def query_aabb(self, aabb) -> list:
-        """Query all shapes overlapping the given AABB region"""
+    def query_aabb(self, aabb: AABB) -> list:
+        """Find shapes overlapping axis-aligned bounding box.
+    
+        Args:
+            aabb: Axis-aligned bounding box to query
+        
+        Returns:
+            list: Shapes with overlapping fixtures
+        
+        Example:
+            >>> world = World()
+            >>> box = world.new_body().dynamic().position(0,0).box(1,1).build()
+            >>> aabb = AABB(lower=(-1,-1), upper=(1,1))
+            >>> overlaps = world.query_aabb(aabb)
+            >>> len(overlaps) > 0
+            True
+        """
         results = []
         
         @ffi.callback("bool(b2ShapeId, void*)")
@@ -135,8 +175,9 @@ class World:
         return results
 
     def __del__(self):
-        if hasattr(self, '_bodies'):
-            # Clear body references
-            self._bodies.clear()
+        """Clean up world resources. Automatically called when instance is garbage collected.
+    
+        Destroys Box2D world instance.
+        """
         if hasattr(self, '_world_id'):
             lib.b2DestroyWorld(self._world_id)

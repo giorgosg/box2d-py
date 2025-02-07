@@ -3,6 +3,14 @@
 import pytest
 import box2d
 from box2d import World, AABB
+import box2d.world as world
+import doctest
+
+def test_doctests():
+    # Run doctests for the specific submodule
+    results = doctest.testmod(world)
+    assert results.failed == 0
+
 
 def test_import():
     assert box2d is not None
