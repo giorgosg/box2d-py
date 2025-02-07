@@ -2,7 +2,7 @@
 
 import pytest
 import box2d
-from box2d import World, Vec2, AABB
+from box2d import World, AABB
 
 def test_import():
     assert box2d is not None

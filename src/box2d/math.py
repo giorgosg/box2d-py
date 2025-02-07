@@ -1,6 +1,6 @@
 import math
 from typing import Union, Iterable
-
+from ._box2d import ffi, lib
 
 def format_num(n: float) -> str:
     """
@@ -61,6 +61,33 @@ class Vec2:
     def y(self):
         """The y-component of the vector as a float."""
         return self._y
+
+    @classmethod
+    def from_b2Vec2(cls, b2_vec):
+        """Create from Box2D b2Vec2 structure.
+        
+        Example:
+            >>> vec_c = ffi.new("b2Vec2*", (1.5, 2.5))
+            >>> Vec2.from_b2Vec2(vec_c)
+            Vec2(1.5, 2.5)
+        """
+        return cls(b2_vec.x, b2_vec.y)
+
+    @property
+    def b2Vec2(self):
+        """Box2D b2Vec2 equivalent (managed by FFI).
+        
+        Example:
+            >>> cv = Vec2(1.5, 2.5).b2Vec2
+            >>> cv.x
+            1.5
+            >>> cv.y
+            2.5
+        """
+        vec = ffi.new("b2Vec2*")
+        vec.x = self.x
+        vec.y = self.y
+        return vec
 
     @classmethod
     def zero(cls):
@@ -767,16 +794,32 @@ class Rot:
 
     @classmethod
     def from_b2Rot(cls, b2_rot):
-        """
-        Create a Rot instance from a b2Rot struct.
+        """Create a Rot instance from Box2D's b2Rot structure.
         
         Args:
-            b2_rot: The b2Rot struct from the Box2D C library.
-        
-        Returns:
-            Rot: A new Rot instance with the same rotation as the b2Rot.
+            b2_rot: FFI pointer to b2Rot C struct
+            
+        Example:
+            >>> rot_c = ffi.new("b2Rot*", (Rot(math.pi/2).c, Rot(math.pi/2).s))
+            >>> Rot.from_b2Rot(rot_c).angle_degrees
+            90.0
         """
         return cls.from_sincos(b2_rot.s, b2_rot.c)
+
+    @property
+    def b2Rot(self):
+        """Box2D b2Rot equivalent (managed by FFI).
+        
+        Example:
+            >>> rot = Rot(math.pi/4)
+            >>> cr = rot.b2Rot
+            >>> cr.s, cr.c
+            (0.7071067690849304, 0.7071067690849304)
+        """
+        rot = ffi.new("b2Rot*")
+        rot.s = self.s
+        rot.c = self.c
+        return rot
 
     @classmethod
     def from_sincos(cls, s: float, c: float) -> 'Rot':
@@ -1141,6 +1184,37 @@ class Transform:
         self.p = position if isinstance(position, Vec2) else Vec2(*position)
         self.q = rotation if isinstance(rotation, Rot) else Rot(rotation)
 
+    @classmethod
+    def from_b2Transform(cls, b2_transform):
+        """Create Transform from Box2D's b2Transform structure.
+        
+        Args:
+            b2_transform: FFI pointer to b2Transform C struct
+            
+        Example:
+            >>> tf_c = ffi.new("b2Transform*", ((1,2), Rot(math.pi/2).b2Rot[0]))
+            >>> Transform.from_b2Transform(tf_c)
+            Transform(p=Vec2(1, 2), q=Rot(1.570796))
+        """
+        p = Vec2.from_b2Vec2(b2_transform.p)
+        q = Rot.from_b2Rot(b2_transform.q)
+        return cls(p, q)
+
+    @property
+    def b2Transform(self):
+        """Box2D b2Transform equivalent (managed by FFI).
+        
+        Example:
+            >>> tf = Transform(Vec2(1,2), Rot(math.pi))
+            >>> ct = tf.b2Transform
+            >>> ct.p.x, ct.p.y
+            (1.0, 2.0)
+        """
+        transform = ffi.new("b2Transform*")
+        transform.p = self.p.b2Vec2[0]
+        transform.q = self.q.b2Rot[0]
+        return transform
+
     def __call__(self, point: Iterable[Union[float, int]]) -> Vec2:
         """
         Apply transformation to a point (rotate then translate).
@@ -1252,6 +1326,37 @@ class AABB:
             Vec2(3, 4)
         """
         return self._upper
+
+    @classmethod
+    def from_b2AABB(cls, b2_aabb):
+        """Create AABB from Box2D's b2AABB structure.
+        
+        Args:
+            b2_aabb: FFI pointer to b2AABB C struct
+            
+        Example:
+            >>> aabb_c = ffi.new("b2AABB*", ((0,0), (2,3)))
+            >>> AABB.from_b2AABB(aabb_c)
+            AABB(lower=Vec2(0, 0), upper=Vec2(2, 3))
+        """
+        lower = Vec2.from_b2Vec2(b2_aabb.lowerBound)
+        upper = Vec2.from_b2Vec2(b2_aabb.upperBound)
+        return cls(lower, upper)
+
+    @property
+    def b2AABB(self):
+        """Box2D b2AABB equivalent (managed by FFI).
+        
+        Example:
+            >>> aabb = AABB((1,2), (3,4))
+            >>> ca = aabb.b2AABB
+            >>> ca.lowerBound.x, ca.upperBound.y
+            (1.0, 4.0)
+        """
+        aabb = ffi.new("b2AABB*")
+        aabb.lowerBound = self.lower.b2Vec2[0]
+        aabb.upperBound = self.upper.b2Vec2[0]
+        return aabb
 
     def merge(self, other: Union['AABB', Iterable]) -> 'AABB':
         """
@@ -1495,7 +1600,6 @@ class AABB:
         off = Vec2(*offset)
         return AABB(self.lower + off, self.upper + off)
 
-
 class Mat22:
     """A 2x2 matrix for linear transformations, compatible with Box2D's b2Mat22.
     
@@ -1508,7 +1612,7 @@ class Mat22:
 
     Example:
         >>> Mat22(1, 2, 3, 4)
-        Mat22(1.0, 3.0, 2.0, 4.0)
+        Mat22(Vec2(1, 2), Vec2(3, 4))
     """
 
     __slots__ = ('cx', 'cy')
@@ -1526,10 +1630,10 @@ class Mat22:
 
         Example:
             >>> Mat22(1, 2, 3, 4)  # Scalar components
-            Mat22(1.0, 3.0, 2.0, 4.0)
+            Mat22(Vec2(1, 2), Vec2(3, 4))
             
             >>> Mat22(Vec2(1,2), Vec2(3,4))  # Column vectors
-            Mat22(1.0, 3.0, 2.0, 4.0)
+            Mat22(Vec2(1, 2), Vec2(3, 4))
         """
         if len(args) == 4:  # Scalar components
             self.cx = Vec2(args[0], args[1])
@@ -1544,6 +1648,37 @@ class Mat22:
             raise ValueError("Invalid arguments for Mat22")
 
     @classmethod
+    def from_b2Mat22(cls, b2_mat22):
+        """Create Mat22 from Box2D's b2Mat22 structure.
+        
+        Args:
+            b2_mat22: FFI pointer to b2Mat22 C struct
+            
+        Example:
+            >>> mat_c = ffi.new("b2Mat22*", ((1,2), (3,4)))
+            >>> Mat22.from_b2Mat22(mat_c)
+            Mat22(Vec2(1, 2), Vec2(3, 4))
+        """
+        cx = Vec2.from_b2Vec2(b2_mat22.cx)
+        cy = Vec2.from_b2Vec2(b2_mat22.cy)
+        return cls(cx, cy)
+
+    @property
+    def b2Mat22(self):
+        """Box2D b2Mat22 equivalent (managed by FFI).
+        
+        Example:
+            >>> mat = Mat22(1,2,3,4)
+            >>> cm = mat.b2Mat22
+            >>> cm.cx.x, cm.cy.y
+            (1.0, 4.0)
+        """
+        mat = ffi.new("b2Mat22*")
+        mat.cx = self.cx.b2Vec2[0]
+        mat.cy = self.cy.b2Vec2[0]
+        return mat
+
+    @classmethod
     def identity(cls) -> 'Mat22':
         """
         Create identity matrix (no transformation).
@@ -1554,7 +1689,7 @@ class Mat22:
 
         Example:
             >>> Mat22.identity()
-            Mat22(1.0, 0.0, 0.0, 1.0)
+            Mat22(Vec2(1, 0), Vec2(0, 1))
         """
         return cls(1, 0, 0, 1)
 
@@ -1571,7 +1706,7 @@ class Mat22:
 
         Example:
             >>> Mat22.from_angle(math.pi/2)
-            Mat22(0.0, -1.0, 1.0, 0.0)
+            Mat22(Vec2(0, 1), Vec2(-1, 0))
         """
         c = math.cos(angle)
         s = math.sin(angle)
@@ -1591,7 +1726,7 @@ class Mat22:
 
         Example:
             >>> Mat22.from_columns((1,2), (3,4))
-            Mat22(1.0, 3.0, 2.0, 4.0)
+            Mat22(Vec2(1, 2), Vec2(3, 4))
         """
 
         return cls(col1, col2)
@@ -1610,7 +1745,7 @@ class Mat22:
 
         Example:
             >>> Mat22.from_rows((1,3), (2,4))
-            Mat22(1.0, 3.0, 2.0, 4.0)
+            Mat22(Vec2(1, 2), Vec2(3, 4))
         """
         return cls(row1[0], row2[0], row1[1], row2[1])
 
@@ -1630,7 +1765,7 @@ class Mat22:
 
         Example - Matrix multiplication:
             >>> Mat22(1,2,3,4) * Mat22(5,6,7,8)
-            Mat22(23.0, 31.0, 34.0, 46.0)
+            Mat22(Vec2(23, 34), Vec2(31, 46))
         """
         if isinstance(other, Vec2):
             return Vec2(self.cx.x * other.x + self.cy.x * other.y,
@@ -1650,7 +1785,7 @@ class Mat22:
 
         Example:
             >>> Mat22(1,2,3,4).transpose()
-            Mat22(1.0, 2.0, 3.0, 4.0)
+            Mat22(Vec2(1, 3), Vec2(2, 4))
         """
         return Mat22(self.cx.x, self.cy.x,
                     self.cx.y, self.cy.y)
@@ -1664,7 +1799,7 @@ class Mat22:
 
         Example:
             >>> Mat22(1,1,0,1).get_inverse()
-            Mat22(1.0, -0.0, -1.0, 1.0)
+            Mat22(Vec2(1, -1), Vec2(-0, 1))
 
         Note:
             Returns identity matrix for singular matrices (det ≈ 0)
@@ -1754,11 +1889,7 @@ class Mat22:
 
     def __repr__(self) -> str:
         """Clear string representation with precision handling"""
-        return (f"Mat22("
-               f"{format_num(self.cx.x)}, "
-               f"{format_num(self.cy.x)}, " 
-               f"{format_num(self.cx.y)}, "
-               f"{format_num(self.cy.y)})")
+        return (f"Mat22({self.cx}, {self.cy})")
 
     def __eq__(self, other: object) -> bool:
         """

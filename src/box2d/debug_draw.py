@@ -1,6 +1,6 @@
 # debug_draw.py
 from ._box2d import ffi, lib
-from .vec2 import Vec2
+from .math import Vec2, Rot, Transform, AABB
 
 class Color:
     def __init__(self, hex_color: int):

@@ -4,6 +4,7 @@ from ._box2d import lib, ffi
 from .body import BodyBuilder
 from .math import Vec2
 from .debug_draw import DebugDraw
+
 class World:
     def __init__(self, gravity=(0, -10)):
         world_def = lib.b2DefaultWorldDef()
