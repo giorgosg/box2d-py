@@ -263,3 +263,80 @@ class Transform:
         """Get inverse transform"""
         inv_rot = Rot.from_sincos(-self.q.s, self.q.c)
         return Transform(inv_rot * (-self.p), inv_rot)
+
+class AABB:
+    """Axis-aligned bounding box with Y-up coordinate system (lower Y at bottom)
+    """
+    
+    __slots__ = ('lower', 'upper')
+    
+    def __init__(self, lower=(math.inf, math.inf), upper=(-math.inf, -math.inf)):
+        self.lower = Vec2(*lower)
+        self.upper = Vec2(*upper)
+    
+    @classmethod
+    def from_points(cls, points):
+        """Create AABB containing all given points"""
+        aabb = cls()
+        for point in points:
+            aabb.merge(point)
+        return aabb
+    
+    @property
+    def is_valid(self):
+        """True if AABB is properly ordered and finite"""
+        return (self.lower.x <= self.upper.x and 
+                self.lower.y <= self.upper.y and
+                self.lower.is_finite and 
+                self.upper.is_finite)
+    
+    @property
+    def center(self):
+        """Center point of AABB in world coordinates"""
+        return (self.lower + self.upper) * 0.5
+    
+    @property
+    def half_size(self):
+        """Half-width and half-height from center to edges"""
+        return (self.upper - self.lower) * 0.5
+    
+    def contains(self, other):
+        """Check if another AABB is fully contained within this one"""
+        return (self.lower <= other.lower) and (self.upper >= other.upper)
+    
+    def merge(self, other):
+        """Expand to include another AABB or point"""
+        if isinstance(other, AABB):
+            self.lower = Vec2.min(self.lower, other.lower)
+            self.upper = Vec2.max(self.upper, other.upper)
+        else:  # Treat as point
+            point = Vec2(*other)
+            self.lower = Vec2.min(self.lower, point)
+            self.upper = Vec2.max(self.upper, point)
+    
+    def __and__(self, other):
+        """Get overlapping AABB region (might be invalid if no overlap)"""
+        return AABB(
+            lower=(max(self.lower.x, other.lower.x), 
+                   max(self.lower.y, other.lower.y)),
+            upper=(min(self.upper.x, other.upper.x), 
+                   min(self.upper.y, other.upper.y))
+        )
+    
+    @property
+    def width(self):
+        return self.upper.x - self.lower.x
+    
+    @property
+    def height(self):
+        return self.upper.y - self.lower.y
+    
+    def __repr__(self):
+        return f"AABB(lower={self.lower}, upper={self.upper})"
+    
+    # Python rich comparisons
+    def __eq__(self, other):
+        return self.lower == other.lower and self.upper == other.upper
+    
+    def __bool__(self):
+        return self.is_valid

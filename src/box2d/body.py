@@ -199,7 +199,12 @@ class Body():
         self._body_id = body_id
         lib.b2Body_SetUserData(body_id, ffi.new_handle(self))
         self._shapes = []
-        
+
+    @property
+    def shapes(self):
+        """Get the shapes attached to this body."""
+        return self._shapes
+
     @property
     def position(self):
         """Get the world position of the body."""

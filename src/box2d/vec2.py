@@ -54,6 +54,25 @@ class Vec2:
         """Create a unit vector from the given angle in radians"""
         return cls(math.cos(angle), math.sin(angle))
 
+    @classmethod
+    def min(cls, a, b):
+        """Component-wise minimum"""
+        a = Vec2(*a)
+        b = Vec2(*b)
+        return cls(min(a.x, b.x), min(a.y, b.y))
+    
+    @classmethod
+    def max(cls, a, b):
+        """Component-wise maximum"""
+        a = Vec2(*a)
+        b = Vec2(*b)
+        return cls(max(a.x, b.x), max(a.y, b.y))
+    
+    @property
+    def is_finite(self):
+        """True if both components are finite numbers"""
+        return math.isfinite(self.x) and math.isfinite(self.y)
+   
     def __getitem__(self, index):
         if index == 0:
             return self.x
@@ -100,6 +119,22 @@ class Vec2:
 
     def __hash__(self):
         return hash((self.x, self.y))
+
+    def __lt__(self, other):
+        other = Vec2(*other)
+        return self.x < other.x and self.y < other.y
+    
+    def __le__(self, other):
+        other = Vec2(*other)
+        return self.x <= other.x and self.y <= other.y
+    
+    def __ge__(self, other):
+        other = Vec2(*other)
+        return self.x >= other.x and self.y >= other.y
+    
+    def __gt__(self, other):
+        other = Vec2(*other)
+        return self.x > other.x and self.y > other.y
 
     @property
     def length(self):

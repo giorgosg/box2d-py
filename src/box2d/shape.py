@@ -30,7 +30,8 @@ class Shape(ABC):
     def _finalize(self):
         """Finalize shape creation and set up user data."""
         del self._shape_def
-        lib.b2Shape_SetUserData(self._shape_id, ffi.new_handle(self))
+        self._handle = ffi.new_handle(self)
+        lib.b2Shape_SetUserData(self._shape_id, self._handle)
 
     @property
     def density(self):

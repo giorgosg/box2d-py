@@ -45,6 +45,29 @@ class World:
         """Draw the world"""
         lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
 
+    def query_aabb(self, aabb) -> list:
+        """Query all shapes overlapping the given AABB region"""
+        results = []
+        
+        @ffi.callback("bool(b2ShapeId, void*)")
+        def _overlap_callback(shape_id, _):
+            shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
+            results.append(shape)
+            return True  # Continue querying
+        
+        # Use a default filter
+        c_filter = lib.b2DefaultQueryFilter()
+        
+        lib.b2World_OverlapAABB(
+            self._world_id, 
+            {"lowerBound": {"x": aabb.lower.x, "y": aabb.lower.y},
+             "upperBound": {"x": aabb.upper.x, "y": aabb.upper.y}}, 
+            {"categoryBits": 0x0001, "maskBits": 0xFFFF},
+            _overlap_callback, 
+            ffi.NULL
+        )
+        return results
+
     def __del__(self):
         if hasattr(self, '_bodies'):
             # Clear body references

@@ -2,48 +2,64 @@
 from ._box2d import ffi, lib
 from .vec2 import Vec2
 
+class Color:
+    def __init__(self, hex_color: int):
+        self._hex = hex_color
+        self.r = (hex_color >> 16) & 0xFF
+        self.g = (hex_color >> 8) & 0xFF
+        self.b = hex_color & 0xFF
+        self.a = 255  # Alpha not part of b2HexColor, default opaque
+
+    @property
+    def hex(self) -> int:
+        return self._hex
+
+    def __repr__(self) -> str:
+        return f"Color(r={self.r}, g={self.g}, b={self.b}, a={self.a})"
+
+
 # Define callback wrappers
 def draw_polygon(vertices, count, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_polygon(vertices, count, color)
+    instance._draw_polygon(vertices, count, Color(color))
 
 def draw_solid_polygon(transform, vertices, count, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_polygon(transform, vertices, count, radius, color)
+    instance._draw_solid_polygon(transform, vertices, count, radius, Color(color))
 
 def draw_circle(center, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_circle(center, radius, color)
+    instance._draw_circle(center, radius, Color(color))
 
 def draw_segment(p1, p2, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_segment(p1, p2, color)
+    instance._draw_segment(p1, p2, Color(color))
 
 def draw_point(p, size, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_point(p, size, color)
+    instance._draw_point(p, size, Color(color))
 
 def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
     # Convert C string to Python string
     py_str = ffi.string(s).decode('utf-8')
-    instance._draw_string(p, py_str, color)
+    instance._draw_string(p, py_str, Color(color))
 
 def draw_capsule(p1, p2, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_capsule(p1, p2, radius, color)
+    instance._draw_capsule(p1, p2, radius, Color(color))
 
 def draw_solid_capsule(p1, p2, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_capsule(p1, p2, radius, color)
+    instance._draw_solid_capsule(p1, p2, radius, Color(color))
 
 def draw_solid_circle(transform, radius, color, context):
     instance = ffi.from_handle(context)
-    instance._draw_solid_circle(transform, radius, color)
+    instance._draw_solid_circle(transform, radius, Color(color))
 
 def draw_transform(transform, context):
     instance = ffi.from_handle(context)
-    instance._draw_transform(transform)
+    instance._draw_transform(Transform(transform))
 
 class DebugDraw:
     def __init__(self):
