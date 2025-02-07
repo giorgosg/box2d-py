@@ -1,2 +1,0 @@
-_box2d
-build_box2d
