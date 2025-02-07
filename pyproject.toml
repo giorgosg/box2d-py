@@ -21,11 +21,9 @@ requires-python = ">=3.7"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["box2d-py*"]
-exclude = ["box2d-py.build_cffi"]
+include = ["box2d*"]
+exclude = ["box2d.build_cffi"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
 
-[tool.setuptools.exclude-package-data]
-"*" = ["build_cffi.py"]
