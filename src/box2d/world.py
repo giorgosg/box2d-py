@@ -39,7 +39,6 @@ class World:
     def _track_body(self, body):
         """Store reference to a Body instance"""
         self._bodies[body._body_id] = body
-        lib.b2Body_SetUserData(body._body_id, ffi.new_handle(body))
 
     def get_bodies(self):
         """Get list of all current bodies"""

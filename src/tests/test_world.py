@@ -48,8 +48,8 @@ def test_multiple_step_simulation():
         world.new_body()
         .dynamic()
         .position(0.0, 10.0)
-        .add_box(1.0, 1.0, density=1.0) 
         .build()
+        .add_box(1.0, 1.0, density=1.0) 
     )
 
     # Simulate for multiple steps

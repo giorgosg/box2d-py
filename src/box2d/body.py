@@ -1,5 +1,6 @@
 from box2d._box2d import lib, ffi
-from box2d.vec2 import Vec2
+from .vec2 import Vec2
+from .shape import Box, Circle
 
 class BodyBuilder:
     def __init__(self, world):
@@ -11,42 +12,36 @@ class BodyBuilder:
         self._def.type = lib.b2_dynamicBody
         return self
 
+    def static(self):
+        self._def.type = lib.b2_staticBody
+        return self
+
+    def kinematic(self):
+        self._def.type = lib.b2_kinematicBody
+        return self
+
     def position(self, x: float, y: float):
         self._def.position.x = x
         self._def.position.y = y
         return self
 
-    def add_box(self, width: float, height: float, density=1.0):
-        """Add box shape to body"""
-        shape_def = lib.b2DefaultShapeDef()
-        shape_def.density = density
-
-        box = ffi.addressof(lib.b2MakeBox(width, height))
-        self._shapes.append((lib.b2CreatePolygonShape, box, shape_def))
+    def linear_velocity(self, x: float, y: float):
+        self._def.linearVelocity.x = x
+        self._def.linearVelocity.y = y
         return self
 
-    def add_circle(self, radius: float, center=(0,0), density=1.0):
-        """Add circle shape to body"""
-        shape_def = lib.b2DefaultShapeDef()
-        shape_def.density = density
+    def angular_velocity(self, radians: float):
+        self._def.angularVelocity = radians
+        return self
 
-        circle = ffi.new("b2Circle*")
-        circle.radius = radius
-        circle.center.x, circle.center.y = center
-        self._shapes.append((lib.b2CreateCircleShape, circle, shape_def))
+    def enable_sleep(self, enable: bool):
+        self._def.enableSleep = enable
         return self
 
     def build(self):
         """Finalize body creation"""
         body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(self._def))
 
-        # Attach shapes
-        for cfunc, shape, shape_def in self._shapes:
-            cfunc(
-                body_id,
-                ffi.addressof(shape_def),
-                shape
-            )
         body = Body(body_id)
         # Track the body in the world
         self.world._track_body(body)
@@ -56,7 +51,9 @@ class BodyBuilder:
 class Body():
     def __init__(self, body_id):
         self._body_id = body_id
-
+        lib.b2Body_SetUserData(body_id, ffi.new_handle(self))
+        self._shapes = []
+        
     @property
     def position(self):
         """Get body position as (x, y) tuple"""
@@ -106,4 +103,16 @@ class Body():
         else:
             return "static"
 
- 
+    def add_box(self, width: float, height: float, density=None, friction=None):
+        shape = Box(self, width, height, density, friction)
+        self._shapes.append(shape)
+        return self
+
+    def add_circle(self, radius: float, center=(0,0), density=None, friction=None):
+        shape = Circle(self, radius, center, density, friction)
+        self._shapes.append(shape)
+        return self
+
+    def is_sleep_enabled(self):
+        """Check if the body is allowed to sleep"""
+        return lib.b2Body_IsSleepEnabled(self._body_id)
