@@ -136,8 +136,8 @@ def test_common_vectors():
     assert Vec2.Zero() == Vec2(0.0, 0.0)
     assert Vec2.Right() == Vec2(1.0, 0.0)
     assert Vec2.Left() == Vec2(-1.0, 0.0)
-    assert Vec2.Up() == Vec2(0.0, -1.0)
-    assert Vec2.Down() == Vec2(0.0, 1.0)
+    assert Vec2.Up() == Vec2(0.0, 1.0)
+    assert Vec2.Down() == Vec2(0.0, -1.0)
 
 def test_from_angle():
     v = Vec2.FromAngle(math.pi/2)  # 90 degrees (pointing up)
