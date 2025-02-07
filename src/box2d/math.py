@@ -1507,8 +1507,8 @@ class Mat22:
     - Accepts various input formats (tuples, lists, Vec2s)
 
     Example:
-    >>> Mat22(1, 2, 3, 4)  # From scalars
-    Mat22(1.0, 3.0, 2.0, 4.0)
+        >>> Mat22(1, 2, 3, 4)
+        Mat22(1.0, 3.0, 2.0, 4.0)
     """
 
     __slots__ = ('cx', 'cy')

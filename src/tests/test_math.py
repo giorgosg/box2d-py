@@ -1,7 +1,14 @@
 # tests/test_math.py
 import pytest
+import doctest
 import math
 from box2d import Vec2, Rot, Transform, AABB, Mat22
+from box2d import math as box2d_math
+
+def test_doctests():
+    # Run doctests for the specific submodule
+    results = doctest.testmod(box2d_math)
+    assert results.failed == 0
 
 def test_vec2_normalize_zero_vector():
     v = Vec2(0, 0)
