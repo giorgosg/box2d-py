@@ -49,3 +49,8 @@ def test_vec2_iteration():
     v = Vec2(1.0, 2.0)
     components = [x for x in v]
     assert components == [1.0, 2.0]
+
+def test_vec2_repr():
+    v = Vec2(1.5, 2.5)
+    assert repr(v) == "Vec2(1.50, 2.50)"
+    

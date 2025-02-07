@@ -47,7 +47,10 @@ class BodyBuilder:
                 ffi.addressof(shape_def),
                 shape
             )
-        return Body(body_id)
+        body = Body(body_id)
+        # Track the body in the world
+        self.world._track_body(body)
+        return body
 
 
 class Body():
@@ -67,9 +70,7 @@ class Body():
         # Get current rotation since SetTransform needs both position and rotation
         rot = lib.b2Body_GetRotation(self._body_id)
 
-        # Create position vector
-        pos = ffi.new("b2Vec2 *", {'x': x, 'y': y})
-        lib.b2Body_SetTransform(self._body_id, pos, rot)
+        lib.b2Body_SetTransform(self._body_id, value, rot)
 
     @property
     def linear_velocity(self):
@@ -105,6 +106,4 @@ class Body():
         else:
             return "static"
 
-    def create_box(self, dimensions=None, **kwargs):
-        box = Box(self, dimensions, **kwargs)
-        return self
+ 

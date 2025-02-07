@@ -61,3 +61,11 @@ def test_multiple_step_simulation():
     final_pos = body.position
     assert final_pos.y < initial_pos.y
 
+def test_get_bodies():
+    world = World()
+    body1 = world.new_body().build()
+    body2 = world.new_body().build()
+    bodies = world.get_bodies()
+    assert len(bodies) == 2
+    assert body1 in bodies
+    assert body2 in bodies
