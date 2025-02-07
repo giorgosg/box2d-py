@@ -2,6 +2,10 @@
 
 import pytest
 from box2d import Vec2
+from pytest import approx
+
+def aprx(a):
+    return approx(a, rel=1e-3, abs=1e-3)
 
 def test_vec2_creation():
     v = Vec2(1.0, 2.0)
@@ -53,4 +57,76 @@ def test_vec2_iteration():
 def test_vec2_repr():
     v = Vec2(1.5, 2.5)
     assert repr(v) == "Vec2(1.50, 2.50)"
-    
+
+def test_dot_product():
+    v1 = Vec2(1.0, 2.0)
+    v2 = Vec2(3.0, 4.0)
+    assert v1.dot(v2) == 11.0
+
+def test_cross_product():
+    v1 = Vec2(1.0, 2.0)
+    v2 = Vec2(3.0, 4.0)
+    assert v1.cross(v2) == -2.0
+
+def test_length():
+    v = Vec2(3.0, 4.0)
+    assert v.length == 5.0
+    assert v.length_squared == 25.0
+
+def test_normalize():
+    v = Vec2(3.0, 4.0)
+    normalized = v.normalize()
+    assert abs(normalized.x) == aprx(0.6) and abs(normalized.y) == aprx(0.8)
+
+def test_angle():
+    v = Vec2(1.0, 1.0)
+    angle = v.angle
+    assert angle == aprx(0.785)
+
+def test_project():
+    v1 = Vec2(1.0, 2.0)
+    v2 = Vec2(3.0, 4.0)
+    proj = v2.project(v1)
+    assert proj.x == aprx(2.2)
+    assert proj.y == aprx(4.4)
+
+def test_reject():
+    v1 = Vec2(1.0, 2.0)
+    v2 = Vec2(3.0, 4.0)
+    rej = v2.reject(v1)
+    assert rej.x == aprx(0.8) 
+    assert rej.y == aprx(-0.4)
+
+def test_lerp():
+    v1 = Vec2(0.0, 0.0)
+    v2 = Vec2(10.0, 10.0)
+    lerped = v1.lerp(v2, 0.5)
+    assert lerped == Vec2(5.0, 5.0)
+
+def test_perpendicular():
+    v = Vec2(1.0, 2.0)
+    perp_right = v.perpendicular("right")
+    perp_left = v.perpendicular("left")
+    assert perp_right == Vec2(2.0, -1.0)
+    assert perp_left == Vec2(-2.0, 1.0)
+
+def test_min_max():
+    v1 = Vec2(1.0, 2.0)
+    v2 = Vec2(3.0, 4.0)
+    min_v = v1.min(v2)
+    max_v = v1.max(v2)
+    assert min_v == Vec2(1.0, 2.0)
+    assert max_v == Vec2(3.0, 4.0)
+
+def test_clamp():
+    v = Vec2(5.0, 10.0)
+    min_vec = Vec2(3.0, 4.0)
+    max_vec = Vec2(7.0, 8.0)
+    clamped = v.clamp(min_vec, max_vec)
+    assert clamped == Vec2(5.0, 8.0)
+
+
+def test_heading():
+    v = Vec2(3.0, 4.0)
+    heading = v.heading
+    assert heading == v.normalize()
