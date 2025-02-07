@@ -2,4 +2,4 @@ Math Module
 ===========
 
 .. automodule:: box2d.math
-   :members: Rot, Transform, AABB
+   :members: Vec2, Rot, Transform, AABB, Mat22
