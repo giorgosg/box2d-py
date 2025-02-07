@@ -1,36 +1,37 @@
-from box2d._box2d import lib as _b2d
-from box2d._box2d import ffi
-from box2d.body import Body
+# src/box3d/world.py
+
+from box2d._box2d import lib, ffi
+from box2d.body import BodyBuilder
+from box2d.vec2 import Vec2
 
 class World:
-    def __init__(self, gravity=None):
-        """
-        float	contactDampingRatio	Contact bounciness. Non-dimensional.
-        float	contactHertz	Contact stiffness. Cycles per second.
-        float	contactPushoutVelocity	This parameter controls how fast overlap is resolved and has units of meters per second.
-        bool	enableContinuous	Enable continuous collision.
-        bool	enableSleep	Can bodies go to sleep to improve performance.
-        b2EnqueueTaskCallback *	enqueueTask	Function to spawn tasks.
-        b2FinishTaskCallback *	finishTask	Function to finish a task.
-        b2Vec2	gravity	Gravity vector. Box2D has no up-vector defined.
-        float	hitEventThreshold	Threshold velocity for hit events. Usually meters per second.
-        int32_t	internalValue	Used internally to detect a valid definition. DO NOT SET.
-        float	jointDampingRatio	Joint bounciness. Non-dimensional.
-        float	jointHertz	Joint stiffness. Cycles per second.
-        float	maximumLinearVelocity	Maximum linear velocity. Usually meters per second.
-        float	restitutionThreshold	Restitution velocity threshold, usually in m/s.
-            Collisions above this speed have restitution applied (will bounce).
-        void *	userTaskContext	User context that is provided to enqueueTask and finishTask.
-        int32_t	workerCount	Number of workers to use with the provided task system.
-            Box2D performs best when using only performance cores and accessing a single L2 cache.
-            Efficiency cores and hyper-threading provide little benefit and may even harm performance.
-        """
+    def __init__(self, gravity=(0, -10)):
 
-        wdef = _b2d.b2DefaultWorldDef()
-        if gravity is not None:
-            wdef.gravity = gravity
+        world_def = lib.b2DefaultWorldDef()
+        world_def.gravity.x, world_def.gravity.y = gravity
+        self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
-        self.world_id = _b2d.b2CreateWorld(ffi.addressof(wdef))
+    @property
+    def gravity(self):
+        """Get world gravity vector"""
+        g = lib.b2World_GetGravity(self._world_id)
+        return Vec2(g.x, g.y)
 
-    def create_body(self, **kwargs):
-        return Body(self, **kwargs)
+    @gravity.setter
+    def gravity(self, value):
+        """Set world gravity vector"""
+        x, y = value
+        vec = ffi.new("b2Vec2*", {'x': value[0], 'y': value[1]})
+        lib.b2World_SetGravity(self._world_id, vec[0])
+
+    def step(self, dt, velocity_iterations = 4):
+        """Simulate one time step"""
+        lib.b2World_Step(self._world_id, dt, velocity_iterations)
+
+    def __del__(self):
+        if hasattr(self, '_world_id'):
+            lib.b2DestroyWorld(self._world_id)
+
+    def new_body(self):
+        """Entry point for body creation"""
+        return BodyBuilder(self)

@@ -1,62 +1,109 @@
-from box2d._box2d import lib as _b2d
-from box2d._box2d import ffi
-from box2d.shape import *
+from box2d._box2d import lib, ffi
+from box2d.vec2 import Vec2
 
-DYNAMIC = _b2d.b2_dynamicBody
-STATIC = _b2d.b2_staticBody
-KINEMATIC = _b2d.b2_kinematicBody
+class BodyBuilder:
+    def __init__(self, world):
+        self.world = world
+        self._def = lib.b2DefaultBodyDef()
+        self._shapes = []
+
+    def dynamic(self):
+        self._def.type = lib.b2_dynamicBody
+        return self
+
+    def position(self, x: float, y: float):
+        self._def.position.x = x
+        self._def.position.y = y
+        return self
+
+    def add_box(self, width: float, height: float, density=1.0):
+        """Add box shape to body"""
+        shape_def = lib.b2DefaultShapeDef()
+        shape_def.density = density
+
+        box = ffi.addressof(lib.b2MakeBox(width, height))
+        self._shapes.append((lib.b2CreatePolygonShape, box, shape_def))
+        return self
+
+    def add_circle(self, radius: float, center=(0,0), density=1.0):
+        """Add circle shape to body"""
+        shape_def = lib.b2DefaultShapeDef()
+        shape_def.density = density
+
+        circle = ffi.new("b2Circle*")
+        circle.radius = radius
+        circle.center.x, circle.center.y = center
+        self._shapes.append((lib.b2CreateCircleShape, circle, shape_def))
+        return self
+
+    def build(self):
+        """Finalize body creation"""
+        body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(self._def))
+
+        # Attach shapes
+        for cfunc, shape, shape_def in self._shapes:
+            cfunc(
+                body_id,
+                ffi.addressof(shape_def),
+                shape
+            )
+        return Body(body_id)
+
 
 class Body():
-    def __init__(self, world, position=None, type=None):
-        """
-        bool	allowFastRotation	This allows this body to bypass rotational speed limits.
-            Should only be used for circular objects, like wheels.
+    def __init__(self, body_id):
+        self._body_id = body_id
 
-        float	angularDamping	Angular damping is use to reduce the angular velocity.
-            The damping parameter can be larger than 1.0f but the damping effect becomes
-            sensitive to the time step when the damping parameter is large. Angular
-            damping can be use slow down rotating bodies.
+    @property
+    def position(self):
+        """Get body position as (x, y) tuple"""
+        pos = lib.b2Body_GetPosition(self._body_id)
+        return Vec2(pos.x, pos.y)
 
-        float	angularVelocity	The initial angular velocity of the body. Radians per second.
-        bool	automaticMass	Automatically compute mass and related properties on this body from
-            shapes.
-            Triggers whenever a shape is add/removed/changed. Default is true.
+    @position.setter
+    def position(self, value):
+        """Set body position from (x, y) tuple"""
+        x, y = value
+        # Get current rotation since SetTransform needs both position and rotation
+        rot = lib.b2Body_GetRotation(self._body_id)
 
-        bool	enableSleep	Set this flag to false if this body should never fall asleep.
-        bool	fixedRotation	Should this body be prevented from rotating? Useful for characters.
-        float	gravityScale	Scale the gravity applied to this body. Non-dimensional.
-        int32_t	internalValue	Used internally to detect a valid definition. DO NOT SET.
-        bool	isAwake	Is this body initially awake or sleeping?
-        bool	isBullet	Treat this body as high speed object that performs continuous collision
-            detection against dynamic and kinematic bodies, but not other bullet bodies.
-            Warning
-            Bullets should be used sparingly. They are not a solution for general
-            dynamic-versus-dynamic continuous collision. They may interfere with joint constraints.
-        bool	isEnabled	Used to disable a body. A disabled body does not move or collide.
-        float	linearDamping	Linear damping is use to reduce the linear velocity.
-            The damping parameter can be larger than 1 but the damping effect becomes sensitive to
-            the time step when the damping parameter is large. Generally linear damping is
-            undesirable because it makes objects move slowly as if they are floating.
+        # Create position vector
+        pos = ffi.new("b2Vec2 *", {'x': x, 'y': y})
+        lib.b2Body_SetTransform(self._body_id, pos, rot)
 
-        b2Vec2	linearVelocity	The initial linear velocity of the body's origin. Typically in meters per second.
-        b2Vec2	position	The initial world position of the body.
-            Bodies should be created with the desired position.
+    @property
+    def linear_velocity(self):
+        """Get linear velocity as (vx, vy) tuple"""
+        vel = lib.b2Body_GetLinearVelocity(self._body_id)
+        return Vec2(vel.x, vel.y)
 
-            Note
-            Creating bodies at the origin and then moving them nearly doubles the cost of body creation, especially if the body is moved after shapes have been added.
-        b2Rot	rotation	The initial world rotation of the body. Use b2MakeRot() if you have an angle.
-        float	sleepThreshold	Sleep velocity threshold, default is 0.05 meter per second.
-        b2BodyType	type	The body type: static, kinematic, or dynamic.
-        void *	userData	Use this to store application specific body data.
-        """
+    @linear_velocity.setter
+    def linear_velocity(self, value):
+        """Set linear velocity from (vx, vy) tuple"""
+        x, y = value
+        vec = ffi.new("b2Vec2 *", {'x': x, 'y': y})
+        lib.b2Body_SetLinearVelocity(self._body_id, vec[0])
 
-        bodydef = _b2d.b2DefaultBodyDef()
-        if position is not None:
-            bodydef.position = position
-        if type is not None:
-            bodydef.type=type
+    @property
+    def angular_velocity(self):
+        """Get angular velocity in radians/sec"""
+        return lib.b2Body_GetAngularVelocity(self._body_id)
 
-        self.body_id = _b2d.b2CreateBody(world.world_id, ffi.addressof(bodydef))
+    @angular_velocity.setter
+    def angular_velocity(self, value):
+        """Set angular velocity in radians/sec"""
+        lib.b2Body_SetAngularVelocity(self._body_id, float(value))
+
+    @property
+    def type(self):
+        """Get body type as string"""
+        body_type = lib.b2Body_GetType(self._body_id)
+        if body_type == lib.b2_dynamicBody:
+            return "dynamic"
+        elif body_type == lib.b2_kinematicBody:
+            return "kinematic"
+        else:
+            return "static"
 
     def create_box(self, dimensions=None, **kwargs):
         box = Box(self, dimensions, **kwargs)
