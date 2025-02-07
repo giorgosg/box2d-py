@@ -83,3 +83,22 @@ def test_polygon_properties():
     assert lib.b2Shape_GetFriction(poly._shape_id) == approx(0.3)
     assert lib.b2Shape_GetRestitution(poly._shape_id) == approx(0.7)
     assert lib.b2Shape_IsSensor(poly._shape_id) is True
+
+def test_shape_setters():
+    world = World()
+    body = world.new_body().build()
+    
+    shape = body.add_box(1, 1)
+    
+    # Test density setter
+    shape.density = 1.5
+    assert lib.b2Shape_GetDensity(shape._shape_id) == approx(1.5)
+    
+    # Test friction setter
+    shape.friction = 0.7
+    assert lib.b2Shape_GetFriction(shape._shape_id) == approx(0.7)
+    
+    # Test restitution setter
+    shape.restitution = 0.6
+    assert lib.b2Shape_GetRestitution(shape._shape_id) == approx(0.6)
+
