@@ -3,7 +3,7 @@
 from box2d._box2d import lib, ffi
 from box2d.body import BodyBuilder
 from box2d.vec2 import Vec2
-
+from box2d.debug_draw import DebugDraw
 class World:
     def __init__(self, gravity=(0, -10)):
         world_def = lib.b2DefaultWorldDef()
@@ -40,6 +40,10 @@ class World:
     def get_bodies(self):
         """Get list of all current bodies"""
         return list(self._bodies.values())
+
+    def draw(self, debug_draw: DebugDraw):
+        """Draw the world"""
+        lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
 
     def __del__(self):
         if hasattr(self, '_bodies'):
