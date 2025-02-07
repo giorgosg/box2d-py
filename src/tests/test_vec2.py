@@ -1,6 +1,7 @@
 # tests/test_vec2.py
 
 import pytest
+import math
 from box2d import Vec2
 from pytest import approx
 
@@ -130,3 +131,24 @@ def test_heading():
     v = Vec2(3.0, 4.0)
     heading = v.heading
     assert heading == v.normalize()
+
+def test_common_vectors():
+    assert Vec2.Zero() == Vec2(0.0, 0.0)
+    assert Vec2.Right() == Vec2(1.0, 0.0)
+    assert Vec2.Left() == Vec2(-1.0, 0.0)
+    assert Vec2.Up() == Vec2(0.0, -1.0)
+    assert Vec2.Down() == Vec2(0.0, 1.0)
+
+def test_from_angle():
+    v = Vec2.FromAngle(math.pi/2)  # 90 degrees (pointing up)
+    assert v.x == aprx(0.0) and v.y == aprx(1.0)
+
+def test_inverse():
+    v = Vec2(1.0, -2.0)
+    inv = v.inverse()
+    assert inv == Vec2(-1.0, 2.0)
+
+def test_rotate():
+    v = Vec2(1.0, 0.0)
+    rotated = v.rotate(math.pi/2)  # 90 degrees
+    assert rotated.x == aprx(0.0) and rotated.y == aprx(1.0)
