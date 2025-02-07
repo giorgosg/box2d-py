@@ -1290,6 +1290,23 @@ class Transform:
         return self.q * point + self.p
 
     @property
+    def rotation(self) -> Rot:
+        """
+        Get the rotation component of the transform.
+
+        Returns:
+            Rot: Current rotation component
+        """
+        return self.q
+    
+    @property
+    def position(self) -> Vec2:
+        """
+        Get the position component of the transform.
+        """
+        return self.p
+
+    @property
     def inverse(self) -> 'Transform':
         """
         Calculate inverse transformation.

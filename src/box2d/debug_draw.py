@@ -23,59 +23,59 @@ class Color:
 def draw_polygon(vertices, count, color, context):
     instance = ffi.from_handle(context)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance._draw_polygon(py_vertices, Color(color))
+    instance.draw_polygon(py_vertices, Color(color))
 
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
 def draw_solid_polygon(transform, vertices, count, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance._draw_solid_polygon(py_transform, py_vertices, radius, Color(color))
+    instance.draw_solid_polygon(py_transform, py_vertices, radius, Color(color))
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_circle(center, radius, color, context):
     instance = ffi.from_handle(context)
     py_center = Vec2.from_b2Vec2(center)
-    instance._draw_circle(py_center, radius, Color(color))
+    instance.draw_circle(py_center, radius, Color(color))
 
 @ffi.callback("void(b2Vec2, b2Vec2, b2HexColor, void*)")
 def draw_segment(p1, p2, color, context):
     instance = ffi.from_handle(context)
     py_p1 = Vec2.from_b2Vec2(p1)
     py_p2 = Vec2.from_b2Vec2(p2)
-    instance._draw_segment(py_p1, py_p2, Color(color))
+    instance.draw_segment(py_p1, py_p2, Color(color))
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_point(p, size, color, context):
     instance = ffi.from_handle(context)
     py_p = Vec2.from_b2Vec2(p)
-    instance._draw_point(py_p, size, Color(color))
+    instance.draw_point(py_p, size, Color(color))
 
 @ffi.callback("void(b2Vec2, const char*, b2HexColor, void*)")
 def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
     py_p = Vec2.from_b2Vec2(p)
     py_str = ffi.string(s).decode('utf-8')
-    instance._draw_string(py_p, py_str, Color(color))
+    instance.draw_string(py_p, py_str, Color(color))
 
 @ffi.callback("void(b2Vec2, b2Vec2, float, b2HexColor, void*)")
 def draw_solid_capsule(p1, p2, radius, color, context):
     instance = ffi.from_handle(context)
     py_p1 = Vec2.from_b2Vec2(p1)
     py_p2 = Vec2.from_b2Vec2(p2)
-    instance._draw_solid_capsule(py_p1, py_p2, radius, Color(color))
+    instance.draw_solid_capsule(py_p1, py_p2, radius, Color(color))
 
 @ffi.callback("void(b2Transform, float, b2HexColor, void*)")
 def draw_solid_circle(transform, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
-    instance._draw_solid_circle(py_transform, radius, Color(color))
+    instance.draw_solid_circle(py_transform, radius, Color(color))
 
 @ffi.callback("void(b2Transform, void*)")
 def draw_transform(transform, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
-    instance._draw_transform(py_transform)
+    instance.draw_transform(py_transform)
 
 
 class DebugDraw:
@@ -190,7 +190,7 @@ class DebugDraw:
         self._debug_draw.drawJointExtras = bool(value)
 
     # Internal callback handlers (override these in subclasses)
-    def _draw_polygon(self, vertices: list[Vec2], color: Color):
+    def draw_polygon(self, vertices: list[Vec2], color: Color):
         """Draw wireframe polygon outlines (AABBs and shape outlines when draw_aabbs/shapes enabled).
 
         
@@ -200,7 +200,7 @@ class DebugDraw:
         """
         pass  # Override in subclass
 
-    def _draw_solid_polygon(self, transform: Transform, vertices: list[Vec2], 
+    def draw_solid_polygon(self, transform: Transform, vertices: list[Vec2], 
                             radius: float, color: Color):
         """Draw filled convex polygons with optional rounded corners (triggered by draw_shapes flag).
         
@@ -212,7 +212,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_circle(self, center: Vec2, radius: float, color: Color):
+    def draw_circle(self, center: Vec2, radius: float, color: Color):
         """Callback for drawing circle outlines.
         
         Args:
@@ -222,7 +222,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_segment(self, p1: Vec2, p2: Vec2, color: Color):
+    def draw_segment(self, p1: Vec2, p2: Vec2, color: Color):
         """Draw line segments for joints/contact normals (requires draw_joints or draw_contact_normals).
         
         Args:
@@ -233,7 +233,7 @@ class DebugDraw:
 
         pass
 
-    def _draw_point(self, p: Vec2, size: float, color: Color):
+    def draw_point(self, p: Vec2, size: float, color: Color):
         """Visualize contact points (draw_contacts) or mass centers (draw_mass).
         
         Args:
@@ -246,7 +246,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_string(self, p: Vec2, s: str, color: Color):
+    def draw_string(self, p: Vec2, s: str, color: Color):
         """Render debug text for impulse values (draw_contact_impulses/draw_friction_impulses).
         
         Args:
@@ -259,7 +259,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
+    def draw_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
         """Callback for drawing capsule outlines (line segment with radius).
         
         Args:
@@ -273,7 +273,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
+    def draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
         """Draw filled capsule shapes (triggered by draw_shapes for capsule fixtures).
         
         Args:
@@ -287,7 +287,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_solid_circle(self, transform: Transform, radius: float, color: Color):
+    def draw_solid_circle(self, transform: Transform, radius: float, color: Color):
         """Draw filled circles with orientation marker (used for circular fixtures when draw_shapes enabled).
         
         Args:
@@ -297,7 +297,7 @@ class DebugDraw:
         """
         pass
 
-    def _draw_transform(self, transform: Transform):
+    def draw_transform(self, transform: Transform):
         """Visualize coordinate frames for joint anchors (requires draw_joint_extras flag).
 
         Args:

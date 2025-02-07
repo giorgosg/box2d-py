@@ -22,25 +22,25 @@ class MockDebugDraw(DebugDraw):
 
         self.draw_shapes = True
 
-    def _draw_solid_polygon(self, transform, vertices, radius, color):
+    def draw_solid_polygon(self, transform, vertices, radius, color):
         self.draw_polygon_count += 1
 
-    def _draw_circle(self, center, radius, color):
+    def draw_circle(self, center, radius, color):
         self.draw_circle_count += 1
 
-    def _draw_solid_circle(self, transform, radius, color):
+    def draw_solid_circle(self, transform, radius, color):
         self.draw_solid_circle_count += 1
 
-    def _draw_segment(self, p1, p2, color):
+    def draw_segment(self, p1, p2, color):
         self.draw_segment_count += 1
 
-    def _draw_point(self, p, size, color):
+    def draw_point(self, p, size, color):
         self.draw_point_count += 1
 
-    def _draw_string(self, p, s, color):
+    def draw_string(self, p, s, color):
         self.draw_string_count += 1
 
-    def _draw_transform(self, transform):
+    def draw_transform(self, transform):
         self.draw_transform_count += 1
 
 def test_debug_draw_callbacks():
