@@ -2,6 +2,7 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder
+from .joint import MouseJoint
 from .math import Vec2
 from .debug_draw import DebugDraw
 
@@ -33,6 +34,20 @@ class World:
     def new_body(self):
         """Entry point for body creation"""
         return BodyBuilder(self)
+
+    def add_mouse_joint(self, body_a, body_b, target, max_force=1000.0, damping_ratio=0.7):
+        """Create a mouse joint for interactive dragging between bodies
+        
+        Args:
+            body_a: First connected body (typically static)
+            body_b: Second connected body (dynamic body to drag)
+            target: Initial target position in world coordinates
+            max_force: Maximum constraint force (default 1000.0)
+            damping_ratio: Response damping ratio (0-1, default 0.7)
+        """
+        if body_a._body_id not in self._bodies or body_b._body_id not in self._bodies:
+            raise ValueError("Bodies must belong to this world")
+        return MouseJoint(self, body_a, body_b, target, max_force, damping_ratio)
 
     def _track_body(self, body):
         """Store reference to a Body instance"""
