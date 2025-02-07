@@ -12,7 +12,8 @@ ffibuilder = FFI()
 cdef_dir = 'box2d/include/box2d'
 include_dir = 'box2d/include/'
 #header_files = [f for f in os.listdir(include_dir) if f.endswith('.h')]
-header_files = ['base.h', 'math_functions.h', 'collision.h', 'id.h', 'types.h', 'box2d.h']
+header_files = ['base.h', 'math_functions.h', 'collision.h',
+                'id.h', 'types.h', 'box2d.h']
 # Read and combine all header files
 
 def process_header(filename):
@@ -23,7 +24,9 @@ def process_header(filename):
                '-D__linux__', '-E', '-']
     filetext = subprocess.run(command, text=True, input=filetext, stdout=subprocess.PIPE).stdout
     filetext = filetext.replace("B2_API", "")
+    #filetext = filetext.replace("B2_API", "__attribute__((visibility(\"default\")))")
     filetext = re.sub('B2_INLINE .*?\n{\n(.|\n)*?\n}\n', '', filetext)
+    #filetext = re.sub(r'B2_INLINE .*?{.*?}\n', '', filetext, flags=re.DOTALL)
     filetext = "\n".join([line for line in filetext.splitlines() if not line.startswith("#")])
     with open(os.path.basename(filename)+".cffi", "w") as outfile:
             outfile.write(filetext)
@@ -51,7 +54,7 @@ ffibuilder.set_source(
     """,
     sources=source_files,
     include_dirs=[include_dir, cdef_dir],
-    extra_compile_args=['-D__linux__', ]
+    extra_compile_args=['-D__linux__', '-DB2_ENABLE_ASSERT=1', '-DB2_INTERNAL_ASSERT_ENABLED=1']
 )
 
 
