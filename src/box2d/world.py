@@ -32,7 +32,16 @@ class World:
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
-        # Dictionary to store references to Python Body objects
+
+        # Store default simulation parameters
+        self._enable_sleep = world_def.enableSleep
+        self._enable_continuous = world_def.enableContinuous
+        self._restitution_threshold = world_def.restitutionThreshold
+        self._hit_event_threshold = world_def.hitEventThreshold
+        self._contact_hertz = world_def.contactHertz
+        self._contact_damping_ratio = world_def.contactDampingRatio
+        self._contact_push_velocity = world_def.contactPushMaxSpeed
+
         self._bodies = {}
 
     @property
@@ -191,3 +200,144 @@ class World:
         Destroys Box2D world instance.
         """
         self.destroy()
+
+    @property
+    def enable_sleep(self) -> bool:
+        """Control whether bodies can enter sleep state to save computation.
+        
+        Default: True
+        When enabled, inactive bodies will stop simulating until awakened.
+        
+        Example:
+            >>> world = World()
+            >>> world.enable_sleep = False  # Disable sleeping entirely
+        """
+        return self._enable_sleep
+    
+    @enable_sleep.setter
+    def enable_sleep(self, value: bool):
+        self._enable_sleep = bool(value)
+        lib.b2World_EnableSleeping(self._world_id, self._enable_sleep)
+
+    @property 
+    def enable_continuous(self) -> bool:
+        """Toggle continuous collision detection for dynamic vs static bodies.
+        
+        Default: True
+        Helps prevent fast-moving objects from tunneling through static geometry.
+        
+        Example:
+            >>> world = World()
+            >>> world.enable_continuous = False  # Disable CCD for static
+        """
+        return self._enable_continuous
+    
+    @enable_continuous.setter
+    def enable_continuous(self, value: bool):
+        self._enable_continuous = bool(value)
+        lib.b2World_EnableContinuous(self._world_id, self._enable_continuous)
+
+    @property
+    def restitution_threshold(self) -> float:
+        """Minimum collision speed for restitution effects (m/s).
+        
+        Default: 1.0
+        Collisions slower than this threshold will have zero restitution.
+        
+        Example:
+            >>> world = World()
+            >>> world.restitution_threshold = 2.0  # Only apply restitution above 2m/s
+        """
+        return self._restitution_threshold
+    
+    @restitution_threshold.setter 
+    def restitution_threshold(self, value: float):
+        self._restitution_threshold = float(value)
+        lib.b2World_SetRestitutionThreshold(self._world_id, self._restitution_threshold)
+
+    @property
+    def hit_event_threshold(self) -> float:
+        """Minimum collision speed to trigger hit events (m/s).
+        
+        Default: 1.0
+        Collisions slower than this won't generate collision events.
+        
+        Example:
+            >>> world = World()
+            >>> world.hit_event_threshold = 0.5  # Get events for slower impacts
+        """
+        return self._hit_event_threshold
+    
+    @hit_event_threshold.setter
+    def hit_event_threshold(self, value: float):
+        self._hit_event_threshold = float(value)
+        lib.b2World_SetHitEventThreshold(self._world_id, self._hit_event_threshold)
+
+    @property
+    def contact_hertz(self) -> float:
+        """Contact constraint stiffness frequency (Hz).
+        
+        Default: 60.0
+        Higher values make contacts stiffer/more rigid.
+        
+        Example:
+            >>> world = World()
+            >>> world.contact_hertz = 30.0  # Softer contacts
+        """
+        return self._contact_hertz
+    
+    @contact_hertz.setter
+    def contact_hertz(self, value: float):
+        self._contact_hertz = float(value)
+        lib.b2World_SetContactTuning(
+            self._world_id, 
+            self._contact_hertz,
+            self._contact_damping_ratio,
+            self._contact_push_velocity
+        )
+
+    @property
+    def contact_damping_ratio(self) -> float:
+        """Contact constraint damping ratio (0-1).
+        
+        Default: 0.0 (no damping)
+        1.0 = critical damping (fastest oscillation reduction)
+        
+        Example:
+            >>> world = World()
+            >>> world.contact_damping_ratio = 0.2  # Add some energy absorption
+        """
+        return self._contact_damping_ratio
+    
+    @contact_damping_ratio.setter
+    def contact_damping_ratio(self, value: float):
+        self._contact_damping_ratio = float(value)
+        lib.b2World_SetContactTuning(
+            self._world_id,
+            self._contact_hertz,
+            self._contact_damping_ratio,
+            self._contact_push_velocity
+        )
+
+    @property 
+    def contact_push_velocity(self) -> float:
+        """Maximum velocity for pushing objects out of penetration (m/s).
+        
+        Default: 1.0
+        Limits how fast contacts can separate penetrating bodies.
+        
+        Example:
+            >>> world = World()
+            >>> world.contact_push_velocity = 2.0  # Allow faster separation
+        """
+        return self._contact_push_velocity
+    
+    @contact_push_velocity.setter
+    def contact_push_velocity(self, value: float):
+        self._contact_push_velocity = float(value)
+        lib.b2World_SetContactTuning(
+            self._world_id,
+            self._contact_hertz,
+            self._contact_damping_ratio,
+            self._contact_push_velocity
+        )
