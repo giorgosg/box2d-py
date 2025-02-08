@@ -121,3 +121,125 @@ def test_world_query_aabb_edge_cases():
  #   aabb = AABB(lower=(2,2), upper=(1,1))
  #   results = world.query_aabb(aabb)
  #   assert len(results) == 0
+
+def test_create_multiple_worlds():
+    worlds = [World(gravity=(0, -9.81)) for _ in range(5)]
+    try:
+        for w in worlds:
+            # Check the gravity is as set.
+            g = w.gravity
+            assert g.x == 0.0 and pytest.approx(g.y, abs=1e-5) == -9.81
+            # Run a single simulation step
+            w.step(1/60)
+    finally:
+        # Ensure that all worlds are destroyed
+        for w in worlds:
+            w.destroy()
+
+
+def test_duplicate_destruction():
+    world_instance = World()
+    # First destruction
+    world_instance.destroy()
+    
+    # Attempt to destroy the same world again should not raise an error.
+    try:
+        world_instance.destroy()
+    except Exception as e:
+        pytest.fail(f"Destroying world twice raised an exception: {e}")
+
+
+def test_destroy_one_world_does_not_affect_others():
+    w1 = World(gravity=(0, -10))
+    w2 = World(gravity=(0, -5))
+    
+    # Destroy the first world
+    w1.destroy()
+    
+    # Verify that w2 still works by checking its gravity vector and stepping the simulation.
+    try:
+        g2 = w2.gravity
+        assert g2.x == 0.0 and pytest.approx(g2.y, abs=1e-5) == -5
+        w2.step(1/60)
+    except Exception as ex:
+        pytest.fail(f"Second world failed after the first was destroyed: {ex}")
+    finally:
+        w2.destroy()
+
+def test_destroy_world_with_active_body_and_recreate():
+    # Create initial world with gravity and an active body.
+    world = World(gravity=(0, -9.81))
+    # Create a dynamic body starting at (0, 10) with a box shape.
+    body = world.new_body().dynamic().position(0, 10).box(1, 1, density=1.0).build()
+
+    # Simulate a few steps to allow gravity to affect the body.
+    for _ in range(10):
+        world.step(1/60, substep_count=8)
+    pos_before_destroy = body.position.y
+
+    # Destroy the world (which has active bodies).
+    world.destroy()
+
+    # Create a new world and add a similar dynamic body.
+    new_world = World(gravity=(0, -9.81))
+    new_body = new_world.new_body().dynamic().position(0, 10).box(1, 1, density=1.0).build()
+
+    # Simulate several steps in the new world.
+    for _ in range(10):
+        new_world.step(1/60, substep_count=8)
+    pos_after = new_body.position.y
+
+    # Under gravity, the new body's y position should decrease.
+    assert pos_after < 10
+    new_world.destroy()
+
+
+def test_recreate_multiple_worlds_after_destroying_active_bodies():
+    # Create and simulate an initial world with an active body.
+    initial_world = World(gravity=(0, -9.81))
+    body = initial_world.new_body().dynamic().position(0, 20).box(2, 2, density=1.0).build()
+    for _ in range(10):
+        initial_world.step(1/60, substep_count=8)
+    initial_world.destroy()
+
+    # Define test cases for new worlds with various gravity vectors.
+    test_cases = [
+        {"gravity": (0, -9.81), "axis": "y", "initial": 10, "check_decrease": True},
+        {"gravity": (-9.81, 0), "axis": "x", "initial": 10, "check_decrease": True},
+        {"gravity": (9.81, 0), "axis": "x", "initial": 10, "check_decrease": False},
+        {"gravity": (0, 9.81), "axis": "y", "initial": 10, "check_decrease": False},
+    ]
+
+    for case in test_cases:
+        g = case["gravity"]
+        axis = case["axis"]
+        initial_position = case["initial"]
+
+        new_world = World(gravity=g)
+        new_body = new_world.new_body().dynamic().position(0, initial_position).box(1, 1, density=1.0).build()
+
+        # Capture the initial coordinate value based on the specified axis.
+        if axis == "y":
+            init_val = new_body.position.y
+        else:
+            init_val = new_body.position.x
+
+        # Simulate multiple steps to amplify the effect of gravity.
+        for _ in range(10):
+            new_world.step(1/60, substep_count=8)
+
+        if axis == "y":
+            final_val = new_body.position.y
+        else:
+            final_val = new_body.position.x
+
+        # With negative gravity along an axis, expect a decrease; with positive, an increase.
+        if case["check_decrease"]:
+            assert final_val < init_val, (
+                f"For gravity {g}, expected {axis} coordinate to decrease (from {init_val} to {final_val})."
+            )
+        else:
+            assert final_val > init_val, (
+                f"For gravity {g}, expected {axis} coordinate to increase (from {init_val} to {final_val})."
+            )
+        new_world.destroy()

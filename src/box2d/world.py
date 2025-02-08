@@ -174,10 +174,20 @@ class World:
         )
         return results
 
+    def destroy(self):
+        """Destroy the world.
+
+        Example:
+            >>> world = World()
+            >>> world.destroy()
+        """
+        if hasattr(self, '_world_id'):
+            lib.b2DestroyWorld(self._world_id)
+            del self._world_id
+
     def __del__(self):
         """Clean up world resources. Automatically called when instance is garbage collected.
     
         Destroys Box2D world instance.
         """
-        if hasattr(self, '_world_id'):
-            lib.b2DestroyWorld(self._world_id)
+        self.destroy()
