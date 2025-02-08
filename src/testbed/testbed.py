@@ -33,10 +33,14 @@ class TestBedDPG:
         dpg.create_viewport(title="Box2D TestBed - DearPyGui", width=self.width, height=self.height)
 
         with dpg.window(label="TestBed", width=self.width, height=self.height, no_scrollbar=True) as self.main_window:
+            # Place controls on top.
             with dpg.group(horizontal=True):
+                dpg.add_text("Substeps:")
+                dpg.add_input_int(tag="substeps_input", label="", default_value=4, width=100)
+                dpg.add_text("Hertz:")
+                dpg.add_input_float(tag="timestep_input", label="", default_value=60.0, width=100)
                 dpg.add_button(label="Create Random Circle", callback=lambda: self.create_random_circle())
-                dpg.add_button(label="Quit", callback=lambda: dpg.stop_dearpygui())
-            # Create a drawing canvas where the simulation will be rendered.
+            # Create a drawing canvas for simulation rendering.
             self.canvas = dpg.add_drawlist(width=self.width, height=self.height)
 
         # Register the mouse wheel handler to handle zoom changes.
@@ -55,7 +59,6 @@ class TestBedDPG:
     def on_mouse_scroll(self, sender, app_data):
         """
         Update the zoom level when the mouse wheel is scrolled.
-        Positive app_data zooms in, negative zooms out.
         """
         zoom_speed = 1.1
         current_zoom = abs(self.view_transform._scale.x)
@@ -66,7 +69,7 @@ class TestBedDPG:
         else:
             new_zoom = current_zoom
 
-        # Optionally, clamp the zoom level
+        # Clamp the zoom level.
         new_zoom = max(5, min(new_zoom, 200))
         self.view_transform.scale = Vec2(new_zoom, -new_zoom)
 
@@ -76,15 +79,19 @@ class TestBedDPG:
         radius = random.uniform(0.5, 1.5)
         self.world.new_body().dynamic().position(x, y).circle(radius).build()
 
-    def update(self, dt):
+    def update_physics(self, dt):
         """
-        Update the simulation for the given time step.
-        Also handles panning via right–click dragging.
+        Update the physics simulation using a fixed time step.
         """
-        self.world.step(dt, 4)
+        substeps = dpg.get_value("substeps_input")
+        self.world.step(dt, substeps)
 
-        # Panning: if the right mouse button is pressed, update the transform.
-        if dpg.is_mouse_button_down(1):  # Assumes right-click.
+    def update_panning(self):
+        """
+        Independently update the view transformation based on panning input,
+        so that the UI and panning remain responsive.
+        """
+        if dpg.is_mouse_button_down(1):  # Assumes right-click drag.
             current_mouse = dpg.get_mouse_pos()
             if self.last_mouse_pos is not None:
                 dx = current_mouse[0] - self.last_mouse_pos[0]
@@ -97,45 +104,64 @@ class TestBedDPG:
         else:
             self.last_mouse_pos = None
 
-        # Ensure the debug draw uses the updated view transformation.
         self.debug_draw.view_transform = self.view_transform
 
     def on_viewport_resize(self, sender, app_data):
         """
-        Callback when the viewport (OS-level window) is resized.
+        Callback when the viewport is resized, ensuring our window and canvas update accordingly.
         """
-        # Get the client area's width and height.
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
-        canvas_height = new_height - 40 # there must be a better way to do this
-        canvas_width = new_width - 16   # ...
+        canvas_height = new_height - 40  # Adjust appropriately.
+        canvas_width = new_width - 16    # Adjust appropriately.
         dpg.configure_item(self.main_window, width=new_width, height=new_height)
         dpg.configure_item(self.canvas, width=canvas_width, height=canvas_height)
         new_center = (new_width // 2, new_height // 2)
-        # Update the view transform to be centered according to the new client size.
         self.view_transform.position = Vec2(*new_center)
 
     def run(self):
         """
-        Main loop: repeatedly step the simulation and refresh the render.
+        Main loop:
+        - The UI (and panning controls) are updated every iteration.
+        - Physics is updated only when enough time has accumulated, as determined
+          by the "Timestep (Hz)" value.
+        This decouples the UI refresh rate from the simulation update rate.
         """
         dpg.setup_dearpygui()
-        # Register the viewport resize callback so our main window and canvas stay in sync.
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
         dpg.show_viewport()
-        # Set the main window as the primary, so it fills the entire viewport.
         dpg.set_primary_window(self.main_window, True)
-        previous_time = time.perf_counter()
+
+        prev_time = time.perf_counter()
+        accumulator = 0.0
+
         while dpg.is_dearpygui_running():
             current_time = time.perf_counter()
-            dt = current_time - previous_time
-            previous_time = current_time
-            # Here we use a fixed time step (1/60 s) for physics stepping.
-            self.update(1.0 / 60.0)
-            # Clear the canvas from the previous frame.
+            elapsed = current_time - prev_time
+            prev_time = current_time
+            accumulator += elapsed
+
+            # Update panning (UI interactions) every frame.
+            self.update_panning()
+
+            # Update the UI (clear canvas, draw current simulation state).
             dpg.delete_item(self.canvas, children_only=True)
-            # Ask the world to draw itself using our debug draw.
             self.world.draw(self.debug_draw)
             dpg.render_dearpygui_frame()
+
+            # Determine desired physics update interval based on UI control.
+            timestep_hz = dpg.get_value("timestep_input")
+            if timestep_hz <= 0:
+                timestep_hz = 60.0
+            physics_dt = 1.0 / timestep_hz
+
+            # Run physics updates if enough time has accumulated.
+            while accumulator >= physics_dt:
+                self.update_physics(physics_dt)
+                accumulator -= physics_dt
+
+            # Yield a bit to prevent 100% CPU usage.
+            time.sleep(0.001)
+
         dpg.destroy_context()
 
 
