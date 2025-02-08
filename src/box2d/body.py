@@ -168,7 +168,7 @@ class BodyBuilder:
         self._def.sleepThreshold = threshold
         return self
 
-    def box(self, width: float, height: float, offset=(0,0), angle=0.0,
+    def box(self, width: float, height: float, radius=0.0, offset=(0,0), angle=0.0,
            density: float = 1.0, friction: float = 0.2, 
            restitution: float = 0.0, is_sensor: bool = False):
         """Add a box shape to the body during construction.
@@ -176,6 +176,7 @@ class BodyBuilder:
         Args:
             width: Full width of the box
             height: Full height of the box
+            radius: The radius of the rounded corners (default: 0.0)
             offset: The offset of the box from the body's position (default: (0,0))
             angle: The angle of the box (default: 0.0)
             density: Mass density (kg/m²)
@@ -189,6 +190,7 @@ class BodyBuilder:
             'type': 'box',
             'params': (width, height),
             'kwargs': {
+                'radius': radius,
                 'offset': offset,
                 'angle': angle,
                 'density': density,
@@ -501,13 +503,14 @@ class Body():
             fx, fy = point
             lib.b2Body_ApplyLinearImpulse(self._body_id, (x, y), (fx, fy), wake)
 
-    def add_box(self, width: float, height: float, offset=(0,0), angle=0.0,
+    def add_box(self, width: float, height: float, radius=0.0, offset=(0,0), angle=0.0,
                 density=None, friction=None, restitution=None, is_sensor=None):
         """Add a box shape to the body.
         
         Args:
             width: The width of the box
             height: The height of the box
+            radius: The radius of the rounded corners (default: 0.0)
             offset: The offset of the box from the body's position (default: (0,0))
             angle: The angle of the box (default: 0.0)
             density: Mass density (kg/m²).
@@ -515,7 +518,7 @@ class Body():
             restitution: Bounciness (0-1).
             is_sensor: Whether this shape is a sensor.
         """
-        shape = Box(self, width=width, height=height, offset=offset, angle=angle, 
+        shape = Box(self, width=width, height=height, radius=radius, offset=offset, angle=angle, 
                     density=density, friction=friction, restitution=restitution, 
                     is_sensor=is_sensor)
         self._shapes.append(shape)

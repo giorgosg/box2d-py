@@ -29,19 +29,19 @@ class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
     """
     def setup(self, world):
         # Create a static ground body.
-        world.new_body().static().position(0, -10).box(50, 10).build()
+        world.new_body().static().position(0, -10).box(50, 20).build()
 
         rows = 10
-        box_half_size = 0.5  # Each box will be 1x1 (if box() takes half-dimensions).
+        box_size = 1  # Each box will be 1x1 (if box() takes half-dimensions).
 
         for i in range(rows):
             # In row i, we create (rows - i) boxes.
             count = rows - i
             # Center the row around x = 0.
-            start_x = -count * box_half_size
+            start_x = -count * box_size/2
             # Place rows so that the bottom row is just above the ground,
             # and each subsequent row is 1 unit higher, with a small spacing.
-            y = box_half_size + i * (box_half_size * 2 + 0.01)
+            y = box_size/2 + i * (box_size + 0.01)
             for j in range(count):
-                x = start_x + j * (box_half_size * 2)
-                world.new_body().dynamic().position(x, y).box(box_half_size, box_half_size).build() 
+                x = start_x + j * box_size
+                world.new_body().dynamic().position(x, y).box(box_size, box_size, radius=0.1).build() 

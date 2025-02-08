@@ -203,8 +203,8 @@ class Box(Polygon):
             restitution: Bounciness
             is_sensor: Sensor flag
         """
-        hw = width / 2
-        hh = height / 2
+        hw = width / 2 - radius
+        hh = height / 2 - radius
         base_vertices = [
             (-hw, -hh),
             (hw, -hh),
