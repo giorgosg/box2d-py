@@ -4,11 +4,12 @@ import time
 import dearpygui.dearpygui as dpg
 
 from box2d import World, Vec2, ScaledTransform
-from test_base import get_first_test  # Test registration and sample test.
+from test_base import get_first_test, get_all_tests  # Import both for our default test and to build the tests tree.
 from debug_draw_dpg import DearpyguiDebugDraw
+import tests_sample
 
 # Global configuration for the viewport.
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1024, 768
 CENTER = (WIDTH // 2, HEIGHT // 2)
 SCALE = 30  # pixels per meter (initial zoom)
 
@@ -18,8 +19,16 @@ class TestBedDPG:
         self.height = height
         self.last_mouse_pos = None  # Used for panning via mouse drag.
 
+        # Layout constants for our new UI.
+        self.TEST_TREE_WIDTH = 160
+        self.CONTROLS_HEIGHT = 40   # estimated height for top controls
+        self.TOGGLES_HEIGHT = 40    # estimated height for the toggles window
+        self.MARGIN = 20            # margin between canvas and test tree
+
         # Set up the physics world with gravity.
         self.world = World(gravity=(0, -10))
+        # NEW: initialize the pending test flag.
+        self.pending_test_cls = None
 
         # Maintain a view transform (panning/zooming)
         self.view_transform = ScaledTransform(
@@ -28,33 +37,123 @@ class TestBedDPG:
             scale=(SCALE, -SCALE)
         )
 
-        # Set up the Dear PyGui context, viewport and UI.
+        # Set up the Dear PyGui context, viewport and main UI window.
         dpg.create_context()
         dpg.create_viewport(title="Box2D TestBed - DearPyGui", width=self.width, height=self.height)
 
-        with dpg.window(label="TestBed", width=self.width, height=self.height, no_scrollbar=True) as self.main_window:
-            # Place controls on top.
-            with dpg.group(horizontal=True):
+        # Create a main window.
+        with dpg.window(label="TestBed", width=self.width, height=self.height, no_scrollbar=True, tag="main_window") as self.main_window:
+            # Top controls.
+            with dpg.group(horizontal=True, tag="controls_group"):
                 dpg.add_text("Substeps:")
                 dpg.add_input_int(tag="substeps_input", label="", default_value=4, width=100)
                 dpg.add_text("Hertz:")
                 dpg.add_input_float(tag="timestep_input", label="", default_value=60.0, width=100)
                 dpg.add_button(label="Create Random Circle", callback=lambda: self.create_random_circle())
-            # Create a drawing canvas for simulation rendering.
-            self.canvas = dpg.add_drawlist(width=self.width, height=self.height)
+            
+            # Calculate available height for our main content (the simulation canvas and test tree).
+            content_height = self.height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
 
-        # Register the mouse wheel handler to handle zoom changes.
-        with dpg.handler_registry():
-            dpg.add_mouse_wheel_handler(callback=self.on_mouse_scroll)
+            # Main content area: a horizontal split between the simulation canvas and the tests tree.
+            with dpg.group(horizontal=True, tag="main_content"):
+                canvas_width = self.width - self.TEST_TREE_WIDTH - self.MARGIN
+                self.canvas = dpg.add_drawlist(tag="simulation_canvas",
+                                               width=canvas_width,
+                                               height=content_height)
+                self.test_tree = dpg.add_child_window(tag="test_tree",
+                                                      width=self.TEST_TREE_WIDTH,
+                                                      height=content_height)
+                # Build the tests tree on the right.
+                self.build_tests_tree()
 
-        # Set up our debug draw (which uses the canvas).
+        # Initialize the debug draw AFTER the canvas is created.
         self.debug_draw = DearpyguiDebugDraw(self.canvas)
         self.debug_draw.view_transform = self.view_transform
 
-        self.on_viewport_resize(None, None)
-        # Create the simulation objects using the first registered test.
-        self.test = get_first_test()
-        self.test().setup(self.world)
+        # Create a separate window for toggle buttons.
+        with dpg.window(label="Debug Draw Toggles", pos=(0, self.height - 50), 
+                        width=self.width, height=50, no_title_bar=True, no_move=True) as self.toggles_window:
+            with dpg.group(horizontal=True, horizontal_spacing=10):
+                dpg.add_checkbox(label="shapes", default_value=self.debug_draw.draw_shapes,
+                                 callback=self._toggle_debug_draw, user_data="draw_shapes")
+                dpg.add_checkbox(label="aabbs", default_value=self.debug_draw.draw_aabbs,
+                                 callback=self._toggle_debug_draw, user_data="draw_aabbs")
+                dpg.add_checkbox(label="joints", default_value=self.debug_draw.draw_joints,
+                                 callback=self._toggle_debug_draw, user_data="draw_joints")
+                dpg.add_checkbox(label="contacts", default_value=self.debug_draw.draw_contacts,
+                                 callback=self._toggle_debug_draw, user_data="draw_contacts")
+                dpg.add_checkbox(label="contact_normals", default_value=self.debug_draw.draw_contact_normals,
+                                 callback=self._toggle_debug_draw, user_data="draw_contact_normals")
+                dpg.add_checkbox(label="contact_impulses", default_value=self.debug_draw.draw_contact_impulses,
+                                 callback=self._toggle_debug_draw, user_data="draw_contact_impulses")
+                dpg.add_checkbox(label="friction_impulses", default_value=self.debug_draw.draw_friction_impulses,
+                                 callback=self._toggle_debug_draw, user_data="draw_friction_impulses")
+                dpg.add_checkbox(label="mass", default_value=self.debug_draw.draw_mass,
+                                 callback=self._toggle_debug_draw, user_data="draw_mass")
+                dpg.add_checkbox(label="joint_extras", default_value=self.debug_draw.draw_joint_extras,
+                                 callback=self._toggle_debug_draw, user_data="draw_joint_extras")
+
+        with dpg.handler_registry():
+            dpg.add_mouse_wheel_handler(callback=self.on_mouse_scroll)
+
+        self.on_viewport_resize(None, None)  # Set initial sizes.
+
+        # Auto-load a default test (e.g. the first registered one).
+        default_test_cls = get_first_test()
+        if default_test_cls is not None:
+            self.load_test(default_test_cls)
+
+    def build_tests_tree(self):
+        """
+        Build a tree widget inside the test_tree child window.
+        Each top-level node is a category; expanding a category reveals its tests.
+        When a test is selected, that test is loaded.
+        """
+        self.selectable_ids = [] 
+        registry = get_all_tests()
+        for category, tests in registry.items():
+            with dpg.tree_node(label=category, default_open=False, parent=self.test_tree):
+                for test_name, test_cls in tests.items():
+                    selectable_id = dpg.add_selectable(
+                        label=test_name,
+                        callback=self.select_test_callback,
+                        user_data=test_cls
+                    )
+                    self.selectable_ids.append(selectable_id)
+
+    def select_test_callback(self, sender, app_data, user_data):
+        """
+        Callback when a test is clicked in the tests tree.
+        Loads the selected test.
+        """
+        # Deselect all test selectables.
+        for sid in self.selectable_ids:
+            dpg.set_value(sid, False)
+    
+        # Mark the currently clicked selectable as selected.
+        dpg.set_value(sender, True)
+        
+        # Load the corresponding test.
+        self.load_test(user_data)
+
+    def load_test(self, test_cls):
+        """
+        Loads (restarts) the simulation with the given test.
+        """
+        self.pending_test_cls = test_cls
+        print(f"Test switch requested: {test_cls.__name__}")
+
+    def _toggle_debug_draw(self, sender, app_data, user_data):
+        """
+        Toggle callback for updating DebugDraw properties.
+
+        Args:
+            sender: The widget (checkbox) sending the event.
+            app_data: The new boolean state.
+            user_data: The name of the DebugDraw property (e.g., "draw_shapes").
+        """
+        new_value = dpg.get_value(sender)
+        setattr(self.debug_draw, user_data, new_value)
 
     def on_mouse_scroll(self, sender, app_data):
         """
@@ -88,8 +187,7 @@ class TestBedDPG:
 
     def update_panning(self):
         """
-        Independently update the view transformation based on panning input,
-        so that the UI and panning remain responsive.
+        Update the view transformation based on mouse dragging.
         """
         if dpg.is_mouse_button_down(1):  # Assumes right-click drag.
             current_mouse = dpg.get_mouse_pos()
@@ -108,23 +206,32 @@ class TestBedDPG:
 
     def on_viewport_resize(self, sender, app_data):
         """
-        Callback when the viewport is resized, ensuring our window and canvas update accordingly.
+        Callback when the viewport is resized.
+        This updates our main window, canvas, test tree, view transform, and the toggle elements.
         """
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
-        canvas_height = new_height - 40  # Adjust appropriately.
-        canvas_width = new_width - 16    # Adjust appropriately.
+        # Recalculate available height for the main content area.
+        content_height = new_height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
+        canvas_width = new_width - self.TEST_TREE_WIDTH - self.MARGIN
         dpg.configure_item(self.main_window, width=new_width, height=new_height)
-        dpg.configure_item(self.canvas, width=canvas_width, height=canvas_height)
-        new_center = (new_width // 2, new_height // 2)
+        dpg.configure_item(self.canvas, width=canvas_width, height=content_height)
+        dpg.configure_item(self.test_tree, width=self.TEST_TREE_WIDTH, height=content_height)
+        
+        # Update view_transform's origin (center of canvas).
+        new_center = (canvas_width // 2, content_height // 2)
         self.view_transform.position = Vec2(*new_center)
+        
+        dpg.configure_item(self.toggles_window,
+                           pos=(0, new_height - self.TOGGLES_HEIGHT),
+                           width=new_width,
+                           height=self.TOGGLES_HEIGHT)
 
     def run(self):
         """
         Main loop:
-        - The UI (and panning controls) are updated every iteration.
-        - Physics is updated only when enough time has accumulated, as determined
-          by the "Timestep (Hz)" value.
-        This decouples the UI refresh rate from the simulation update rate.
+        - Checks for any pending test switches and applies them.
+        - Updates UI (and panning controls) every iteration.
+        - Physics is updated only when enough time has accumulated.
         """
         dpg.setup_dearpygui()
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
@@ -135,6 +242,17 @@ class TestBedDPG:
         accumulator = 0.0
 
         while dpg.is_dearpygui_running():
+            # Process any pending test switch before simulation update.
+            if self.pending_test_cls is not None:
+                if self.world is not None:
+                    self.world.destroy()
+                self.world = World(gravity=(0, -10))
+                test_instance = self.pending_test_cls()
+                test_instance.setup(self.world)
+                print(f"Loaded test: {self.pending_test_cls.__name__}")
+                self.pending_test_cls = None
+                accumulator = 0.0  # Reset physics accumulator
+
             current_time = time.perf_counter()
             elapsed = current_time - prev_time
             prev_time = current_time
@@ -143,12 +261,19 @@ class TestBedDPG:
             # Update panning (UI interactions) every frame.
             self.update_panning()
 
-            # Update the UI (clear canvas, draw current simulation state).
+            # Clear the canvas before drawing the simulation.
             dpg.delete_item(self.canvas, children_only=True)
+            canvas_width = dpg.get_item_width(self.canvas)
+            canvas_height = dpg.get_item_height(self.canvas)
+            dpg.draw_rectangle((0, 0), (canvas_width, canvas_height),
+                               fill=(60, 60, 60, 255),
+                               color=(90, 90, 90, 255),
+                               parent=self.canvas)
+            # Draw the simulation state.
             self.world.draw(self.debug_draw)
             dpg.render_dearpygui_frame()
 
-            # Determine desired physics update interval based on UI control.
+            # Determine physics update interval.
             timestep_hz = dpg.get_value("timestep_input")
             if timestep_hz <= 0:
                 timestep_hz = 60.0
@@ -159,7 +284,6 @@ class TestBedDPG:
                 self.update_physics(physics_dt)
                 accumulator -= physics_dt
 
-            # Yield a bit to prevent 100% CPU usage.
             time.sleep(0.001)
 
         dpg.destroy_context()

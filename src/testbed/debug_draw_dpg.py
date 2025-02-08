@@ -32,8 +32,9 @@ class DearpyguiDebugDraw(DebugDraw):
         if len(vertices) < 2:
             return
         points = [self.world_to_screen(v) for v in vertices]
+        points.append(points[0])
         dpg.draw_polygon(points,
-                         color=self._to_color(color),
+                         color=tuple(color),
                          thickness=self.outline_thickness,
                          parent=self.canvas)
 
@@ -49,6 +50,7 @@ class DearpyguiDebugDraw(DebugDraw):
             y = transform.p.y + (v.x * sin_a + v.y * cos_a)
             transformed.append(Vec2(x, y))
         points = [self.world_to_screen(v) for v in transformed]
+        
         #fill_color = self._to_color(color)
         dpg.draw_polygon(points,
                          fill=tuple(color),
@@ -148,7 +150,7 @@ class DearpyguiDebugDraw(DebugDraw):
     def draw_point(self, p: Vec2, size: float, color: Color):
         center_screen = self.world_to_screen(p)
         scaled_size = max(1, round(size * self.view_transform._scale.x))
-        radius = max(1, scaled_size // 2)
+        radius = 3
         dpg.draw_circle(center=center_screen,
                         radius=radius,
                         fill=tuple(color),

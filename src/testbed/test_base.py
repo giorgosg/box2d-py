@@ -30,26 +30,9 @@ def get_first_test():
             return test_cls
     return None
 
+def get_all_tests():
+    """
+    Returns the full test registry.
+    """
+    return BaseTest.registry
 
-class DefaultTest(BaseTest, category="Examples", name="Default Test"):
-    def setup(self, world):
-        # Create a wide ground body
-        world.new_body().static().position(0, -10).box(50, 10).build()
-        
-        # Add dynamic bodies
-        world.new_body().dynamic().position(-5, 20).box(1, 1).build()
-        world.new_body().dynamic().position(5, 30).circle(1).build()
-        
-        # Add vertical capsule
-        world.new_body().dynamic().position(0, 10).capsule(
-            (0, 0),  # Local start point
-            (0, 2),  # Local end point
-            0.5      # Radius
-        ).build()
-        
-        # Add horizontal capsule
-        world.new_body().dynamic().position(-3, 15).capsule(
-            (-1, 0),  # Local start point
-            (1, 0),   # Local end point
-            0.3       # Radius
-        ).build()
