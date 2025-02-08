@@ -205,7 +205,6 @@ class World:
     def enable_sleep(self) -> bool:
         """Control whether bodies can enter sleep state to save computation.
         
-        Default: True
         When enabled, inactive bodies will stop simulating until awakened.
         
         Example:
@@ -223,7 +222,6 @@ class World:
     def enable_continuous(self) -> bool:
         """Toggle continuous collision detection for dynamic vs static bodies.
         
-        Default: True
         Helps prevent fast-moving objects from tunneling through static geometry.
         
         Example:
@@ -241,7 +239,6 @@ class World:
     def restitution_threshold(self) -> float:
         """Minimum collision speed for restitution effects (m/s).
         
-        Default: 1.0
         Collisions slower than this threshold will have zero restitution.
         
         Example:
@@ -259,7 +256,6 @@ class World:
     def hit_event_threshold(self) -> float:
         """Minimum collision speed to trigger hit events (m/s).
         
-        Default: 1.0
         Collisions slower than this won't generate collision events.
         
         Example:
@@ -277,7 +273,6 @@ class World:
     def contact_hertz(self) -> float:
         """Contact constraint stiffness frequency (Hz).
         
-        Default: 60.0
         Higher values make contacts stiffer/more rigid.
         
         Example:
@@ -300,7 +295,6 @@ class World:
     def contact_damping_ratio(self) -> float:
         """Contact constraint damping ratio (0-1).
         
-        Default: 0.0 (no damping)
         1.0 = critical damping (fastest oscillation reduction)
         
         Example:
@@ -323,7 +317,6 @@ class World:
     def contact_push_velocity(self) -> float:
         """Maximum velocity for pushing objects out of penetration (m/s).
         
-        Default: 1.0
         Limits how fast contacts can separate penetrating bodies.
         
         Example:
