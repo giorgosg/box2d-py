@@ -1,10 +1,9 @@
-import math
 import random
 import time
 import dearpygui.dearpygui as dpg
 
 from box2d import World, Vec2, ScaledTransform
-from test_base import get_first_test, get_all_tests  # Import both for our default test and to build the tests tree.
+from test_base import get_first_test, get_all_tests  # Default and tests tree.
 from debug_draw_dpg import DearpyguiDebugDraw
 import tests_sample
 
@@ -19,7 +18,7 @@ class TestBedDPG:
         self.height = height
         self.last_mouse_pos = None  # Used for panning via mouse drag.
 
-        # Layout constants for our new UI.
+        # Layout constants for our UI.
         self.TEST_TREE_WIDTH = 160
         self.CONTROLS_HEIGHT = 40   # estimated height for top controls
         self.TOGGLES_HEIGHT = 40    # estimated height for the toggles window
@@ -29,6 +28,7 @@ class TestBedDPG:
         self.world = World(gravity=(0, -10))
         # NEW: initialize the pending test flag.
         self.pending_test_cls = None
+        self.mouse_joint = None  # Active mouse joint, if any.
 
         # Maintain a view transform (panning/zooming)
         self.view_transform = ScaledTransform(
@@ -36,19 +36,20 @@ class TestBedDPG:
             rotation=0,
             scale=(SCALE, -SCALE)
         )
+        self.view_transform_inv = self.view_transform.inverse  # Cached inverse
 
         # Set up the Dear PyGui context, viewport and main UI window.
         dpg.create_context()
         dpg.create_viewport(title="Box2D TestBed - DearPyGui", width=self.width, height=self.height)
 
-        # Create a main window.
+        # Create the main window.
         with dpg.window(label="TestBed", width=self.width, height=self.height, no_scrollbar=True, tag="main_window") as self.main_window:
             # Top controls.
             with dpg.group(horizontal=True, tag="controls_group"):
                 dpg.add_text("Substeps:")
                 dpg.add_input_int(tag="substeps_input", label="", default_value=4, width=100)
                 dpg.add_text("Hertz:")
-                dpg.add_input_float(tag="timestep_input", label="", default_value=60.0, width=100)
+                dpg.add_input_int(tag="timestep_input", label="", default_value=60, width=100)
                 dpg.add_button(label="Create Random Circle", callback=lambda: self.create_random_circle())
             
             # Calculate available height for our main content (the simulation canvas and test tree).
@@ -93,8 +94,12 @@ class TestBedDPG:
                 dpg.add_checkbox(label="joint_extras", default_value=self.debug_draw.draw_joint_extras,
                                  callback=self._toggle_debug_draw, user_data="draw_joint_extras")
 
+        # Register global mouse event handlers.
         with dpg.handler_registry():
             dpg.add_mouse_wheel_handler(callback=self.on_mouse_scroll)
+            dpg.add_mouse_down_handler(callback=self.global_mouse_down_handler)
+            dpg.add_mouse_drag_handler(callback=self.global_mouse_drag_handler)
+            dpg.add_mouse_release_handler(callback=self.global_mouse_release_handler)
 
         self.on_viewport_resize(None, None)  # Set initial sizes.
 
@@ -106,8 +111,6 @@ class TestBedDPG:
     def build_tests_tree(self):
         """
         Build a tree widget inside the test_tree child window.
-        Each top-level node is a category; expanding a category reveals its tests.
-        When a test is selected, that test is loaded.
         """
         self.selectable_ids = [] 
         registry = get_all_tests()
@@ -146,11 +149,6 @@ class TestBedDPG:
     def _toggle_debug_draw(self, sender, app_data, user_data):
         """
         Toggle callback for updating DebugDraw properties.
-
-        Args:
-            sender: The widget (checkbox) sending the event.
-            app_data: The new boolean state.
-            user_data: The name of the DebugDraw property (e.g., "draw_shapes").
         """
         new_value = dpg.get_value(sender)
         setattr(self.debug_draw, user_data, new_value)
@@ -171,6 +169,7 @@ class TestBedDPG:
         # Clamp the zoom level.
         new_zoom = max(5, min(new_zoom, 200))
         self.view_transform.scale = Vec2(new_zoom, -new_zoom)
+        self.view_transform_inv = self.view_transform.inverse
 
     def create_random_circle(self):
         x = random.uniform(-10, 10)
@@ -185,6 +184,76 @@ class TestBedDPG:
         substeps = dpg.get_value("substeps_input")
         self.world.step(dt, substeps)
 
+    def screen_to_world(self, pos):
+        """
+        Convert a screen coordinate to a Box2D world coordinate using
+        the cached inverse of the view transform.
+        """
+        return self.view_transform_inv(pos)
+
+    def global_mouse_down_handler(self, sender, app_data):
+        """
+        Global mouse down handler that checks if the canvas is hovered.
+        """
+        if not dpg.is_item_hovered(self.canvas):
+            return
+        self.on_mouse_down(sender, app_data)
+
+    def global_mouse_drag_handler(self, sender, app_data):
+        """
+        Global mouse drag handler that checks if the canvas is hovered.
+        """
+        if not dpg.is_item_hovered(self.canvas):
+            return
+        self.on_mouse_drag(sender, app_data)
+
+    def global_mouse_release_handler(self, sender, app_data):
+        """
+        Global mouse release handler that checks if the canvas is hovered.
+        """
+        if not dpg.is_item_hovered(self.canvas):
+            return
+        self.on_mouse_release(sender, app_data)
+
+    def on_mouse_down(self, sender, app_data):
+        """
+        Mouse-down handler:
+        Converts the canvas-relative mouse position to a world coordinate,
+        then queries a small AABB to find a body and creates a mouse joint if found.
+        """
+        if self.mouse_joint is not None:
+            return
+
+        # Use the drawing mouse position as it is relative to the drawlist.
+        canvas_mouse_pos = dpg.get_drawing_mouse_pos()
+        world_pos = self.screen_to_world(canvas_mouse_pos)
+        
+        from box2d.math import AABB
+        query_aabb = AABB(lower=(world_pos.x - 0.1, world_pos.y - 0.1),
+                          upper=(world_pos.x + 0.1, world_pos.y + 0.1))
+        shapes = self.world.query_aabb(query_aabb)
+        if shapes:
+            body = shapes[0].body
+            self.mouse_joint = self.world.add_mouse_joint(body, (world_pos.x, world_pos.y),
+                                                          max_force=1000.0, damping_ratio=0.7)
+
+    def on_mouse_drag(self, sender, app_data):
+        """
+        Mouse-drag handler: update the target of the active MouseJoint.
+        """
+        if self.mouse_joint is not None:
+            canvas_mouse_pos = dpg.get_drawing_mouse_pos()
+            world_pos = self.screen_to_world(canvas_mouse_pos)
+            self.mouse_joint.target = (world_pos.x, world_pos.y)
+
+    def on_mouse_release(self, sender, app_data):
+        """
+        On mouse release, destroy the mouse joint to release the body.
+        """
+        if self.mouse_joint is not None:
+            self.mouse_joint.destroy()
+            self.mouse_joint = None
+
     def update_panning(self):
         """
         Update the view transformation based on mouse dragging.
@@ -197,7 +266,7 @@ class TestBedDPG:
                 new_pos = (self.view_transform.position.x + dx,
                            self.view_transform.position.y + dy)
                 self.view_transform.position = new_pos
-                self.view_transform._recalc_matrix()
+                self.view_transform_inv = self.view_transform.inverse
             self.last_mouse_pos = current_mouse
         else:
             self.last_mouse_pos = None
@@ -207,19 +276,18 @@ class TestBedDPG:
     def on_viewport_resize(self, sender, app_data):
         """
         Callback when the viewport is resized.
-        This updates our main window, canvas, test tree, view transform, and the toggle elements.
+        Updates the main window, canvas, test tree, view transform, and toggle elements.
         """
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
-        # Recalculate available height for the main content area.
         content_height = new_height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
         canvas_width = new_width - self.TEST_TREE_WIDTH - self.MARGIN
         dpg.configure_item(self.main_window, width=new_width, height=new_height)
         dpg.configure_item(self.canvas, width=canvas_width, height=content_height)
         dpg.configure_item(self.test_tree, width=self.TEST_TREE_WIDTH, height=content_height)
         
-        # Update view_transform's origin (center of canvas).
         new_center = (canvas_width // 2, content_height // 2)
         self.view_transform.position = Vec2(*new_center)
+        self.view_transform_inv = self.view_transform.inverse
         
         dpg.configure_item(self.toggles_window,
                            pos=(0, new_height - self.TOGGLES_HEIGHT),
@@ -229,9 +297,9 @@ class TestBedDPG:
     def run(self):
         """
         Main loop:
-        - Checks for any pending test switches and applies them.
-        - Updates UI (and panning controls) every iteration.
-        - Physics is updated only when enough time has accumulated.
+        - Applies any pending test switches.
+        - Updates UI (and panning controls) each iteration.
+        - Updates the physics simulation when enough time has accumulated.
         """
         dpg.setup_dearpygui()
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
@@ -258,10 +326,10 @@ class TestBedDPG:
             prev_time = current_time
             accumulator += elapsed
 
-            # Update panning (UI interactions) every frame.
+            # Update panning (UI interactions).
             self.update_panning()
 
-            # Clear the canvas before drawing the simulation.
+            # Clear the canvas before drawing.
             dpg.delete_item(self.canvas, children_only=True)
             canvas_width = dpg.get_item_width(self.canvas)
             canvas_height = dpg.get_item_height(self.canvas)
@@ -279,7 +347,6 @@ class TestBedDPG:
                 timestep_hz = 60.0
             physics_dt = 1.0 / timestep_hz
 
-            # Run physics updates if enough time has accumulated.
             while accumulator >= physics_dt:
                 self.update_physics(physics_dt)
                 accumulator -= physics_dt
@@ -287,7 +354,6 @@ class TestBedDPG:
             time.sleep(0.001)
 
         dpg.destroy_context()
-
 
 if __name__ == "__main__":
     testbed = TestBedDPG()

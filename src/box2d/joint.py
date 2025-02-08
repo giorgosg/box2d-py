@@ -41,15 +41,20 @@ class Joint(ABC):
         """
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
-        
+
+    def destroy(self):
+        """Destroy the joint and remove it from the world.
+        """
+        if self._joint_id and lib.b2Joint_IsValid(self._joint_id):
+            lib.b2DestroyJoint(self._joint_id)
+
     def __del__(self):
         """Safely remove the joint from the physics simulation when destroyed.
         
         Automatically cleans up the joint connection between bodies if it
         still exists in the world.
         """
-        if self._joint_id and lib.b2Joint_IsValid(self._joint_id):
-            lib.b2DestroyJoint(self._joint_id)
+        self.destroy()
 
     @property
     def is_valid(self):
