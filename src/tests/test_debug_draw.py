@@ -113,8 +113,8 @@ def test_draw_contacts():
     debug_draw.draw_contacts = True
     
     # Create two colliding boxes
-    body1 = world.new_body().dynamic().position(0, 0).build().add_box(1, 1)
-    body2 = world.new_body().dynamic().position(0, 2).build().add_box(1, 1)
+    body1 = world.new_body().dynamic().position(0, 0).build().add_box(2, 2)
+    body2 = world.new_body().dynamic().position(0, 2).build().add_box(2, 2)
     
     world.step(1/60)  # Let them collide
     world.draw(debug_draw)

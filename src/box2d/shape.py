@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from abc import ABC, abstractmethod
-from .math import Vec2
+from .math import Vec2, Transform
 
 class Shape(ABC):
     """Base class for all shapes. Provides common functionality for all shape types."""
@@ -97,28 +97,6 @@ class Circle(Shape):
                                                  circle_def)
         self._finalize()
 
-
-
-class Box(Shape):
-    """A rectangular box shape that can be attached to a body."""
-    def __init__(self, body, width, height, 
-                 density=None, friction=None, restitution=None, is_sensor=None):
-        """Create a box shape.
-        
-        Args:
-            body: The Body instance to attach this shape to
-            width: The width of the box
-            height: The height of the box
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
-        """
-        super().__init__(body, density, friction, restitution, is_sensor)
-        box_def = ffi.addressof(lib.b2MakeBox(width, height))
-        self._shape_id = lib.b2CreatePolygonShape(body._body_id, ffi.addressof(self._shape_def), box_def)
-        self._finalize()
-
 class Capsule(Shape):
     """A capsule shape that can be attached to a body."""
     def __init__(self, body, point1, point2, radius, 
@@ -168,12 +146,13 @@ class Segment(Shape):
 
 class Polygon(Shape):
     """A convex polygon shape that can be attached to a body."""
-    def __init__(self, body, vertices, density=None, friction=None, restitution=None, is_sensor=None):
+    def __init__(self, body, vertices, radius=0.0, density=None, friction=None, restitution=None, is_sensor=None):
         """Create a polygon shape.
         
         Args:
             body: The Body instance to attach this shape to
             vertices: List of vertices that define the polygon shape
+            radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²).
             friction: Friction coefficient.
             restitution: Bounciness (0-1).
@@ -181,15 +160,68 @@ class Polygon(Shape):
         """
 
         super().__init__(body, density, friction, restitution, is_sensor)
-        polygon_def = ffi.new("b2Polygon*")
         
-        # Validate and convert vertices
-        if len(vertices) < 3 or len(vertices) > 8:
+        # Convert vertices to b2Vec2 array
+        point_count = len(vertices)
+        if point_count < 3 or point_count > 8:
             raise ValueError("Polygon must have 3-8 vertices")
-            
-        polygon_def.vertices = vertices
-        polygon_def.count = len(vertices)
-        
-        self._shape_id = lib.b2CreatePolygonShape(body._body_id, ffi.addressof(self._shape_def), polygon_def)
+
+        points = ffi.new("b2Vec2[]", point_count)
+        for i, v in enumerate(vertices):
+            points[i].x, points[i].y = v
+
+        # Compute convex hull
+        hull = lib.b2ComputeHull(points, point_count)
+        if hull.count == 0:
+            raise ValueError("Failed to compute convex hull from vertices")
+
+        # Create rounded polygon from hull
+        polygon_def = lib.b2MakePolygon(ffi.addressof(hull), radius)
+
+        self._handle = ffi.addressof(self._shape_def)
+        self._shape_id = lib.b2CreatePolygonShape(body._body_id,
+                                                  self._handle,
+                                                  ffi.addressof(polygon_def))
         self._finalize()
+
+class Box(Polygon):
+    """A rectangular box shape that can be attached to a body, with support for offset positioning and rotation."""
+    
+    def __init__(self, body, width, height, radius=0.0, offset=(0,0), angle=0.0, 
+                 density=None, friction=None, restitution=None, is_sensor=None):
+        """Create a box shape with optional offset and rotation.
+        
+        Args:
+            body: Body to attach this shape to
+            width: Total width of the box
+            height: Total height of the box
+            radius: Radius for rounded corners (default: 0)
+            offset: Center offset from body position (Vec2/tuple)
+            angle: Rotation angle in radians (default: 0)
+            density: Mass density
+            friction: Friction coefficient
+            restitution: Bounciness
+            is_sensor: Sensor flag
+        """
+        hw = width / 2
+        hh = height / 2
+        base_vertices = [
+            (-hw, -hh),
+            (hw, -hh),
+            (hw, hh),
+            (-hw, hh)
+        ]
+        
+        transform = Transform(position=offset, rotation=angle)
+        transformed_vertices = [transform(v) for v in base_vertices]
+
+        super().__init__(
+            body=body,
+            vertices=transformed_vertices,
+            radius=radius,
+            density=density,
+            friction=friction,
+            restitution=restitution,
+            is_sensor=is_sensor
+        )
 

@@ -1315,6 +1315,8 @@ class Transform:
             >>> Transform(Vec2(1, 1), Rot(0))(Vec2(2, 3))
             Vec2(3.0, 4.0)
         """
+        if not isinstance(point, Vec2):
+            point = Vec2(*point)
         return self.q * point + self.p
 
     @property

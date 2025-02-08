@@ -168,7 +168,7 @@ class BodyBuilder:
         self._def.sleepThreshold = threshold
         return self
 
-    def box(self, width: float, height: float, 
+    def box(self, width: float, height: float, offset=(0,0), angle=0.0,
            density: float = 1.0, friction: float = 0.2, 
            restitution: float = 0.0, is_sensor: bool = False):
         """Add a box shape to the body during construction.
@@ -176,6 +176,8 @@ class BodyBuilder:
         Args:
             width: Full width of the box
             height: Full height of the box
+            offset: The offset of the box from the body's position (default: (0,0))
+            angle: The angle of the box (default: 0.0)
             density: Mass density (kg/m²)
             friction: Friction coefficient (0-1)
             restitution: Bounciness (0-1)
@@ -187,6 +189,8 @@ class BodyBuilder:
             'type': 'box',
             'params': (width, height),
             'kwargs': {
+                'offset': offset,
+                'angle': angle,
                 'density': density,
                 'friction': friction,
                 'restitution': restitution,
@@ -248,13 +252,14 @@ class BodyBuilder:
         })
         return self
 
-    def polygon(self, vertices: list[tuple], 
+    def polygon(self, vertices: list[tuple], radius: float = 0.0,
                density: float = 1.0, friction: float = 0.2,
                restitution: float = 0.0, is_sensor: bool = False):
         """Add a convex polygon shape.
         
         Args:
             vertices: List of (x,y) coordinates in counter-clockwise order
+            radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²)
             friction: Friction coefficient (0-1)
             restitution: Bounciness (0-1)
@@ -264,6 +269,7 @@ class BodyBuilder:
             'type': 'polygon',
             'params': (vertices,),
             'kwargs': {
+                'radius': radius,
                 'density': density,
                 'friction': friction,
                 'restitution': restitution,
@@ -339,7 +345,8 @@ class Body():
             body_id: The unique identifier for this body in the physics simulation
         """
         self._body_id = body_id
-        lib.b2Body_SetUserData(body_id, ffi.new_handle(self))
+        self._handle = ffi.addressof(self._body_id)
+        lib.b2Body_SetUserData(body_id, self._handle)
         self._shapes = []
 
     @property
@@ -494,19 +501,23 @@ class Body():
             fx, fy = point
             lib.b2Body_ApplyLinearImpulse(self._body_id, (x, y), (fx, fy), wake)
 
-    def add_box(self, width: float, height: float, 
+    def add_box(self, width: float, height: float, offset=(0,0), angle=0.0,
                 density=None, friction=None, restitution=None, is_sensor=None):
         """Add a box shape to the body.
         
         Args:
             width: The width of the box
             height: The height of the box
+            offset: The offset of the box from the body's position (default: (0,0))
+            angle: The angle of the box (default: 0.0)
             density: Mass density (kg/m²).
             friction: Friction coefficient.
             restitution: Bounciness (0-1).
             is_sensor: Whether this shape is a sensor.
         """
-        shape = Box(self, width, height, density, friction, restitution, is_sensor)
+        shape = Box(self, width=width, height=height, offset=offset, angle=angle, 
+                    density=density, friction=friction, restitution=restitution, 
+                    is_sensor=is_sensor)
         self._shapes.append(shape)
         return shape
 
@@ -543,18 +554,19 @@ class Body():
         self._shapes.append(shape)
         return shape
 
-    def add_polygon(self, vertices, 
+    def add_polygon(self, vertices, radius=0.0,
                     density=None, friction=None, restitution=None, is_sensor=None):
         """Add a polygon shape to the body.
         
         Args:
             vertices: List of tuples representing the vertices of the polygon
+            radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²).
             friction: Friction coefficient.
             restitution: Bounciness (0-1).
             is_sensor: Whether this shape is a sensor.
         """
-        shape = Polygon(self, vertices, density, friction, restitution, is_sensor)
+        shape = Polygon(self, vertices, radius, density, friction, restitution, is_sensor)
         self._shapes.append(shape)
         return shape
 
