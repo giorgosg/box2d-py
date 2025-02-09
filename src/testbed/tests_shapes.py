@@ -5,26 +5,27 @@ from itertools import product
 from shared import create_random_polygon
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
-    def setup(self, world):
-        body = (world.new_body().static()
+    def setup(self):
+        body = (self.world.new_body().static()
                 .box(40, 2, offset=(0, -1))
                 .box(2, 10, offset=(19, 5))
-                .box(2, 10, offset=(-19,5))
+                .box(2, 10, offset=(-19, 5))
                 .build())
 
         xcount, ycount = 10, 10
         xstart, ystart = -5, 2
         
         for x, y in product(range(xcount), range(ycount)):
-            bb = (world.new_body().dynamic()
+            bb = (self.world.new_body().dynamic()
                   .position(xstart + x, ystart + y)
-                  .create_random_polygon(0.5).build())
-            
+                  .create_random_polygon(0.5)
+                  .build())
+
 
 class Friction(BaseTest, category="Shapes", name="Friction"):
-    def setup(self, world):
+    def setup(self):
         # Create a static ground body.
-        ground = world.new_body().static()
+        ground = self.world.new_body().static()
         ground.segment((-40, 0), (40, 0), friction=0.2)
         ground.box(26.0, 0.5, offset=(-4.0, 22.0), angle=-0.25, friction=0.2)
         ground.box(0.5, 2.0, offset=(10.5, 19.0), angle=0.0, friction=0.2)
@@ -38,5 +39,5 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
         for i, f in enumerate(friction_values):
             x = -15.0 + 4.0 * i
             y = 28.0
-            world.new_body().dynamic().position(x, y)\
+            self.world.new_body().dynamic().position(x, y)\
                 .box(1.0, 1.0, friction=f, density=25.0).build()

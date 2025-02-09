@@ -8,16 +8,16 @@ class BenchmarkRainTest(BaseTest, category="Benchmark", name="Rain Test"):
     Inspired by the BenchmarkRain sample in the C++ testbed, this test creates a large ground
     and then a number of random dynamic circles that fall under gravity.
     """
-    def setup(self, world):
+    def setup(self):
         # Create a large static ground body.
-        world.new_body().static().position(0, -10).box(50, 10).build()
+        self.world.new_body().static().position(0, -10).box(50, 10).build()
         
         num_drops = 150  # Number of raindrop bodies to create.
         for i in range(num_drops):
             x = random.uniform(-20, 20)
             y = random.uniform(10, 50)
             radius = random.uniform(0.1, 0.3)
-            world.new_body().dynamic().position(x, y).circle(radius).build()
+            self.world.new_body().dynamic().position(x, y).circle(radius).build()
 
 
 class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
@@ -27,9 +27,9 @@ class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
     Inspired by the pyramid tests from the C++ testbed (e.g. in sample_bodies.cpp), this test creates
     a ground and then stacks a pyramid of dynamic box bodies.
     """
-    def setup(self, world):
+    def setup(self):
         # Create a static ground body.
-        world.new_body().static().position(0, -10).box(50, 20).build()
+        self.world.new_body().static().position(0, -10).box(50, 20).build()
 
         rows = 10
         box_size = 1  # Each box will be 1x1 (if box() takes half-dimensions).
@@ -44,4 +44,5 @@ class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
             y = box_size/2 + i * (box_size + 0.01)
             for j in range(count):
                 x = start_x + j * box_size
-                world.new_body().dynamic().position(x, y).box(box_size, box_size, radius=0.0).build() 
+                self.world.new_body().dynamic().position(x, y)\
+                    .box(box_size, box_size, radius=0.0).build() 

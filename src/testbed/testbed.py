@@ -17,7 +17,7 @@ class TestBedDPG:
     def __init__(self, width=WIDTH, height=HEIGHT):
         self.width = width
         self.height = height
-        self.last_mouse_pos = None  # Used for panning via mouse drag.
+        self.last_mouse_pos = None  # For panning via mouse drag.
 
         # Layout constants for our UI.
         self.TEST_TREE_WIDTH = 160
@@ -29,6 +29,7 @@ class TestBedDPG:
         self.world = World(gravity=(0, -10))
         # NEW: initialize the pending test flag.
         self.pending_test_cls = None
+        self.current_test = None  # Active test instance.
         self.mouse_joint = None  # Active mouse joint, if any.
 
         # Maintain a view transform (panning/zooming)
@@ -198,7 +199,9 @@ class TestBedDPG:
         """
         if not dpg.is_item_hovered(self.canvas):
             return
-        self.on_mouse_down(sender, app_data)
+        if self.current_test is not None:
+            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            self.current_test.on_mouse_down(pos)
 
     def global_mouse_drag_handler(self, sender, app_data):
         """
@@ -206,7 +209,11 @@ class TestBedDPG:
         """
         if not dpg.is_item_hovered(self.canvas):
             return
-        self.on_mouse_drag(sender, app_data)
+        if self.current_test is not None:
+            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            # Here, we assume a zero relative motion; tests can override this behavior if needed.
+            from box2d import Vec2
+            self.current_test.on_mouse_drag(pos, Vec2(0, 0))
 
     def global_mouse_release_handler(self, sender, app_data):
         """
@@ -214,46 +221,9 @@ class TestBedDPG:
         """
         if not dpg.is_item_hovered(self.canvas):
             return
-        self.on_mouse_release(sender, app_data)
-
-    def on_mouse_down(self, sender, app_data):
-        """
-        Mouse-down handler:
-        Converts the canvas-relative mouse position to a world coordinate,
-        then queries a small AABB to find a body and creates a mouse joint if found.
-        """
-        if self.mouse_joint is not None:
-            return
-
-        # Use the drawing mouse position as it is relative to the drawlist.
-        canvas_mouse_pos = dpg.get_drawing_mouse_pos()
-        world_pos = self.screen_to_world(canvas_mouse_pos)
-        
-        from box2d.math import AABB
-        query_aabb = AABB(lower=(world_pos.x - 0.1, world_pos.y - 0.1),
-                          upper=(world_pos.x + 0.1, world_pos.y + 0.1))
-        shapes = self.world.query_aabb(query_aabb)
-        if shapes:
-            body = shapes[0].body
-            self.mouse_joint = self.world.add_mouse_joint(body, (world_pos.x, world_pos.y),
-                                                          max_force=1000.0, damping_ratio=0.7)
-
-    def on_mouse_drag(self, sender, app_data):
-        """
-        Mouse-drag handler: update the target of the active MouseJoint.
-        """
-        if self.mouse_joint is not None:
-            canvas_mouse_pos = dpg.get_drawing_mouse_pos()
-            world_pos = self.screen_to_world(canvas_mouse_pos)
-            self.mouse_joint.target = (world_pos.x, world_pos.y)
-
-    def on_mouse_release(self, sender, app_data):
-        """
-        On mouse release, destroy the mouse joint to release the body.
-        """
-        if self.mouse_joint is not None:
-            self.mouse_joint.destroy()
-            self.mouse_joint = None
+        if self.current_test is not None:
+            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            self.current_test.on_mouse_release(pos)
 
     def update_panning(self):
         """
@@ -316,8 +286,8 @@ class TestBedDPG:
                 if self.world is not None:
                     self.world.destroy()
                 self.world = World(gravity=(0, -10))
-                test_instance = self.pending_test_cls()
-                test_instance.setup(self.world)
+                self.current_test = self.pending_test_cls(self.world, self.debug_draw, None)
+                self.current_test.setup()
                 print(f"Loaded test: {self.pending_test_cls.__name__}")
                 self.pending_test_cls = None
                 accumulator = 0.0  # Reset physics accumulator
