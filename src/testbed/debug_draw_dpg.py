@@ -12,7 +12,7 @@ class DearpyguiDebugDraw(DebugDraw):
         self.canvas = canvas
         self.draw_shapes = True
         self.draw_joints = True
-        self.outline_thickness = 1.5  # use thicker outlines, if desired
+        self.outline_thickness = 1  # use thicker outlines, if desired
 
         self.view_transform = ScaledTransform(
             position=(400, 300),
@@ -38,32 +38,16 @@ class DearpyguiDebugDraw(DebugDraw):
                          thickness=self.outline_thickness,
                          parent=self.canvas)
 
-    def draw_rounded_polygon(self, transform, vertices, radius, color: "Color"):
-        """
-        Draws a filled polygon with rounded corners. The polygon is "expanded"
-        by moving each edge outward by 'radius' and rounding the vertex where
-        the extended edges meet. Assumes vertices form a convex polygon in
-        counter-clockwise order.
-        
-        Parameters:
-            transform: A box2d.math.Transform used to convert local vertices to world coordinates.
-            vertices: List of Vec2 vertices (in CCW order).
-            radius: Expansion radius.
-            color: Color used for drawing.
-        """
-        # Convert local vertices to world coordinates
-        world_vertices = [transform(v) for v in vertices]
-        n = len(world_vertices)
-        
-        # Calculate the screen-space radius and number of segments per arc.
+    def round_polygon_vertices(self, vertices, radius):
+        """Calculate new vertices to form a rounded polygon."""
         screen_r = round(radius * abs(self.view_transform._scale.x))
-        arc_segments = max(screen_r // 2, 2)
-        
+        arc_segments_max = max(screen_r // 2, 2)
+        n = len(vertices)
         outline_points = []
         for i in range(n):
-            v = world_vertices[i]
-            prev = world_vertices[i - 1]
-            nxt = world_vertices[(i + 1) % n]
+            v = vertices[i]
+            prev = vertices[i - 1]
+            nxt = vertices[(i + 1) % n]
             
             # Compute unit directions along the incoming and outgoing edges.
             d_prev = (v - prev).normalize()
@@ -81,13 +65,15 @@ class DearpyguiDebugDraw(DebugDraw):
             if a2 < a1:
                 a2 += 2 * math.pi
             
+            circle_per = abs(a2 - a1) / (2 * math.pi)
+            arc_segments = max(round(circle_per * arc_segments_max), 2)
             # Sample points along the rounded corner arc.
             arc_points = []
             for j in range(arc_segments + 1):
                 t = j / arc_segments
                 angle_now = a1 + t * (a2 - a1)
                 arc_pt = v + Vec2.from_angle(angle_now) * radius
-                arc_points.append(self.world_to_screen(arc_pt))
+                arc_points.append(arc_pt)
             
             # Avoid duplicate points: add the full arc for the first vertex,
             # and for others skip the first point.
@@ -95,25 +81,7 @@ class DearpyguiDebugDraw(DebugDraw):
                 outline_points.extend(arc_points)
             else:
                 outline_points.extend(arc_points[1:])
-        
-        # Close the outline.
-        outline_points.append(outline_points[0])
-        
-        # Compute a slightly brighter outline color.
-        line_color = (
-            min(255, color.r + 100),
-            min(255, color.g + 100),
-            min(255, color.b + 100),
-            255
-        )
-        
-        dpg.draw_polygon(
-            outline_points,
-            fill=tuple(color)[:3] + (150,),
-            color=tuple(line_color),
-            thickness=self.outline_thickness,
-            parent=self.canvas
-        )
+        return outline_points
 
     def draw_solid_polygon(self, transform, vertices, radius, color: Color):
         """
@@ -121,31 +89,31 @@ class DearpyguiDebugDraw(DebugDraw):
         calls draw_rounded_polygon to draw a rounded polygon;
         otherwise, it uses the normal polygon drawing.
         """
-        if radius != 0:
-            self.draw_rounded_polygon(transform, vertices, radius, color)
-            return
+        screen_r = round(radius * abs(self.view_transform._scale.x))
+        if screen_r != 0:
+            vertices = self.round_polygon_vertices(vertices, radius)
 
         # Fallback: normal solid polygon drawing.
-        transformed = []
-        angle = math.atan2(transform.q.s, transform.q.c)
-        cos_a = math.cos(angle)
-        sin_a = math.sin(angle)
-        # Append the first vertex at the end to close the polygon.
-        vertices.append(vertices[0])
-        for v in vertices:
-            x = transform.p.x + (v.x * cos_a - v.y * sin_a)
-            y = transform.p.y + (v.x * sin_a + v.y * cos_a)
-            transformed.append(Vec2(x, y))
+        transformed = [transform(v) for v in vertices]
         points = [self.world_to_screen(v) for v in transformed]
+        points.append(points[0])
         line_color = (min(255, color.r + 100),
                       min(255, color.g + 100),
                       min(255, color.b + 100),
                       255)
+        # poor attempt at antialiasing
+        dpg.draw_polygon(points,
+                         #fill=tuple(color)[:3] + (150,),
+                         color=tuple(line_color)[:3] + (180,),
+                         thickness=self.outline_thickness+1,
+                         parent=self.canvas)
+
         dpg.draw_polygon(points,
                          fill=tuple(color)[:3] + (150,),
                          color=tuple(line_color),
                          thickness=self.outline_thickness,
                          parent=self.canvas)
+        
 
     def draw_string(self, p: Vec2, s, color: Color):
         pos = self.world_to_screen(p)

@@ -44,4 +44,4 @@ class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
             y = box_size/2 + i * (box_size + 0.01)
             for j in range(count):
                 x = start_x + j * box_size
-                world.new_body().dynamic().position(x, y).box(box_size, box_size, radius=0.3).build() 
+                world.new_body().dynamic().position(x, y).box(box_size, box_size, radius=0.0).build() 
