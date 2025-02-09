@@ -6,12 +6,12 @@ class BodyBuilder:
     """Builder for creating Box2D bodies with chained configuration methods.
     
     Example:
-        body = (world.new_body()
-                .dynamic()
-                .position(2, 3)
-                .box(half_x=1, half_y=0.5)
-                .circle(radius=0.5, offset=(1, 0))
-                .build())
+        >>> body = world.new_body()
+        >>> body.dynamic()
+        >>> body.position(2, 3)
+        >>> body.box(half_x=1, half_y=0.5)
+        >>> body.circle(radius=0.5, offset=(1, 0))
+        >>> body = body.build()
     """
     def __init__(self, world):
         """Initialize the BodyBuilder with the world context.
@@ -26,12 +26,27 @@ class BodyBuilder:
     @classmethod
     def extend(cls, func):
         """
-        Class method decorator that extends the BodyBuilder class with a new method.
-        Usage:
-            @BodyBuilder.extend
-            def new_method(self, arg):
-                # custom functionality
-                return self
+        Decorator that adds a new method to the BodyBuilder class.
+
+        When decorating a function with @BodyBuilder.extend, the function is attached as a new method
+        to the BodyBuilder class. This enables you to extend the builder with custom configuration methods
+        that can be chained with the built-in methods.
+
+        Example::
+
+            >>> @BodyBuilder.extend
+            >>> def custom_shape(self, value):
+            >>>     # Custom functionality
+            >>>     return self
+
+            >>> builder = world.new_body().custom_shape(10)
+
+        Args:
+            func (callable): A function to be added as a method to BodyBuilder. The function should accept
+                             'self' as its first argument.
+
+        Returns:
+            callable: The unchanged original function.
         """
         setattr(cls, func.__name__, func)
         return func
@@ -271,6 +286,9 @@ class BodyBuilder:
                density: float = 1.0, friction: float = 0.2,
                restitution: float = 0.0, is_sensor: bool = False):
         """Add a convex polygon shape.
+
+        The given vertices are processed to compute their convex hull. An exception will be raised
+        if the provided vertices do not form a valid convex polygon.
         
         Args:
             vertices: List of points that define the polygon shape
@@ -279,6 +297,9 @@ class BodyBuilder:
             friction: Friction coefficient (0-1)
             restitution: Bounciness (0-1)
             is_sensor: True for sensor shape
+
+        Raises:
+            Exception: If the vertices cannot form a convex polygon.
         """
         # Compute the convex hull of the polygon so an exception is raised
         # at the function call if the points do not form a convex polygon.
