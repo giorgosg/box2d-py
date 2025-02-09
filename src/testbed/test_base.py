@@ -12,6 +12,7 @@ class BaseTest:
         if category not in BaseTest.registry:
             BaseTest.registry[category] = {}
         BaseTest.registry[category][name] = cls
+        cls.category, cls.name = category, name
 
     def __init__(self, world, debug_draw, ui_window):
         self.world = world
@@ -44,11 +45,13 @@ class BaseTest:
         query_aabb = AABB(lower=(pos.x - 0.1, pos.y - 0.1),
                           upper=(pos.x + 0.1, pos.y + 0.1))
         shapes = self.world.query_aabb(query_aabb)
-        if shapes:
-            body = shapes[0].body
-            self.mouse_joint = self.world.add_mouse_joint(body, (pos.x, pos.y),
-                                                           max_force=1000.0,
-                                                           damping_ratio=0.7)
+        for shape in shapes:
+            body = shape.body
+            if body.type == 'dynamic':
+                self.mouse_joint = self.world.add_mouse_joint(body, (pos.x, pos.y),
+                                                              max_force=1000.0,
+                                                              damping_ratio=0.7)
+                break
 
     def on_mouse_drag(self, pos, rel):
         """

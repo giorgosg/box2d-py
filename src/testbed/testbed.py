@@ -18,6 +18,7 @@ class TestBedDPG:
         self.width = width
         self.height = height
         self.last_mouse_pos = None  # For panning via mouse drag.
+        self.simulation_paused = False  # New flag to pause/resume simulation.
 
         # Layout constants for our UI.
         self.TEST_TREE_WIDTH = 160
@@ -40,6 +41,9 @@ class TestBedDPG:
         )
         self.view_transform_inv = self.view_transform.inverse  # Cached inverse
 
+         # Initialize the test UI container property.
+        self.test_ui_container = None
+
         # Set up the Dear PyGui context, viewport and main UI window.
         dpg.create_context()
         dpg.create_viewport(title="Box2D TestBed - DearPyGui", width=self.width, height=self.height)
@@ -48,11 +52,20 @@ class TestBedDPG:
         with dpg.window(label="TestBed", width=self.width, height=self.height, no_scrollbar=True, tag="main_window") as self.main_window:
             # Top controls.
             with dpg.group(horizontal=True, tag="controls_group"):
+                dpg.add_button(label="Pause", tag="sim_start_pause_button", callback=self.toggle_simulation)
                 dpg.add_text("Substeps:")
                 dpg.add_input_int(tag="substeps_input", label="", default_value=4, width=100)
                 dpg.add_text("Hertz:")
                 dpg.add_input_int(tag="timestep_input", label="", default_value=60, width=100)
                 dpg.add_button(label="Create Random Circle", callback=lambda: self.create_random_circle())
+                dpg.add_checkbox(tag="enable_continuous_checkbox",
+                                 label="Continuous Collision",
+                                 default_value=self.world.enable_continuous,
+                                 callback=self.toggle_continuous)
+                dpg.add_checkbox(tag="enable_sleep_checkbox",
+                                 label="Sleep",
+                                 default_value=self.world.enable_sleep,
+                                 callback=self.toggle_sleep)
             
             # Calculate available height for our main content (the simulation canvas and test tree).
             content_height = self.height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
@@ -125,6 +138,40 @@ class TestBedDPG:
                         user_data=test_cls
                     )
                     self.selectable_ids.append(selectable_id)
+
+    def create_test_ui_window(self, test_cls):
+        """
+        Creates a new control window on the bottom left corner for the test.
+        This window contains the test name as its label, a reset button, and a
+        container for test-specific UI elements.
+        """
+        # Remove an existing test UI window if one exists.
+        if dpg.does_item_exist("test_ui_window"):
+            dpg.delete_item("test_ui_window")
+    
+        window_width = 220
+        window_height = 150
+        # Create the new window.
+        with dpg.window(label=f"{test_cls.category} - {test_cls.name}", tag="test_ui_window",
+                        pos=(10, dpg.get_viewport_height() - window_height - 50),
+                        no_close=True,
+                        width=window_width):
+            #, height=window_height):
+            dpg.add_button(label="Reset Test", callback=self.reset_test_callback)
+            self.test_ui_container = dpg.add_child_window(tag="test_ui_container")
+                                                          #width=window_width - 20,
+                                                          #height=window_height - 50)
+        return self.test_ui_container
+
+    def reset_test_callback(self, sender, app_data, user_data):
+        """
+        Callback for the reset button.
+        Reinitializes the current test safely by scheduling a test reset.
+        """
+        if self.current_test is None:
+            return
+        print(f"Resetting test: {self.current_test.__class__.__name__}")
+        self.pending_test_cls = self.current_test.__class__
 
     def select_test_callback(self, sender, app_data, user_data):
         """
@@ -265,6 +312,29 @@ class TestBedDPG:
                            width=new_width,
                            height=self.TOGGLES_HEIGHT)
 
+    def toggle_simulation(self, sender, app_data, user_data):
+        """
+        Toggle the simulation between running and paused.
+        Updates the button label based on the state.
+        """
+        self.simulation_paused = not self.simulation_paused
+        new_label = "Play" if self.simulation_paused else "Pause"
+        dpg.set_item_label(sender, new_label)
+
+    def toggle_continuous(self, sender, app_data, user_data):
+        """
+        Toggle the world property for continuous collision detection.
+        """
+        if self.world is not None:
+            self.world.enable_continuous = dpg.get_value(sender)
+
+    def toggle_sleep(self, sender, app_data, user_data):
+        """
+        Toggle the world property that allows bodies to sleep.
+        """
+        if self.world is not None:
+            self.world.enable_sleep = dpg.get_value(sender)
+
     def run(self):
         """
         Main loop:
@@ -286,11 +356,15 @@ class TestBedDPG:
                 if self.world is not None:
                     self.world.destroy()
                 self.world = World(gravity=(0, -10))
-                self.current_test = self.pending_test_cls(self.world, self.debug_draw, None)
+                # Create a new test UI window with the test name and reset button.
+                self.test_ui_container = self.create_test_ui_window(self.pending_test_cls)
+                self.current_test = self.pending_test_cls(self.world, 
+                                                          self.debug_draw, 
+                                                          self.test_ui_container)
                 self.current_test.setup()
-                print(f"Loaded test: {self.pending_test_cls.__name__}")
+                #print(f"Loaded test: {self.pending_test_cls.__name__}")
                 self.pending_test_cls = None
-                accumulator = 0.0  # Reset physics accumulator
+                accumulator = 0.0
 
             current_time = time.perf_counter()
             elapsed = current_time - prev_time
@@ -318,9 +392,12 @@ class TestBedDPG:
                 timestep_hz = 60.0
             physics_dt = 1.0 / timestep_hz
 
-            while accumulator >= physics_dt:
-                self.update_physics(physics_dt)
-                accumulator -= physics_dt
+            if self.simulation_paused:
+                accumulator = 0.0
+            else:
+                while accumulator >= physics_dt:
+                    self.update_physics(physics_dt)
+                    accumulator -= physics_dt
 
             time.sleep(0.001)
 
