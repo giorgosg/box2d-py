@@ -3,7 +3,10 @@ requires = ["setuptools>=61.0",
             "wheel", 
             "cffi", 
             "pytest",
-            "setuptools_scm[toml]>=6.2"]
+            "setuptools_scm[toml]>=6.2",
+            "sphinx",
+            "sphinx_rtd_theme"
+            ]
 build-backend = "setuptools.build_meta"
 
 [project]
