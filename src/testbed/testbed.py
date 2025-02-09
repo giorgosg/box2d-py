@@ -6,6 +6,7 @@ from box2d import World, Vec2, ScaledTransform
 from test_base import get_first_test, get_all_tests  # Default and tests tree.
 from debug_draw_dpg import DearpyguiDebugDraw
 import tests_sample
+import tests_shapes
 
 # Global configuration for the viewport.
 WIDTH, HEIGHT = 1024, 768

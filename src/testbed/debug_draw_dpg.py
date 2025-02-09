@@ -40,100 +40,80 @@ class DearpyguiDebugDraw(DebugDraw):
 
     def draw_rounded_polygon(self, transform, vertices, radius, color: "Color"):
         """
-        Draws a filled polygon expanded by 'radius' using the Minkowski sum with a disc.
-        Each vertex is offset along the outward normal directions (computed from the
-        incident edge directions) and an arc is drawn between these offsets. This version
-        uses the Box2D math classes to simplify the math.
-
+        Draws a filled polygon with rounded corners. The polygon is "expanded"
+        by moving each edge outward by 'radius' and rounding the vertex where
+        the extended edges meet. Assumes vertices form a convex polygon in
+        counter-clockwise order.
+        
         Parameters:
             transform: A box2d.math.Transform used to convert local vertices to world coordinates.
-            vertices: List of Vec2 (ordered in counterclockwise order).
+            vertices: List of Vec2 vertices (in CCW order).
             radius: Expansion radius.
             color: Color used for drawing.
         """
-        import math
-
-        # Convert local vertices to world coordinates using the provided Transform.
+        # Convert local vertices to world coordinates
         world_vertices = [transform(v) for v in vertices]
         n = len(world_vertices)
+        
+        # Calculate the screen-space radius and number of segments per arc.
         screen_r = round(radius * abs(self.view_transform._scale.x))
- 
         arc_segments = max(screen_r // 2, 2)
+        
         outline_points = []
-
-        # Helper to compute the normalized angular difference.
-        def angle_diff(a, b):
-            diff = (a - b) % (2 * math.pi)
-            return diff - 2 * math.pi if diff > math.pi else diff
-
         for i in range(n):
             v = world_vertices[i]
             prev = world_vertices[i - 1]
             nxt = world_vertices[(i + 1) % n]
-
-            # Calculate the normalized edge directions.
+            
+            # Compute unit directions along the incoming and outgoing edges.
             d_prev = (v - prev).normalize()
-            d_curr = (nxt - v).normalize()
-
-            # For a CCW polygon, the outward normal is given by a clockwise rotation.
+            d_next = (nxt - v).normalize()
+            
+            # For a convex polygon, the outward normals are obtained by
+            # rotating each edge direction clockwise.
             n_prev = d_prev.perpendicular('right')
-            n_curr = d_curr.perpendicular('right')
-
-            # The tangent offsets (their direction) are just the normals.
-            # Note: Multiplying by radius later does not affect the angle.
-            a_prev = n_prev.angle % (2 * math.pi)
-            a_curr = n_curr.angle % (2 * math.pi)
-
-            # Average outward direction.
-            avg_angle = (n_prev + n_curr).angle % (2 * math.pi)
-
-            # Choose which arc (the smaller or its complement) is more "outside".
-            candidate1 = (a_curr - a_prev) % (2 * math.pi)
-            mid1 = (a_prev + candidate1 / 2) % (2 * math.pi)
-
-            candidate2 = (a_prev - a_curr) % (2 * math.pi)
-            mid2 = (a_curr + candidate2 / 2) % (2 * math.pi)
-
-            if abs(angle_diff(mid1, avg_angle)) <= abs(angle_diff(mid2, avg_angle)):
-                start_angle = a_prev
-                end_angle = a_curr
-                sweep = candidate1
-            else:
-                start_angle = a_curr
-                end_angle = a_prev
-                sweep = candidate2
-
-            if end_angle < start_angle:
-                end_angle += 2 * math.pi
-            if sweep > math.pi:
-                start_angle, end_angle = end_angle, start_angle + 2 * math.pi
-                sweep = 2 * math.pi - sweep
-
-            # Sample points along the arc.
+            n_next = d_next.perpendicular('right')
+            
+            # Compute angles, normalized to [0,2π)
+            a1 = n_prev.angle % (2 * math.pi)
+            a2 = n_next.angle % (2 * math.pi)
+            # Ensure a2 is larger so that we interpolate the convex (smaller) arc.
+            if a2 < a1:
+                a2 += 2 * math.pi
+            
+            # Sample points along the rounded corner arc.
             arc_points = []
             for j in range(arc_segments + 1):
                 t = j / arc_segments
-                angle_now = start_angle + t * (end_angle - start_angle)
-                # Using Vec2.from_angle to get a unit vector for the given angle.
+                angle_now = a1 + t * (a2 - a1)
                 arc_pt = v + Vec2.from_angle(angle_now) * radius
                 arc_points.append(self.world_to_screen(arc_pt))
-
-            # To avoid duplicates, include the full arc for the first vertex and skip the first point for subsequent vertices.
+            
+            # Avoid duplicate points: add the full arc for the first vertex,
+            # and for others skip the first point.
             if i == 0:
                 outline_points.extend(arc_points)
             else:
                 outline_points.extend(arc_points[1:])
-
+        
+        # Close the outline.
         outline_points.append(outline_points[0])
-        line_color = (min(255, color.r + 100),
-                      min(255, color.g + 100),
-                      min(255, color.b + 100),
-                      255)
-        dpg.draw_polygon(outline_points,
-                         fill=tuple(color)[:3] + (150,),
-                         color=tuple(line_color),
-                         thickness=self.outline_thickness,
-                         parent=self.canvas)
+        
+        # Compute a slightly brighter outline color.
+        line_color = (
+            min(255, color.r + 100),
+            min(255, color.g + 100),
+            min(255, color.b + 100),
+            255
+        )
+        
+        dpg.draw_polygon(
+            outline_points,
+            fill=tuple(color)[:3] + (150,),
+            color=tuple(line_color),
+            thickness=self.outline_thickness,
+            parent=self.canvas
+        )
 
     def draw_solid_polygon(self, transform, vertices, radius, color: Color):
         """
