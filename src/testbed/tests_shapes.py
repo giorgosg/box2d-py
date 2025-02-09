@@ -21,4 +21,22 @@ class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
                   .create_random_polygon(0.5).build())
             
 
+class Friction(BaseTest, category="Shapes", name="Friction"):
+    def setup(self, world):
+        # Create a static ground body.
+        ground = world.new_body().static()
+        ground.segment((-40, 0), (40, 0), friction=0.2)
+        ground.box(26.0, 0.5, offset=(-4.0, 22.0), angle=-0.25, friction=0.2)
+        ground.box(0.5, 2.0, offset=(10.5, 19.0), angle=0.0, friction=0.2)
+        ground.box(26.0, 0.5, offset=(4.0, 14.0), angle=0.25, friction=0.2)
+        ground.box(0.5, 2.0, offset=(-10.5, 11.0), angle=0.0, friction=0.2)
+        ground.box(26.0, 0.5, offset=(-4.0, 6.0), angle=-0.25, friction=0.2)
+        ground.build()
 
+        # Create dynamic bodies.
+        friction_values = [0.75, 0.5, 0.35, 0.1, 0.0]
+        for i, f in enumerate(friction_values):
+            x = -15.0 + 4.0 * i
+            y = 28.0
+            world.new_body().dynamic().position(x, y)\
+                .box(1.0, 1.0, friction=f, density=25.0).build()
