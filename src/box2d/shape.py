@@ -2,7 +2,14 @@
 
 from ._box2d import lib, ffi
 from abc import ABC, abstractmethod
-from .math import Vec2, Transform
+from .math import Vec2, Transform, VectorLike
+
+def convex_hull(vertices: list[VectorLike]):
+    vertices = [tuple(v) for v in vertices]
+    ch = lib.b2ComputeHull(vertices, len(vertices))
+    if ch.count == 0:
+        raise ValueError(f"Failed to compute convex hull from {vertices} vertices")
+    return [Vec2(ch.points[i].x, ch.points[i].y) for i in range(ch.count)]
 
 class Shape(ABC):
     """Base class for all shapes. Provides common functionality for all shape types."""
@@ -151,7 +158,7 @@ class Polygon(Shape):
         
         Args:
             body: The Body instance to attach this shape to
-            vertices: List of vertices that define the polygon shape
+            vertices: List of points that define the polygon shape
             radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²).
             friction: Friction coefficient.

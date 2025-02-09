@@ -1,6 +1,6 @@
 from box2d._box2d import lib, ffi
 from .math import Vec2
-from .shape import Box, Circle, Capsule, Segment, Polygon
+from .shape import Box, Circle, Capsule, Segment, Polygon, convex_hull
 
 class BodyBuilder:
     """Builder for creating Box2D bodies with chained configuration methods.
@@ -22,6 +22,19 @@ class BodyBuilder:
         self.world = world
         self._def = lib.b2DefaultBodyDef()
         self._shape_defs = []
+
+    @classmethod
+    def extend(cls, func):
+        """
+        Class method decorator that extends the BodyBuilder class with a new method.
+        Usage:
+            @BodyBuilder.extend
+            def new_method(self, arg):
+                # custom functionality
+                return self
+        """
+        setattr(cls, func.__name__, func)
+        return func
 
     def dynamic(self):
         """Set the body type to dynamic.
@@ -260,13 +273,16 @@ class BodyBuilder:
         """Add a convex polygon shape.
         
         Args:
-            vertices: List of (x,y) coordinates in counter-clockwise order
+            vertices: List of points that define the polygon shape
             radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²)
             friction: Friction coefficient (0-1)
             restitution: Bounciness (0-1)
             is_sensor: True for sensor shape
         """
+        # Compute the convex hull of the polygon so an exception is raised
+        # at the function call if the points do not form a convex polygon.
+        vertices = convex_hull(vertices)
         self._shape_defs.append({
             'type': 'polygon',
             'params': (vertices,),
@@ -562,7 +578,7 @@ class Body():
         """Add a polygon shape to the body.
         
         Args:
-            vertices: List of tuples representing the vertices of the polygon
+            vertices: List of points that define the polygon shape
             radius: The radius of the rounded corners (default: 0.0)
             density: Mass density (kg/m²).
             friction: Friction coefficient.
