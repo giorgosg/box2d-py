@@ -165,6 +165,7 @@ class MouseJoint(Joint):
         self._damping_ratio = damping_ratio
         self._hertz = hertz
         super().__init__(world, self._ground_body, body)
+        self.wake_bodies()
 
     def _create_joint_def(self, body_a, body_b, collide_connected):
         """Configure internal joint parameters (automatically called)."""
