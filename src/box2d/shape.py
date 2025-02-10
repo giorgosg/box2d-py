@@ -292,3 +292,82 @@ class Box(Polygon):
             restitution=restitution,
             is_sensor=is_sensor,
         )
+
+
+class Chain(Shape):
+    """A chain shape that can be attached to a body.
+
+    Represents a chain of connected line segments defined by a list of vertices.
+    Chain shapes are useful for creating static boundaries (e.g. roads or platforms)
+    in the simulation. They can be open or closed (looped). Note that at least 4
+    vertices are required.
+    """
+
+    def __init__(
+        self,
+        body,
+        vertices,
+        loop=False,
+        friction=None,
+        restitution=None,
+    ):
+        """
+        Create a chain shape.
+
+        Args:
+            body: The Body instance this shape will be attached to.
+            vertices: List of points (each as a tuple or any VectorLike) defining the chain.
+                      Must contain at least 4 vertices.
+            loop: Boolean indicating whether the chain should be closed (looped).
+            friction: Friction coefficient.
+            restitution: Bounciness (0-1).
+
+        Raises:
+            ValueError: If vertices contain fewer than 4 points.
+        """
+        # Chain shapes have no density; they are generally attached to static bodies.
+        super().__init__(
+            body,
+            density=None,
+            friction=friction,
+            restitution=restitution,
+            is_sensor=None,
+        )
+
+        if len(vertices) < 4:
+            raise ValueError(
+                f"Chain shape requires at least 4 vertices; received {len(vertices)}."
+            )
+
+        # Convert vertices to a b2Vec2 array expected by Box2D.
+        point_count = len(vertices)
+        vertices = [tuple(v) for v in vertices]  # Ensure each vertex is a tuple.
+        points = ffi.new("b2Vec2[]", point_count)
+        for i, v in enumerate(vertices):
+            points[i].x, points[i].y = v
+
+        # Create a chain definition from Box2D.
+        chain_def = lib.b2DefaultChainDef()
+        chain_def.points = points
+        chain_def.count = point_count
+        chain_def.loop = loop
+
+        # Ensure chain shapes are never sensors.
+        chain_def.isSensor = False
+
+        if friction is not None:
+            chain_def.friction = friction
+        if restitution is not None:
+            chain_def.restitution = restitution
+
+        self._shape_def = chain_def
+        self._shape_id = lib.b2CreateChain(body._body_id, ffi.addressof(chain_def))
+        self._finalize()
+
+    @property
+    def is_sensor(self):
+        raise AttributeError("Chain shapes cannot be sensors")
+
+    @is_sensor.setter
+    def is_sensor(self, value):
+        raise AttributeError("Chain shapes cannot be sensors")

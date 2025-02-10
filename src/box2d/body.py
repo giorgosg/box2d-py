@@ -1,6 +1,6 @@
 from box2d._box2d import lib, ffi
 from .math import Vec2
-from .shape import Box, Circle, Capsule, Segment, Polygon, convex_hull
+from .shape import Box, Circle, Capsule, Segment, Polygon, Chain, convex_hull
 
 
 class BodyBuilder:
@@ -388,6 +388,37 @@ class BodyBuilder:
         )
         return self
 
+    def chain(
+        self,
+        vertices: list[tuple],
+        loop: bool = False,
+        friction: float = 0.2,
+        restitution: float = 0.0,
+    ):
+        """Add a chain shape to the body during construction.
+
+        Args:
+            vertices: List of points that define the chain shape. Must contain at least 4 vertices.
+            loop: Boolean indicating whether the chain should be closed (looped). Default is False.
+            friction: Friction coefficient (0-1). Default is 0.2.
+            restitution: Bounciness (0-1). Default is 0.0.
+
+        Returns:
+            self for method chaining.
+        """
+        self._shape_defs.append(
+            {
+                "type": "chain",
+                "params": (vertices,),
+                "kwargs": {
+                    "loop": loop,
+                    "friction": friction,
+                    "restitution": restitution,
+                },
+            }
+        )
+        return self
+
     def build(self) -> "Body":
         """Finalize the body creation and attach configured shapes.
 
@@ -721,6 +752,28 @@ class Body:
             is_sensor: Whether this shape is a sensor.
         """
         shape = Segment(self, point1, point2, density, friction, restitution, is_sensor)
+        self._shapes.append(shape)
+        return shape
+
+    def add_chain(
+        self,
+        vertices: list[tuple],
+        loop: bool = False,
+        friction: float = None,
+        restitution: float = None,
+    ):
+        """Add a chain shape to the body.
+
+        Args:
+            vertices: List of points that define the chain shape. Must contain at least 4 vertices.
+            loop: Boolean indicating whether the chain should be closed (looped). Default is False.
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+
+        Returns:
+            The created Chain shape.
+        """
+        shape = Chain(self, vertices, loop, friction, restitution)
         self._shapes.append(shape)
         return shape
 

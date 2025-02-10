@@ -105,3 +105,30 @@ def test_shape_setters():
     # Test restitution setter
     shape.restitution = 0.6
     assert lib.b2Shape_GetRestitution(shape._shape_id) == approx(0.6)
+
+
+def test_chain_shape_valid():
+    world = World()
+    # Create a static body so that chain shape (which has no density) works fine.
+    body = world.new_body().static().build()
+
+    # A valid chain requires at least 4 vertices.
+    vertices = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    chain_shape = body.add_chain(
+        vertices=vertices, loop=True, friction=0.25, restitution=0.1
+    )
+
+    # Verify that there is one shape attached to the body.
+    assert lib.b2Body_GetShapeCount(body._body_id) == 1
+    # Check that the shape type is recognized as a chain shape.
+    assert lib.b2Shape_GetType(chain_shape._shape_id) == lib.b2_chainShape
+
+
+def test_chain_shape_invalid():
+    world = World()
+    body = world.new_body().static().build()
+
+    # Providing fewer than 4 vertices should raise a ValueError.
+    vertices = [(0, 0), (1, 0), (0.5, 1)]
+    with pytest.raises(ValueError):
+        body.add_chain(vertices=vertices)
