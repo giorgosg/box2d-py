@@ -297,11 +297,10 @@ class TestbedInput:
             rotation=0,
             scale=(scale, -scale)
         )
-        self.view_transform_inv = self.view_transform.inverse
 
     def on_mouse_scroll(self, sender, app_data):
         zoom_speed = 1.1
-        current_zoom = abs(self.view_transform._scale.x)
+        current_zoom = abs(self.view_transform.scale.x)
         if app_data > 0:
             new_zoom = current_zoom * zoom_speed
         elif app_data < 0:
@@ -310,7 +309,6 @@ class TestbedInput:
             new_zoom = current_zoom
         new_zoom = max(5, min(new_zoom, 200))
         self.view_transform.scale = Vec2(new_zoom, -new_zoom)
-        self.view_transform_inv = self.view_transform.inverse
 
     def update_panning(self):
         if dpg.is_mouse_button_down(1):  # Right-click drag.
@@ -318,41 +316,37 @@ class TestbedInput:
             if self.last_mouse_pos is not None:
                 dx = current_mouse[0] - self.last_mouse_pos[0]
                 dy = current_mouse[1] - self.last_mouse_pos[1]
-                new_x = self.view_transform.position.x + dx
-                new_y = self.view_transform.position.y + dy
-                self.view_transform.position = (new_x, new_y)
-                self.view_transform_inv = self.view_transform.inverse
+                self.view_transform.position = Vec2(
+                    self.view_transform.position.x + dx,
+                    self.view_transform.position.y + dy
+                )
             self.last_mouse_pos = current_mouse
         else:
             self.last_mouse_pos = None
-
-    def screen_to_world(self, pos):
-        return self.view_transform.inverse(pos)
 
     def global_mouse_down_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
         if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_down"):
-            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_down(pos)
 
     def global_mouse_drag_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
         if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_drag"):
-            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_drag(pos, Vec2(0, 0))
 
     def global_mouse_release_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
         if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_release"):
-            pos = self.screen_to_world(dpg.get_drawing_mouse_pos())
+            pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_release(pos)
 
     def set_view_center(self, new_center):
         self.view_transform.position = Vec2(*new_center)
-        self.view_transform_inv = self.view_transform.inverse
 
 
 class TestbedCoordinator:

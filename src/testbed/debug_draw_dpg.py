@@ -20,28 +20,10 @@ class DearpyguiDebugDraw(DebugDraw):
             scale=(30, -30)
         )
 
-    def world_to_screen(self, pos: Vec2):
-        """
-        Convert a Box2D world coordinate (Vec2) to screen coordinates
-        using the current view transform.
-        """
-        screen_point = self.view_transform(pos)
-        return (round(screen_point.x), round(screen_point.y))
-
-    def draw_polygon(self, vertices: list[Vec2], color: Color):
-        if len(vertices) < 2:
-            return
-        points = [self.world_to_screen(v) for v in vertices]
-        points.append(points[0])
-        dpg.draw_polygon(points,
-                         color=tuple(color),
-                         thickness=self.outline_thickness,
-                         parent=self.canvas)
-
     def round_polygon_vertices(self, vertices, radius):
         """Calculate new vertices to form a rounded polygon."""
         screen_r = round(radius * abs(self.view_transform._scale.x))
-        arc_segments_max = max(screen_r // 2, 2)
+        arc_segments_max = max(screen_r * 2, 2)
         n = len(vertices)
         outline_points = []
         for i in range(n):
@@ -83,47 +65,48 @@ class DearpyguiDebugDraw(DebugDraw):
                 outline_points.extend(arc_points[1:])
         return outline_points
 
+    def draw_polygon(self, vertices: list[Vec2], color: Color):
+        if len(vertices) < 2:
+            return
+        points = []
+        vertices = [tuple(round(self.view_transform(v))) for v in vertices]
+        points.append(points[0])
+        dpg.draw_polygon(points,
+                         color=tuple(color),
+                         thickness=self.outline_thickness,
+                         parent=self.canvas)
+
     def draw_solid_polygon(self, transform, vertices, radius, color: Color):
-        """
-        Draws a solid polygon. If 'radius' is nonzero,
-        calls draw_rounded_polygon to draw a rounded polygon;
-        otherwise, it uses the normal polygon drawing.
-        """
         screen_r = round(radius * abs(self.view_transform._scale.x))
         if screen_r != 0:
             vertices = self.round_polygon_vertices(vertices, radius)
 
-        # Fallback: normal solid polygon drawing.
+        # Apply local transform to each vertex.
         transformed = [transform(v) for v in vertices]
-        points = [self.world_to_screen(v) for v in transformed]
+        points = []
+        points = [tuple(round(self.view_transform(v))) for v in transformed]
         points.append(points[0])
         line_color = (min(255, color.r + 100),
                       min(255, color.g + 100),
                       min(255, color.b + 100),
                       255)
-        # poor attempt at antialiasing
-        dpg.draw_polygon(points,
-                         #fill=tuple(color)[:3] + (150,),
-                         color=tuple(line_color)[:3] + (180,),
-                         thickness=self.outline_thickness+1,
-                         parent=self.canvas)
-
         dpg.draw_polygon(points,
                          fill=tuple(color)[:3] + (150,),
                          color=tuple(line_color),
                          thickness=self.outline_thickness,
                          parent=self.canvas)
         
-
     def draw_string(self, p: Vec2, s, color: Color):
-        pos = self.world_to_screen(p)
+        screen_pt = self.view_transform(p)
+        pos = (round(screen_pt.x), round(screen_pt.y))
         dpg.draw_text(pos, s,
                       color=tuple(color),
                       size=14,
                       parent=self.canvas)
 
     def draw_circle(self, center: Vec2, radius: float, color: Color):
-        center_screen = self.world_to_screen(center)
+        screen_pt = self.view_transform(center)
+        center_screen = (round(screen_pt.x), round(screen_pt.y))
         scaled_radius = round(radius * abs(self.view_transform._scale.x))
         dpg.draw_circle(center=center_screen,
                         radius=scaled_radius,
@@ -134,7 +117,8 @@ class DearpyguiDebugDraw(DebugDraw):
     def draw_solid_circle(self, transform, radius, color: Color):
         center = transform.p
         angle = math.atan2(transform.q.s, transform.q.c)
-        center_screen = self.world_to_screen(center)
+        screen_pt = self.view_transform(center)
+        center_screen = (round(screen_pt.x), round(screen_pt.y))
         scaled_radius = round(radius * abs(self.view_transform._scale.x))
         fill_color = tuple(color)[:3] + (150,)
         line_color = (min(255, color.r + 100),
@@ -157,8 +141,8 @@ class DearpyguiDebugDraw(DebugDraw):
                       parent=self.canvas)
 
     def draw_segment(self, p1: Vec2, p2: Vec2, color: Color):
-        sp1 = self.world_to_screen(p1)
-        sp2 = self.world_to_screen(p2)
+        sp1 = (round(self.view_transform(p1).x), round(self.view_transform(p1).y))
+        sp2 = (round(self.view_transform(p2).x), round(self.view_transform(p2).y))
         dpg.draw_line(sp1, sp2,
                       color=tuple(color),
                       thickness=self.outline_thickness,
@@ -173,9 +157,9 @@ class DearpyguiDebugDraw(DebugDraw):
         p1 = p
         p2 = Vec2(p.x + x_axis.x, p.y + x_axis.y)
         p3 = Vec2(p.x + y_axis.x, p.y + y_axis.y)
-        sp1 = self.world_to_screen(p1)
-        sp2 = self.world_to_screen(p2)
-        sp3 = self.world_to_screen(p3)
+        sp1 = (round(self.view_transform(p1).x), round(self.view_transform(p1).y))
+        sp2 = (round(self.view_transform(p2).x), round(self.view_transform(p2).y))
+        sp3 = (round(self.view_transform(p3).x), round(self.view_transform(p3).y))
         dpg.draw_line(sp1, sp2,
                       color=(255, 0, 0, 255),
                       thickness=self.outline_thickness,
@@ -186,22 +170,21 @@ class DearpyguiDebugDraw(DebugDraw):
                       parent=self.canvas)
 
     def draw_point(self, p: Vec2, size: float, color: Color):
-        center_screen = self.world_to_screen(p)
+        screen_pt = self.view_transform(p)
+        center_screen = (round(screen_pt.x), round(screen_pt.y))
         scaled_size = max(1, round(size * self.view_transform._scale.x))
-        radius = 3
         dpg.draw_circle(center=center_screen,
-                        radius=radius,
+                        radius=3,
                         fill=tuple(color),
                         thickness=0,
                         parent=self.canvas)
 
     def draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
-        sp1 = self.world_to_screen(p1)
-        sp2 = self.world_to_screen(p2)
+        sp1 = (round(self.view_transform(p1).x), round(self.view_transform(p1).y))
+        sp2 = (round(self.view_transform(p2).x), round(self.view_transform(p2).y))
         sr = max(1, round(radius * abs(self.view_transform._scale.x)))
         dx = sp2[0] - sp1[0]
         dy = sp2[1] - sp1[1]
-
         length = math.hypot(dx, dy)
         perp_x = -dy / length
         perp_y = dx / length
