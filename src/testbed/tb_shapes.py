@@ -3,6 +3,7 @@
 from base_test import BaseTest
 from itertools import product
 from shared import create_random_polygon
+import dearpygui.dearpygui as dpg
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
@@ -53,6 +54,7 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
 
 class Restitution(BaseTest, category="Shapes", name="Restitution"):
     def setup(self, shape="circle"):
+        # First, clear all existing bodies in the world.
         for body in self.world.bodies:
             body.destroy()
 
@@ -70,10 +72,29 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
         y_position = 40.0
 
         for x, r in zip(x_list, restitution_list):
-            self.world.new_body().dynamic().position(x, y_position).circle(
-                radius=0.5, center=(0, 0), restitution=r, density=1.0
-            ).build()
+            builder = self.world.new_body().dynamic().position(x, y_position)
+            if shape == "circle":
+                builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
+            elif shape == "box":
+                builder.box(1.0, 1.0, restitution=r, density=1.0)
+            elif shape == "polygon":
+                builder.create_random_polygon(0.5, restitution=r, density=1.0)
+            else:
+                # Fallback in case an unknown shape is provided.
+                builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
+            builder.build()
 
     def init_ui(self):
-        # No additional UI is needed at this stage.
-        pass
+        self.current_shape = "circle"
+        dpg.add_combo(
+            label="Shape",
+            items=["circle", "box", "polygon"],
+            default_value=self.current_shape,
+            callback=self.on_shape_change,
+            parent=self.ui_window,
+            width=100,
+        )
+
+    def on_shape_change(self, sender, app_data, user_data):
+        self.current_shape = app_data
+        self.setup(self.current_shape)
