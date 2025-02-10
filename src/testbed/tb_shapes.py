@@ -80,7 +80,6 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
             elif shape == "polygon":
                 builder.create_random_polygon(0.5, restitution=r, density=1.0)
             else:
-                # Fallback in case an unknown shape is provided.
                 builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
             builder.build()
 
