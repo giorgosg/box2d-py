@@ -791,3 +791,25 @@ class Body:
     def is_sleep_enabled(self):
         """Check if the body is allowed to sleep"""
         return lib.b2Body_IsSleepEnabled(self._body_id)
+
+    def destroy(self):
+        """
+        Destroy this body and remove it from the world.
+        """
+        # If the body has already been destroyed, do nothing.
+        if getattr(self, "_body_id", None) is None:
+            return
+
+        lib.b2DestroyBody(self._body_id)
+
+        # Remove the body from the world's tracking dictionary.
+        if hasattr(self.world, "_bodies"):
+            self.world._bodies.pop(self._body_id, None)
+
+        # Mark this body as destroyed.
+        self._body_id = None
+
+    # TODO: currently is segfaults one of the tests. need to figure out why.
+    # def __del__(self):
+    # Attempt to clean up if destroy() wasn't explicitly called.
+    # self.destroy()
