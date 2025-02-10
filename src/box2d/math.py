@@ -1421,7 +1421,7 @@ class ScaledTransform:
         Vec2(10.0, 22.0)
     """
 
-    __slots__ = ("_position", "_rotation", "_scale", "_matrix")
+    __slots__ = ("_position", "_rotation", "_scale", "_matrix", "_inv_matrix")
 
     def __init__(
         self,
@@ -1456,6 +1456,7 @@ class ScaledTransform:
         else:
             self._scale = scale if isinstance(scale, Vec2) else Vec2(*scale)
         self._recalc_matrix()
+        self._inv_matrix = None
 
     def _recalc_matrix(self):
         """
@@ -1531,6 +1532,7 @@ class ScaledTransform:
     def position(self, value: VectorLike):
         self._position = value if isinstance(value, Vec2) else Vec2(*value)
         self._recalc_matrix()
+        self._inv_matrix = None
 
     @property
     def rotation(self) -> Rot:
@@ -1551,6 +1553,7 @@ class ScaledTransform:
     def rotation(self, value: Union[float, Rot]):
         self._rotation = value if isinstance(value, Rot) else Rot(value)
         self._recalc_matrix()
+        self._inv_matrix = None
 
     @property
     def scale(self) -> Vec2:
@@ -1574,6 +1577,7 @@ class ScaledTransform:
         else:
             self._scale = value if isinstance(value, Vec2) else Vec2(*value)
         self._recalc_matrix()
+        self._inv_matrix = None
 
     @classmethod
     def from_transform(
@@ -1617,8 +1621,8 @@ class ScaledTransform:
             >>> t_inv(t(Vec2(1, 0)))  # Should return original point
             Vec2(1.0, 0.0)
         """
-        if self.scale.x == 0 or self.scale.y == 0:
-            raise ValueError("Cannot invert transform with zero scale component")
+        if self._inv_matrix is not None:
+            return self._inv_matrix
 
         inv_scale = Vec2(1 / self.scale.x, 1 / self.scale.y)
         inv_rotation = self.rotation.inverse
@@ -1628,9 +1632,10 @@ class ScaledTransform:
             inv_scale
         )
 
-        return ScaledTransform(
+        self._inv_matrix = ScaledTransform(
             position=inv_position, rotation=inv_rotation, scale=inv_scale
         )
+        return self._inv_matrix
 
     def __mul__(self, other: Union["ScaledTransform", Transform]) -> "ScaledTransform":
         """
