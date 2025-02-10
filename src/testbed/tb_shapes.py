@@ -49,3 +49,28 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
             self.world.new_body().dynamic().position(x, y).box(
                 1.0, 1.0, friction=f, density=25.0
             ).build()
+
+
+class Restitution(BaseTest, category="Shapes", name="Restitution"):
+    def setup(self):
+        ground = (
+            self.world.new_body().static().segment((-40, 0), (40, 0), restitution=0)
+        )
+        ground.build()
+
+        e_count = 40
+        dr = 1.0 / (e_count - 1)
+        dx = 2.0
+
+        x_list = [-1.0 * (e_count - 1) + i * dx for i in range(e_count)]
+        restitution_list = [i * dr for i in range(e_count)]
+        y_position = 40.0
+
+        for x, r in zip(x_list, restitution_list):
+            self.world.new_body().dynamic().position(x, y_position).circle(
+                radius=0.5, center=(0, 0), restitution=r, density=1.0
+            ).build()
+
+    def init_ui(self):
+        # No additional UI is needed at this stage.
+        pass

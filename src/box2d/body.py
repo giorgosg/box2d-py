@@ -426,11 +426,7 @@ class BodyBuilder:
         Returns:
             The newly created Body instance
         """
-        body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(self._def))
-        body = Body(body_id)
-
-        # Track the body in the world
-        self.world._track_body(body)
+        body = Body(self.world, self._def)
 
         # Apply additional properties after creation
         if self._def.fixedRotation:
@@ -454,16 +450,25 @@ class Body:
     impulses, and constraints applied to them.
     """
 
-    def __init__(self, body_id):
-        """Initialize a Body instance.
+    def __init__(self, world, body_def):
+        """
+        Initialize a Body instance.
 
         Args:
-            body_id: The unique identifier for this body in the physics simulation
+            world: The World instance in which this body exists.
+            body_def: The body definition used to create this body.
         """
-        self._body_id = body_id
+        self.world = world
+        self.body_def = body_def
+        # Create the body using Box2D's b2CreateBody
+        self._body_id = lib.b2CreateBody(
+            self.world._world_id, ffi.addressof(self.body_def)
+        )
         self._handle = ffi.addressof(self._body_id)
-        lib.b2Body_SetUserData(body_id, self._handle)
+        lib.b2Body_SetUserData(self._body_id, self._handle)
         self._shapes = []
+        # Automatically register this body with the world.
+        self.world._track_body(self)
 
     @property
     def shapes(self):

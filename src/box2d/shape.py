@@ -350,10 +350,7 @@ class Chain(Shape):
         chain_def = lib.b2DefaultChainDef()
         chain_def.points = points
         chain_def.count = point_count
-        chain_def.loop = loop
-
-        # Ensure chain shapes are never sensors.
-        chain_def.isSensor = False
+        chain_def.isLoop = loop
 
         if friction is not None:
             chain_def.friction = friction
@@ -362,7 +359,7 @@ class Chain(Shape):
 
         self._shape_def = chain_def
         self._shape_id = lib.b2CreateChain(body._body_id, ffi.addressof(chain_def))
-        self._finalize()
+        # self._finalize()
 
     @property
     def is_sensor(self):
