@@ -90,6 +90,9 @@ class TestbedUI:
                     default_value=self.coordinator.sim.world.enable_sleep,
                     callback=self.on_toggle_sleep,
                 )
+                dpg.add_spacer(width=50)
+                dpg.add_text("Physics: 0.0 ms", tag="physics_time_text")
+                dpg.add_text("Draw: 0.0 ms", tag="draw_time_text")
 
             # Calculate available height
             content_height = self.height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
@@ -446,6 +449,9 @@ class TestbedCoordinator:
         self.input = TestbedInput(self)
         self.accumulator = 0.0
         self.prev_time = time.perf_counter()
+        # Add rolling average variables for performance metrics
+        self.physics_time_avg = 0.0
+        self.draw_time_avg = 0.0
 
     def reset_accumulator(self):
         self.accumulator = 0.0
@@ -472,17 +478,38 @@ class TestbedCoordinator:
             self.ui.update()
 
             # --- Physics update ---
+            physics_start = time.perf_counter()
             if not self.sim.simulation_paused:
                 while self.accumulator >= self.sim.physics_dt:
                     self.sim.update_physics()
                     self.accumulator -= self.sim.physics_dt
+            physics_time = (
+                time.perf_counter() - physics_start
+            ) * 1000.0  # in milliseconds
 
             # --- Drawing ---
+            draw_start = time.perf_counter()
             self.ui.clear_canvas()
             self.sim.draw()
             # Call test update after debug drawing to overlay extra UI/drawing.
             if self.sim.current_test:
                 self.sim.current_test.update(elapsed)
+            draw_time = (time.perf_counter() - draw_start) * 1000.0  # in milliseconds
+
+            # --- Rolling average smoothing ---
+            smoothing = 0.9  # Adjust this factor (0 < smoothing < 1) as desired.
+            self.physics_time_avg = self.physics_time_avg * smoothing + physics_time * (
+                1 - smoothing
+            )
+            self.draw_time_avg = self.draw_time_avg * smoothing + draw_time * (
+                1 - smoothing
+            )
+
+            # --- Update performance metrics in UI ---
+            dpg.set_value(
+                "physics_time_text", f"Physics: {self.physics_time_avg:.2f} ms"
+            )
+            dpg.set_value("draw_time_text", f"Draw: {self.draw_time_avg:.2f} ms")
 
             dpg.render_dearpygui_frame()
             time.sleep(0.001)
