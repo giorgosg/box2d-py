@@ -52,7 +52,10 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
 
 
 class Restitution(BaseTest, category="Shapes", name="Restitution"):
-    def setup(self):
+    def setup(self, shape="circle"):
+        for body in self.world.bodies:
+            body.destroy()
+
         ground = (
             self.world.new_body().static().segment((-40, 0), (40, 0), restitution=0)
         )
