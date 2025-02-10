@@ -468,6 +468,23 @@ class Vec2:
         """
         return self.x != 0.0 or self.y != 0.0
 
+    def __round__(self, ndigits: int = None) -> 'Vec2':
+        """
+        Return a new Vec2 instance with each component rounded to the specified number of digits.
+
+        Args:
+            ndigits (int, optional): Number of digits to round to. If None, rounds to the nearest integer.
+
+        Returns:
+            Vec2: A new vector with rounded components.
+        
+        Example:
+            >>> v = Vec2(1.23456, 7.89123)
+            >>> round(v, 2)
+            Vec2(1.23, 7.89)
+        """
+        return Vec2(round(self.x, ndigits), round(self.y, ndigits))
+
     @property
     def as_tuple(self) -> tuple[float, float]:
         """Return the vector as a tuple of floats.
