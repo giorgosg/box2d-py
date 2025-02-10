@@ -1,10 +1,12 @@
 from box2d import World, Vec2
 
+
 class BaseTest:
     """
     Base class for physics tests.
     Each test subclass must specify a category and a name.
     """
+
     registry = {}
 
     def __init_subclass__(cls, *, category, name, **kwargs):
@@ -42,15 +44,17 @@ class BaseTest:
         if self.mouse_joint is not None:
             return
         from box2d.math import AABB
-        query_aabb = AABB(lower=(pos.x - 0.1, pos.y - 0.1),
-                          upper=(pos.x + 0.1, pos.y + 0.1))
+
+        query_aabb = AABB(
+            lower=(pos.x - 0.1, pos.y - 0.1), upper=(pos.x + 0.1, pos.y + 0.1)
+        )
         shapes = self.world.query_aabb(query_aabb)
         for shape in shapes:
             body = shape.body
-            if body.type == 'dynamic':
-                self.mouse_joint = self.world.add_mouse_joint(body, (pos.x, pos.y),
-                                                              max_force=1000.0,
-                                                              damping_ratio=0.7)
+            if body.type == "dynamic":
+                self.mouse_joint = self.world.add_mouse_joint(
+                    body, (pos.x, pos.y), max_force=1000.0, damping_ratio=0.7
+                )
                 break
 
     def on_mouse_drag(self, pos, rel):
@@ -87,9 +91,9 @@ def get_first_test():
             return test_cls
     return None
 
+
 def get_all_tests():
     """
     Returns the full test registry.
     """
     return BaseTest.registry
-

@@ -4,22 +4,29 @@ from test_base import BaseTest
 from itertools import product
 from shared import create_random_polygon
 
+
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
     def setup(self):
-        body = (self.world.new_body().static()
-                .box(40, 2, offset=(0, -1))
-                .box(2, 10, offset=(19, 5))
-                .box(2, 10, offset=(-19, 5))
-                .build())
+        body = (
+            self.world.new_body()
+            .static()
+            .box(40, 2, offset=(0, -1))
+            .box(2, 10, offset=(19, 5))
+            .box(2, 10, offset=(-19, 5))
+            .build()
+        )
 
         xcount, ycount = 10, 10
         xstart, ystart = -5, 2
-        
+
         for x, y in product(range(xcount), range(ycount)):
-            bb = (self.world.new_body().dynamic()
-                  .position(xstart + x, ystart + y)
-                  .create_random_polygon(0.5)
-                  .build())
+            bb = (
+                self.world.new_body()
+                .dynamic()
+                .position(xstart + x, ystart + y)
+                .create_random_polygon(0.5)
+                .build()
+            )
 
 
 class Friction(BaseTest, category="Shapes", name="Friction"):
@@ -39,5 +46,6 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
         for i, f in enumerate(friction_values):
             x = -15.0 + 4.0 * i
             y = 28.0
-            self.world.new_body().dynamic().position(x, y)\
-                .box(1.0, 1.0, friction=f, density=25.0).build()
+            self.world.new_body().dynamic().position(x, y).box(
+                1.0, 1.0, friction=f, density=25.0
+            ).build()

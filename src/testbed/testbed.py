@@ -20,6 +20,7 @@ class TestbedUI:
     """
     Handles all UI layout, window creation, and widget callbacks.
     """
+
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self.width = coordinator.config.WIDTH
@@ -43,38 +44,66 @@ class TestbedUI:
     def initialize(self):
         dpg.create_context()
         dpg.configure_app(manual_callback_management=True)
-        dpg.create_viewport(title="Box2D TestBed - DearPyGui", width=self.width, height=self.height)
-        
+        dpg.create_viewport(
+            title="Box2D TestBed - DearPyGui", width=self.width, height=self.height
+        )
+
         # Main window containing controls and main content.
-        with dpg.window(label="TestBed", width=self.width, height=self.height,
-                        no_scrollbar=True, tag="main_window") as self.main_window:
+        with dpg.window(
+            label="TestBed",
+            width=self.width,
+            height=self.height,
+            no_scrollbar=True,
+            tag="main_window",
+        ) as self.main_window:
             # Top controls group.
             with dpg.group(horizontal=True, tag="controls_group"):
-                dpg.add_button(label="Pause", tag="sim_start_pause_button",
-                               callback=self.on_toggle_simulation)
+                dpg.add_button(
+                    label="Pause",
+                    tag="sim_start_pause_button",
+                    callback=self.on_toggle_simulation,
+                )
                 dpg.add_text("Substeps:")
-                dpg.add_input_int(tag="substeps_input", label="", default_value=4, width=80,
-                                  callback=self.on_physics_settings_change)
+                dpg.add_input_int(
+                    tag="substeps_input",
+                    label="",
+                    default_value=4,
+                    width=80,
+                    callback=self.on_physics_settings_change,
+                )
                 dpg.add_text("Hertz:")
-                dpg.add_input_int(tag="timestep_input", label="", default_value=60, width=80,
-                                  callback=self.on_physics_settings_change)
-                dpg.add_checkbox(tag="enable_continuous_checkbox",
-                                 label="Continuous Collision",
-                                 default_value=self.coordinator.sim.world.enable_continuous,
-                                 callback=self.on_toggle_continuous)
-                dpg.add_checkbox(tag="enable_sleep_checkbox",
-                                 label="Sleep",
-                                 default_value=self.coordinator.sim.world.enable_sleep,
-                                 callback=self.on_toggle_sleep)
-            
+                dpg.add_input_int(
+                    tag="timestep_input",
+                    label="",
+                    default_value=60,
+                    width=80,
+                    callback=self.on_physics_settings_change,
+                )
+                dpg.add_checkbox(
+                    tag="enable_continuous_checkbox",
+                    label="Continuous Collision",
+                    default_value=self.coordinator.sim.world.enable_continuous,
+                    callback=self.on_toggle_continuous,
+                )
+                dpg.add_checkbox(
+                    tag="enable_sleep_checkbox",
+                    label="Sleep",
+                    default_value=self.coordinator.sim.world.enable_sleep,
+                    callback=self.on_toggle_sleep,
+                )
+
             # Calculate available height
             content_height = self.height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
 
             # Main content area: simulation canvas and tests tree.
             with dpg.group(horizontal=True, tag="main_content"):
                 canvas_width = self.width - self.TEST_TREE_WIDTH - self.MARGIN
-                self.canvas = dpg.add_drawlist(tag="simulation_canvas", width=canvas_width, height=content_height)
-                self.test_tree = dpg.add_child_window(tag="test_tree", width=self.TEST_TREE_WIDTH, height=content_height)
+                self.canvas = dpg.add_drawlist(
+                    tag="simulation_canvas", width=canvas_width, height=content_height
+                )
+                self.test_tree = dpg.add_child_window(
+                    tag="test_tree", width=self.TEST_TREE_WIDTH, height=content_height
+                )
                 self.build_tests_tree()
 
         # Initialize the debug draw so that its flags can be used
@@ -89,43 +118,76 @@ class TestbedUI:
             width=self.width,
             height=self.TOGGLES_HEIGHT,
             no_title_bar=True,
-            no_move=True
+            no_move=True,
         ) as self.toggles_window:
             with dpg.group(horizontal=True, horizontal_spacing=10):
-                dpg.add_checkbox(label="shapes",
-                                 default_value=self.debug_draw.draw_shapes,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_shapes")
-                dpg.add_checkbox(label="aabbs",
-                                 default_value=self.debug_draw.draw_aabbs,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_aabbs")
-                dpg.add_checkbox(label="joints",
-                                 default_value=self.debug_draw.draw_joints,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_joints")
-                dpg.add_checkbox(label="contacts",
-                                 default_value=self.debug_draw.draw_contacts,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_contacts")
-                dpg.add_checkbox(label="contact_normals",
-                                 default_value=self.debug_draw.draw_contact_normals,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_contact_normals")
-                dpg.add_checkbox(label="contact_impulses",
-                                 default_value=self.debug_draw.draw_contact_impulses,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_contact_impulses")
-                dpg.add_checkbox(label="friction_impulses",
-                                 default_value=self.debug_draw.draw_friction_impulses,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_friction_impulses")
-                dpg.add_checkbox(label="mass",
-                                 default_value=self.debug_draw.draw_mass,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_mass")
-                dpg.add_checkbox(label="joint_extras",
-                                 default_value=self.debug_draw.draw_joint_extras,
-                                 callback=self.on_toggle_debug_draw, user_data="draw_joint_extras")
+                dpg.add_checkbox(
+                    label="shapes",
+                    default_value=self.debug_draw.draw_shapes,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_shapes",
+                )
+                dpg.add_checkbox(
+                    label="aabbs",
+                    default_value=self.debug_draw.draw_aabbs,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_aabbs",
+                )
+                dpg.add_checkbox(
+                    label="joints",
+                    default_value=self.debug_draw.draw_joints,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_joints",
+                )
+                dpg.add_checkbox(
+                    label="contacts",
+                    default_value=self.debug_draw.draw_contacts,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_contacts",
+                )
+                dpg.add_checkbox(
+                    label="contact_normals",
+                    default_value=self.debug_draw.draw_contact_normals,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_contact_normals",
+                )
+                dpg.add_checkbox(
+                    label="contact_impulses",
+                    default_value=self.debug_draw.draw_contact_impulses,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_contact_impulses",
+                )
+                dpg.add_checkbox(
+                    label="friction_impulses",
+                    default_value=self.debug_draw.draw_friction_impulses,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_friction_impulses",
+                )
+                dpg.add_checkbox(
+                    label="mass",
+                    default_value=self.debug_draw.draw_mass,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_mass",
+                )
+                dpg.add_checkbox(
+                    label="joint_extras",
+                    default_value=self.debug_draw.draw_joint_extras,
+                    callback=self.on_toggle_debug_draw,
+                    user_data="draw_joint_extras",
+                )
 
         # Register global mouse event handlers.
         with dpg.handler_registry():
             dpg.add_mouse_wheel_handler(callback=self.coordinator.input.on_mouse_scroll)
-            dpg.add_mouse_down_handler(callback=self.coordinator.input.global_mouse_down_handler)
-            dpg.add_mouse_drag_handler(callback=self.coordinator.input.global_mouse_drag_handler)
-            dpg.add_mouse_release_handler(callback=self.coordinator.input.global_mouse_release_handler)
+            dpg.add_mouse_down_handler(
+                callback=self.coordinator.input.global_mouse_down_handler
+            )
+            dpg.add_mouse_drag_handler(
+                callback=self.coordinator.input.global_mouse_drag_handler
+            )
+            dpg.add_mouse_release_handler(
+                callback=self.coordinator.input.global_mouse_release_handler
+            )
 
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
 
@@ -142,9 +204,15 @@ class TestbedUI:
         self.selectable_ids = []
         registry = get_all_tests()
         for category, tests in registry.items():
-            with dpg.tree_node(label=category, default_open=False, parent=self.test_tree):
+            with dpg.tree_node(
+                label=category, default_open=False, parent=self.test_tree
+            ):
                 for test_name, test_cls in tests.items():
-                    selectable_id = dpg.add_selectable(label=test_name, callback=self.on_test_select, user_data=test_cls)
+                    selectable_id = dpg.add_selectable(
+                        label=test_name,
+                        callback=self.on_test_select,
+                        user_data=test_cls,
+                    )
                     self.selectable_ids.append(selectable_id)
 
     def create_test_ui_window(self, test_cls):
@@ -152,11 +220,13 @@ class TestbedUI:
             dpg.delete_item("test_ui_window")
         window_width = 220
         window_height = 150
-        with dpg.window(label=f"{test_cls.category} - {test_cls.name}",
-                        tag="test_ui_window",
-                        pos=(10, dpg.get_viewport_height() - window_height - 50),
-                        no_close=True,
-                        width=window_width) as window:
+        with dpg.window(
+            label=f"{test_cls.category} - {test_cls.name}",
+            tag="test_ui_window",
+            pos=(10, dpg.get_viewport_height() - window_height - 50),
+            no_close=True,
+            width=window_width,
+        ) as window:
             dpg.add_button(label="Reset Test", callback=self.on_reset_test)
             self.test_ui_container = dpg.add_child_window(tag="test_ui_container")
         return self.test_ui_container
@@ -165,11 +235,13 @@ class TestbedUI:
         dpg.delete_item(self.canvas, children_only=True)
         canvas_width = dpg.get_item_width(self.canvas)
         canvas_height = dpg.get_item_height(self.canvas)
-        dpg.draw_rectangle((0, 0),
-                           (canvas_width, canvas_height),
-                           fill=(60, 60, 60, 255),
-                           color=(90, 90, 90, 255),
-                           parent=self.canvas)
+        dpg.draw_rectangle(
+            (0, 0),
+            (canvas_width, canvas_height),
+            fill=(60, 60, 60, 255),
+            color=(90, 90, 90, 255),
+            parent=self.canvas,
+        )
 
     def on_viewport_resize(self, sender, app_data):
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
@@ -177,13 +249,17 @@ class TestbedUI:
         canvas_width = new_width - self.TEST_TREE_WIDTH - self.MARGIN
         dpg.configure_item(self.main_window, width=new_width, height=new_height)
         dpg.configure_item(self.canvas, width=canvas_width, height=content_height)
-        dpg.configure_item(self.test_tree, width=self.TEST_TREE_WIDTH, height=content_height)
+        dpg.configure_item(
+            self.test_tree, width=self.TEST_TREE_WIDTH, height=content_height
+        )
         new_center = (canvas_width // 2, content_height // 2)
         self.coordinator.input.set_view_center(new_center)
-        dpg.configure_item(self.toggles_window,
-                           pos=(0, new_height - self.TOGGLES_HEIGHT),
-                           width=new_width,
-                           height=self.TOGGLES_HEIGHT)
+        dpg.configure_item(
+            self.toggles_window,
+            pos=(0, new_height - self.TOGGLES_HEIGHT),
+            width=new_width,
+            height=self.TOGGLES_HEIGHT,
+        )
 
     # --- Callback wrappers ---
     def on_toggle_simulation(self, sender, app_data, user_data=None):
@@ -224,6 +300,7 @@ class TestbedSimulation:
     """
     Handles Box2D physics, world, and test switching.
     """
+
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self.world = World(gravity=(0, -10))
@@ -251,14 +328,16 @@ class TestbedSimulation:
             self.world.destroy()
         self.world = World(gravity=(0, -10))
         container = self.coordinator.ui.create_test_ui_window(test_cls)
-        self.current_test = test_cls(self.world, self.coordinator.ui.debug_draw, container)
+        self.current_test = test_cls(
+            self.world, self.coordinator.ui.debug_draw, container
+        )
         self.current_test.setup()
         self.coordinator.reset_accumulator()
 
     def update_physics(self):
         """
         Update the world by stepping the physics simulation.
-       """
+        """
         self.world.step(self.physics_dt, self.substeps)
 
     def toggle_simulation(self, sender, app_data, user_data=None):
@@ -287,15 +366,14 @@ class TestbedInput:
     """
     Handles mouse, viewport, and coordinate transforms.
     """
+
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self.last_mouse_pos = None
         center = coordinator.config.CENTER
         scale = coordinator.config.SCALE
         self.view_transform = ScaledTransform(
-            position=center,
-            rotation=0,
-            scale=(scale, -scale)
+            position=center, rotation=0, scale=(scale, -scale)
         )
 
     def on_mouse_scroll(self, sender, app_data):
@@ -318,7 +396,7 @@ class TestbedInput:
                 dy = current_mouse[1] - self.last_mouse_pos[1]
                 self.view_transform.position = Vec2(
                     self.view_transform.position.x + dx,
-                    self.view_transform.position.y + dy
+                    self.view_transform.position.y + dy,
                 )
             self.last_mouse_pos = current_mouse
         else:
@@ -327,21 +405,27 @@ class TestbedInput:
     def global_mouse_down_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
-        if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_down"):
+        if self.coordinator.sim.current_test and hasattr(
+            self.coordinator.sim.current_test, "on_mouse_down"
+        ):
             pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_down(pos)
 
     def global_mouse_drag_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
-        if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_drag"):
+        if self.coordinator.sim.current_test and hasattr(
+            self.coordinator.sim.current_test, "on_mouse_drag"
+        ):
             pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_drag(pos, Vec2(0, 0))
 
     def global_mouse_release_handler(self, sender, app_data):
         if not dpg.is_item_hovered(self.coordinator.ui.canvas):
             return
-        if self.coordinator.sim.current_test and hasattr(self.coordinator.sim.current_test, "on_mouse_release"):
+        if self.coordinator.sim.current_test and hasattr(
+            self.coordinator.sim.current_test, "on_mouse_release"
+        ):
             pos = self.view_transform.inverse(dpg.get_drawing_mouse_pos())
             self.coordinator.sim.current_test.on_mouse_release(pos)
 
@@ -353,6 +437,7 @@ class TestbedCoordinator:
     """
     Orchestrates the UI, simulation, and input managers.
     """
+
     def __init__(self):
         self.config = TestbedConfig()
         self.ui = TestbedUI(self)
@@ -372,11 +457,11 @@ class TestbedCoordinator:
             # Process GUI events.
             jobs = dpg.get_callback_queue()
             dpg.run_callbacks(jobs)
-            
+
             current_time = time.perf_counter()
             elapsed = current_time - self.prev_time
             self.prev_time = current_time
-            
+
             if not self.sim.simulation_paused:
                 self.accumulator += elapsed
             else:

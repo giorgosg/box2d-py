@@ -2,11 +2,7 @@ import math
 from typing import Union, Iterable, TypeAlias
 from ._box2d import ffi, lib
 
-VectorLike: TypeAlias = Union[
-    tuple[float, float],
-    list[float],
-    Iterable[float]
-]
+VectorLike: TypeAlias = Union[tuple[float, float], list[float], Iterable[float]]
 
 
 def format_num(n: float) -> str:
@@ -25,12 +21,12 @@ def format_num(n: float) -> str:
 
 class Vec2:
     """2D vector with Box2D math operations.
-    
+
     .. glossary::
         :sorted:
-        
+
         *vector-like*
-            Any indexable with [0]/[1] access (tuples, lists,  
+            Any indexable with [0]/[1] access (tuples, lists,
             numpy arrays, other Vec2 instances, etc.)
 
     Features:
@@ -43,8 +39,9 @@ class Vec2:
         >>> v = Vec2(1, 2)
         >>> v.x
         1.0
-   """
-    __slots__ = ('_x', '_y')
+    """
+
+    __slots__ = ("_x", "_y")
 
     def __init__(self, x, y):
         """Initialize a 2D vector with the given components.
@@ -72,7 +69,7 @@ class Vec2:
     @classmethod
     def from_b2Vec2(cls, b2_vec):
         """Create from Box2D b2Vec2 structure.
-        
+
         Example:
             >>> vec_c = ffi.new("b2Vec2*", (1.5, 2.5))
             >>> Vec2.from_b2Vec2(vec_c)
@@ -83,7 +80,7 @@ class Vec2:
     @property
     def b2Vec2(self):
         """Box2D b2Vec2 equivalent (managed by FFI).
-        
+
         Example:
             >>> cv = Vec2(1.5, 2.5).b2Vec2
             >>> cv.x
@@ -119,7 +116,7 @@ class Vec2:
         Example:
             >>> Vec2.right()
             Vec2(1.0, 0.0)
-        """            
+        """
         return cls(1.0, 0.0)
 
     @classmethod
@@ -132,7 +129,7 @@ class Vec2:
         Example:
             >>> Vec2.left()
             Vec2(-1.0, 0.0)
-        """            
+        """
         return cls(-1.0, 0.0)
 
     @classmethod
@@ -145,7 +142,7 @@ class Vec2:
         Example:
             >>> Vec2.up()
             Vec2(0.0, 1.0)
-        """            
+        """
         return cls(0.0, 1.0)
 
     @classmethod
@@ -158,7 +155,7 @@ class Vec2:
         Example:
             >>> Vec2.down()
             Vec2(0.0, -1.0)
-        """        
+        """
         return cls(0.0, -1.0)
 
     @classmethod
@@ -185,7 +182,7 @@ class Vec2:
             bool: True if both components are finite, False otherwise.
         """
         return math.isfinite(self.x) and math.isfinite(self.y)
-   
+
     def __getitem__(self, index):
         """Allow indexing to access vector components.
 
@@ -273,13 +270,14 @@ class Vec2:
         """
         try:
             other_vec = Vec2(*other)
-            return (abs(self.x - other_vec.x) <= tolerance and 
-                    abs(self.y - other_vec.y) <= tolerance)
+            return (
+                abs(self.x - other_vec.x) <= tolerance
+                and abs(self.y - other_vec.y) <= tolerance
+            )
         except (TypeError, ValueError):
             return False
-        
 
-    def __add__(self, other: VectorLike) -> 'Vec2':
+    def __add__(self, other: VectorLike) -> "Vec2":
         """Return the sum of this vector and another vector or tuple.
 
         Args:
@@ -294,7 +292,7 @@ class Vec2:
         """
         return Vec2(self.x + other[0], self.y + other[1])
 
-    def __sub__(self, other: VectorLike) -> 'Vec2':
+    def __sub__(self, other: VectorLike) -> "Vec2":
         """Return the difference between this vector and another vector or tuple.
 
         Args:
@@ -309,7 +307,7 @@ class Vec2:
         """
         return Vec2(self.x - other[0], self.y - other[1])
 
-    def __mul__(self, scalar: float) -> 'Vec2':
+    def __mul__(self, scalar: float) -> "Vec2":
         """Return the product of this vector and a scalar.
 
         Args:
@@ -326,7 +324,7 @@ class Vec2:
             return NotImplemented
         return Vec2(self.x * scalar, self.y * scalar)
 
-    def __rmul__(self, scalar: float) -> 'Vec2':
+    def __rmul__(self, scalar: float) -> "Vec2":
         """Return the product of a scalar and this vector.
 
         Args:
@@ -343,7 +341,7 @@ class Vec2:
             return NotImplemented
         return self.__mul__(scalar)
 
-    def __truediv__(self, scalar: float) -> 'Vec2':
+    def __truediv__(self, scalar: float) -> "Vec2":
         """Return the quotient of this vector divided by a scalar.
 
         Args:
@@ -363,7 +361,7 @@ class Vec2:
             raise ZeroDivisionError("Cannot divide by zero")
         return Vec2(self.x / scalar, self.y / scalar)
 
-    def __neg__(self) -> 'Vec2':
+    def __neg__(self) -> "Vec2":
         """Return the negation of this vector.
 
         Returns:
@@ -411,7 +409,7 @@ class Vec2:
         """
         other = Vec2(*other)
         return self.x < other.x and self.y < other.y
-    
+
     def __le__(self, other: VectorLike) -> bool:
         """Check if this vector is less than or equal to another vector or tuple.
 
@@ -427,7 +425,7 @@ class Vec2:
         """
         other = Vec2(*other)
         return self.x <= other.x and self.y <= other.y
-    
+
     def __ge__(self, other: VectorLike) -> bool:
         """Check if this vector is greater than or equal to another vector or tuple.
 
@@ -443,7 +441,7 @@ class Vec2:
         """
         other = Vec2(*other)
         return self.x >= other.x and self.y >= other.y
-    
+
     def __gt__(self, other: VectorLike) -> bool:
         """Check if this vector is greater than another vector or tuple.
 
@@ -468,7 +466,7 @@ class Vec2:
         """
         return self.x != 0.0 or self.y != 0.0
 
-    def __round__(self, ndigits: int = None) -> 'Vec2':
+    def __round__(self, ndigits: int = None) -> "Vec2":
         """
         Return a new Vec2 instance with each component rounded to the specified number of digits.
 
@@ -477,7 +475,7 @@ class Vec2:
 
         Returns:
             Vec2: A new vector with rounded components.
-        
+
         Example:
             >>> v = Vec2(1.23456, 7.89123)
             >>> round(v, 2)
@@ -493,7 +491,7 @@ class Vec2:
             tuple: A tuple containing the x and y components of the vector.
         """
         return (self.x, self.y)
-    
+
     @property
     def length(self) -> float:
         """The Euclidean length (magnitude) of the vector.
@@ -518,7 +516,7 @@ class Vec2:
             >>> Vec2(3.0, 4.0).length_squared
             25.0
         """
-        return self.x ** 2 + self.y ** 2
+        return self.x**2 + self.y**2
 
     def dot(self, other: VectorLike) -> float:
         """Compute the dot product of this vector and another vector or tuple.
@@ -754,8 +752,8 @@ class Vec2:
         new_x = self.x * math.cos(angle) - self.y * math.sin(angle)
         new_y = self.x * math.sin(angle) + self.y * math.cos(angle)
         return Vec2(new_x, new_y)
-   
-    def multiply_componentwise(self, other) -> 'Vec2':
+
+    def multiply_componentwise(self, other) -> "Vec2":
         """Component-wise multiplication with another vector or tuple.
 
         Args:
@@ -771,7 +769,7 @@ class Vec2:
         other = Vec2(*other)
         return Vec2(self.x * other.x, self.y * other.y)
 
-    def cross_scalar(self, s: float, direction: str = 'right') -> 'Vec2':
+    def cross_scalar(self, s: float, direction: str = "right") -> "Vec2":
         """Cross product with a scalar, following Box2D conventions.
 
         Args:
@@ -785,7 +783,7 @@ class Vec2:
             >>> Vec2(3.0, 4.0).cross_scalar(2)
             Vec2(8.0, -6.0)
         """
-        if direction == 'right':
+        if direction == "right":
             return Vec2(s * self.y, -s * self.x)
         return Vec2(-s * self.y, s * self.x)
 
@@ -805,10 +803,11 @@ class Vec2:
         other = Vec2(*other)
         return (self - other).length
 
+
 class Rot:
     """
     2D rotation represented by cosine and sine components.
-    
+
     Provides common rotation operations and conversions.
 
     Features:
@@ -824,7 +823,8 @@ class Rot:
         >>> deg_90 * v
         Vec2(0.0, 1.0)
     """
-    __slots__ = ('_s', '_c')  # sin/cos storage like Box2D
+
+    __slots__ = ("_s", "_c")  # sin/cos storage like Box2D
 
     def __init__(self, angle_radians=0.0):
         """
@@ -844,7 +844,7 @@ class Rot:
     @property
     def c(self):
         """**Cosine** component of rotation (read-only).
-        
+
         Example:
             >>> print(f"{Rot(math.pi/2).c:.1f}")
             0.0
@@ -854,7 +854,7 @@ class Rot:
     @property
     def s(self):
         """**Sine** component of rotation (read-only).
-        
+
         Example:
             >>> Rot(0).s
             0.0
@@ -864,10 +864,10 @@ class Rot:
     @classmethod
     def from_b2Rot(cls, b2_rot):
         """Create a Rot instance from Box2D's b2Rot structure.
-        
+
         Args:
             b2_rot: FFI pointer to b2Rot C struct
-            
+
         Example:
             >>> rot_c = ffi.new("b2Rot*", (Rot(math.pi/2).c, Rot(math.pi/2).s))
             >>> Rot.from_b2Rot(rot_c).angle_degrees
@@ -878,7 +878,7 @@ class Rot:
     @property
     def b2Rot(self):
         """Box2D b2Rot equivalent (managed by FFI).
-        
+
         Example:
             >>> rot = Rot(math.pi/4)
             >>> cr = rot.b2Rot
@@ -891,7 +891,7 @@ class Rot:
         return rot
 
     @classmethod
-    def from_sincos(cls, s: float, c: float) -> 'Rot':
+    def from_sincos(cls, s: float, c: float) -> "Rot":
         """
         Create rotation directly from sine/cosine values.
 
@@ -913,7 +913,7 @@ class Rot:
         return inst
 
     @classmethod
-    def from_degrees(cls, degrees: float) -> 'Rot':
+    def from_degrees(cls, degrees: float) -> "Rot":
         """Create a Rot instance from an angle in degrees.
 
         Args:
@@ -928,7 +928,7 @@ class Rot:
             90.0
         """
         return cls(math.radians(degrees))
-        
+
     @property
     def angle_radians(self) -> float:
         """
@@ -1005,7 +1005,7 @@ class Rot:
         """
         return (self.s, self.c)
 
-    def __mul__(self, other: Union['Vec2', 'Rot']) -> Union['Vec2', 'Rot']:
+    def __mul__(self, other: Union["Vec2", "Rot"]) -> Union["Vec2", "Rot"]:
         """
         Rotate vector or combine rotations.
 
@@ -1030,8 +1030,7 @@ class Rot:
         if isinstance(other, Rot):
             # Rotation composition (b2Rot_Mul)
             return Rot.from_sincos(
-                self.s * other.c + self.c * other.s,
-                self.c * other.c - self.s * other.s
+                self.s * other.c + self.c * other.s, self.c * other.c - self.s * other.s
             )
         return NotImplemented
 
@@ -1253,10 +1252,11 @@ class Rot:
             Vec2(-1.0, 0.0)
         """
         return self.rotate_vector(v)
-    
+
+
 class Transform:
     """Represents a 2D transformation combining position and rotation.
-    
+
     Features:
     - Apply transformations to points (rotate then translate)
     - Calculate inverse transformations
@@ -1267,12 +1267,12 @@ class Transform:
         >>> t(Vec2(1, 0))  # Rotate then translate
         Vec2(2.0, 4.0)
     """
-    
-    __slots__ = ('p', 'q')
-    
-    def __init__(self, 
-                position: VectorLike = Vec2(0, 0), 
-                rotation: Union[float, Rot] = Rot(0)):
+
+    __slots__ = ("p", "q")
+
+    def __init__(
+        self, position: VectorLike = Vec2(0, 0), rotation: Union[float, Rot] = Rot(0)
+    ):
         """
         Initialize transformation with position and rotation.
 
@@ -1290,10 +1290,10 @@ class Transform:
     @classmethod
     def from_b2Transform(cls, b2_transform):
         """Create Transform from Box2D's b2Transform structure.
-        
+
         Args:
             b2_transform: FFI pointer to b2Transform C struct
-            
+
         Example:
             >>> tf_c = ffi.new("b2Transform*", ((1,2), Rot(math.pi/2).b2Rot[0]))
             >>> Transform.from_b2Transform(tf_c)
@@ -1306,7 +1306,7 @@ class Transform:
     @property
     def b2Transform(self):
         """Box2D b2Transform equivalent (managed by FFI).
-        
+
         Example:
             >>> tf = Transform(Vec2(1,2), Rot(math.pi))
             >>> ct = tf.b2Transform
@@ -1345,7 +1345,7 @@ class Transform:
             Rot: Current rotation component
         """
         return self.q
-    
+
     @property
     def position(self) -> Vec2:
         """
@@ -1354,7 +1354,7 @@ class Transform:
         return self.p
 
     @property
-    def inverse(self) -> 'Transform':
+    def inverse(self) -> "Transform":
         """
         Calculate inverse transformation.
 
@@ -1385,8 +1385,8 @@ class Transform:
             'Transform(p=Vec2(1.0, 2.0), q=Rot(0.500000))'
         """
         return f"Transform(p={self.p!r}, q={self.q!r})"
-    
-    def __mul__(self, other: Union['Transform', 'ScaledTransform']) -> 'Transform':
+
+    def __mul__(self, other: Union["Transform", "ScaledTransform"]) -> "Transform":
         """
         Compose two transformations.
 
@@ -1395,7 +1395,7 @@ class Transform:
 
         Returns:
             Transform: Composed transformation
-       """
+        """
         if isinstance(other, Transform):
             return Transform(self.p + self.q * other.p, self.q * other.q)
         elif isinstance(other, ScaledTransform):
@@ -1403,41 +1403,44 @@ class Transform:
             return ScaledTransform.from_transform(self) * other
         return NotImplemented
 
+
 class ScaledTransform:
     """A 2D transformation supporting scaling, rotation, and translation.
-    
+
     Designed for visualization purposes - does not affect Box2D physics calculations.
     Applies transformations in the order: Scale → Rotate → Translate.
-    
+
     Attributes:
         position (Vec2): Translation component of the transform
         rotation (Rot): Rotation component of the transform
         scale (Vec2): Scaling factors (x, y). Defaults to (1, 1)
-    
+
     Example:
         >>> t = ScaledTransform(position=(10, 20), rotation=math.pi/2, scale=2)
         >>> t(Vec2(1, 0))  # Scale first, then rotate, then translate
         Vec2(10.0, 22.0)
     """
 
-    __slots__ = ('_position', '_rotation', '_scale', '_matrix')
+    __slots__ = ("_position", "_rotation", "_scale", "_matrix")
 
-    def __init__(self,
-                position: VectorLike = Vec2(0, 0),
-                rotation: Union[float, Rot] = Rot(0),
-                scale: Union[float, VectorLike] = Vec2(1, 1)):
+    def __init__(
+        self,
+        position: VectorLike = Vec2(0, 0),
+        rotation: Union[float, Rot] = Rot(0),
+        scale: Union[float, VectorLike] = Vec2(1, 1),
+    ):
         """Initialize a scaled transform.
-        
+
         Args:
             position: Translation offset as Vec2 or tuple. Defaults to (0, 0)
             rotation: Rotation angle (radians) or Rot instance. Defaults to 0
             scale: Scaling factors as Vec2, tuple, or single number for uniform scaling.
                 Defaults to (1, 1)
-        
+
         Note:
             If a single number is provided for scale, it will create uniform scaling
             in both x and y axes.
-            
+
         Example:
             >>> # Various initialization styles:
             >>> t1 = ScaledTransform()  # Identity transform
@@ -1446,7 +1449,7 @@ class ScaledTransform:
         """
         self._position = position if isinstance(position, Vec2) else Vec2(*position)
         self._rotation = rotation if isinstance(rotation, Rot) else Rot(rotation)
-        
+
         # Handle different scale input types
         if isinstance(scale, (int, float)):
             self._scale = Vec2(scale, scale)
@@ -1457,7 +1460,7 @@ class ScaledTransform:
     def _recalc_matrix(self):
         """
         Recalculate the transformation matrix and store it.
-        
+
         For demonstration, let's assume our matrix is a 2x3 matrix stored as a tuple:
             (m00, m01, m02, m10, m11, m12)
         where the transformation is applied as:
@@ -1480,28 +1483,28 @@ class ScaledTransform:
 
     def __call__(self, point: VectorLike) -> Vec2:
         """Apply the transformation to a point.
-        
+
         Transformation order:
         1. Scale the point
         2. Apply rotation
         3. Apply translation
-        
+
         Args:
             point: Vector-like input to transform
-            
+
         Returns:
             Vec2: Transformed point in world coordinates
-            
+
         Example:
             >>> t = ScaledTransform(position=(5, 0), rotation=math.pi, scale=2)
             >>> t((1, 1))  # (1*2, 1*2) → rotated 180° → + (5, 0)
             Vec2(3.0, -2.0)
         """
-        #point = Vec2(*point)
+        # point = Vec2(*point)
         ## Apply scaling first
-        #scaled = point.multiply_componentwise(self.scale)
+        # scaled = point.multiply_componentwise(self.scale)
         ## Then apply rotation and translation
-        #return self.rotation * scaled + self.position
+        # return self.rotation * scaled + self.position
 
         m00, m01, m02, m10, m11, m12 = self._matrix
         x, y = Vec2(*point)
@@ -1512,10 +1515,10 @@ class ScaledTransform:
     @property
     def position(self) -> Vec2:
         """Get/set the translation component of the transform.
-        
+
         Accepts:
             VectorLike: Any tuple/list/Vec2 convertible to Vec2
-            
+
         Example:
             >>> t = ScaledTransform()
             >>> t.position = (5, 2)
@@ -1523,7 +1526,7 @@ class ScaledTransform:
             Vec2(5.0, 2.0)
         """
         return self._position
-    
+
     @position.setter
     def position(self, value: VectorLike):
         self._position = value if isinstance(value, Vec2) else Vec2(*value)
@@ -1532,18 +1535,18 @@ class ScaledTransform:
     @property
     def rotation(self) -> Rot:
         """Get/set the rotation component.
-        
+
         Accepts:
             float: Angle in radians
             Rot: Direct rotation instance
-            
+
         Example:
             >>> t = ScaledTransform()
             >>> t.rotation = math.pi/2  # Set from angle
             >>> t.rotation = Rot(0)     # Set directly
         """
         return self._rotation
-    
+
     @rotation.setter
     def rotation(self, value: Union[float, Rot]):
         self._rotation = value if isinstance(value, Rot) else Rot(value)
@@ -1552,18 +1555,18 @@ class ScaledTransform:
     @property
     def scale(self) -> Vec2:
         """Get/set the scaling factors.
-        
+
         Accepts:
             float: Uniform scaling for both axes
             VectorLike: Separate x/y scaling factors
-            
+
         Example:
             >>> t = ScaledTransform()
             >>> t.scale = 2.5      # Uniform scaling
             >>> t.scale = (1, 0.5) # Non-uniform
         """
         return self._scale
-    
+
     @scale.setter
     def scale(self, value: Union[float, VectorLike]):
         if isinstance(value, (int, float)):
@@ -1573,14 +1576,15 @@ class ScaledTransform:
         self._recalc_matrix()
 
     @classmethod
-    def from_transform(cls, transform: Transform, 
-                       scale: Union[float, VectorLike] = 1.0) -> 'ScaledTransform':
+    def from_transform(
+        cls, transform: Transform, scale: Union[float, VectorLike] = 1.0
+    ) -> "ScaledTransform":
         """Create a ScaledTransform from a base Transform and optional scaling.
-        
+
         Args:
             transform: Base Transform containing position and rotation
             scale: Scaling factor(s). Defaults to 1.0 (no scaling)
-            
+
         Example:
             >>> base = Transform(Vec2(2,3), Rot(math.pi/2))
             >>> st = ScaledTransform.from_transform(base, scale=2)
@@ -1593,20 +1597,20 @@ class ScaledTransform:
             scale_vec = Vec2(scale, scale)
         else:
             scale_vec = Vec2(*scale)
-            
+
         return cls(transform.position, transform.rotation, scale_vec)
-    
+
     @property
-    def inverse(self) -> 'ScaledTransform':
+    def inverse(self) -> "ScaledTransform":
         """Calculate inverse transformation that reverses this transformation.
-        
+
         Returns:
             ScaledTransform: Inverse that satisfies inverse(t(p)) == p
-            
+
         Note:
             Handles non-uniform scaling and rotation correctly
             Will raise ValueError if any scale component is zero
-            
+
         Example:
             >>> t = ScaledTransform(Vec2(2,3), Rot(math.pi/2), scale=2)
             >>> t_inv = t.inverse
@@ -1615,36 +1619,36 @@ class ScaledTransform:
         """
         if self.scale.x == 0 or self.scale.y == 0:
             raise ValueError("Cannot invert transform with zero scale component")
-            
-        inv_scale = Vec2(1/self.scale.x, 1/self.scale.y)
+
+        inv_scale = Vec2(1 / self.scale.x, 1 / self.scale.y)
         inv_rotation = self.rotation.inverse
-        
+
         # Calculate inverse position: -(inv_rotation * position) * inv_scale
-        inv_position = (inv_rotation * (-self.position)).multiply_componentwise(inv_scale)
-        
-        return ScaledTransform(
-            position=inv_position,
-            rotation=inv_rotation,
-            scale=inv_scale
+        inv_position = (inv_rotation * (-self.position)).multiply_componentwise(
+            inv_scale
         )
 
-    def __mul__(self, other: Union['ScaledTransform', Transform]) -> 'ScaledTransform':
+        return ScaledTransform(
+            position=inv_position, rotation=inv_rotation, scale=inv_scale
+        )
+
+    def __mul__(self, other: Union["ScaledTransform", Transform]) -> "ScaledTransform":
         """
         Compose transformations, handling both ScaledTransform and base Transform.
-    
+
         The composition is defined so that (self * other)(x) = self(other(x)).
         This means the linear (scale/rotation) part of self will act on the other's
         translation. In particular, if you convert a Transform to a ScaledTransform
         with an identity scale and then compose it with a ScaledTransform that has
         nontrivial scaling, the translation from the Transform will be multiplied
         by those scale factors.
-    
+
         Args:
             other (ScaledTransform|Transform): Transformation to compose.
-    
+
         Returns:
             ScaledTransform: New composite transformation.
-    
+
         Examples:
             >>> tf = Transform((1, 0), Rot(math.pi/2))
             >>> st = ScaledTransform(scale=2)
@@ -1665,23 +1669,23 @@ class ScaledTransform:
         combined_rotation = self.rotation * other.rotation
         # Note: other.position is “pre-scaled” by self.scale.
         combined_position = self.position + self.rotation.rotate_vector(
-            self.scale.multiply_componentwise(other.position))
-    
+            self.scale.multiply_componentwise(other.position)
+        )
+
         return ScaledTransform(
-            position=combined_position,
-            rotation=combined_rotation,
-            scale=combined_scale)
+            position=combined_position, rotation=combined_rotation, scale=combined_scale
+        )
 
     def __eq__(self, other: object) -> bool:
         """Check equality with both ScaledTransform and base Transform.
-        
+
         Args:
             other: Transformation to compare (ScaledTransform/Transform)
-            
+
         Returns:
             bool: True if components match exactly. For Transform comparisons,
                 checks if scale is (1,1) and other components match.
-            
+
         Example:
             >>> st = ScaledTransform(scale=1)
             >>> tf = Transform()
@@ -1689,32 +1693,39 @@ class ScaledTransform:
             True
         """
         if isinstance(other, Transform):
-            return (self.position == other.position and
-                    self.rotation == other.rotation and
-                    self.scale == (1, 1))
+            return (
+                self.position == other.position
+                and self.rotation == other.rotation
+                and self.scale == (1, 1)
+            )
         if isinstance(other, ScaledTransform):
-            return (self.position == other.position and
-                    self.rotation == other.rotation and
-                    self.scale == other.scale)
+            return (
+                self.position == other.position
+                and self.rotation == other.rotation
+                and self.scale == other.scale
+            )
         return False
 
     def __repr__(self) -> str:
         """Machine-readable representation of the transform.
-        
+
         Returns:
             str: String that can recreate the transform via eval()
-            
+
         Example:
             >>> t = ScaledTransform(Vec2(1,2), Rot(0.5), (2,3))
             >>> repr(t)
             'ScaledTransform(position=Vec2(1.0, 2.0), rotation=Rot(0.500000), scale=Vec2(2.0, 3.0))'
         """
-        return (f"ScaledTransform(position={self.position!r}, "
-                f"rotation={self.rotation!r}, scale={self.scale!r})")
+        return (
+            f"ScaledTransform(position={self.position!r}, "
+            f"rotation={self.rotation!r}, scale={self.scale!r})"
+        )
+
 
 class AABB:
     """Axis-Aligned Bounding Box (AABB) for 2D spatial queries.
-    
+
     Features:
     - Immutable design (all operations return new instances)
     - Y-up coordinate system compatibility
@@ -1727,12 +1738,14 @@ class AABB:
         >>> box.center
         Vec2(1.0, 1.5)
     """
-   
-    __slots__ = ('_lower', '_upper')
-    
-    def __init__(self, 
-                 lower: VectorLike = Vec2(math.inf, math.inf), 
-                 upper: VectorLike = Vec2(-math.inf, -math.inf)):
+
+    __slots__ = ("_lower", "_upper")
+
+    def __init__(
+        self,
+        lower: VectorLike = Vec2(math.inf, math.inf),
+        upper: VectorLike = Vec2(-math.inf, -math.inf),
+    ):
         """
         Initialize AABB with lower and upper bounds.
 
@@ -1763,7 +1776,7 @@ class AABB:
             Vec2(1.0, 2.0)
         """
         return self._lower
-    
+
     @property
     def upper(self) -> Vec2:
         """
@@ -1781,10 +1794,10 @@ class AABB:
     @classmethod
     def from_b2AABB(cls, b2_aabb):
         """Create AABB from Box2D's b2AABB structure.
-        
+
         Args:
             b2_aabb: FFI pointer to b2AABB C struct
-            
+
         Example:
             >>> aabb_c = ffi.new("b2AABB*", ((0,0), (2,3)))
             >>> AABB.from_b2AABB(aabb_c)
@@ -1797,7 +1810,7 @@ class AABB:
     @property
     def b2AABB(self):
         """Box2D b2AABB equivalent (managed by FFI).
-        
+
         Example:
             >>> aabb = AABB((1,2), (3,4))
             >>> ca = aabb.b2AABB
@@ -1809,7 +1822,7 @@ class AABB:
         aabb.upperBound = self.upper.b2Vec2[0]
         return aabb
 
-    def merge(self, other: Union['AABB', VectorLike]) -> 'AABB':
+    def merge(self, other: Union["AABB", VectorLike]) -> "AABB":
         """
         Create new AABB encompassing this and another AABB/point.
 
@@ -1832,7 +1845,7 @@ class AABB:
             new_upper = Vec2.max(self.upper, point)
         return AABB(new_lower, new_upper)
 
-    def __or__(self, other: Union['AABB', VectorLike]) -> 'AABB':
+    def __or__(self, other: Union["AABB", VectorLike]) -> "AABB":
         """
         Union operator equivalent to merge().
 
@@ -1843,7 +1856,7 @@ class AABB:
         return self.merge(other)
 
     @classmethod
-    def from_points(cls, points: Iterable[VectorLike]) -> 'AABB':
+    def from_points(cls, points: Iterable[VectorLike]) -> "AABB":
         """
         Construct minimal AABB containing all given points.
 
@@ -1861,7 +1874,7 @@ class AABB:
         for point in points:
             aabb = aabb.merge(point)  # Returns new AABB each iteration
         return aabb
-    
+
     @property
     def is_valid(self):
         """
@@ -1876,11 +1889,13 @@ class AABB:
             >>> AABB((1,1), (0,0)).is_valid
             False
         """
-        return (self.lower.x <= self.upper.x and 
-                self.lower.y <= self.upper.y and
-                self.lower.is_finite and 
-                self.upper.is_finite)
-    
+        return (
+            self.lower.x <= self.upper.x
+            and self.lower.y <= self.upper.y
+            and self.lower.is_finite
+            and self.upper.is_finite
+        )
+
     @property
     def center(self):
         """
@@ -1894,7 +1909,7 @@ class AABB:
             Vec2(1.0, 1.0)
         """
         return (self.lower + self.upper) * 0.5
-    
+
     @property
     def half_size(self):
         """
@@ -1908,8 +1923,8 @@ class AABB:
             Vec2(1.0, 2.0)
         """
         return (self.upper - self.lower) * 0.5
-    
-    def contains(self, other: Union['AABB', VectorLike]) -> bool:
+
+    def contains(self, other: Union["AABB", VectorLike]) -> bool:
         """
         Check if another AABB or point is fully contained within this one.
 
@@ -1931,7 +1946,7 @@ class AABB:
             other = Vec2(*other)
             return (self.lower <= other) and (self.upper >= other)
 
-    def __contains__(self, other: Union['AABB', VectorLike]) -> bool:
+    def __contains__(self, other: Union["AABB", VectorLike]) -> bool:
         """
         Check if another AABB or point is fully contained within this one.
 
@@ -1949,7 +1964,7 @@ class AABB:
         """
         return self.contains(other)
 
-    def overlaps(self, other: 'AABB') -> bool:
+    def overlaps(self, other: "AABB") -> bool:
         """
         Check if another AABB overlaps with this one.
 
@@ -1966,9 +1981,11 @@ class AABB:
         if isinstance(other, AABB):
             return (self & other).is_valid
         else:
-            raise TypeError(f"Unsupported operand type(s) for &: 'AABB' and '{type(other)}'")
+            raise TypeError(
+                f"Unsupported operand type(s) for &: 'AABB' and '{type(other)}'"
+            )
 
-    def __and__(self, other: 'AABB') -> 'AABB':
+    def __and__(self, other: "AABB") -> "AABB":
         """
         Calculate intersection region with another AABB.
 
@@ -1980,12 +1997,10 @@ class AABB:
             AABB(lower=Vec2(1.0, 1.0), upper=Vec2(2.0, 2.0))
         """
         return AABB(
-            lower=(max(self.lower.x, other.lower.x), 
-                   max(self.lower.y, other.lower.y)),
-            upper=(min(self.upper.x, other.upper.x), 
-                   min(self.upper.y, other.upper.y))
+            lower=(max(self.lower.x, other.lower.x), max(self.lower.y, other.lower.y)),
+            upper=(min(self.upper.x, other.upper.x), min(self.upper.y, other.upper.y)),
         )
-    
+
     @property
     def width(self) -> float:
         """
@@ -1999,7 +2014,7 @@ class AABB:
             3.0
         """
         return self.upper.x - self.lower.x
-    
+
     @property
     def height(self) -> float:
         """
@@ -2013,7 +2028,7 @@ class AABB:
             3.0
         """
         return self.upper.y - self.lower.y
-    
+
     def __repr__(self):
         """
         Machine-readable representation of the AABB.
@@ -2026,7 +2041,7 @@ class AABB:
             'AABB(lower=Vec2(1.0, 2.0), upper=Vec2(3.0, 4.0))'
         """
         return f"AABB(lower={self.lower}, upper={self.upper})"
-    
+
     def __eq__(self, other):
         """
         Exact bounds equality check.
@@ -2044,7 +2059,7 @@ class AABB:
             False
         """
         return self.lower == other.lower and self.upper == other.upper
-    
+
     def __bool__(self) -> bool:
         """
         Boolean conversion equivalent to validity check.
@@ -2060,7 +2075,7 @@ class AABB:
         """
         return self.is_valid
 
-    def expanded(self, margin: float) -> 'AABB':
+    def expanded(self, margin: float) -> "AABB":
         """
         Create uniformly expanded/contracted AABB.
 
@@ -2077,7 +2092,7 @@ class AABB:
         margin = Vec2(margin, margin)
         return AABB(self.lower - margin, self.upper + margin)
 
-    def translated(self, offset: VectorLike) -> 'AABB':
+    def translated(self, offset: VectorLike) -> "AABB":
         """
         Create translated AABB by given offset.
 
@@ -2094,9 +2109,10 @@ class AABB:
         off = Vec2(*offset)
         return AABB(self.lower + off, self.upper + off)
 
+
 class Mat22:
     """A 2x2 matrix for linear transformations.
-    
+
     Features:
         - Column-major storage
         - Matrix-vector/matrix multiplication
@@ -2109,7 +2125,7 @@ class Mat22:
         Mat22(Vec2(1.0, 2.0), Vec2(3.0, 4.0))
     """
 
-    __slots__ = ('cx', 'cy')
+    __slots__ = ("cx", "cy")
 
     def __init__(self, *args: Union[float, VectorLike]):
         """
@@ -2146,10 +2162,10 @@ class Mat22:
     @classmethod
     def from_b2Mat22(cls, b2_mat22):
         """Create Mat22 from Box2D's b2Mat22 structure.
-        
+
         Args:
             b2_mat22: FFI pointer to b2Mat22 C struct
-            
+
         Example:
             >>> mat_c = ffi.new("b2Mat22*", ((1,2), (3,4)))
             >>> Mat22.from_b2Mat22(mat_c)
@@ -2162,7 +2178,7 @@ class Mat22:
     @property
     def b2Mat22(self):
         """Box2D b2Mat22 equivalent (managed by FFI).
-        
+
         Example:
             >>> mat = Mat22(1,2,3,4)
             >>> cm = mat.b2Mat22
@@ -2175,7 +2191,7 @@ class Mat22:
         return mat
 
     @classmethod
-    def identity(cls) -> 'Mat22':
+    def identity(cls) -> "Mat22":
         """
         Create identity matrix (no transformation).
 
@@ -2190,7 +2206,7 @@ class Mat22:
         return cls(1, 0, 0, 1)
 
     @classmethod
-    def from_angle(cls, angle: float) -> 'Mat22':
+    def from_angle(cls, angle: float) -> "Mat22":
         """
         Create rotation matrix from angle.
 
@@ -2209,7 +2225,7 @@ class Mat22:
         return cls(c, s, -s, c)
 
     @classmethod
-    def from_columns(cls, col1: VectorLike, col2: VectorLike) -> 'Mat22':
+    def from_columns(cls, col1: VectorLike, col2: VectorLike) -> "Mat22":
         """
         Create matrix from column vectors.
 
@@ -2228,7 +2244,7 @@ class Mat22:
         return cls(col1, col2)
 
     @classmethod
-    def from_rows(cls, row1: VectorLike, row2: VectorLike) -> 'Mat22':
+    def from_rows(cls, row1: VectorLike, row2: VectorLike) -> "Mat22":
         """
         Create matrix from row vectors (transposed).
 
@@ -2245,7 +2261,7 @@ class Mat22:
         """
         return cls(row1[0], row2[0], row1[1], row2[1])
 
-    def __mul__(self, other: Union[VectorLike, 'Mat22']) -> Union['Vec2', 'Mat22']:
+    def __mul__(self, other: Union[VectorLike, "Mat22"]) -> Union["Vec2", "Mat22"]:
         """
         Matrix multiplication with vector or matrix.
 
@@ -2266,10 +2282,12 @@ class Mat22:
         if isinstance(other, Mat22):
             return Mat22(self * other.cx, self * other.cy)
         other_vec = Vec2(*other)
-        return Vec2(self.cx.x * other.x + self.cy.x * other.y,
-                    self.cx.y * other.x + self.cy.y * other.y)
+        return Vec2(
+            self.cx.x * other.x + self.cy.x * other.y,
+            self.cx.y * other.x + self.cy.y * other.y,
+        )
 
-    def transpose(self) -> 'Mat22':
+    def transpose(self) -> "Mat22":
         """
         Create transposed matrix (swap rows and columns).
 
@@ -2280,11 +2298,10 @@ class Mat22:
             >>> Mat22(1,2,3,4).transpose()
             Mat22(Vec2(1.0, 3.0), Vec2(2.0, 4.0))
         """
-        return Mat22(self.cx.x, self.cy.x,
-                    self.cx.y, self.cy.y)
+        return Mat22(self.cx.x, self.cy.x, self.cx.y, self.cy.y)
 
     @property
-    def inverse(self) -> 'Mat22':
+    def inverse(self) -> "Mat22":
         """
         Calculate inverse matrix if possible.
 
@@ -2301,14 +2318,16 @@ class Mat22:
         det = self.determinant
         if abs(det) < 1e-8:
             return Mat22.identity()
-            
+
         inv_det = 1.0 / det
         return Mat22(
-            inv_det * self.cy.y, -inv_det * self.cx.y,
-            -inv_det * self.cy.x, inv_det * self.cx.x
+            inv_det * self.cy.y,
+            -inv_det * self.cx.y,
+            -inv_det * self.cy.x,
+            inv_det * self.cx.x,
         )
 
-    def solve(self, b: VectorLike) -> 'Vec2':
+    def solve(self, b: VectorLike) -> "Vec2":
         """
         Solve the linear system A * x = b.
 
@@ -2332,11 +2351,11 @@ class Mat22:
         det = self.determinant
         if abs(det) < 1e-8:
             return Vec2.zero()
-            
+
         inv_det = 1.0 / det
         return Vec2(
             inv_det * (self.cy.y * b.x - self.cy.x * b.y),
-            inv_det * (-self.cx.y * b.x + self.cx.x * b.y)
+            inv_det * (-self.cx.y * b.x + self.cx.x * b.y),
         )
 
     @property
@@ -2356,7 +2375,7 @@ class Mat22:
         return self.cx.x * self.cy.y - self.cy.x * self.cx.y
 
     @property
-    def columns(self) -> tuple['Vec2', 'Vec2']:
+    def columns(self) -> tuple["Vec2", "Vec2"]:
         """
         Matrix column vectors as a tuple.
 
@@ -2370,7 +2389,7 @@ class Mat22:
         return (self.cx, self.cy)
 
     @property
-    def rows(self) -> tuple['Vec2', 'Vec2']:
+    def rows(self) -> tuple["Vec2", "Vec2"]:
         """
         Matrix row vectors as a tuple.
 
@@ -2381,12 +2400,11 @@ class Mat22:
             >>> Mat22(1, 2, 3, 4).rows
             (Vec2(1.0, 3.0), Vec2(2.0, 4.0))
         """
-        return (Vec2(self.cx.x, self.cy.x),
-                Vec2(self.cx.y, self.cy.y))
+        return (Vec2(self.cx.x, self.cy.x), Vec2(self.cx.y, self.cy.y))
 
     def __repr__(self) -> str:
         """Clear string representation with precision handling"""
-        return (f"Mat22({self.cx}, {self.cy})")
+        return f"Mat22({self.cx}, {self.cy})"
 
     def __eq__(self, other: object) -> bool:
         """
