@@ -120,7 +120,8 @@ class World:
         """
         self._bodies[body._body_id] = body
 
-    def get_bodies(self):
+    @property
+    def bodies(self):
         """Get list of all active bodies in the world.
 
         Returns:
@@ -129,7 +130,7 @@ class World:
         Example:
             >>> world = World()
             >>> box = world.new_body().dynamic().build()
-            >>> len(world.get_bodies())
+            >>> len(world.bodies)
             1
         """
         return list(self._bodies.values())

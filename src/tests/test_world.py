@@ -77,7 +77,7 @@ def test_get_bodies():
     world = World()
     body1 = world.new_body().build()
     body2 = world.new_body().build()
-    bodies = world.get_bodies()
+    bodies = world.bodies
     assert len(bodies) == 2
     assert body1 in bodies
     assert body2 in bodies
