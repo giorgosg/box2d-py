@@ -1,6 +1,6 @@
 # test_shapes.py
 
-from test_base import BaseTest
+from base_test import BaseTest
 from itertools import product
 from shared import create_random_polygon
 

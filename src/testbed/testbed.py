@@ -3,10 +3,10 @@ import math
 import dearpygui.dearpygui as dpg
 
 from box2d import World, Vec2, ScaledTransform
-from test_base import get_first_test, get_all_tests
+from base_test import get_first_test, get_all_tests
 from debug_draw_dpg import DearpyguiDebugDraw
-import tests_sample
-import tests_shapes
+import tb_sample
+import tb_shapes
 
 
 class TestbedConfig:
@@ -332,6 +332,8 @@ class TestbedSimulation:
             self.world, self.coordinator.ui.debug_draw, container
         )
         self.current_test.setup()
+        # Initialize the test-specific UI elements.
+        self.current_test.init_ui()
         self.coordinator.reset_accumulator()
 
     def update_physics(self):
@@ -470,14 +472,18 @@ class TestbedCoordinator:
             self.input.update_panning()
             self.ui.update()
 
-            self.ui.clear_canvas()
-            self.sim.draw()
-
-            # Fixed timestep simulation update.
+            # --- Physics update ---
             if not self.sim.simulation_paused:
                 while self.accumulator >= self.sim.physics_dt:
                     self.sim.update_physics()
                     self.accumulator -= self.sim.physics_dt
+
+            # --- Drawing ---
+            self.ui.clear_canvas()
+            self.sim.draw()
+            # Call test update after debug drawing to overlay extra UI/drawing.
+            if self.sim.current_test:
+                self.sim.current_test.update(elapsed)
 
             dpg.render_dearpygui_frame()
             time.sleep(0.001)

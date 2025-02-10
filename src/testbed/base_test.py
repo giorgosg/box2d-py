@@ -29,9 +29,18 @@ class BaseTest:
         """
         raise NotImplementedError("Each test must implement the setup method.")
 
+    def init_ui(self):
+        """
+        Initialize test-specific UI elements.
+        This method is called right after setup() and after the UI window is created,
+        allowing you to create additional UI controls (e.g. buttons, sliders) in self.ui_window.
+        Override this method in your test subclass if additional UI is required.
+        """
+        pass
+
     def update(self, dt):
         """
-        Called every frame.
+        Called every frame after the debug draw has rendered the simulation.
         dt: elapsed time since last frame.
         """
         pass
