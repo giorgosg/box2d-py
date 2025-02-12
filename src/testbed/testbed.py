@@ -55,11 +55,11 @@ class TestbedSimulation:
         self.world = World(gravity=(0, -10))
         self.step_counter = 0
         container = self.coordinator.ui.create_test_ui_window(test_cls)
-        self.current_test = test_cls(
-            self.world, self.coordinator.ui.debug_draw, container
-        )
+        self.current_test = test_cls(self.world, self.coordinator.ui.debug_draw)
         self.current_test.setup()
         self.current_test.init_ui()
+        # Build the test's custom UI defined via UI descriptors.
+        self.coordinator.ui.build_test_ui(self.current_test)
         self.coordinator.reset_accumulator()
 
     def update_physics(self):

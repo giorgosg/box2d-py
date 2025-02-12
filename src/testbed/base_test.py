@@ -1,6 +1,37 @@
 from box2d import World, Vec2
 
 
+class UIElement:
+    def __init__(
+        self,
+        control_type,
+        key,
+        label,
+        default=None,
+        options=None,
+        callback=None,
+        user_data=None,
+    ):
+        """
+        A descriptor for a UI element.
+
+        control_type: The type of control (e.g., "button", "label", "combo").
+        key: A unique key for the control.
+        label: The display label.
+        default: The control's default value.
+        options: (Optional) List of options (useful for combo boxes, etc.)
+        callback: (Optional) Function to be called when the control changes.
+        user_data: (Optional) Additional data to be passed to the callback.
+        """
+        self.control_type = control_type
+        self.key = key
+        self.label = label
+        self.default = default
+        self.options = options or []
+        self.callback = callback
+        self.user_data = user_data
+
+
 class BaseTest:
     """
     Base class for physics tests.
@@ -16,10 +47,9 @@ class BaseTest:
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
 
-    def __init__(self, world, debug_draw, ui_window):
+    def __init__(self, world, debug_draw):
         self.world = world
         self.debug_draw = debug_draw
-        self.ui_window = ui_window
         self.mouse_joint = None  # For default dragging
 
     def setup(self):
@@ -32,11 +62,21 @@ class BaseTest:
     def init_ui(self):
         """
         Initialize test-specific UI elements.
-        This method is called right after setup() and after the UI window is created,
-        allowing you to create additional UI controls (e.g. buttons, sliders) in self.ui_window.
         Override this method in your test subclass if additional UI is required.
+        The default implementation adds a reset button.
         """
-        pass
+        # If subclasses override this method, please call super().init_ui() to ensure
+        # that the reset button is added.
+        if not hasattr(self, "ui_elements"):
+            self.ui_elements = []
+        self.ui_elements.append(
+            UIElement(
+                control_type="button",
+                key="reset_button",
+                label="Reset",
+                callback=self.on_reset_click,
+            )
+        )
 
     def update(self, dt):
         """
@@ -89,6 +129,22 @@ class BaseTest:
         Called when the test is finished.
         """
         pass
+
+    def on_reset_click(self, app_data, user_data=None):
+        """
+        Callback for the reset button.
+        Deletes all bodies in the world and runs the test setup again.
+        If the test uses parameters (e.g. current_shape), these are preserved.
+        """
+        # Delete all bodies (we use a copy of the list in case bodies modify the list)
+        for body in list(self.world.bodies):
+            body.destroy()
+
+        # Re-run setup – if the test stores a parameter such as current_shape, pass it.
+        if hasattr(self, "current_shape"):
+            self.setup(self.current_shape)
+        else:
+            self.setup()
 
 
 def get_first_test():

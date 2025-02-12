@@ -232,9 +232,66 @@ class TestbedUI:
             no_close=True,
             width=ui_window_width,
         ):
-            dpg.add_button(label="Reset Test", callback=self.on_reset_test)
             self.test_ui_container = dpg.add_child_window(tag="test_ui_container")
         return self.test_ui_container
+
+    def build_test_ui(self, test):
+        """
+        Build UI controls for a test based on its ui_elements descriptors.
+        Supported controls: combo, button, checkbox.
+        """
+        # Start with any UI elements defined by the test.
+        ui_elements = []
+        if hasattr(test, "ui_elements"):
+            ui_elements.extend(test.ui_elements)
+        # Also append default UI elements (e.g. reset button) from BaseTest.
+        if hasattr(test, "get_default_ui_elements"):
+            ui_elements.extend(test.get_default_ui_elements())
+
+        # Helper function to create a callback wrapper that captures the callback and its user_data.
+        def create_callback(callback, user_data):
+            if user_data is not None:
+
+                def wrapped(sender, app_data):
+                    return callback(app_data, user_data)
+
+            else:
+
+                def wrapped(sender, app_data):
+                    return callback(app_data)
+
+            return wrapped
+
+        for element in ui_elements:
+            callback_kwargs = {}
+            if callable(element.callback):
+                callback_kwargs["callback"] = create_callback(
+                    element.callback, element.user_data
+                )
+            else:
+                print(f"Element {element.label} has no callable callback.")
+
+            if element.control_type == "combo":
+                dpg.add_combo(
+                    parent=self.test_ui_container,
+                    label=element.label,
+                    items=element.options,
+                    default_value=element.default,
+                    **callback_kwargs,
+                )
+            elif element.control_type == "button":
+                dpg.add_button(
+                    parent=self.test_ui_container,
+                    label=element.label,
+                    **callback_kwargs,
+                )
+            elif element.control_type == "checkbox":
+                dpg.add_checkbox(
+                    parent=self.test_ui_container,
+                    label=element.label,
+                    default_value=element.default,
+                    **callback_kwargs,
+                )
 
     def on_viewport_resize(self, sender, app_data):
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
@@ -297,9 +354,6 @@ class TestbedUI:
             dpg.set_value(sid, False)
         dpg.set_value(sender, True)
         self.coordinator.sim.load_test(user_data)
-
-    def on_reset_test(self, sender, app_data, user_data=None):
-        self.coordinator.sim.reset_current_test()
 
     def on_physics_settings_change(self, sender, app_data, user_data=None):
         """
