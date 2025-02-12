@@ -31,6 +31,11 @@ class TestbedUI:
         self.TEST_TREE_WIDTH = 160
         self.MARGIN = 20
 
+        # Constants for the stats window (bottom-right above toggles)
+        self.stats_window_width = 160
+        self.stats_window_height = 60
+        self.stats_margin = 5
+
         # UI object handles
         self.main_window = None
         self.canvas = None
@@ -47,7 +52,6 @@ class TestbedUI:
             title="Box2D TestBed - DearPyGui", width=self.width, height=self.height
         )
 
-        # Main window containing controls and main content.
         with dpg.window(
             label="TestBed",
             width=self.width,
@@ -90,26 +94,46 @@ class TestbedUI:
                     default_value=self.coordinator.sim.world.enable_sleep,
                     callback=self.on_toggle_sleep,
                 )
-                dpg.add_spacer(width=50)
-                dpg.add_text("Physics: 0.0 ms", tag="physics_time_text")
-                dpg.add_text("Draw: 0.0 ms", tag="draw_time_text")
 
-            # Calculate available height
+            # Calculate available height for main content.
             content_height = self.height - self.CONTROLS_HEIGHT - self.TOGGLES_HEIGHT
 
-            # Main content area: simulation canvas and tests tree.
             with dpg.group(horizontal=True, tag="main_content"):
                 canvas_width = self.width - self.TEST_TREE_WIDTH - self.MARGIN
                 self.canvas = dpg.add_drawlist(
                     tag="simulation_canvas", width=canvas_width, height=content_height
                 )
+                # Make the test selection UI (test_tree) shorter by the height of the stats window.
                 self.test_tree = dpg.add_child_window(
-                    tag="test_tree", width=self.TEST_TREE_WIDTH, height=content_height
+                    tag="test_tree",
+                    width=self.TEST_TREE_WIDTH,
+                    height=content_height - self.stats_window_height,
                 )
                 self.build_tests_tree()
 
-        # Initialize the debug draw so that its flags can be used
-        # for the toggles window.
+        # Create the stats window anchored to the bottom-right above the toggles.
+        with dpg.window(
+            label="",
+            tag="stats_window",
+            pos=(
+                self.width - self.stats_window_width - self.stats_margin,
+                self.height
+                - self.TOGGLES_HEIGHT
+                - self.stats_window_height
+                - self.stats_margin,
+            ),
+            width=self.stats_window_width,
+            height=self.stats_window_height,
+            no_title_bar=True,
+            no_move=True,
+            no_resize=True,
+            no_scrollbar=True,
+        ):
+            dpg.add_text("Step: 0", tag="step_text")
+            dpg.add_text("Physics: 0.0 ms", tag="physics_time_text")
+            dpg.add_text("Draw: 0.0 ms", tag="draw_time_text")
+
+        # Initialize the debug draw so that its flags can be used.
         self.debug_draw = DearpyguiDebugDraw(self.canvas)
         self.debug_draw.view_transform = self.coordinator.input.view_transform
 
@@ -193,7 +217,6 @@ class TestbedUI:
 
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
 
-        # Load a default test if one is available.
         default_test_cls = get_first_test()
         if default_test_cls is not None:
             self.coordinator.sim.load_test(default_test_cls)
@@ -252,7 +275,9 @@ class TestbedUI:
         dpg.configure_item(self.main_window, width=new_width, height=new_height)
         dpg.configure_item(self.canvas, width=canvas_width, height=content_height)
         dpg.configure_item(
-            self.test_tree, width=self.TEST_TREE_WIDTH, height=content_height
+            self.test_tree,
+            width=self.TEST_TREE_WIDTH,
+            height=content_height - self.stats_window_height,
         )
         new_center = (canvas_width // 2, content_height // 2)
         self.coordinator.input.set_view_center(new_center)
@@ -262,6 +287,17 @@ class TestbedUI:
             width=new_width,
             height=self.TOGGLES_HEIGHT,
         )
+        # Recalculate stats window position to always appear at top-right.
+        stats_margin = 10
+        if dpg.does_item_exist("stats_window"):
+            stats_window_width = dpg.get_item_width("stats_window")
+            dpg.configure_item(
+                "stats_window",
+                pos=(
+                    new_width - stats_window_width - stats_margin,
+                    new_height - self.stats_window_height - self.stats_margin,
+                ),
+            )
 
     # --- Callback wrappers ---
     def on_toggle_simulation(self, sender, app_data, user_data=None):
@@ -311,6 +347,7 @@ class TestbedSimulation:
 
         self.physics_dt = 1.0 / 60.0  # default: 60 Hz
         self.substeps = 4  # default value matching the UI
+        self.step_counter = 0  # Step counter for the simulation
 
     def update_settings(self):
         """
@@ -329,6 +366,7 @@ class TestbedSimulation:
         if self.world:
             self.world.destroy()
         self.world = World(gravity=(0, -10))
+        self.step_counter = 0  # Reset step counter on test load.
         container = self.coordinator.ui.create_test_ui_window(test_cls)
         self.current_test = test_cls(
             self.world, self.coordinator.ui.debug_draw, container
@@ -343,6 +381,7 @@ class TestbedSimulation:
         Update the world by stepping the physics simulation.
         """
         self.world.step(self.physics_dt, self.substeps)
+        self.step_counter += 1  # Increment step counter each physics step.
 
     def toggle_simulation(self, sender, app_data, user_data=None):
         self.simulation_paused = not self.simulation_paused
@@ -489,11 +528,11 @@ class TestbedCoordinator:
 
             # --- Drawing ---
             draw_start = time.perf_counter()
-            self.ui.clear_canvas()
+            self.ui.debug_draw.start_frame()
             self.sim.draw()
-            # Call test update after debug drawing to overlay extra UI/drawing.
             if self.sim.current_test:
                 self.sim.current_test.update(elapsed)
+            self.ui.debug_draw.end_frame()
             draw_time = (time.perf_counter() - draw_start) * 1000.0  # in milliseconds
 
             # --- Rolling average smoothing ---
@@ -506,6 +545,7 @@ class TestbedCoordinator:
             )
 
             # --- Update performance metrics in UI ---
+            dpg.set_value("step_text", f"Step: {self.sim.step_counter}")
             dpg.set_value(
                 "physics_time_text", f"Physics: {self.physics_time_avg:.2f} ms"
             )

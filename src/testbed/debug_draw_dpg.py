@@ -20,6 +20,31 @@ class DearpyguiDebugDraw(DebugDraw):
             position=(400, 300), rotation=0, scale=(30, -30)
         )
 
+    def start_frame(self):
+        """
+        Clears the canvas at the start of a frame.
+        """
+        # Remove all previous drawn items.
+        dpg.delete_item(self.canvas, children_only=True)
+        # Get the canvas dimensions.
+        canvas_width = dpg.get_item_width(self.canvas)
+        canvas_height = dpg.get_item_height(self.canvas)
+        # Draw a background rectangle.
+        dpg.draw_rectangle(
+            (0, 0),
+            (canvas_width, canvas_height),
+            fill=(60, 60, 60, 255),
+            color=(90, 90, 90, 255),
+            parent=self.canvas,
+        )
+
+    def end_frame(self):
+        """
+        Finalize the frame.
+        Currently, this is a no-op but can be used for any post-draw operations.
+        """
+        pass
+
     def round_polygon_vertices(self, vertices, radius):
         """
         Approximates a convex CCW polygon with rounded corners.
