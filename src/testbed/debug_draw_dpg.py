@@ -21,39 +21,50 @@ class DearpyguiDebugDraw(DebugDraw):
         )
 
     def round_polygon_vertices(self, vertices, radius):
-        """Calculate new vertices to form a rounded polygon."""
-        # Convert the physical radius to screen pixels.
+        """
+        Approximates a polygon with rounded corners.
+
+        Replaces each sharp vertex with an arc of the specified radius,
+        effectively smoothing the polygon's outline.
+        Conceptually, this is similar to computing the Minkowski sum of
+        the polygon with a circle of the given radius.
+        """
         screen_r = round(radius * abs(self.view_transform._scale.x))
-        arc_segments_max = max(screen_r * 2, 2)
+        arc_segments_max = max(screen_r, 2)
+
         outline_points = []
         n = len(vertices)
+
         for i, v in enumerate(vertices):
+            # Get the previous and next vertex, automatically wrapping around.
             prev = vertices[i - 1]
             nxt = vertices[(i + 1) % n]
-            # Compute unit directions along incoming/outgoing edges.
+            # Compute unit directions along the edges entering and leaving the vertex.
             d_prev = (v - prev).normalize()
             d_next = (nxt - v).normalize()
-            # Outward normals: rotate each edge 90° clockwise.
+            # Outward normals: rotate each edge 90 degrees clockwise.
             n_prev = d_prev.perpendicular("right")
             n_next = d_next.perpendicular("right")
-            # Calculate the angles in [0, 2π)
-            a1 = n_prev.angle % (2 * math.pi)
-            a2 = n_next.angle % (2 * math.pi)
-            if a2 < a1:
-                a2 += 2 * math.pi
-            # Determine the fraction of the full circle and the number of segments.
-            arc_fraction = (a2 - a1) / (2 * math.pi)
+            # Compute the positive angle difference between the normals.
+            angle_diff = (n_next.angle - n_prev.angle) % (2 * math.pi)
+            # Determine the fraction of the full circle this angle represents.
+            arc_fraction = angle_diff / (2 * math.pi)
+            # Calculate the number of segments for the rounded corner.
             arc_segments = max(round(arc_fraction * arc_segments_max), 2)
-            # Generate arc corner points.
+            # Compute the angular increment per segment.
+            delta_angle = angle_diff / arc_segments
+            # Generate points along the arc.
             arc_points = [
-                v + Vec2.from_angle(a1 + t * (a2 - a1)) * radius
-                for t in (j / arc_segments for j in range(arc_segments + 1))
+                v + Vec2.from_angle(n_prev.angle + j * delta_angle) * radius
+                for j in range(arc_segments + 1)
             ]
-            # For all but the first vertex, skip the duplicate start point.
+            # For the first vertex, use all arc_points.
+            # For subsequent vertices, skip the duplicate start point.
             if i == 0:
                 outline_points.extend(arc_points)
             else:
                 outline_points.extend(arc_points[1:])
+
         return outline_points
 
     def draw_polygon(self, vertices: list[Vec2], color: Color):
