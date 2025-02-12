@@ -1,8 +1,44 @@
 import math
-from typing import Union, Iterable, TypeAlias
+from typing import Union, Iterable, TypeAlias, Protocol, runtime_checkable, Iterator
 from ._box2d import ffi, lib
 
-VectorLike: TypeAlias = Union[tuple[float, float], list[float], Iterable[float]]
+
+@runtime_checkable
+class VectorLike(Protocol):
+    """
+    A protocol representing a vector-like object.
+
+    A vector-like object must:
+      - Support indexing via __getitem__ (for indices 0 and 1) returning a float.
+      - Be iterable, yielding floats.
+      - Have a length of exactly 2.
+    """
+
+    def __getitem__(self, index: int) -> float:
+        ...
+
+    def __iter__(self) -> Iterator[float]:
+        ...
+
+    def __len__(self) -> int:
+        ...
+
+
+def ensure_two_elements(vec: VectorLike) -> None:
+    """Raise a ValueError if 'vec' does not have exactly 2 elements."""
+    if len(vec) != 2:
+        raise ValueError(f"VectorLike must have exactly 2 elements, got {len(vec)}.")
+
+
+def to_vec2(vec: VectorLike) -> "Vec2":
+    """
+    Convert a VectorLike object into a Vec2 instance, checking that it has exactly 2 elements.
+    If 'vec' is already a Vec2, it is returned as is.
+    """
+    if isinstance(vec, Vec2):
+        return vec
+    ensure_two_elements(vec)
+    return Vec2(vec[0], vec[1])
 
 
 def format_num(n: float) -> str:
@@ -26,8 +62,8 @@ class Vec2:
         :sorted:
 
         *vector-like*
-            Any indexable with [0]/[1] access (tuples, lists,
-            numpy arrays, other Vec2 instances, etc.)
+            Any object that is indexable (with [0] and [1]), iterable (yielding
+            floats), and of length 2 (tuples, lists, numpy arrays, other Vec2 instances, etc.)
 
     Features:
         - Component-wise operations
@@ -233,237 +269,96 @@ class Vec2:
         yield self.y
 
     def __eq__(self, other: VectorLike) -> bool:
-        """Check if this vector is equal to another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare with.
-
-        Returns:
-            bool: True if the vectors are equal, False otherwise.
-
-        Example:
-            >>> Vec2(1.0, 2.0) == (1.0, 2.0)
-            True
         """
-        if isinstance(other, Vec2):
-            return self.x == other.x and self.y == other.y
-        return tuple(self) == tuple(other)
+        Check if this vector is equal to another vector or tuple.
+
+        The parameter is first converted to a Vec2 using `to_vec2`. If conversion fails,
+        the method returns False.
+        """
+        try:
+            other_vec = to_vec2(other)
+        except (TypeError, ValueError):
+            return False
+        return self.x == other_vec.x and self.y == other_vec.y
 
     def is_close(self, other: VectorLike, tolerance: float = 1e-6) -> bool:
         """
         Check if this vector is approximately equal to another vector-like object.
 
-        Args:
-            other: Vector-like to compare (Vec2, tuple, list, etc.)
-            tolerance: Absolute tolerance for component-wise comparison
-
-        Returns:
-            bool: True if both components are within absolute tolerance
-
-        Example:
-            >>> Vec2(1.0, 2.0).is_close((1.0 + 1e-9, 2.0 - 1e-9))
-            True
-            >>> Vec2(1.0, 2.0).is_close((1.1, 2.0), tolerance=0.05)
-            False
-            >>> Vec2(0.0, 0.0).is_close((1e-9, -1e-9), tolerance=1e-8)
-            True
+        The parameter is first converted via `to_vec2`.
         """
         try:
-            other_vec = Vec2(*other)
-            return (
-                abs(self.x - other_vec.x) <= tolerance
-                and abs(self.y - other_vec.y) <= tolerance
-            )
+            other_vec = to_vec2(other)
         except (TypeError, ValueError):
             return False
+        return (
+            abs(self.x - other_vec.x) <= tolerance
+            and abs(self.y - other_vec.y) <= tolerance
+        )
 
     def __add__(self, other: VectorLike) -> "Vec2":
-        """Return the sum of this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to add.
-
-        Returns:
-            Vec2: A new vector where each component is the sum of the corresponding components.
-
-        Example:
-            >>> Vec2(1.0, 2.0) + (3.0, 4.0)
-            Vec2(4.0, 6.0)
-        """
-        return Vec2(self.x + other[0], self.y + other[1])
+        """Return the component-wise addition of this vector and another."""
+        other = to_vec2(other)
+        return Vec2(self.x + other.x, self.y + other.y)
 
     def __sub__(self, other: VectorLike) -> "Vec2":
-        """Return the difference between this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to subtract.
-
-        Returns:
-            Vec2: A new vector where each component is the difference of the corresponding components.
-
-        Example:
-            >>> Vec2(3, 4) - (1, 2)
-            Vec2(2.0, 2.0)
-        """
-        return Vec2(self.x - other[0], self.y - other[1])
+        """Return the component-wise difference between this vector and another."""
+        other = to_vec2(other)
+        return Vec2(self.x - other.x, self.y - other.y)
 
     def __mul__(self, scalar: float) -> "Vec2":
-        """Return the product of this vector and a scalar.
-
-        Args:
-            scalar (float): The scalar to multiply by.
-
-        Returns:
-            Vec2: A new vector where each component is multiplied by the scalar.
-
-        Example:
-            >>> Vec2(1.0, 2.0) * 2.0
-            Vec2(2.0, 4.0)
-        """
+        """Return the product of this vector and a scalar."""
         if not isinstance(scalar, (int, float)):
             return NotImplemented
         return Vec2(self.x * scalar, self.y * scalar)
 
     def __rmul__(self, scalar: float) -> "Vec2":
-        """Return the product of a scalar and this vector.
-
-        Args:
-            scalar (float): The scalar to multiply by.
-
-        Returns:
-            Vec2: A new vector where each component is multiplied by the scalar.
-
-        Example:
-            >>> 2.0 * Vec2(1.0, 2.0)
-            Vec2(2.0, 4.0)
-        """
+        """Return the scalar multiplication from the left-hand side."""
         if not isinstance(scalar, (int, float)):
             return NotImplemented
         return self.__mul__(scalar)
 
     def __truediv__(self, scalar: float) -> "Vec2":
-        """Return the quotient of this vector divided by a scalar.
-
-        Args:
-            scalar (float): The scalar to divide by.
-
-        Returns:
-            Vec2: A new vector where each component is divided by the scalar.
-
-        Raises:
-            ZeroDivisionError: If the scalar is zero.
-
-        Example:
-            >>> Vec2(2.0, 4.0) / 2.0
-            Vec2(1.0, 2.0)
-        """
+        """Return the vector divided by a scalar."""
         if scalar == 0:
             raise ZeroDivisionError("Cannot divide by zero")
         return Vec2(self.x / scalar, self.y / scalar)
 
     def __neg__(self) -> "Vec2":
-        """Return the negation of this vector.
-
-        Returns:
-            Vec2: A new vector with both components negated.
-
-        Example:
-            >>> -Vec2(1.0, 2.0)
-            Vec2(-1.0, -2.0)
-        """
+        """Return the negated vector."""
         return Vec2(-self.x, -self.y)
 
     def __repr__(self) -> str:
-        """Return a string representation of the vector.
-
-        Returns:
-            str: A string in the format 'Vec2(x, y)'.
-
-        Example:
-            >>> repr(Vec2(1.0, 2.0))
-            'Vec2(1.0, 2.0)'
-        """
+        """Return a string representation of the vector."""
         formatted_x, formatted_y = [format_num(v) for v in self]
         return f"Vec2({formatted_x}, {formatted_y})"
 
     def __hash__(self) -> int:
-        """Return the hash value of the vector.
-
-        Returns:
-            int: The hash value based on the vector's components.
-        """
+        """Return the hash value of the vector."""
         return hash((self.x, self.y))
 
     def __lt__(self, other: VectorLike) -> bool:
-        """Check if this vector is less than another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare with.
-
-        Returns:
-            bool: True if both components of this vector are less than the corresponding components of the other vector.
-
-        Example:
-            >>> Vec2(1.0, 2.0) < (2.0, 3.0)
-            True
-        """
-        other = Vec2(*other)
+        """Return True if this vector is component-wise less than the other."""
+        other = to_vec2(other)
         return self.x < other.x and self.y < other.y
 
     def __le__(self, other: VectorLike) -> bool:
-        """Check if this vector is less than or equal to another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare with.
-
-        Returns:
-            bool: True if both components of this vector are less than or equal to the corresponding components of the other vector.
-
-        Example:
-            >>> Vec2(1.0, 2.0) <= (2.0, 3.0)
-            True
-        """
-        other = Vec2(*other)
+        """Return True if this vector is component-wise less than or equal to the other."""
+        other = to_vec2(other)
         return self.x <= other.x and self.y <= other.y
 
     def __ge__(self, other: VectorLike) -> bool:
-        """Check if this vector is greater than or equal to another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare with.
-
-        Returns:
-            bool: True if both components of this vector are greater than or equal to the corresponding components of the other vector.
-
-        Example:
-            >>> Vec2(2.0, 3.0) >= (1.0, 2.0)
-            True
-        """
-        other = Vec2(*other)
+        """Return True if this vector is component-wise greater than or equal to the other."""
+        other = to_vec2(other)
         return self.x >= other.x and self.y >= other.y
 
     def __gt__(self, other: VectorLike) -> bool:
-        """Check if this vector is greater than another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare with.
-
-        Returns:
-            bool: True if both components of this vector are greater than the corresponding components of the other vector.
-
-        Example:
-            >>> Vec2(2.0, 3.0) > (1.0, 2.0)
-            True
-        """
-        other = Vec2(*other)
+        """Return True if this vector is component-wise greater than the other."""
+        other = to_vec2(other)
         return self.x > other.x and self.y > other.y
 
     def __bool__(self) -> bool:
-        """Return True if the vector is not zero.
-
-        Returns:
-            bool: True if the vector is not zero, False otherwise.
-        """
+        """Return True if the vector is non-zero."""
         return self.x != 0.0 or self.y != 0.0
 
     def __round__(self, ndigits: int = None) -> "Vec2":
@@ -519,42 +414,16 @@ class Vec2:
         return self.x**2 + self.y**2
 
     def dot(self, other: VectorLike) -> float:
-        """Compute the dot product of this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compute the dot product with.
-
-        Returns:
-            float: The dot product of the two vectors.
-
-        Example:
-            >>> Vec2(1.0, 2.0).dot((3.0, 4.0))
-            11.0
-        """
-        other = Vec2(*other)
+        """Compute the dot product with another vector-like object."""
+        other = to_vec2(other)
         return self.x * other.x + self.y * other.y
 
     def cross(self, other: VectorLike) -> float:
-        """Compute the cross product of this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compute the cross product with.
-
-        Returns:
-            float: The cross product result, which is a scalar value.
-
-        Note:
-            In 2D, the cross product gives the z-component of the 3D cross product,
-            which can be used to determine the direction of rotation relative to the other vector.
-
-        Example:
-            >>> Vec2(1.0, 0.0).cross((0.0, 1.0))
-            1.0
-        """
-        other = Vec2(*other)
+        """Compute the 2D cross product (a scalar) with another vector-like object."""
+        other = to_vec2(other)
         return self.x * other.y - self.y * other.x
 
-    def normalize(self):
+    def normalize(self) -> "Vec2":
         """Return a unit vector in the direction of this vector.
 
         Returns:
@@ -570,8 +439,8 @@ class Vec2:
         return Vec2(self.x / length, self.y / length)
 
     @property
-    def angle(self):
-        """The angle of the vector in radians.
+    def angle(self) -> float:
+        """Return the angle of the vector in radians.
 
         Returns:
             float: The angle in radians, computed using math.atan2(y, x).
@@ -582,23 +451,14 @@ class Vec2:
         """
         return math.atan2(self.y, self.x)
 
-    def project(self, other):
-        """Project this vector onto another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to project onto.
-
-        Returns:
-            Vec2: The projection of this vector onto the other vector.
+    def project(self, other: VectorLike) -> "Vec2":
+        """
+        Project this vector onto another vector-like object.
 
         Raises:
             ValueError: If the other vector is the zero vector.
-
-        Example:
-            >>> Vec2(1.0, 0.0).project((0.0, 1.0))
-            Vec2(0.0, 0.0)
         """
-        other = Vec2(*other)
+        other = to_vec2(other)
         dot_product = self.dot(other)
         other_dot = other.dot(other)
         if other_dot == 0:
@@ -606,54 +466,29 @@ class Vec2:
         scalar = dot_product / other_dot
         return Vec2(scalar * other.x, scalar * other.y)
 
-    def reject(self, other):
-        """Return the component of this vector perpendicular to another vector.
-
-        Args:
-            other: The :term:`vector-like` to reject from.
-
-        Returns:
-            Vec2: The component of this vector that is perpendicular to the other vector.
-
-        Example:
-            >>> Vec2(3.0, 0.0).reject((0.0, 1.0))
-            Vec2(3.0, 0.0)
-        """
+    def reject(self, other: VectorLike) -> "Vec2":
+        """Return the component of this vector perpendicular to another vector-like object."""
         return self - self.project(other)
 
-    def lerp(self, other, t):
-        """Linearly interpolate between this vector and another vector or tuple.
+    def lerp(self, other: VectorLike, t: float) -> "Vec2":
+        """
+        Linearly interpolate between this vector and another vector-like object.
 
         Args:
-            other: The :term:`vector-like` to interpolate to.
-            t (float): The interpolation factor, typically in [0, 1].
-
-        Returns:
-            Vec2: The interpolated vector.
-
-        Example:
-            >>> Vec2(0.0, 0.0).lerp((1.0, 1.0), 0.5)
-            Vec2(0.5, 0.5)
+            t (float): Interpolation factor (typically between 0 and 1).
         """
-        other = Vec2(*other)
+        other = to_vec2(other)
         return self + (other - self) * t
 
-    def perpendicular(self, direction="right"):
-        """Return a perpendicular vector.
+    def perpendicular(self, direction="right") -> "Vec2":
+        """
+        Return a perpendicular vector.
 
         Args:
-            direction (str, optional): The direction of the perpendicular vector.
-                'right' or 'left'. Defaults to 'right'.
-
-        Returns:
-            Vec2: A perpendicular vector.
+            direction (str, optional): 'right' returns (y, -x), 'left' returns (-y, x).
 
         Raises:
             ValueError: If the direction is not 'left' or 'right'.
-
-        Example:
-            >>> Vec2(1.0, 0.0).perpendicular('right')
-            Vec2(0.0, -1.0)
         """
         if direction == "right":
             return Vec2(self.y, -self.x)
@@ -662,145 +497,60 @@ class Vec2:
         else:
             raise ValueError("Direction must be 'left' or 'right'")
 
-    def min(self, other):
-        """Return the component-wise minimum of this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare.
-
-        Returns:
-            Vec2: A new vector where each component is the minimum of the corresponding components.
-
-        Example:
-            >>> Vec2(1.0, 2.0).min((3.0, 4.0))
-            Vec2(1.0, 2.0)
-        """
-        other = Vec2(*other)
+    def min(self, other: VectorLike) -> "Vec2":
+        """Return the component-wise minimum comparing this vector and another."""
+        other = to_vec2(other)
         return Vec2(min(self.x, other.x), min(self.y, other.y))
 
-    def max(self, other):
-        """Return the component-wise maximum of this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to compare.
-
-        Returns:
-            Vec2: A new vector where each component is the maximum of the corresponding components.
-
-        Example:
-            >>> Vec2(1.0, 2.0).max((3.0, 4.0))
-            Vec2(3.0, 4.0)
-        """
-        other = Vec2(*other)
+    def max(self, other: VectorLike) -> "Vec2":
+        """Return the component-wise maximum comparing this vector and another."""
+        other = to_vec2(other)
         return Vec2(max(self.x, other.x), max(self.y, other.y))
 
-    def clamp(self, min_value, max_value):
-        """Clamp this vector within the specified range.
+    def clamp(self, min_value: VectorLike, max_value: VectorLike) -> "Vec2":
+        """
+        Clamp this vector within a specified range.
 
-        Args:
-            min_value: The :term:`vector-like` to compare.
-            max_value: The :term:`vector-like` to compare.
-
-        Returns:
-            Vec2: A new vector where each component is clamped within the specified range.
-
-        Example:
-            >>> Vec2(0.5, 1.5).clamp((0.0, 0.0), (1.0, 1.0))
-            Vec2(0.5, 1.0)
+        The inputs `min_value` and `max_value` are each converted to a Vec2.
         """
         return self.max(min_value).min(max_value)
 
     @property
-    def heading(self):
-        """The normalized vector representing the direction.
-
-        Returns:
-            Vec2: The normalized vector.
-
-        Example:
-            >>> Vec2(3.0, 4.0).heading
-            Vec2(0.6, 0.8)
-        """
+    def heading(self) -> "Vec2":
+        """Return the normalized (heading) vector."""
         return self.normalize()
 
     @property
-    def inverse(self):
-        """Return a new vector with both components inverted.
-
-        Returns:
-            Vec2: A new vector with components (-x, -y).
-
-        Example:
-            >>> Vec2(1.0, 2.0).inverse
-            Vec2(-1.0, -2.0)
-        """
+    def inverse(self) -> "Vec2":
+        """Return a new vector which is the component-wise inverse (negation)."""
         return -self
 
-    def rotate(self, angle):
-        """Rotate the vector by the given angle in radians.
-
-        Args:
-            angle (float): The angle in radians to rotate by.
-
-        Returns:
-            Vec2: The rotated vector.
-
-        Example:
-            >>> Vec2(1.0, 0.0).rotate(math.pi / 2)
-            Vec2(0.0, 1.0)
-        """
+    def rotate(self, angle: float) -> "Vec2":
+        """Rotate the vector by the given angle in radians."""
         new_x = self.x * math.cos(angle) - self.y * math.sin(angle)
         new_y = self.x * math.sin(angle) + self.y * math.cos(angle)
         return Vec2(new_x, new_y)
 
-    def multiply_componentwise(self, other) -> "Vec2":
-        """Component-wise multiplication with another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to multiply component-wise.
-
-        Returns:
-            Vec2: A new vector where each component is the product of the corresponding components.
-
-        Example:
-            >>> Vec2(2.0, 3.0).multiply_componentwise((3.0, 4.0))
-            Vec2(6.0, 12.0)
-        """
-        other = Vec2(*other)
+    def multiply_componentwise(self, other: VectorLike) -> "Vec2":
+        """Multiply this vector with another vector-like object component-wise."""
+        other = to_vec2(other)
         return Vec2(self.x * other.x, self.y * other.y)
 
     def cross_scalar(self, s: float, direction: str = "right") -> "Vec2":
-        """Cross product with a scalar, following Box2D conventions.
+        """
+        Compute the cross product with a scalar following Box2D conventions.
 
         Args:
-            s (float): The scalar value.
-            direction (str, optional): The direction of the cross product, either 'right' or 'left'. Defaults to 'right'.
-
-        Returns:
-            Vec2: The result of the cross product with the scalar.
-
-        Example:
-            >>> Vec2(3.0, 4.0).cross_scalar(2)
-            Vec2(8.0, -6.0)
+            s (float): The scalar multiplier.
+            direction (str, optional): 'right' (default) or 'left'.
         """
         if direction == "right":
             return Vec2(s * self.y, -s * self.x)
         return Vec2(-s * self.y, s * self.x)
 
-    def distance_to(self, other) -> float:
-        """Calculate the distance between this vector and another vector or tuple.
-
-        Args:
-            other: The :term:`vector-like` to measure the distance to.
-
-        Returns:
-            float: The Euclidean distance between the two vectors.
-
-        Example:
-            >>> Vec2(0.0, 0.0).distance_to((3.0, 4.0))
-            5.0
-        """
-        other = Vec2(*other)
+    def distance_to(self, other: VectorLike) -> float:
+        """Calculate the Euclidean distance between this vector and another vector-like object."""
+        other = to_vec2(other)
         return (self - other).length
 
 
@@ -1702,7 +1452,7 @@ class ScaledTransform:
         # Compose transformations in the order: (self ∘ other)(x) = self(other(x))
         combined_scale = self.scale.multiply_componentwise(other.scale)
         combined_rotation = self.rotation * other.rotation
-        # Note: other.position is “pre-scaled” by self.scale.
+        # Note: other.position is "pre-scaled" by self.scale.
         combined_position = self.position + self.rotation.rotate_vector(
             self.scale.multiply_componentwise(other.position)
         )
@@ -1785,8 +1535,8 @@ class AABB:
         Initialize AABB with lower and upper bounds.
 
         Args:
-            lower (Iterable): Minimum coordinates (x1, y1)
-            upper (Iterable): Maximum coordinates (x2, y2)
+            lower (VectorLike): Minimum coordinates (x1, y1)
+            upper (VectorLike): Maximum coordinates (x2, y2)
 
         Note:
             Default creates invalid AABB, use from_points for valid initialization
