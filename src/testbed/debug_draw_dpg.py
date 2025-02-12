@@ -1,4 +1,5 @@
 import math
+import time
 import dearpygui.dearpygui as dpg
 from box2d import Vec2, DebugDraw, Color, ScaledTransform, Rot
 
@@ -19,10 +20,13 @@ class DearpyguiDebugDraw(DebugDraw):
         self.view_transform = ScaledTransform(
             position=(400, 300), rotation=0, scale=(30, -30)
         )
+        # Initialize draw timing metrics (in milliseconds)
+        self.last_draw_time = 0.0
+        self.draw_time_avg = 0.0
 
     def start_frame(self):
         """
-        Clears the canvas at the start of a frame.
+        Clears the canvas at the start of a frame and records the start time for drawing.
         """
         # Remove all previous drawn items.
         dpg.delete_item(self.canvas, children_only=True)
@@ -37,13 +41,16 @@ class DearpyguiDebugDraw(DebugDraw):
             color=(90, 90, 90, 255),
             parent=self.canvas,
         )
+        self._draw_start_time = time.perf_counter()
 
     def end_frame(self):
         """
-        Finalize the frame.
-        Currently, this is a no-op but can be used for any post-draw operations.
+        Finalize the frame and record the draw time.
         """
-        pass
+        elapsed = (
+            time.perf_counter() - self._draw_start_time
+        ) * 1000.0  # in milliseconds
+        self.record_draw_time(elapsed)
 
     def round_polygon_vertices(self, vertices, radius):
         """
@@ -265,3 +272,12 @@ class DearpyguiDebugDraw(DebugDraw):
             thickness=self.outline_thickness,
             parent=self.canvas,
         )
+
+    def record_draw_time(self, time_ms):
+        """
+        Record the draw time and update the rolling average.
+        Both the most recent draw time and the smoothed (rolling average) value are stored.
+        """
+        smoothing = 0.9
+        self.last_draw_time = time_ms
+        self.draw_time_avg = self.draw_time_avg * smoothing + time_ms * (1 - smoothing)
