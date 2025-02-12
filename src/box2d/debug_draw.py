@@ -15,11 +15,57 @@ class Color:
     def hex(self) -> int:
         return self._hex
 
+    @property
+    def as_float(self):
+        """Return the RGBA color as a tuple of floats scaled 0 to 1."""
+        return (self.r / 255, self.g / 255, self.b / 255, self.a / 255)
+
+    def changed(self, r: int = None, g: int = None, b: int = None, a: int = None):
+        """
+        Return a new Color instance with the specified components changed.
+
+        Args:
+            r: New red component (0-255). If None, retains current value.
+            g: New green component (0-255). If None, retains current value.
+            b: New blue component (0-255). If None, retains current value.
+            a: New alpha component (0-255). If None, retains current value.
+
+        Returns:
+            A new instance of Color with updated color components.
+        """
+        new_r = r if r is not None else self.r
+        new_g = g if g is not None else self.g
+        new_b = b if b is not None else self.b
+        new_a = a if a is not None else self.a
+        new_hex = (new_r << 16) | (new_g << 8) | new_b
+        new_color = Color(new_hex)
+        new_color.a = new_a  # Override alpha if changed
+        return new_color
+
     def __iter__(self):
         return iter((self.r, self.g, self.b, self.a))
 
     def __repr__(self) -> str:
         return f"Color(r={self.r}, g={self.g}, b={self.b}, a={self.a})"
+
+    def __eq__(self, other):
+        """Check equality with another Color instance.
+
+        Two Color objects are considered equal if their red, green, blue,
+        and alpha components are all equal.
+        """
+        if not isinstance(other, Color):
+            return NotImplemented
+        return (
+            self.r == other.r
+            and self.g == other.g
+            and self.b == other.b
+            and self.a == other.a
+        )
+
+    def __hash__(self):
+        """Return the hash based on the color's RGBA components."""
+        return hash((self.r, self.g, self.b, self.a))
 
 
 # Define callback wrappers with cffi.callback and conversion logic
