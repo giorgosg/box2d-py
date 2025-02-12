@@ -1005,26 +1005,35 @@ class Rot:
         """
         return (self.s, self.c)
 
-    def __mul__(self, other: Union["Vec2", "Rot"]) -> Union["Vec2", "Rot"]:
+    def __mul__(self, other: Union["Vec2", "Rot", float]) -> Union["Vec2", "Rot"]:
         """
-        Rotate vector or combine rotations.
+        Multiply the rotation with:
+            - A vector: rotates the vector.
+            - Another rotation: composes the rotations.
+            - A float: produces a Vec2 in the direction of this rotation
+              with a magnitude equal to the float.
 
         Args:
-            other (Vec2|Rot): Vector to rotate or rotation to compose
+            other (Vec2 | Rot | float): The operand to multiply.
 
         Returns:
-            Vec2|Rot: Rotated vector or combined rotation
+            Vec2 | Rot: If other is a Vec2, returns the rotated vector.
+                        If other is a Rot, returns the composed rotation.
+                        If other is a float (or int), returns a Vec2 representing
+                        a unit vector rotated by this rotation and scaled by the float.
 
-        Example - Vector rotation:
+        Examples:
             >>> Rot(math.pi/2) * Vec2(1, 0)
             Vec2(0.0, 1.0)
-
-        Example - Rotation composition:
             >>> r1 = Rot(math.pi/2)
             >>> r2 = Rot(math.pi/2)
             >>> (r1 * r2).angle_degrees
             180.0
+            >>> Rot(math.pi/4) * 5
+            Vec2(3.536, 3.536)
         """
+        if isinstance(other, (int, float)):
+            return Vec2(self.c * other, self.s * other)
         if isinstance(other, Vec2):
             return self.rotate_vector(other)
         if isinstance(other, Rot):
@@ -1034,17 +1043,23 @@ class Rot:
             )
         return NotImplemented
 
-    def __rmul__(self, other):
+    def __rmul__(self, other: Union["Vec2", tuple, float]) -> "Vec2":
         """
-        Handle vector * rotation syntax.
+        Handle multiplication when a vector, tuple, or float appears on the left-hand side.
+
+        If the left operand is a vector or tuple, it rotates the vector.
+        If the left operand is a float (or int), it returns a Vec2 in the direction of this rotation
+        with its magnitude scaled by the float.
 
         Args:
-            other (Vec2|tuple): Vector to rotate
+            other (Vec2 | tuple | float): The left-hand operand.
 
         Returns:
-            Vec2: Rotated vector
+            Vec2: The resulting rotated vector or scaled unit vector.
 
-        Example:
+        Examples:
+            >>> 5 * Rot(math.pi/4)
+            Vec2(3.536, 3.536)
             >>> Vec2(1, 0) * Rot(math.pi/2)
             Vec2(0.0, 1.0)
         """
@@ -1199,23 +1214,38 @@ class Rot:
         """
         return Rot(-self.angle_radians)
 
-    def interpolate(self, other, t):
+    def interpolate(self, other, t, ccw=True):
         """
-        Linear interpolation between two rotations.
+        Linearly interpolate between two rotations with a forced direction.
 
         Args:
-            other (Rot): Target rotation
-            t (float): Interpolation factor [0.0, 1.0]
+            other (Rot): The target rotation.
+            t (float): Interpolation factor in the range [0.0, 1.0].
+            ccw (bool, optional): If True (default), force counterclockwise interpolation.
+                If False, force clockwise interpolation.
 
         Returns:
-            Rot: Interpolated rotation
+            Rot: A new rotation interpolated between self and other.
 
-        Example:
-            >>> Rot(0).interpolate(Rot(math.pi), 0.5).angle_degrees
-            90.0
+        Examples:
+            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5).angle_degrees
+            45.0
+            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5, ccw=False).angle_degrees # Clockwise
+            -135.0
         """
-        angle = self.angle_radians + t * (other.angle_radians - self.angle_radians)
-        return Rot(angle)
+        a0 = self.angle_radians
+        a1 = other.angle_radians
+
+        if ccw:
+            if a1 < a0:
+                a1 += 2 * math.pi
+        else:
+            if a1 > a0:
+                a1 -= 2 * math.pi
+
+        diff = a1 - a0
+        interpolated_angle = a0 + t * diff
+        return Rot(interpolated_angle)
 
     def rotate_vector(self, v: VectorLike) -> Vec2:
         """
