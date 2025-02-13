@@ -164,18 +164,17 @@ class CollisionFilter:
     The API is chainable and accepts categories (and masks) as either integers or names (resolved
     via a registry). The group is strictly an integer.
 
-    Examples:
-        Create a simple filter with a default group (0):
-            >>> reg = CollisionCategoryRegistry(auto_create=True)
-            >>> filter_a = CollisionFilter(category=0x1, mask=CollisionFilter.ALL, group=0, registry=reg)
-            >>> filter_a
-            CollisionFilter(category=0x1, mask=0xFFFF, group=0)
-
-        Setting a nonzero group:
-            >>> reg = CollisionCategoryRegistry(auto_create=True)
-            >>> filter_b = CollisionFilter(category=0x1, mask=CollisionFilter.ALL, group=3, registry=reg)
-            >>> filter_b
-            CollisionFilter(category=0x1, mask=0xFFFF, group=3)
+    Examples (Fluent Interface):
+        >>> f1 = CollisionFilter("player").allow_collision_with("enemy")
+        >>> f2 = CollisionFilter("enemy").allow_collision_with("player")
+        >>> f3 = CollisionFilter("ally").allow_collision_with("enemy")
+        >>> f1 & f2 # checks if two collision filters would collide
+        True
+        >>> f1 & f3
+        True
+        >>> f1 = f1.block_collision_with("ally")
+        >>> f1 & f3
+        False
     """
 
     ALL = 0xFFFF  # Default mask (all bits set)
@@ -288,10 +287,15 @@ class CollisionFilter:
 
     def block_collision_with(self, *cats) -> "CollisionFilter":
         """
-        Block collisions with one or more categories by removing them from the mask.
+        Block collisions with the specified categories.
+
+        This method updates the filter so that it does not allow collisions with the given categories.
+        Unlike `allow_collision_with()`, which adds categories to the list of permitted collisions,
+        this method marks the provided categories as blocked. In other words, it prevents interactions
+        with those categories regardless of previous settings.
 
         Args:
-            *cats: Collision categories (int or str) to block.
+            *cats: One or more collision categories (int or str) to block.
 
         Returns:
             CollisionFilter: Self, to allow chaining.
