@@ -48,6 +48,7 @@ class Joint(ABC):
         """Destroy the joint and remove it from the world."""
         if self._joint_id and lib.b2Joint_IsValid(self._joint_id):
             lib.b2DestroyJoint(self._joint_id)
+        self._joint_id = None
 
     def __del__(self):
         """Safely remove the joint from the physics simulation when destroyed.
@@ -249,3 +250,113 @@ class MouseJoint(Joint):
             value: 0=no damping (springy), 1=immediate stabilization
         """
         lib.b2MouseJoint_SetSpringDampingRatio(self._joint_id, float(value))
+
+
+class WeldJoint(Joint):
+    """WeldJoint connects two bodies rigidly, fully constraining their relative
+    translation and rotation while allowing for softness when spring parameters
+    are configured.
+
+    The weld joint "welds" two bodies together using provided local anchor points.
+    These anchors are specified in each body's local coordinate system.
+
+    Args:
+        world: The physics world instance.
+        body_a: The first body to be joined.
+        body_b: The second body to be joined.
+        local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint is attached.
+        local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint is attached.
+        collide_connected (bool, optional): If True, the connected bodies will collide. Defaults to False.
+        linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid). Defaults to 0.
+        linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional). Defaults to 0.
+        angular_hertz (float, optional): Angular spring stiffness in Hertz (0 means rigid). Defaults to 0.
+        angular_damping_ratio (float, optional): Angular damping ratio (non-dimensional). Defaults to 0.
+        reference_angle (float, optional): The reference angle between the two bodies. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        local_anchor_a,
+        local_anchor_b,
+        collide_connected=False,
+        linear_hertz=0,
+        linear_damping_ratio=0,
+        angular_hertz=0,
+        angular_damping_ratio=0,
+        reference_angle=0,
+    ):
+        self._local_anchor_a = Vec2(*local_anchor_a)
+        self._local_anchor_b = Vec2(*local_anchor_b)
+        self._linear_hertz = linear_hertz
+        self._linear_damping_ratio = linear_damping_ratio
+        self._angular_hertz = angular_hertz
+        self._angular_damping_ratio = angular_damping_ratio
+        self._reference_angle = reference_angle
+        super().__init__(world, body_a, body_b, collide_connected)
+
+    def _create_joint_def(self, body_a, body_b, collide_connected):
+        # Get a default weld joint definition from Box2D.
+        defn = lib.b2DefaultWeldJointDef()
+        defn.bodyIdA = body_a._body_id
+        defn.bodyIdB = body_b._body_id
+        defn.collideConnected = collide_connected
+
+        # Use the provided local anchor points directly.
+        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
+        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
+
+        defn.referenceAngle = self._reference_angle
+
+        # Set the spring/damping parameters to allow for soft welding.
+        defn.linearHertz = self._linear_hertz
+        defn.linearDampingRatio = self._linear_damping_ratio
+        defn.angularHertz = self._angular_hertz
+        defn.angularDampingRatio = self._angular_damping_ratio
+
+        return defn
+
+    def _create_joint(self):
+        # Create the weld joint using the corresponding lib function.
+        self._joint_id = lib.b2CreateWeldJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        super()._create_joint()
+
+    @property
+    def linear_hertz(self):
+        """The linear stiffness (in Hertz) of the weld joint spring."""
+        return lib.b2WeldJoint_GetLinearHertz(self._joint_id)
+
+    @linear_hertz.setter
+    def linear_hertz(self, value):
+        lib.b2WeldJoint_SetLinearHertz(self._joint_id, float(value))
+
+    @property
+    def linear_damping_ratio(self):
+        """The linear damping ratio (non-dimensional) of the weld joint spring."""
+        return lib.b2WeldJoint_GetLinearDampingRatio(self._joint_id)
+
+    @linear_damping_ratio.setter
+    def linear_damping_ratio(self, value):
+        lib.b2WeldJoint_SetLinearDampingRatio(self._joint_id, float(value))
+
+    @property
+    def angular_hertz(self):
+        """The angular stiffness (in Hertz) of the weld joint."""
+        return lib.b2WeldJoint_GetAngularHertz(self._joint_id)
+
+    @angular_hertz.setter
+    def angular_hertz(self, value):
+        lib.b2WeldJoint_SetAngularHertz(self._joint_id, float(value))
+
+    @property
+    def angular_damping_ratio(self):
+        """The angular damping ratio (non-dimensional) of the weld joint."""
+        return lib.b2WeldJoint_GetAngularDampingRatio(self._joint_id)
+
+    @angular_damping_ratio.setter
+    def angular_damping_ratio(self, value):
+        lib.b2WeldJoint_SetAngularDampingRatio(self._joint_id, float(value))

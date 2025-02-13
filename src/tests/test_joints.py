@@ -64,3 +64,49 @@ def test_mouse_joint_reaction_forces(world_and_bodies):
     # Verify reaction forces make sense
     assert joint.reaction_force.length > 0  # Should have some force
     assert joint.reaction_torque > 0
+
+
+def test_weld_joint_creation(world_and_bodies):
+    world, body_a, body_b = world_and_bodies
+    # Create a weld joint with distinct local anchors for clarity.
+    weld_joint = world.add_weld_joint(
+        body_a, body_b, local_anchor_a=(0, 0), local_anchor_b=(1, 0)
+    )
+    # Verify the joint was successfully created.
+    assert weld_joint.is_valid is True
+    # Check that the joint's local anchor positions match the provided values.
+    # Note: The anchors are reported in each body's local coordinate system.
+    assert weld_joint.anchor_a == Vec2(0, 0)
+    assert weld_joint.anchor_b == Vec2(1, 0)
+
+
+def test_weld_joint_property_setters(world_and_bodies):
+    world, body_a, body_b = world_and_bodies
+    # Create a weld joint with initial spring/damping parameters.
+    weld_joint = world.add_weld_joint(
+        body_a,
+        body_b,
+        local_anchor_a=(0, 0),
+        local_anchor_b=(0, 0),
+        linear_hertz=4.0,
+        linear_damping_ratio=0.25,
+        angular_hertz=6.0,
+        angular_damping_ratio=0.35,
+    )
+    # Verify initial parameter values.
+    assert weld_joint.linear_hertz == pytest.approx(4.0)
+    assert weld_joint.linear_damping_ratio == pytest.approx(0.25)
+    assert weld_joint.angular_hertz == pytest.approx(6.0)
+    assert weld_joint.angular_damping_ratio == pytest.approx(0.35)
+
+    # Update the joint's spring/damping parameters.
+    weld_joint.linear_hertz = 9.0
+    weld_joint.linear_damping_ratio = 0.5
+    weld_joint.angular_hertz = 12.0
+    weld_joint.angular_damping_ratio = 0.7
+
+    # Verify the updated parameter values.
+    assert weld_joint.linear_hertz == pytest.approx(9.0)
+    assert weld_joint.linear_damping_ratio == pytest.approx(0.5)
+    assert weld_joint.angular_hertz == pytest.approx(12.0)
+    assert weld_joint.angular_damping_ratio == pytest.approx(0.7)

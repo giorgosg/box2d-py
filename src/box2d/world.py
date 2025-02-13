@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
-from .joint import MouseJoint
+from .joint import MouseJoint, WeldJoint
 from .math import Vec2, VectorLike, AABB, Transform
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
@@ -138,6 +138,58 @@ class World:
         if body._body_id not in self._bodies:
             raise ValueError("Bodies must belong to this world")
         return MouseJoint(self, body, target, max_force, damping_ratio)
+
+    def add_weld_joint(
+        self,
+        body_a,
+        body_b,
+        local_anchor_a,
+        local_anchor_b,
+        collide_connected=False,
+        linear_hertz=0,
+        linear_damping_ratio=0,
+        angular_hertz=0,
+        angular_damping_ratio=0,
+    ):
+        """Create a weld joint that rigidly connects two bodies.
+
+        Args:
+            body_a: The first body to connect (must belong to this world)
+            body_b: The second body to connect (must belong to this world)
+            local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint attaches.
+            local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint attaches.
+            collide_connected (bool, optional): If True, the connected bodies will collide.
+            linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid).
+            linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional).
+            angular_hertz (float, optional): Angular spring stiffness in Hertz (0 means rigid).
+            angular_damping_ratio (float, optional): Angular damping ratio (non-dimensional).
+            reference_angle (float, optional): The body_b angle minus body_a angle in the reference state (radians)
+
+        Returns:
+            WeldJoint: The created weld joint connecting the two bodies.
+
+        Example:
+            >>> world = World()
+            >>> body_a = world.new_body().dynamic().position(0, 0).build()
+            >>> body_b = world.new_body().dynamic().position(1, 1).build()
+            >>> weld_joint = world.add_weld_joint(body_a, body_b, (0,0), (0,0))
+        """
+        if (body_a._body_id not in self._bodies) or (
+            body_b._body_id not in self._bodies
+        ):
+            raise ValueError("Both bodies must belong to this world")
+        return WeldJoint(
+            self,
+            body_a,
+            body_b,
+            local_anchor_a,
+            local_anchor_b,
+            collide_connected,
+            linear_hertz,
+            linear_damping_ratio,
+            angular_hertz,
+            angular_damping_ratio,
+        )
 
     def _track_body(self, body: "Body"):
         """Internal method to track body references. Called automatically during body creation.
