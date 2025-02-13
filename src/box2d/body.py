@@ -1,6 +1,7 @@
 from box2d._box2d import lib, ffi
 from .math import Vec2
-from .shape import Box, Circle, Capsule, Segment, Polygon, Chain, convex_hull
+from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
+from .shape_def import PolygonDef
 
 
 class BodyBuilder:
@@ -339,7 +340,9 @@ class BodyBuilder:
         """
         # Compute the convex hull of the polygon so an exception is raised
         # at the function call if the points do not form a convex polygon.
-        vertices = convex_hull(vertices)
+        # vertices = convex_hull(vertices)
+        # hack for now. just check by creating a PolygonDef. it should raise an exception if not convex.
+        PolygonDef(vertices)
         self._shape_defs.append(
             {
                 "type": "polygon",
@@ -460,14 +463,12 @@ class Body:
         """
         self.world = world
         self.body_def = body_def
-        # Create the body using Box2D's b2CreateBody
         self._body_id = lib.b2CreateBody(
             self.world._world_id, ffi.addressof(self.body_def)
         )
         self._handle = ffi.addressof(self._body_id)
         lib.b2Body_SetUserData(self._body_id, self._handle)
         self._shapes = []
-        # Automatically register this body with the world.
         self.world._track_body(self)
 
     @property
@@ -484,9 +485,7 @@ class Body:
     @position.setter
     def position(self, value):
         """Set the world position of the body."""
-        # Get current rotation since SetTransform needs both position and rotation
         rot = lib.b2Body_GetRotation(self._body_id)
-
         lib.b2Body_SetTransform(self._body_id, value, rot)
 
     @property
@@ -504,12 +503,12 @@ class Body:
 
     @property
     def angular_velocity(self):
-        """Get angular velocity in radians/sec"""
+        """Get angular velocity in radians/sec."""
         return lib.b2Body_GetAngularVelocity(self._body_id)
 
     @angular_velocity.setter
     def angular_velocity(self, value):
-        """Set angular velocity in radians/sec"""
+        """Set angular velocity in radians/sec."""
         lib.b2Body_SetAngularVelocity(self._body_id, float(value))
 
     @property
@@ -587,9 +586,9 @@ class Body:
         """Apply a force at a world point.
 
         Args:
-            force: Tuple representing the force vector (Fx, Fy)
-            point: Tuple representing the application point (x, y)
-            wake: Boolean indicating whether to wake the body if it's sleeping
+            force: Tuple representing the force vector (Fx, Fy).
+            point: Tuple representing the application point (x, y). Defaults to center.
+            wake: Boolean indicating whether to wake the body.
         """
         x, y = force
         if point is None:
@@ -602,8 +601,8 @@ class Body:
         """Apply a torque to the body.
 
         Args:
-            torque: Float value representing the torque to apply
-            wake: Boolean indicating whether to wake the body if it's sleeping
+            torque: Float value representing the torque.
+            wake: Boolean indicating whether to wake the body.
         """
         lib.b2Body_ApplyTorque(self._body_id, torque, wake)
 
@@ -611,9 +610,9 @@ class Body:
         """Apply a linear impulse at a world point.
 
         Args:
-            impulse: Tuple representing the impulse vector (Ix, Iy)
-            point: Tuple representing the application point (x, y)
-            wake: Boolean indicating whether to wake the body if it's sleeping
+            impulse: Tuple representing the impulse vector (Ix, Iy).
+            point: Tuple representing the application point (x, y). Defaults to center.
+            wake: Boolean indicating whether to wake the body.
         """
         x, y = impulse
         if point is None:
@@ -626,38 +625,44 @@ class Body:
         self,
         width: float,
         height: float,
-        radius=0.0,
-        offset=(0, 0),
-        angle=0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
+        radius: float = 0.0,
+        offset: tuple = (0, 0),
+        angle: float = 0.0,
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter=None,
     ):
         """Add a box shape to the body.
 
         Args:
-            width: The width of the box
-            height: The height of the box
-            radius: The radius of the rounded corners (default: 0.0)
-            offset: The offset of the box from the body's position (default: (0,0))
-            angle: The angle of the box (default: 0.0)
-            density: Mass density (kg/m²).
+            width: Full width of the box.
+            height: Full height of the box.
+            radius: The radius of the rounded corners (default: 0.0).
+            offset: The offset of the box from the body's position (default: (0, 0)).
+            angle: The rotation angle of the box in radians (default: 0.0).
+            density: Mass density of the shape.
             friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
+            restitution: Bounciness.
+            is_sensor: Flag indicating whether the shape is a sensor.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+
+        Returns:
+            The created box shape.
         """
-        shape = Box(
+        shape = Box.create(
             self,
-            width=width,
-            height=height,
-            radius=radius,
-            offset=offset,
-            angle=angle,
-            density=density,
-            friction=friction,
-            restitution=restitution,
-            is_sensor=is_sensor,
+            width,
+            height,
+            radius,
+            offset,
+            angle,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
         self._shapes.append(shape)
         return shape
@@ -665,98 +670,151 @@ class Body:
     def add_circle(
         self,
         radius: float,
-        center=(0, 0),
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
+        center: tuple = (0, 0),
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter=None,
     ):
         """Add a circle shape to the body.
 
         Args:
-            radius: The radius of the circle
-            center: The center point of the circle (default: (0,0))
-            density: Mass density (kg/m²).
+            radius: Radius of the circle.
+            center: Center of the circle (default: (0, 0)).
+            density: Mass density of the shape.
             friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
+            restitution: Bounciness.
+            is_sensor: Flag indicating whether the shape is a sensor.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+
+        Returns:
+            The created circle shape.
         """
-        shape = Circle(self, radius, center, density, friction, restitution, is_sensor)
+        shape = Circle.create(
+            self,
+            radius,
+            center,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
+        )
         self._shapes.append(shape)
         return shape
 
     def add_capsule(
         self,
-        point1,
-        point2,
-        radius,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
+        point1: tuple,
+        point2: tuple,
+        radius: float,
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter=None,
     ):
         """Add a capsule shape to the body.
 
         Args:
-            point1: The first endpoint of the capsule
-            point2: The second endpoint of the capsule
-            radius: The radius of the capsule
-            density: Mass density (kg/m²).
+            point1: First endpoint of the capsule.
+            point2: Second endpoint of the capsule.
+            radius: Radius of the capsule.
+            density: Mass density of the shape.
             friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
+            restitution: Bounciness.
+            is_sensor: Flag indicating whether the shape is a sensor.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+
+        Returns:
+            The created capsule shape.
         """
-        shape = Capsule(
-            self, point1, point2, radius, density, friction, restitution, is_sensor
+        shape = Capsule.create(
+            self,
+            point1,
+            point2,
+            radius,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
         self._shapes.append(shape)
         return shape
 
     def add_polygon(
         self,
-        vertices,
-        radius=0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
+        vertices: list[tuple],
+        radius: float = 0.0,
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter=None,
     ):
-        """Add a polygon shape to the body.
+        """Add a convex polygon shape to the body.
 
         Args:
-            vertices: List of points that define the polygon shape
-            radius: The radius of the rounded corners (default: 0.0)
-            density: Mass density (kg/m²).
+            vertices: List of vertices defining the polygon.
+            radius: Optional radius for rounded corners (default: 0.0).
+            density: Mass density of the shape.
             friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
+            restitution: Bounciness.
+            is_sensor: Flag indicating whether the shape is a sensor.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+
+        Returns:
+            The created polygon shape.
         """
-        shape = Polygon(
-            self, vertices, radius, density, friction, restitution, is_sensor
+        shape = Polygon.create(
+            self,
+            vertices,
+            radius,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
         self._shapes.append(shape)
         return shape
 
     def add_segment(
         self,
-        point1,
-        point2,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
+        point1: tuple,
+        point2: tuple,
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter=None,
     ):
-        """Add a segment shape to the body.
+        """Add a line segment shape to the body.
 
         Args:
-            point1: The first endpoint of the segment
-            point2: The second endpoint of the segment
-            density: Mass density (kg/m²).
+            point1: Starting point of the segment.
+            point2: Ending point of the segment.
+            density: Mass density of the shape.
             friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
+            restitution: Bounciness.
+            is_sensor: Flag indicating whether the shape is a sensor.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+
+        Returns:
+            The created segment shape.
         """
-        shape = Segment(self, point1, point2, density, friction, restitution, is_sensor)
+        shape = Segment.create(
+            self,
+            point1,
+            point2,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
+        )
         self._shapes.append(shape)
         return shape
 
@@ -766,19 +824,23 @@ class Body:
         loop: bool = False,
         friction: float = None,
         restitution: float = None,
+        collision_filter=None,
     ):
         """Add a chain shape to the body.
 
         Args:
-            vertices: List of points that define the chain shape. Must contain at least 4 vertices.
-            loop: Boolean indicating whether the chain should be closed (looped). Default is False.
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
+            vertices: List of vertices defining the chain (must contain at least 4 vertices).
+            loop: Boolean indicating whether the chain should be closed (looped).
+            friction: Friction coefficient.
+            restitution: Bounciness.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
 
         Returns:
-            The created Chain shape.
+            The created chain shape.
         """
-        shape = Chain(self, vertices, loop, friction, restitution)
+        shape = Chain.create(
+            self, vertices, loop, friction, restitution, collision_filter
+        )
         self._shapes.append(shape)
         return shape
 
@@ -789,24 +851,18 @@ class Body:
             self._shapes.remove(shape)
 
     def is_sleep_enabled(self):
-        """Check if the body is allowed to sleep"""
+        """Check if the body is allowed to sleep."""
         return lib.b2Body_IsSleepEnabled(self._body_id)
 
     def destroy(self):
         """
         Destroy this body and remove it from the world.
         """
-        # If the body has already been destroyed, do nothing.
         if getattr(self, "_body_id", None) is None:
             return
-
         lib.b2DestroyBody(self._body_id)
-
-        # Remove the body from the world's tracking dictionary.
         if hasattr(self.world, "_bodies"):
             self.world._bodies.pop(self._body_id, None)
-
-        # Mark this body as destroyed.
         self._body_id = None
 
     # TODO: currently is segfaults one of the tests. need to figure out why.

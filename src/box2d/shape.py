@@ -1,47 +1,38 @@
-# shape.py
+"""
+This module defines high-level shape objects for Box2D.
+Each shape’s constructor now accepts a body and a shape definition.
+Each shape (except Chain) subclasses a common base that implements common properties.
+Each shape also has a classmethod “create” that matches the signature from before.
+Chain is now implemented as a separate class.
+"""
 
 from ._box2d import lib, ffi
-from abc import ABC, abstractmethod
+from abc import ABC
 from .math import Vec2, Transform, VectorLike
-
-
-def convex_hull(vertices: list[VectorLike]):
-    vertices = [tuple(v) for v in vertices]
-    ch = lib.b2ComputeHull(vertices, len(vertices))
-    if ch.count == 0:
-        raise ValueError(f"Failed to compute convex hull from {vertices} vertices")
-    return [Vec2(ch.points[i].x, ch.points[i].y) for i in range(ch.count)]
+from .shape_def import (
+    CircleDef,
+    CapsuleDef,
+    SegmentDef,
+    PolygonDef,
+    BoxDef,
+    ChainDef,
+)
 
 
 class Shape(ABC):
-    """Base class for all shapes. Provides common functionality for all shape types."""
+    """
+    Base class for all non-chain shapes.
+    Its constructor now accepts only a body and a shape definition.
+    It provides common properties like density, friction, restitution, and a helper _finalize.
+    """
 
-    def __init__(
-        self, body, density=None, friction=None, restitution=None, is_sensor=None
-    ):
-        """Initialize a shape with material properties.
-
-        Args:
-            body: The Body instance this shape will be attached to
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
-        """
-        self._shape_def = lib.b2DefaultShapeDef()
+    def __init__(self, body, shapedef):
         self._body = body
-        if density is not None:
-            self._shape_def.density = density
-        if friction is not None:
-            self._shape_def.friction = friction
-        if restitution is not None:
-            self._shape_def.restitution = restitution
-        if is_sensor is not None:
-            self._shape_def.isSensor = is_sensor
 
     def _finalize(self):
-        """Finalize shape creation and set up user data."""
-        del self._shape_def
+        """
+        Finalize shape creation by setting the user data pointer.
+        """
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
 
@@ -52,10 +43,8 @@ class Shape(ABC):
 
     @density.setter
     def density(self, value):
-        """Set the mass density of the shape."""
-        lib.b2Shape_SetDensity(
-            self._shape_id, float(value), True
-        )  # updates the bodies mass
+        """Set the mass density of the shape (and update the body mass)."""
+        lib.b2Shape_SetDensity(self._shape_id, float(value), True)
 
     @property
     def friction(self):
@@ -84,15 +73,28 @@ class Shape(ABC):
 
     @property
     def body(self):
-        """Get the body this shape is attached to."""
+        """Return the body to which this shape is attached."""
         return self._body
 
 
 class Circle(Shape):
-    """A circle shape that can be attached to a body."""
+    """
+    A circle shape that can be attached to a body.
+    """
 
-    def __init__(
-        self,
+    def __init__(self, body, shapedef):
+        """
+        Initialize a Circle shape from a body and a CircleDef instance.
+        """
+        super().__init__(body, shapedef)
+        self._shape_id = lib.b2CreateCircleShape(
+            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.circle
+        )
+        self._finalize()
+
+    @classmethod
+    def create(
+        cls,
         body,
         radius,
         center=(0, 0),
@@ -100,33 +102,36 @@ class Circle(Shape):
         friction=None,
         restitution=None,
         is_sensor=None,
+        collision_filter=None,
     ):
-        """Create a circle shape.
-
-        Args:
-            body: The Body instance to attach this shape to
-            radius: The radius of the circle
-            center: The center point of the circle (default: (0,0))
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
         """
-        super().__init__(body, density, friction, restitution, is_sensor)
-        circle_def = ffi.new("b2Circle*")
-        circle_def.radius = radius
-        circle_def.center.x, circle_def.center.y = center
-        self._shape_id = lib.b2CreateCircleShape(
-            body._body_id, ffi.addressof(self._shape_def), circle_def
+        Create and attach a circle shape to a body.
+        The parameters are the same as the previous initializer.
+        """
+        shapedef = CircleDef(
+            radius, center, density, friction, restitution, is_sensor, collision_filter
         )
-        self._finalize()
+        return cls(body, shapedef)
 
 
 class Capsule(Shape):
-    """A capsule shape that can be attached to a body."""
+    """
+    A capsule shape that can be attached to a body.
+    """
 
-    def __init__(
-        self,
+    def __init__(self, body, shapedef):
+        """
+        Initialize a Capsule shape from a body and a CapsuleDef instance.
+        """
+        super().__init__(body, shapedef)
+        self._shape_id = lib.b2CreateCapsuleShape(
+            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.capsule
+        )
+        self._finalize()
+
+    @classmethod
+    def create(
+        cls,
         body,
         point1,
         point2,
@@ -135,36 +140,43 @@ class Capsule(Shape):
         friction=None,
         restitution=None,
         is_sensor=None,
+        collision_filter=None,
     ):
-        """Create a capsule shape.
-
-        Args:
-            body: The Body instance to attach this shape to
-            point1: The first endpoint of the capsule
-            point2: The second endpoint of the capsule
-            radius: The radius of the capsule
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
         """
-
-        super().__init__(body, density, friction, restitution, is_sensor)
-        capsule_def = ffi.new("b2Capsule*")
-        capsule_def.center1.x, capsule_def.center1.y = point1
-        capsule_def.center2.x, capsule_def.center2.y = point2
-        capsule_def.radius = radius
-        self._shape_id = lib.b2CreateCapsuleShape(
-            body._body_id, ffi.addressof(self._shape_def), capsule_def
+        Create and attach a capsule shape to a body.
+        The parameters are the same as the previous initializer.
+        """
+        shapedef = CapsuleDef(
+            point1,
+            point2,
+            radius,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
-        self._finalize()
+        return cls(body, shapedef)
 
 
 class Segment(Shape):
-    """A line segment shape that can be attached to a body."""
+    """
+    A line segment shape that can be attached to a body.
+    """
 
-    def __init__(
-        self,
+    def __init__(self, body, shapedef):
+        """
+        Initialize a Segment shape from a body and a SegmentDef instance.
+        """
+        super().__init__(body, shapedef)
+        self._shape_id = lib.b2CreateSegmentShape(
+            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.segment
+        )
+        self._finalize()
+
+    @classmethod
+    def create(
+        cls,
         body,
         point1,
         point2,
@@ -172,34 +184,39 @@ class Segment(Shape):
         friction=None,
         restitution=None,
         is_sensor=None,
+        collision_filter=None,
     ):
-        """Create a segment shape.
-
-        Args:
-            body: The Body instance to attach this shape to
-            point1: The first endpoint of the segment
-            point2: The second endpoint of the segment
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
         """
-
-        super().__init__(body, density, friction, restitution, is_sensor)
-        segment_def = ffi.new("b2Segment*")
-        segment_def.point1.x, segment_def.point1.y = point1
-        segment_def.point2.x, segment_def.point2.y = point2
-        self._shape_id = lib.b2CreateSegmentShape(
-            body._body_id, ffi.addressof(self._shape_def), segment_def
+        Create and attach a segment shape to a body.
+        The parameters are the same as the previous initializer.
+        """
+        shapedef = SegmentDef(
+            point1, point2, density, friction, restitution, is_sensor, collision_filter
         )
-        self._finalize()
+        return cls(body, shapedef)
 
 
 class Polygon(Shape):
-    """A convex polygon shape that can be attached to a body."""
+    """
+    A convex polygon shape that can be attached to a body.
+    """
 
-    def __init__(
-        self,
+    def __init__(self, body, shapedef):
+        """
+        Initialize a Polygon shape from a body and a PolygonDef instance.
+        """
+        super().__init__(body, shapedef)
+        # Note: shapedef.polygon is the geometry computed (via b2MakePolygon)
+        self._shape_id = lib.b2CreatePolygonShape(
+            body._body_id,
+            ffi.addressof(shapedef.shapedef),
+            ffi.addressof(shapedef.polygon),
+        )
+        self._finalize()
+
+    @classmethod
+    def create(
+        cls,
         body,
         vertices,
         radius=0.0,
@@ -207,50 +224,33 @@ class Polygon(Shape):
         friction=None,
         restitution=None,
         is_sensor=None,
+        collision_filter=None,
     ):
-        """Create a polygon shape.
-
-        Args:
-            body: The Body instance to attach this shape to
-            vertices: List of points that define the polygon shape
-            radius: The radius of the rounded corners (default: 0.0)
-            density: Mass density (kg/m²).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-            is_sensor: Whether this shape is a sensor.
         """
-
-        super().__init__(body, density, friction, restitution, is_sensor)
-
-        # Convert vertices to b2Vec2 array
-        point_count = len(vertices)
-        if point_count < 3 or point_count > 8:
-            raise ValueError("Polygon must have 3-8 vertices")
-
-        points = ffi.new("b2Vec2[]", point_count)
-        for i, v in enumerate(vertices):
-            points[i].x, points[i].y = v
-
-        # Compute convex hull
-        hull = lib.b2ComputeHull(points, point_count)
-        if hull.count == 0:
-            raise ValueError("Failed to compute convex hull from vertices")
-
-        # Create rounded polygon from hull
-        polygon_def = lib.b2MakePolygon(ffi.addressof(hull), radius)
-
-        self._handle = ffi.addressof(self._shape_def)
-        self._shape_id = lib.b2CreatePolygonShape(
-            body._body_id, self._handle, ffi.addressof(polygon_def)
+        Create and attach a polygon shape to a body.
+        The parameters are the same as the previous initializer.
+        """
+        shapedef = PolygonDef(
+            vertices,
+            radius,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
-        self._finalize()
+        return cls(body, shapedef)
 
 
 class Box(Polygon):
-    """A rectangular box shape that can be attached to a body, with support for offset positioning and rotation."""
+    """
+    A box (rectangle) shape that can be attached to a body.
+    Inherits from Polygon since a box is a special case of a convex polygon.
+    """
 
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         body,
         width,
         height,
@@ -261,110 +261,59 @@ class Box(Polygon):
         friction=None,
         restitution=None,
         is_sensor=None,
+        collision_filter=None,
     ):
-        """Create a box shape with optional offset and rotation.
-
-        Args:
-            body: Body to attach this shape to
-            width: Total width of the box
-            height: Total height of the box
-            radius: Radius for rounded corners (default: 0)
-            offset: Center offset from body position (Vec2/tuple)
-            angle: Rotation angle in radians (default: 0)
-            density: Mass density
-            friction: Friction coefficient
-            restitution: Bounciness
-            is_sensor: Sensor flag
         """
-        hw = width / 2 - radius
-        hh = height / 2 - radius
-        base_vertices = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
-
-        transform = Transform(position=offset, rotation=angle)
-        transformed_vertices = [transform(v) for v in base_vertices]
-
-        super().__init__(
-            body=body,
-            vertices=transformed_vertices,
-            radius=radius,
-            density=density,
-            friction=friction,
-            restitution=restitution,
-            is_sensor=is_sensor,
+        Create and attach a box shape to a body.
+        The parameters are the same as the previous initializer.
+        """
+        shapedef = BoxDef(
+            width,
+            height,
+            offset,
+            radius,
+            angle,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
         )
+        return cls(body, shapedef)
 
 
-class Chain(Shape):
-    """A chain shape that can be attached to a body.
-
-    Represents a chain of connected line segments defined by a list of vertices.
-    Chain shapes are useful for creating static boundaries (e.g. roads or platforms)
-    in the simulation. They can be open or closed (looped). Note that at least 4
-    vertices are required.
+class Chain:
+    """
+    A chain shape that can be attached to a body.
+    Chain shapes are not a subclass of Shape and do not have the common shape methods
+    because they are typically used for static boundaries and have no density/sensor properties.
     """
 
-    def __init__(
-        self,
+    def __init__(self, body, shapedef):
+        self._body = body
+        # Note: Do not call _finalize because chain shapes do not require user data setup.
+        self._shape_id = lib.b2CreateChain(
+            body._body_id, ffi.addressof(shapedef.shapedef)
+        )
+
+    @classmethod
+    def create(
+        cls,
         body,
         vertices,
         loop=False,
         friction=None,
         restitution=None,
+        collision_filter=None,
     ):
         """
-        Create a chain shape.
-
-        Args:
-            body: The Body instance this shape will be attached to.
-            vertices: List of points (each as a tuple or any VectorLike) defining the chain.
-                      Must contain at least 4 vertices.
-            loop: Boolean indicating whether the chain should be closed (looped).
-            friction: Friction coefficient.
-            restitution: Bounciness (0-1).
-
-        Raises:
-            ValueError: If vertices contain fewer than 4 points.
+        Create and attach a chain shape to a body.
+        The parameters are the same as the previous initializer.
         """
-        # Chain shapes have no density; they are generally attached to static bodies.
-        super().__init__(
-            body,
-            density=None,
-            friction=friction,
-            restitution=restitution,
-            is_sensor=None,
-        )
-
-        if len(vertices) < 4:
-            raise ValueError(
-                f"Chain shape requires at least 4 vertices; received {len(vertices)}."
-            )
-
-        # Convert vertices to a b2Vec2 array expected by Box2D.
-        point_count = len(vertices)
-        vertices = [tuple(v) for v in vertices]  # Ensure each vertex is a tuple.
-        points = ffi.new("b2Vec2[]", point_count)
-        for i, v in enumerate(vertices):
-            points[i].x, points[i].y = v
-
-        # Create a chain definition from Box2D.
-        chain_def = lib.b2DefaultChainDef()
-        chain_def.points = points
-        chain_def.count = point_count
-        chain_def.isLoop = loop
-
-        if friction is not None:
-            chain_def.friction = friction
-        if restitution is not None:
-            chain_def.restitution = restitution
-
-        self._shape_def = chain_def
-        self._shape_id = lib.b2CreateChain(body._body_id, ffi.addressof(chain_def))
-        # self._finalize()
+        shapedef = ChainDef(vertices, loop, friction, restitution, collision_filter)
+        return cls(body, shapedef)
 
     @property
-    def is_sensor(self):
-        raise AttributeError("Chain shapes cannot be sensors")
-
-    @is_sensor.setter
-    def is_sensor(self, value):
-        raise AttributeError("Chain shapes cannot be sensors")
+    def body(self):
+        """Return the body this chain is attached to."""
+        return self._body
