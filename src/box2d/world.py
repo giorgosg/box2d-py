@@ -5,6 +5,32 @@ from .body import BodyBuilder, Body
 from .joint import MouseJoint
 from .math import Vec2, VectorLike, AABB
 from .debug_draw import DebugDraw
+from .collision_filter import CollisionFilter
+
+
+def make_overlap_callback(results: list, max_results: int = None):
+    """
+    Create an overlap callback that appends detected shapes to the results
+    list and stops querying when max_results is reached.
+
+    Args:
+        results: A list to collect overlapping shapes.
+        max_results: Optional maximum number of shapes to collect. Once reached,
+                     the callback returns False to stop further processing.
+
+    Returns:
+        A Box2D-compatible callback function.
+    """
+
+    @ffi.callback("bool(b2ShapeId, void*)")
+    def overlap_callback(shape_id, _):
+        shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
+        results.append(shape)
+        if max_results is not None and len(results) >= max_results:
+            return False  # Stop querying further shapes
+        return True  # Continue querying
+
+    return overlap_callback
 
 
 class World:
@@ -148,44 +174,59 @@ class World:
         """
         lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
 
-    def query_aabb(self, aabb: AABB) -> list:
-        """Find shapes overlapping axis-aligned bounding box.
+    def query_aabb(
+        self,
+        aabb: AABB,
+        collision_filter: "CollisionFilter" = None,
+        max_results: int = None,
+    ) -> list:
+        """Find shapes overlapping an axis-aligned bounding box using an optional collision filter.
 
         Args:
-            aabb: Axis-aligned bounding box to query
+            aabb: Axis-aligned bounding box to query.
+            collision_filter: Optional CollisionFilter instance for filtering.
+                          If None, a default CollisionFilter is used.
+            max_results: Optional maximum number of shapes to return.
+                     The callback will return False when this limit is reached.
 
         Returns:
-            list: Shapes with overlapping fixtures
+            list: Shapes with overlapping fixtures.
 
         Example:
             >>> world = World()
-            >>> box = world.new_body().dynamic().position(0,0).box(1,1).build()
-            >>> aabb = AABB(lower=(-1,-1), upper=(1,1))
-            >>> overlaps = world.query_aabb(aabb)
-            >>> len(overlaps) > 0
+            >>> box = world.new_body().dynamic().position(0, 0).box(1, 1).build()
+            >>> aabb = AABB(lower=Vec2(-1, -1), upper=Vec2(1, 1))
+            >>> overlaps = world.query_aabb(aabb, collision_filter=CollisionFilter(), max_results=10)
+            >>> len(overlaps) <= 10
             True
         """
+
+        if collision_filter is None:
+            collision_filter = CollisionFilter()
+
         results = []
+        overlap_callback = make_overlap_callback(results, max_results)
 
-        @ffi.callback("bool(b2ShapeId, void*)")
-        def _overlap_callback(shape_id, _):
-            shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
-            results.append(shape)
-            return True  # Continue querying
+        # Convert the CollisionFilter to a Box2D c_filter.
+        c_filter = collision_filter.to_c_filter()
+        filter_dict = {
+            "categoryBits": c_filter.categoryBits,
+            "maskBits": c_filter.maskBits,
+        }
 
-        # Use a default filter
-        c_filter = lib.b2DefaultQueryFilter()
+        world_aabb = {
+            "lowerBound": {"x": aabb.lower.x, "y": aabb.lower.y},
+            "upperBound": {"x": aabb.upper.x, "y": aabb.upper.y},
+        }
 
         lib.b2World_OverlapAABB(
             self._world_id,
-            {
-                "lowerBound": {"x": aabb.lower.x, "y": aabb.lower.y},
-                "upperBound": {"x": aabb.upper.x, "y": aabb.upper.y},
-            },
-            {"categoryBits": 0x0001, "maskBits": 0xFFFF},
-            _overlap_callback,
+            world_aabb,
+            filter_dict,
+            overlap_callback,
             ffi.NULL,
         )
+
         return results
 
     def destroy(self):
