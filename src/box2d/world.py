@@ -3,9 +3,10 @@
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
 from .joint import MouseJoint
-from .math import Vec2, VectorLike, AABB
+from .math import Vec2, VectorLike, AABB, Transform
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
+from .shape_def import CircleDef
 
 
 def make_overlap_callback(results: list, max_results: int = None):
@@ -208,25 +209,67 @@ class World:
         overlap_callback = make_overlap_callback(results, max_results)
 
         # Convert the CollisionFilter to a Box2D c_filter.
-        c_filter = collision_filter.to_c_filter()
+        c_filter = collision_filter.b2QueryFilter
         filter_dict = {
             "categoryBits": c_filter.categoryBits,
             "maskBits": c_filter.maskBits,
         }
 
-        world_aabb = {
-            "lowerBound": {"x": aabb.lower.x, "y": aabb.lower.y},
-            "upperBound": {"x": aabb.upper.x, "y": aabb.upper.y},
-        }
-
         lib.b2World_OverlapAABB(
             self._world_id,
-            world_aabb,
-            filter_dict,
+            aabb.b2AABB[0],
+            c_filter[0],
             overlap_callback,
             ffi.NULL,
         )
+        return results
 
+    def query_circle(
+        self,
+        position: VectorLike,
+        radius: float,
+        collision_filter: "CollisionFilter" = None,
+        max_results: int = None,
+    ) -> list:
+        """Find shapes overlapping a circle.
+
+        Args:
+            position: Center of the query circle in world coordinates.
+            radius: Radius of the query circle.
+            collision_filter: Optional CollisionFilter instance for filtering.
+                              If None, a default CollisionFilter is used.
+            max_results: Optional maximum number of shapes to return.
+                         The callback will return False when this limit is reached.
+
+        Returns:
+            list: Shapes with overlapping fixtures.
+
+        Example:
+            >>> world = World()
+            >>> # Create a body with a circle fixture
+            >>> box = world.new_body().dynamic().circle(1).build()
+            >>> overlaps = world.query_circle((0, 0), 1.5, collision_filter=CollisionFilter(), max_results=10)
+            >>> len(overlaps) <= 10
+            True
+        """
+        if collision_filter is None:
+            collision_filter = CollisionFilter()
+
+        results = []
+        overlap_callback = make_overlap_callback(results, max_results)
+
+        circle = CircleDef(radius).circle
+        transform = Transform(position=position).b2Transform
+        c_filter = collision_filter.b2QueryFilter
+
+        lib.b2World_OverlapCircle(
+            self._world_id,
+            circle,
+            transform[0],
+            c_filter[0],
+            overlap_callback,
+            ffi.NULL,
+        )
         return results
 
     def destroy(self):

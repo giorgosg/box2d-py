@@ -2,6 +2,7 @@ from box2d._box2d import lib, ffi
 from .math import Vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .shape_def import PolygonDef
+from .collision_filter import CollisionFilter
 
 
 class BodyBuilder:
@@ -11,8 +12,8 @@ class BodyBuilder:
         >>> body = world.new_body()
         >>> body.dynamic()
         >>> body.position(2, 3)
-        >>> body.box(half_x=1, half_y=0.5)
-        >>> body.circle(radius=0.5, offset=(1, 0))
+        >>> body.box(width=2, height=1)
+        >>> body.circle(radius=0.5, center=(1, 0))
         >>> body = body.build()
     """
 
@@ -20,7 +21,7 @@ class BodyBuilder:
         """Initialize the BodyBuilder with the world context.
 
         Args:
-            world: The World instance where the body will be created
+            world: The World instance where the body will be created.
         """
         self.world = world
         self._def = lib.b2DefaultBodyDef()
@@ -210,21 +211,23 @@ class BodyBuilder:
         friction: float = 0.2,
         restitution: float = 0.0,
         is_sensor: bool = False,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a box shape to the body during construction.
 
         Args:
-            width: Full width of the box
-            height: Full height of the box
-            radius: The radius of the rounded corners (default: 0.0)
-            offset: The offset of the box from the body's position (default: (0,0))
-            angle: The angle of the box (default: 0.0)
-            density: Mass density (kg/m²)
-            friction: Friction coefficient (0-1)
-            restitution: Bounciness (0-1)
-            is_sensor: True for sensor shape (no collision response)
+            width: Full width of the box.
+            height: Full height of the box.
+            radius: The radius of the rounded corners (default: 0.0).
+            offset: The offset of the box from the body's position (default: (0, 0)).
+            angle: The angle of the box (default: 0.0).
+            density: Mass density (kg/m²).
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            is_sensor: True for sensor shape (no collision response).
+            collision_filter: Optional CollisionFilter instance for collision filtering.
         Returns:
-            self for method chaining
+            Self for method chaining.
         """
         self._shape_defs.append(
             {
@@ -238,6 +241,7 @@ class BodyBuilder:
                     "friction": friction,
                     "restitution": restitution,
                     "is_sensor": is_sensor,
+                    "collision_filter": collision_filter,
                 },
             }
         )
@@ -251,18 +255,20 @@ class BodyBuilder:
         friction: float = 0.2,
         restitution: float = 0.0,
         is_sensor: bool = False,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a circle shape to the body during construction.
 
         Args:
-            radius: Radius of the circle
-            center: Local center position (x,y)
-            density: Mass density (kg/m²)
-            friction: Friction coefficient (0-1)
-            restitution: Bounciness (0-1)
-            is_sensor: True for sensor shape
+            radius: Radius of the circle.
+            center: Local center position (x, y).
+            density: Mass density (kg/m²).
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            is_sensor: True for sensor shape.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
         Returns:
-            self for method chaining
+            Self for method chaining.
         """
         self._shape_defs.append(
             {
@@ -273,6 +279,7 @@ class BodyBuilder:
                     "friction": friction,
                     "restitution": restitution,
                     "is_sensor": is_sensor,
+                    "collision_filter": collision_filter,
                 },
             }
         )
@@ -287,17 +294,21 @@ class BodyBuilder:
         friction: float = 0.2,
         restitution: float = 0.0,
         is_sensor: bool = False,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a vertical capsule shape (cylinder with hemispherical ends).
 
         Args:
-            point1: The first endpoint of the capsule
-            point2: The second endpoint of the capsule
-            radius: Radius of the hemispherical ends
-            density: Mass density (kg/m²)
-            friction: Friction coefficient (0-1)
-            restitution: Bounciness (0-1)
-            is_sensor: True for sensor shape
+            point1: The first endpoint of the capsule.
+            point2: The second endpoint of the capsule.
+            radius: Radius of the hemispherical ends.
+            density: Mass density (kg/m²).
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            is_sensor: True for sensor shape.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+        Returns:
+            Self for method chaining.
         """
         self._shape_defs.append(
             {
@@ -308,6 +319,7 @@ class BodyBuilder:
                     "friction": friction,
                     "restitution": restitution,
                     "is_sensor": is_sensor,
+                    "collision_filter": collision_filter,
                 },
             }
         )
@@ -321,6 +333,7 @@ class BodyBuilder:
         friction: float = 0.2,
         restitution: float = 0.0,
         is_sensor: bool = False,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a convex polygon shape.
 
@@ -328,20 +341,19 @@ class BodyBuilder:
         if the provided vertices do not form a valid convex polygon.
 
         Args:
-            vertices: List of points that define the polygon shape
-            radius: The radius of the rounded corners (default: 0.0)
-            density: Mass density (kg/m²)
-            friction: Friction coefficient (0-1)
-            restitution: Bounciness (0-1)
-            is_sensor: True for sensor shape
-
+            vertices: List of points that define the polygon shape.
+            radius: The radius of the rounded corners (default: 0.0).
+            density: Mass density (kg/m²).
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            is_sensor: True for sensor shape.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+        Returns:
+            Self for method chaining.
         Raises:
             Exception: If the vertices cannot form a convex polygon.
         """
-        # Compute the convex hull of the polygon so an exception is raised
-        # at the function call if the points do not form a convex polygon.
-        # vertices = convex_hull(vertices)
-        # hack for now. just check by creating a PolygonDef. it should raise an exception if not convex.
+        # Validate convexity (this will raise an exception if the polygon is not convex)
         PolygonDef(vertices)
         self._shape_defs.append(
             {
@@ -353,6 +365,7 @@ class BodyBuilder:
                     "friction": friction,
                     "restitution": restitution,
                     "is_sensor": is_sensor,
+                    "collision_filter": collision_filter,
                 },
             }
         )
@@ -366,16 +379,20 @@ class BodyBuilder:
         friction: float = 0.2,
         restitution: float = 0.0,
         is_sensor: bool = False,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a line segment shape with optional edge radius.
 
         Args:
-            start: Starting point (x,y) in local coordinates
-            end: Ending point (x,y) in local coordinates
-            density: Typically 0 for static segments
-            friction: Friction coefficient (0-1)
-            restitution: Bounciness (0-1)
-            is_sensor: True for sensor shape
+            start: Starting point (x, y) in local coordinates.
+            end: Ending point (x, y) in local coordinates.
+            density: Typically 0 for static segments.
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            is_sensor: True for sensor shape.
+            collision_filter: Optional CollisionFilter instance for collision filtering.
+        Returns:
+            Self for method chaining.
         """
         self._shape_defs.append(
             {
@@ -386,6 +403,7 @@ class BodyBuilder:
                     "friction": friction,
                     "restitution": restitution,
                     "is_sensor": is_sensor,
+                    "collision_filter": collision_filter,
                 },
             }
         )
@@ -397,17 +415,18 @@ class BodyBuilder:
         loop: bool = False,
         friction: float = 0.2,
         restitution: float = 0.0,
+        collision_filter: CollisionFilter = None,
     ):
         """Add a chain shape to the body during construction.
 
         Args:
             vertices: List of points that define the chain shape. Must contain at least 4 vertices.
             loop: Boolean indicating whether the chain should be closed (looped). Default is False.
-            friction: Friction coefficient (0-1). Default is 0.2.
-            restitution: Bounciness (0-1). Default is 0.0.
-
+            friction: Friction coefficient (0-1).
+            restitution: Bounciness (0-1).
+            collision_filter: Optional CollisionFilter instance for collision filtering.
         Returns:
-            self for method chaining.
+            Self for method chaining.
         """
         self._shape_defs.append(
             {
@@ -417,6 +436,7 @@ class BodyBuilder:
                     "loop": loop,
                     "friction": friction,
                     "restitution": restitution,
+                    "collision_filter": collision_filter,
                 },
             }
         )

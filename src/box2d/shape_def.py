@@ -62,7 +62,7 @@ class ShapeDef:
         if is_sensor is not None:
             self.shapedef.isSensor = is_sensor
         if collision_filter is not None:
-            c_filter = collision_filter.to_c_filter()
+            c_filter = collision_filter.b2Filter
             # Copy the filter bits into the b2ShapeDef.filter field.
             self.shapedef.filter.categoryBits = c_filter.categoryBits
             self.shapedef.filter.maskBits = c_filter.maskBits
@@ -325,7 +325,7 @@ class ChainDef:
         if restitution is not None:
             chain_def.restitution = restitution
         if collision_filter is not None:
-            c_filter = collision_filter.to_c_filter()
+            c_filter = collision_filter.b2Filter
             chain_def.filter.categoryBits = c_filter.categoryBits
             chain_def.filter.maskBits = c_filter.maskBits
             chain_def.filter.groupIndex = c_filter.groupIndex

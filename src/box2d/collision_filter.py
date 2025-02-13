@@ -333,7 +333,8 @@ class CollisionFilter:
         self.group = group
         return self
 
-    def to_c_filter(self):
+    @property
+    def b2Filter(self):
         """
         Convert this CollisionFilter into a Box2D b2Filter C structure.
 
@@ -342,7 +343,7 @@ class CollisionFilter:
 
         Example:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
-            >>> c_filter = CollisionFilter(category="player", mask="enemy", group=0, registry=reg).to_c_filter()
+            >>> c_filter = CollisionFilter(category="player", mask="enemy", group=0, registry=reg).b2Filter
             >>> c_filter.categoryBits == 1
             True
             >>> c_filter.maskBits == 2
@@ -354,6 +355,27 @@ class CollisionFilter:
         c_filter.categoryBits = self.category
         c_filter.maskBits = self.mask
         c_filter.groupIndex = self.group
+        return c_filter
+
+    @property
+    def b2QueryFilter(self):
+        """
+        Convert this CollisionFilter into a Box2D b2QueryFilter C structure. The group is not included in the query filter.
+
+        Returns:
+            b2QueryFilter: A newly created b2QueryFilter structure with the appropriate category and mask values.
+
+        Example:
+            >>> reg = CollisionCategoryRegistry(auto_create=True)
+            >>> c_filter = CollisionFilter(category="player", mask="enemy", group=0, registry=reg).b2QueryFilter
+            >>> c_filter.categoryBits == 1
+            True
+            >>> c_filter.maskBits == 2
+            True
+        """
+        c_filter = ffi.new("b2QueryFilter*")
+        c_filter.categoryBits = self.category
+        c_filter.maskBits = self.mask
         return c_filter
 
     def __or__(self, other: "CollisionFilter") -> "CollisionFilter":

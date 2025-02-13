@@ -267,3 +267,177 @@ def test_recreate_multiple_worlds_after_destroying_active_bodies():
                 final_val > init_val
             ), f"For gravity {g}, expected {axis} coordinate to increase (from {init_val} to {final_val})."
         new_world.destroy()
+
+
+import pytest
+from box2d import World, AABB, CollisionFilter
+
+
+def test_query_aabb_filter_player():
+    """
+    Create two overlapping bodies at (1,1) each with a box shape.
+    One uses a custom 'player' collision filter and the other an 'enemy' filter.
+    When querying the AABB with a query filter set to "player", only the player's
+    shape should be returned.
+    """
+    w = World()
+
+    # Create custom collision filters.
+    player_filter = CollisionFilter(category="player", mask="player")
+    enemy_filter = CollisionFilter(category="enemy", mask="enemy")
+
+    # Create two overlapping bodies.
+    player_body = (
+        w.new_body()
+        .dynamic()
+        .position(1, 1)
+        .box(width=1, height=1, collision_filter=player_filter)
+        .build()
+    )
+    enemy_body = (
+        w.new_body()
+        .dynamic()
+        .position(1, 1)
+        .box(width=1, height=1, collision_filter=enemy_filter)
+        .build()
+    )
+
+    # Define an AABB region that covers the bodies.
+    aabb = AABB(lower=(0.5, 0.5), upper=(1.5, 1.5))
+
+    # Query AABB using a filter for "player" only.
+    query_filter = CollisionFilter(category="player", mask="player")
+    results = w.query_aabb(aabb, collision_filter=query_filter)
+
+    # Expect only the player's shape to appear.
+    for shape in player_body.shapes:
+        assert shape in results, "Player shape should be in query results."
+    for shape in enemy_body.shapes:
+        assert (
+            shape not in results
+        ), "Enemy shape must not be returned when filtering for 'player'."
+
+    w.destroy()
+
+
+def test_query_aabb_filter_enemy():
+    """
+    Similar to the previous test but query with an "enemy" filter.
+    Only the enemy body's shape should be returned from the AABB query.
+    """
+    w = World()
+
+    # Custom filters.
+    player_filter = CollisionFilter(category="player", mask="player")
+    enemy_filter = CollisionFilter(category="enemy", mask="enemy")
+
+    # Both bodies are overlapping at (1,1).
+    player_body = (
+        w.new_body()
+        .dynamic()
+        .position(1, 1)
+        .box(width=1, height=1, collision_filter=player_filter)
+        .build()
+    )
+    enemy_body = (
+        w.new_body()
+        .dynamic()
+        .position(1, 1)
+        .box(width=1, height=1, collision_filter=enemy_filter)
+        .build()
+    )
+
+    aabb = AABB(lower=(0.5, 0.5), upper=(1.5, 1.5))
+
+    # Query using an "enemy" filter.
+    query_filter = CollisionFilter(category="enemy", mask="enemy")
+    results = w.query_aabb(aabb, collision_filter=query_filter)
+
+    for shape in enemy_body.shapes:
+        assert shape in results, "Enemy shape should be in query results."
+    for shape in player_body.shapes:
+        assert (
+            shape not in results
+        ), "Player shape must not be returned when filtering for 'enemy'."
+
+    w.destroy()
+
+
+def test_query_circle_filter_single():
+    """
+    Create two bodies with circle shapes.
+    Place the "friend" body at (0,0) and an "enemy" body farther away.
+    Query with a circle query (center (0,0), radius 1.5) using a filter for "friend"
+    so that only the friend body's shape is returned.
+    """
+    w = World()
+
+    friend_filter = CollisionFilter(category="friend", mask="friend")
+    enemy_filter = CollisionFilter(category="enemy", mask="enemy")
+
+    friend_body = (
+        w.new_body()
+        .dynamic()
+        .position(0, 0)
+        .circle(radius=1, collision_filter=friend_filter)
+        .build()
+    )
+    enemy_body = (
+        w.new_body()
+        .dynamic()
+        .position(3, 0)  # Placed away so that it is out of the query circle.
+        .circle(radius=1, collision_filter=enemy_filter)
+        .build()
+    )
+
+    query_filter = CollisionFilter(category="friend", mask="friend")
+    results = w.query_circle(position=(0, 0), radius=1.5, collision_filter=query_filter)
+
+    for shape in friend_body.shapes:
+        assert shape in results, "Friend shape should be returned by the circle query."
+    for shape in enemy_body.shapes:
+        assert (
+            shape not in results
+        ), "Enemy shape should not be returned (either by filter or distance)."
+
+    w.destroy()
+
+
+def test_query_circle_combined_filter():
+    """
+    Create two overlapping bodies (both at (0,0)) with circle shapes.
+    One is filtered as "friend" and the other as "enemy". Combine the filters
+    using the overloaded | operator so that a query will return shapes from both bodies.
+    """
+    w = World()
+
+    friend_filter = CollisionFilter(category="friend", mask="friend")
+    enemy_filter = CollisionFilter(category="enemy", mask="enemy")
+
+    friend_body = (
+        w.new_body()
+        .dynamic()
+        .position(0, 0)
+        .circle(radius=1, collision_filter=friend_filter)
+        .build()
+    )
+    enemy_body = (
+        w.new_body()
+        .dynamic()
+        .position(0, 0)
+        .circle(radius=1, collision_filter=enemy_filter)
+        .build()
+    )
+
+    # Combine the filters so that both categories are allowed.
+    combined_filter = friend_filter | enemy_filter
+    results = w.query_circle(
+        position=(0, 0), radius=1.5, collision_filter=combined_filter
+    )
+
+    for shape in friend_body.shapes:
+        assert shape in results, "Friend shape should appear in the combined query."
+    for shape in enemy_body.shapes:
+        assert shape in results, "Enemy shape should appear in the combined query."
+
+    w.destroy()

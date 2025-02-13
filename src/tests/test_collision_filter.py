@@ -140,7 +140,7 @@ def test_to_c_filter():
     """Test that to_c_filter creates a C structure with the same category, mask and group values."""
     reg = CollisionCategoryRegistry(auto_create=True)
     f = CollisionFilter(category="foo", mask="bar", group=7, registry=reg)
-    c_filter = f.to_c_filter()
+    c_filter = f.b2Filter
     assert c_filter.categoryBits == f.category
     assert c_filter.maskBits == f.mask
     assert c_filter.groupIndex == f.group
