@@ -431,3 +431,92 @@ def test_polygon_shape():
     world = World()
     body = world.new_body().polygon([(-1, 0), (0, 1), (1, 0)]).build()
     assert len(body.shapes) == 1
+
+
+def test_body_properties_get_set():
+    import pytest
+    from box2d import World, Vec2
+
+    # Create a world with a non-zero gravity (helps testing gravity scale)
+    world = World(gravity=(0, -10))
+
+    # Create a dynamic body with initial properties via the builder chain
+    body = (
+        world.new_body()
+        .dynamic()
+        .position(5, 10)
+        .linear_velocity(2, 3)
+        .angular_velocity(1.0)
+        .fixed_rotation(False)
+        .gravity_scale(1.5)
+        .bullet(False)
+        .linear_damping(0.1)
+        .angular_damping(0.2)
+        .sleep_threshold(0.05)
+        .build()
+    )
+
+    # Check the initial properties as set by the builder
+    assert body.position == Vec2(5, 10)
+    assert body.linear_velocity == Vec2(2, 3)
+    assert body.angular_velocity == pytest.approx(1.0)
+    assert body.linear_damping == pytest.approx(0.1)
+    assert body.angular_damping == pytest.approx(0.2)
+    assert body.sleep_threshold == pytest.approx(0.05)
+    assert body.type == "dynamic"
+    assert body.fixed_rotation == False
+    assert body.is_bullet == False
+    assert body.gravity_scale == pytest.approx(1.5)
+
+    # Test modifying properties after construction
+
+    # Update position
+    body.position = (7, 7)
+    assert body.position == Vec2(7, 7)
+
+    # Update velocities
+    body.linear_velocity = (4, 5)
+    assert body.linear_velocity == Vec2(4, 5)
+
+    body.angular_velocity = 2.0
+    assert body.angular_velocity == pytest.approx(2.0)
+
+    # Update damping values
+    body.linear_damping = 0.3
+    assert body.linear_damping == pytest.approx(0.3)
+
+    body.angular_damping = 0.4
+    assert body.angular_damping == pytest.approx(0.4)
+
+    # Update sleep threshold
+    body.sleep_threshold = 0.1
+    assert body.sleep_threshold == pytest.approx(0.1)
+
+    # Modify fixed rotation and bullet flags
+    body.fixed_rotation = True
+    assert body.fixed_rotation is True
+
+    body.is_bullet = True
+    assert body.is_bullet is True
+
+    # Update gravity scale
+    body.gravity_scale = 2.0
+    assert body.gravity_scale == pytest.approx(2.0)
+
+    # Test awake state: first set to False then back to True
+    body.awake = False
+    assert body.awake is False
+
+    body.awake = True
+    assert body.awake is True
+
+    # Test enabled state: disable then re-enable
+    body.enabled = False
+    assert body.enabled is False
+
+    body.enabled = True
+    assert body.enabled is True
+
+    # Test rotation property: set the rotation to ~90° (1.5708 radians)
+    body.rotation = 1.5708
+    assert body.rotation == pytest.approx(1.5708)

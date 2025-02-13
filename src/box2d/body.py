@@ -1,5 +1,5 @@
 from box2d._box2d import lib, ffi
-from .math import Vec2
+from .math import Vec2, Rot
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .shape_def import PolygonDef
 from .collision_filter import CollisionFilter
@@ -601,6 +601,66 @@ class Body:
     def gravity_scale(self, value):
         """Set the gravity scale factor for this body."""
         lib.b2Body_SetGravityScale(self._body_id, value)
+
+    @property
+    def awake(self):
+        """Get the awake state of the body.
+
+        Returns:
+            bool: True if the body is awake, False otherwise.
+        """
+        return lib.b2Body_IsAwake(self._body_id)
+
+    @awake.setter
+    def awake(self, value: bool):
+        """Set the awake state of the body.
+
+        Args:
+            value (bool): True to wake the body, False to put the body to sleep.
+        """
+        lib.b2Body_SetAwake(self._body_id, value)
+
+    @property
+    def enabled(self):
+        """Get whether the body is enabled.
+
+        Returns:
+            bool: True if the body is enabled, False otherwise.
+        """
+        return lib.b2Body_IsEnabled(self._body_id)
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        """Set whether the body is enabled.
+
+        Args:
+            value (bool): True to enable the body, False to disable it.
+        """
+        if value:
+            lib.b2Body_Enable(self._body_id)
+        else:
+            lib.b2Body_Disable(self._body_id)
+
+    @property
+    def rotation(self):
+        """Get the world rotation of the body in radians.
+
+        Returns:
+            float: The body's rotation angle in radians.
+        """
+        rot = lib.b2Body_GetRotation(self._body_id)
+        return Rot.from_b2Rot(rot).angle_radians
+
+    @rotation.setter
+    def rotation(self, angle: float):
+        """Set the world rotation of the body in radians.
+
+        Args:
+            angle (float): The new rotation angle in radians.
+        """
+        pos = lib.b2Body_GetPosition(self._body_id)
+        rot = Rot(angle).b2Rot
+        lib.b2Body_SetTransform(self._body_id, pos, rot[0])
 
     def apply_force(self, force, point=None, wake=True):
         """Apply a force at a world point.

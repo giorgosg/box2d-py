@@ -165,13 +165,11 @@ class MouseJoint(Joint):
             hertz: Spring stiffness in Hz (higher = stiffer movement)
         """
 
-        # Auto-create static body for joint anchor
-        self._ground_body = world.new_body().static().position(0, 0).build()
         self._target = Vec2(*target)
         self._max_force = max_force
         self._damping_ratio = damping_ratio
         self._hertz = hertz
-        super().__init__(world, self._ground_body, body)
+        super().__init__(world, body, body)
         self.wake_bodies()
 
     def _create_joint_def(self, body_a, body_b, collide_connected):
@@ -192,6 +190,10 @@ class MouseJoint(Joint):
             self.world._world_id, ffi.addressof(self._def)
         )
         super()._create_joint()
+
+    def destroy(self):
+        """Destroy the joint and remove it from the world."""
+        super().destroy()
 
     @property
     def target(self):
