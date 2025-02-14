@@ -157,8 +157,8 @@ def test_revolute_joint_via_world_method(world_and_bodies):
     revolute_joint = world.add_revolute_joint(
         body_a=body_a,
         body_b=body_b,
-        anchor_a=(0, 0),
-        anchor_b=(1, 1),
+        local_anchor_a=(0, 0),
+        local_anchor_b=(1, 1),
         collide_connected=True,
         lower_angle=-0.5,
         upper_angle=0.5,

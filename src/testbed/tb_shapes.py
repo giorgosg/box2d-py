@@ -3,7 +3,6 @@
 from base_test import BaseTest, UIElement
 from itertools import product
 from shared import create_random_polygon
-import dearpygui.dearpygui as dpg
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):

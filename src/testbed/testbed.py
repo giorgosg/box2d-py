@@ -5,7 +5,7 @@ import dearpygui.dearpygui as dpg
 from box2d import World, Vec2, ScaledTransform
 from base_test import get_first_test, get_all_tests
 from debug_draw_dpg import DearpyguiDebugDraw
-import tb_sample, tb_shapes, tb_benchmark
+import tb_sample, tb_shapes, tb_benchmark, tb_joints
 
 from dpg_ui import TestbedUI
 
