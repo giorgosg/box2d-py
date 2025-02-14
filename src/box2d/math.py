@@ -14,14 +14,13 @@ class VectorLike(Protocol):
       - Have a length of exactly 2.
     """
 
-    def __getitem__(self, index: int) -> float:
-        ...
+    # fmt: off
+    def __getitem__(self, index: int) -> float: ...
 
-    def __iter__(self) -> Iterator[float]:
-        ...
+    def __iter__(self) -> Iterator[float]: ...
 
-    def __len__(self) -> int:
-        ...
+    def __len__(self) -> int: ...
+    # fmt: on
 
 
 def ensure_two_elements(vec: VectorLike) -> None:
