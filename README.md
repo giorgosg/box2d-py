@@ -32,12 +32,11 @@ box2d-testbed
 from box2d import World, Vec2
 # Create physics world
 world = World(gravity=(0, -9.81))
-# Create dynamic body
-body = world.new_body() \
-    .dynamic() \
-    .position(0, 5) \
-    .box(1, 1) \
-    .build()
+# Create static ground body
+ground = world.new_body().static().position((0, -5)).box(1, 10).build()
+# Create dynamic bodies
+bodybuilder = world.new_body().dynamic().box(0.5, 0.5)
+bodies = [bodybuilder.position((x, 5)).build() for x in range(-5, 5)]
 # Simulation loop
 for _ in range(60):
     world.step(1/60, 4)
