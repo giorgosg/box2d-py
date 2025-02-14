@@ -1,7 +1,7 @@
 # tests/test_joints.py
 
 import pytest
-from box2d import World, Vec2
+from box2d import World, Vec2, MouseJoint, WeldJoint
 from box2d._box2d import lib
 from pytest import approx
 
@@ -19,8 +19,12 @@ def test_mouse_joint_creation(world_and_bodies):
     world, body_a, body_b = world_and_bodies
     initial_target = Vec2(1, 0)
 
-    joint = world.add_mouse_joint(
-        body=body_a, target=initial_target, max_force=500.0, damping_ratio=0.5
+    joint = MouseJoint(
+        world=world,
+        body=body_a,
+        target=initial_target,
+        max_force=500.0,
+        damping_ratio=0.5,
     )
 
     # Verify joint properties
