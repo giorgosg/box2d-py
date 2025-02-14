@@ -149,10 +149,10 @@ class World:
         local_anchor_b=None,
         anchor=None,
         collide_connected=False,
-        linear_hertz=0,
-        linear_damping_ratio=0,
-        angular_hertz=0,
-        angular_damping_ratio=0,
+        linear_hertz=None,
+        linear_damping_ratio=None,
+        angular_hertz=None,
+        angular_damping_ratio=None,
     ) -> WeldJoint:
         """Create a weld joint that rigidly connects two bodies.
 
@@ -187,8 +187,8 @@ class World:
                 raise ValueError(
                     "You can't set local anchors when setting a world anchor"
                 )
-            local_anchor_a = body_a.transform(anchor)
-            local_anchor_b = body_b.transform(anchor)
+            local_anchor_a = body_a.transform.inverse(anchor)
+            local_anchor_b = body_b.transform.inverse(anchor)
         return WeldJoint(
             self,
             body_a,
@@ -210,13 +210,13 @@ class World:
         local_anchor_b=None,
         anchor=None,
         collide_connected=False,
-        lower_angle=0.0,
-        upper_angle=0.0,
-        enable_limit=False,
-        motor_speed=0.0,
-        max_motor_torque=0.0,
-        enable_motor=False,
-        reference_angle=0.0,
+        lower_angle=None,
+        upper_angle=None,
+        enable_limit=None,
+        motor_speed=None,
+        max_motor_torque=None,
+        enable_motor=None,
+        reference_angle=None,
     ) -> RevoluteJoint:
         """
         Create a revolute joint connecting two bodies, allowing relative rotation about an anchor point.
@@ -260,8 +260,8 @@ class World:
                 raise ValueError(
                     "You can't set local anchors when setting a world anchor"
                 )
-            local_anchor_a = body_a.transform(anchor)
-            local_anchor_b = body_b.transform(anchor)
+            local_anchor_a = body_a.transform.inverse(anchor)
+            local_anchor_b = body_b.transform.inverse(anchor)
         return RevoluteJoint(
             self,
             body_a,

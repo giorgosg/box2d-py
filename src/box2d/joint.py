@@ -307,14 +307,18 @@ class WeldJoint(Joint):
         # Use the provided local anchor points directly.
         defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
         defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
-
-        defn.referenceAngle = self._reference_angle
+        if self._reference_angle is not None:
+            defn.referenceAngle = self._reference_angle
 
         # Set the spring/damping parameters to allow for soft welding.
-        defn.linearHertz = self._linear_hertz
-        defn.linearDampingRatio = self._linear_damping_ratio
-        defn.angularHertz = self._angular_hertz
-        defn.angularDampingRatio = self._angular_damping_ratio
+        if self._linear_hertz is not None:
+            defn.linearHertz = self._linear_hertz
+        if self._linear_damping_ratio is not None:
+            defn.linearDampingRatio = self._linear_damping_ratio
+        if self._angular_hertz is not None:
+            defn.angularHertz = self._angular_hertz
+        if self._angular_damping_ratio is not None:
+            defn.angularDampingRatio = self._angular_damping_ratio
 
         return defn
 
@@ -377,13 +381,13 @@ class RevoluteJoint(Joint):
         anchor_a,
         anchor_b,
         collide_connected=False,
-        lower_angle=0.0,
-        upper_angle=0.0,
-        enable_limit=False,
-        motor_speed=0.0,
-        max_motor_torque=0.0,
-        enable_motor=False,
-        reference_angle=0.0,
+        lower_angle=None,
+        upper_angle=None,
+        enable_limit=None,
+        motor_speed=None,
+        max_motor_torque=None,
+        enable_motor=None,
+        reference_angle=None,
     ):
         """
         Initialize a revolute joint with separate local anchor points for each body.
@@ -425,17 +429,24 @@ class RevoluteJoint(Joint):
         defn.localAnchorA = self._localAnchorA.b2Vec2[0]
         defn.localAnchorB = self._localAnchorB.b2Vec2[0]
 
-        defn.referenceAngle = self._reference_angle
+        if self._reference_angle is not None:
+            defn.referenceAngle = self._reference_angle
 
         # Configure joint limits.
-        defn.lowerAngle = self._lower_angle
-        defn.upperAngle = self._upper_angle
-        defn.enableLimit = self._enable_limit
+        if self._lower_angle is not None:
+            defn.lowerAngle = self._lower_angle
+        if self._upper_angle is not None:
+            defn.upperAngle = self._upper_angle
+        if self._enable_limit is not None:
+            defn.enableLimit = self._enable_limit
 
         # Configure motor parameters.
-        defn.motorSpeed = self._motor_speed
-        defn.maxMotorTorque = self._max_motor_torque
-        defn.enableMotor = self._enable_motor
+        if self._motor_speed is not None:
+            defn.motorSpeed = self._motor_speed
+        if self._max_motor_torque is not None:
+            defn.maxMotorTorque = self._max_motor_torque
+        if self._enable_motor is not None:
+            defn.enableMotor = self._enable_motor
 
         return defn
 
