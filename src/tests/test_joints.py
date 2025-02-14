@@ -1,7 +1,7 @@
 # tests/test_joints.py
 
 import pytest
-from box2d import World, Vec2, MouseJoint, WeldJoint
+from box2d import World, Vec2, MouseJoint, WeldJoint, RevoluteJoint
 from box2d._box2d import lib
 from pytest import approx
 
@@ -114,3 +114,74 @@ def test_weld_joint_property_setters(world_and_bodies):
     assert weld_joint.linear_damping_ratio == pytest.approx(0.5)
     assert weld_joint.angular_hertz == pytest.approx(12.0)
     assert weld_joint.angular_damping_ratio == pytest.approx(0.7)
+
+
+def test_revolute_joint_creation(world_and_bodies):
+    world, body_a, body_b = world_and_bodies
+    # Create a revolute joint with distinct local anchors for each body, as well as limit and motor settings.
+    revolute_joint = RevoluteJoint(
+        world=world,
+        body_a=body_a,
+        body_b=body_b,
+        anchor_a=(0, 0),  # Local anchor on body_a
+        anchor_b=(1, 1),  # Local anchor on body_b
+        collide_connected=False,
+        lower_angle=-0.5,
+        upper_angle=0.5,
+        enable_limit=True,
+        motor_speed=2.0,
+        max_motor_torque=10.0,
+        enable_motor=True,
+        reference_angle=0.0,
+    )
+
+    # Verify that the joint is valid.
+    assert revolute_joint.is_valid is True
+
+    # Check that the joint's local anchor positions match those provided.
+    # Note: The Joint base class exposes properties 'anchor_a' and 'anchor_b'
+    # which reflect each body's local connection point.
+    assert revolute_joint.anchor_a == Vec2(0, 0)
+    assert revolute_joint.anchor_b == Vec2(1, 1)
+
+    # Verify limit and motor settings.
+    assert revolute_joint.lower_limit == pytest.approx(-0.5)
+    assert revolute_joint.upper_limit == pytest.approx(0.5)
+    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.max_motor_torque == pytest.approx(10.0)
+
+
+def test_revolute_joint_via_world_method(world_and_bodies):
+    world, body_a, body_b = world_and_bodies
+    # Create the revolute joint using the world's add function.
+    revolute_joint = world.add_revolute_joint(
+        body_a=body_a,
+        body_b=body_b,
+        anchor_a=(0, 0),
+        anchor_b=(1, 1),
+        collide_connected=True,
+        lower_angle=-0.5,
+        upper_angle=0.5,
+        enable_limit=True,
+        motor_speed=2.0,
+        max_motor_torque=10.0,
+        enable_motor=True,
+        reference_angle=0.0,
+    )
+
+    # Verify joint validity.
+    assert revolute_joint.is_valid is True
+
+    # Check that the local anchor points match the provided values.
+    from box2d import Vec2
+
+    assert revolute_joint.anchor_a == Vec2(0, 0)
+    assert revolute_joint.anchor_b == Vec2(1, 1)
+
+    # Verify joint limit and motor settings.
+    import pytest
+
+    assert revolute_joint.lower_limit == pytest.approx(-0.5)
+    assert revolute_joint.upper_limit == pytest.approx(0.5)
+    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.max_motor_torque == pytest.approx(10.0)

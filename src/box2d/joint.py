@@ -360,3 +360,131 @@ class WeldJoint(Joint):
     @angular_damping_ratio.setter
     def angular_damping_ratio(self, value):
         lib.b2WeldJoint_SetAngularDampingRatio(self._joint_id, float(value))
+
+
+class RevoluteJoint(Joint):
+    """
+    RevoluteJoint connects two bodies at a pair of anchor points, allowing for
+    relative rotation about a shared axis. Optionally, joint limits and a motor
+    can be enabled.
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        anchor_a,
+        anchor_b,
+        collide_connected=False,
+        lower_angle=0.0,
+        upper_angle=0.0,
+        enable_limit=False,
+        motor_speed=0.0,
+        max_motor_torque=0.0,
+        enable_motor=False,
+        reference_angle=0.0,
+    ):
+        """
+        Initialize a revolute joint with separate local anchor points for each body.
+
+        Args:
+            world: The physics world instance.
+            body_a: The first body to connect.
+            body_b: The second body to connect.
+            anchor_a (tuple): The local (x, y) coordinates on body_a for the joint.
+            anchor_b (tuple): The local (x, y) coordinates on body_b for the joint.
+            collide_connected (bool, optional): If True, connected bodies will collide.
+            lower_angle (float, optional): Lower joint limit in radians.
+            upper_angle (float, optional): Upper joint limit in radians.
+            enable_limit (bool, optional): Whether to enable joint limits.
+            motor_speed (float, optional): Desired motor speed in radians/sec.
+            max_motor_torque (float, optional): Maximum motor torque in newton-meters.
+            enable_motor (bool, optional): Whether to enable the joint motor.
+            reference_angle (float, optional): Reference angle between the two bodies.
+        """
+        self._localAnchorA = Vec2(*anchor_a)
+        self._localAnchorB = Vec2(*anchor_b)
+        self._lower_angle = lower_angle
+        self._upper_angle = upper_angle
+        self._enable_limit = enable_limit
+        self._motor_speed = motor_speed
+        self._max_motor_torque = max_motor_torque
+        self._enable_motor = enable_motor
+        self._reference_angle = reference_angle
+        super().__init__(world, body_a, body_b, collide_connected)
+
+    def _create_joint_def(self, body_a, body_b, collide_connected):
+        # Get a default revolute joint definition from Box2D.
+        defn = lib.b2DefaultRevoluteJointDef()
+        defn.bodyIdA = body_a._body_id
+        defn.bodyIdB = body_b._body_id
+        defn.collideConnected = collide_connected
+
+        # Use the provided local anchors for each body.
+        defn.localAnchorA = self._localAnchorA.b2Vec2[0]
+        defn.localAnchorB = self._localAnchorB.b2Vec2[0]
+
+        defn.referenceAngle = self._reference_angle
+
+        # Configure joint limits.
+        defn.lowerAngle = self._lower_angle
+        defn.upperAngle = self._upper_angle
+        defn.enableLimit = self._enable_limit
+
+        # Configure motor parameters.
+        defn.motorSpeed = self._motor_speed
+        defn.maxMotorTorque = self._max_motor_torque
+        defn.enableMotor = self._enable_motor
+
+        return defn
+
+    def _create_joint(self):
+        # Create the joint in the Box2D world using the revolute joint creation function.
+        self._joint_id = lib.b2CreateRevoluteJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        super()._create_joint()
+
+    @property
+    def angle(self):
+        """Current joint angle in radians relative to the reference angle."""
+        return lib.b2RevoluteJoint_GetAngle(self._joint_id)
+
+    @property
+    def motor_speed(self):
+        """Desired motor speed in radians per second."""
+        return lib.b2RevoluteJoint_GetMotorSpeed(self._joint_id)
+
+    @motor_speed.setter
+    def motor_speed(self, value):
+        lib.b2RevoluteJoint_SetMotorSpeed(self._joint_id, float(value))
+
+    @property
+    def max_motor_torque(self):
+        """Maximum motor torque in newton-meters."""
+        return lib.b2RevoluteJoint_GetMaxMotorTorque(self._joint_id)
+
+    @max_motor_torque.setter
+    def max_motor_torque(self, value):
+        lib.b2RevoluteJoint_SetMaxMotorTorque(self._joint_id, float(value))
+
+    @property
+    def lower_limit(self):
+        """The lower joint limit in radians."""
+        return lib.b2RevoluteJoint_GetLowerLimit(self._joint_id)
+
+    @property
+    def upper_limit(self):
+        """The upper joint limit in radians."""
+        return lib.b2RevoluteJoint_GetUpperLimit(self._joint_id)
+
+    def set_limits(self, lower, upper):
+        """
+        Set the joint limits in radians.
+
+        Args:
+            lower (float): Lower limit angle.
+            upper (float): Upper limit angle.
+        """
+        lib.b2RevoluteJoint_SetLimits(self._joint_id, float(lower), float(upper))

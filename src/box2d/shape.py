@@ -103,13 +103,21 @@ class Circle(Shape):
         restitution=None,
         is_sensor=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a circle shape to a body.
         The parameters are the same as the previous initializer.
         """
         shapedef = CircleDef(
-            radius, center, density, friction, restitution, is_sensor, collision_filter
+            radius,
+            center,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
+            custom_color,
         )
         return cls(body, shapedef)
 
@@ -141,6 +149,7 @@ class Capsule(Shape):
         restitution=None,
         is_sensor=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a capsule shape to a body.
@@ -155,6 +164,7 @@ class Capsule(Shape):
             restitution,
             is_sensor,
             collision_filter,
+            custom_color=None,
         )
         return cls(body, shapedef)
 
@@ -185,13 +195,21 @@ class Segment(Shape):
         restitution=None,
         is_sensor=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a segment shape to a body.
         The parameters are the same as the previous initializer.
         """
         shapedef = SegmentDef(
-            point1, point2, density, friction, restitution, is_sensor, collision_filter
+            point1,
+            point2,
+            density,
+            friction,
+            restitution,
+            is_sensor,
+            collision_filter,
+            custom_color,
         )
         return cls(body, shapedef)
 
@@ -225,6 +243,7 @@ class Polygon(Shape):
         restitution=None,
         is_sensor=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a polygon shape to a body.
@@ -238,6 +257,7 @@ class Polygon(Shape):
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         return cls(body, shapedef)
 
@@ -262,6 +282,7 @@ class Box(Polygon):
         restitution=None,
         is_sensor=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a box shape to a body.
@@ -278,6 +299,7 @@ class Box(Polygon):
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         return cls(body, shapedef)
 
@@ -305,12 +327,15 @@ class Chain:
         friction=None,
         restitution=None,
         collision_filter=None,
+        custom_color=None,
     ):
         """
         Create and attach a chain shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = ChainDef(vertices, loop, friction, restitution, collision_filter)
+        shapedef = ChainDef(
+            vertices, loop, friction, restitution, collision_filter, custom_color
+        )
         return cls(body, shapedef)
 
     @property

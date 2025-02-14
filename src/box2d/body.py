@@ -713,6 +713,7 @@ class Body:
         restitution: float = None,
         is_sensor: bool = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a box shape to the body.
 
@@ -727,6 +728,7 @@ class Body:
             restitution: Bounciness.
             is_sensor: Flag indicating whether the shape is a sensor.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created box shape.
@@ -743,6 +745,7 @@ class Body:
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         self._shapes.append(shape)
         return shape
@@ -756,6 +759,7 @@ class Body:
         restitution: float = None,
         is_sensor: bool = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a circle shape to the body.
 
@@ -767,6 +771,7 @@ class Body:
             restitution: Bounciness.
             is_sensor: Flag indicating whether the shape is a sensor.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created circle shape.
@@ -780,6 +785,7 @@ class Body:
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         self._shapes.append(shape)
         return shape
@@ -794,6 +800,7 @@ class Body:
         restitution: float = None,
         is_sensor: bool = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a capsule shape to the body.
 
@@ -806,6 +813,7 @@ class Body:
             restitution: Bounciness.
             is_sensor: Flag indicating whether the shape is a sensor.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created capsule shape.
@@ -820,6 +828,7 @@ class Body:
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         self._shapes.append(shape)
         return shape
@@ -833,6 +842,7 @@ class Body:
         restitution: float = None,
         is_sensor: bool = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a convex polygon shape to the body.
 
@@ -844,6 +854,7 @@ class Body:
             restitution: Bounciness.
             is_sensor: Flag indicating whether the shape is a sensor.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created polygon shape.
@@ -857,6 +868,7 @@ class Body:
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         self._shapes.append(shape)
         return shape
@@ -870,6 +882,7 @@ class Body:
         restitution: float = None,
         is_sensor: bool = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a line segment shape to the body.
 
@@ -881,6 +894,7 @@ class Body:
             restitution: Bounciness.
             is_sensor: Flag indicating whether the shape is a sensor.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created segment shape.
@@ -894,6 +908,7 @@ class Body:
             restitution,
             is_sensor,
             collision_filter,
+            custom_color,
         )
         self._shapes.append(shape)
         return shape
@@ -905,6 +920,7 @@ class Body:
         friction: float = None,
         restitution: float = None,
         collision_filter=None,
+        custom_color=None,
     ):
         """Add a chain shape to the body.
 
@@ -914,12 +930,13 @@ class Body:
             friction: Friction coefficient.
             restitution: Bounciness.
             collision_filter: Optional CollisionFilter instance for collision filtering.
+            custom_color: Optional custom debug draw color (uint32_t).
 
         Returns:
             The created chain shape.
         """
         shape = Chain.create(
-            self, vertices, loop, friction, restitution, collision_filter
+            self, vertices, loop, friction, restitution, collision_filter, custom_color
         )
         self._shapes.append(shape)
         return shape

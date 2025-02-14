@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
-from .joint import MouseJoint, WeldJoint
+from .joint import MouseJoint, WeldJoint, RevoluteJoint
 from .math import Vec2, VectorLike, AABB, Transform
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
@@ -121,7 +121,9 @@ class World:
         """
         return BodyBuilder(self)
 
-    def add_mouse_joint(self, body, target, max_force=1000.0, damping_ratio=0.7):
+    def add_mouse_joint(
+        self, body, target, max_force=1000.0, damping_ratio=0.7
+    ) -> MouseJoint:
         """Create a mouse joint for interactive dragging between bodies
 
         Args:
@@ -150,7 +152,7 @@ class World:
         linear_damping_ratio=0,
         angular_hertz=0,
         angular_damping_ratio=0,
-    ):
+    ) -> WeldJoint:
         """Create a weld joint that rigidly connects two bodies.
 
         Args:
@@ -189,6 +191,74 @@ class World:
             linear_damping_ratio,
             angular_hertz,
             angular_damping_ratio,
+        )
+
+    def add_revolute_joint(
+        self,
+        body_a,
+        body_b,
+        anchor_a,
+        anchor_b,
+        collide_connected=False,
+        lower_angle=0.0,
+        upper_angle=0.0,
+        enable_limit=False,
+        motor_speed=0.0,
+        max_motor_torque=0.0,
+        enable_motor=False,
+        reference_angle=0.0,
+    ) -> RevoluteJoint:
+        """
+        Create a revolute joint connecting two bodies, allowing relative rotation about an anchor point.
+
+        Args:
+            body_a: The first body to connect (must belong to this world).
+            body_b: The second body to connect (must belong to this world).
+            anchor_a (tuple): Local coordinates (x, y) on body_a for the joint.
+            anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
+            collide_connected (bool, optional): Whether the connected bodies should collide with each other.
+                                                  Defaults to False.
+            lower_angle (float, optional): Lower joint limit in radians. Defaults to 0.0.
+            upper_angle (float, optional): Upper joint limit in radians. Defaults to 0.0.
+            enable_limit (bool, optional): Enable joint limits if True. Defaults to False.
+            motor_speed (float, optional): Desired motor speed in radians per second. Defaults to 0.0.
+            max_motor_torque (float, optional): Maximum motor torque in newton-meters. Defaults to 0.0.
+            enable_motor (bool, optional): Enable the joint motor if True. Defaults to False.
+            reference_angle (float, optional): Reference angle between the two bodies. Defaults to 0.0.
+
+        Returns:
+            RevoluteJoint: The created revolute joint connecting body_a and body_b.
+
+        Example:
+            >>> world = World()
+            >>> body_a = world.new_body().dynamic().position(0, 0).build()
+            >>> body_b = world.new_body().dynamic().position(1, 0).build()
+            >>> revolute_joint = world.add_revolute_joint(
+            ...     body_a, body_b, (0, 0), (0, 0),
+            ...     collide_connected=False,
+            ...     enable_limit=True,
+            ...     lower_angle=-0.5,
+            ...     upper_angle=0.5
+            ... )
+        """
+        if (body_a._body_id not in self._bodies) or (
+            body_b._body_id not in self._bodies
+        ):
+            raise ValueError("Both bodies must belong to this world")
+        return RevoluteJoint(
+            self,
+            body_a,
+            body_b,
+            anchor_a,
+            anchor_b,
+            collide_connected,
+            lower_angle,
+            upper_angle,
+            enable_limit,
+            motor_speed,
+            max_motor_torque,
+            enable_motor,
+            reference_angle,
         )
 
     def _track_body(self, body: "Body"):
