@@ -1,13 +1,22 @@
+# If running directly from the 'src/testbed' directory, adjust sys.path and __package__
+if __name__ == "__main__" and __package__ is None:
+    import os
+    import sys
+
+    # Add the parent directory (the project root's "src" directory) to sys.path.
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    # Set the package name so relative imports work.
+    __package__ = "testbed"
+
 import time
 import math
 import dearpygui.dearpygui as dpg
 
 from box2d import World, Vec2, ScaledTransform
-from base_test import get_first_test, get_all_tests
-from debug_draw_dpg import DearpyguiDebugDraw
-import tb_sample, tb_shapes, tb_benchmark, tb_joints
-
-from dpg_ui import TestbedUI
+from .base_test import get_first_test, get_all_tests
+from .debug_draw_dpg import DearpyguiDebugDraw
+from . import tb_sample, tb_sample, tb_shapes, tb_benchmark, tb_joints
+from .dpg_ui import TestbedUI
 
 
 class TestbedConfig:
@@ -247,6 +256,10 @@ class TestbedCoordinator:
         dpg.destroy_context()
 
 
-if __name__ == "__main__":
+def main():
     coordinator = TestbedCoordinator()
     coordinator.run()
+
+
+if __name__ == "__main__":
+    main()

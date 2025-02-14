@@ -1,6 +1,6 @@
 # tb_joints.py
 
-from base_test import BaseTest
+from .base_test import BaseTest
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):

@@ -1,12 +1,13 @@
 [build-system]
-requires = ["setuptools>=61.0", 
-            "wheel", 
-            "cffi", 
-            "pytest",
-            "setuptools_scm[toml]>=6.2",
-            "sphinx",
-            "sphinx_rtd_theme"
-            ]
+requires = [
+    "setuptools>=61.0", 
+    "wheel", 
+    "cffi", 
+    "pytest",
+    "setuptools_scm[toml]>=6.2",
+    "sphinx",
+    "sphinx_rtd_theme"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,13 +23,15 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-
 readme = "README.md"
 requires-python = ">=3.7"
-#docs = ["sphinx", "sphinx-rtd-theme"]
 
 [project.optional-dependencies]
 test = ["pytest"]
+testbed = ["dearpygui"]
+
+[project.scripts]
+box2d-testbed = "testbed.testbed:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -39,9 +42,8 @@ testpaths = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["box2d*"]
+include = ["box2d*", "testbed*"]
 exclude = ["box2d.build_cffi"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
-

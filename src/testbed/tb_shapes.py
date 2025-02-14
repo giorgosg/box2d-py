@@ -1,8 +1,8 @@
 # test_shapes.py
 
-from base_test import BaseTest, UIElement
+from .base_test import BaseTest, UIElement
 from itertools import product
-from shared import create_random_polygon
+from .shared import create_random_polygon
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):

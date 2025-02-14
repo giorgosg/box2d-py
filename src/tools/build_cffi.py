@@ -8,6 +8,11 @@ from cffi import FFI
 
 ffibuilder = FFI()
 
+# Set up directories for temporary files.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
 # Get all .h files in the include directory
 cdef_dir = "box2d/include/box2d"
 include_dir = "box2d/include/"
@@ -20,9 +25,9 @@ header_files = [
     "types.h",
     "box2d.h",
 ]
+
+
 # Read and combine all header files
-
-
 def process_header(filename):
     print("Pre-processing " + filename)
     with open(filename, "r") as file:
@@ -44,7 +49,8 @@ def process_header(filename):
     filetext = "\n".join(
         [line for line in filetext.splitlines() if not line.startswith("#")]
     )
-    with open(os.path.basename(filename) + ".cffi", "w") as outfile:
+    temp_filename = os.path.join(TEMP_DIR, os.path.basename(filename) + ".cffi")
+    with open(temp_filename, "w") as outfile:
         outfile.write(filetext)
     return filetext
 
@@ -55,7 +61,8 @@ for headerfn in header_files:
 
 
 # Combine the headers
-with open("combined_header.h.modified", "w") as f:
+combined_header_file = os.path.join(TEMP_DIR, "combined_header.h.modified")
+with open(combined_header_file, "w") as f:
     f.write(combined_header)
 
 ffibuilder.cdef(combined_header)
@@ -65,7 +72,7 @@ src_dir = "box2d/src"
 source_files = [
     os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".c")
 ]
-print(source_files)
+# print(source_files)
 
 ffibuilder.set_source(
     "box2d._box2d",

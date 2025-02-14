@@ -1,5 +1,5 @@
 import random
-from base_test import BaseTest
+from .base_test import BaseTest
 
 
 class BenchmarkRainTest(BaseTest, category="Benchmark", name="Rain Test"):

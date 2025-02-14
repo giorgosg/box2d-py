@@ -1,6 +1,6 @@
 import dearpygui.dearpygui as dpg
-from base_test import get_first_test, get_all_tests
-from debug_draw_dpg import DearpyguiDebugDraw
+from .base_test import get_first_test, get_all_tests
+from .debug_draw_dpg import DearpyguiDebugDraw
 
 
 class TestbedUI:
