@@ -145,8 +145,9 @@ class World:
         self,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
+        local_anchor_a=None,
+        local_anchor_b=None,
+        anchor=None,
         collide_connected=False,
         linear_hertz=0,
         linear_damping_ratio=0,
@@ -160,6 +161,7 @@ class World:
             body_b: The second body to connect (must belong to this world)
             local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint attaches.
             local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint attaches.
+            anchor: World coordinates (x, y) where the joint attaches. (Used without local anchors)
             collide_connected (bool, optional): If True, the connected bodies will collide.
             linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid).
             linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional).
@@ -174,12 +176,19 @@ class World:
             >>> world = World()
             >>> body_a = world.new_body().dynamic().position(0, 0).build()
             >>> body_b = world.new_body().dynamic().position(1, 1).build()
-            >>> weld_joint = world.add_weld_joint(body_a, body_b, (0,0), (0,0))
+            >>> weld_joint = world.add_weld_joint(body_a, body_b, anchor=(0.5, 0.5))
         """
         if (body_a._body_id not in self._bodies) or (
             body_b._body_id not in self._bodies
         ):
             raise ValueError("Both bodies must belong to this world")
+        if anchor is not None:
+            if local_anchor_a is not None or local_anchor_b is not None:
+                raise ValueError(
+                    "You can't set local anchors when setting a world anchor"
+                )
+            local_anchor_a = body_a.transform(anchor)
+            local_anchor_b = body_b.transform(anchor)
         return WeldJoint(
             self,
             body_a,
@@ -197,8 +206,9 @@ class World:
         self,
         body_a,
         body_b,
-        anchor_a,
-        anchor_b,
+        local_anchor_a=None,
+        local_anchor_b=None,
+        anchor=None,
         collide_connected=False,
         lower_angle=0.0,
         upper_angle=0.0,
@@ -214,8 +224,8 @@ class World:
         Args:
             body_a: The first body to connect (must belong to this world).
             body_b: The second body to connect (must belong to this world).
-            anchor_a (tuple): Local coordinates (x, y) on body_a for the joint.
-            anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
+            local_anchor_a (tuple): Local coordinates (x, y) on body_a for the joint.
+            local_anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
             collide_connected (bool, optional): Whether the connected bodies should collide with each other.
                                                   Defaults to False.
             lower_angle (float, optional): Lower joint limit in radians. Defaults to 0.0.
@@ -245,12 +255,19 @@ class World:
             body_b._body_id not in self._bodies
         ):
             raise ValueError("Both bodies must belong to this world")
+        if anchor is not None:
+            if local_anchor_a is not None or local_anchor_b is not None:
+                raise ValueError(
+                    "You can't set local anchors when setting a world anchor"
+                )
+            local_anchor_a = body_a.transform(anchor)
+            local_anchor_b = body_b.transform(anchor)
         return RevoluteJoint(
             self,
             body_a,
             body_b,
-            anchor_a,
-            anchor_b,
+            local_anchor_a,
+            local_anchor_b,
             collide_connected,
             lower_angle,
             upper_angle,

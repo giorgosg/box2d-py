@@ -1,5 +1,5 @@
 from box2d._box2d import lib, ffi
-from .math import Vec2, Rot
+from .math import Vec2, Rot, Transform
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .shape_def import PolygonDef
 from .collision_filter import CollisionFilter
@@ -661,6 +661,12 @@ class Body:
         pos = lib.b2Body_GetPosition(self._body_id)
         rot = Rot(angle).b2Rot
         lib.b2Body_SetTransform(self._body_id, pos, rot[0])
+
+    @property
+    def transform(self) -> Transform:
+        """Get the body Transform. You can use it to convert world coordinates to body coordinates."""
+        b2transform = lib.b2Body_GetTransform(self._body_id)
+        return Transform.from_b2Transform(b2transform)
 
     def apply_force(self, force, point=None, wake=True):
         """Apply a force at a world point.
