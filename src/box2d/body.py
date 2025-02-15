@@ -1,5 +1,5 @@
 from box2d._box2d import lib, ffi
-from .math import Vec2, Rot, Transform
+from .math import Vec2, Rot, Transform, VectorLike, to_vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .shape_def import PolygonDef
 from .collision_filter import CollisionFilter
@@ -503,10 +503,11 @@ class Body:
         return Vec2(pos.x, pos.y)
 
     @position.setter
-    def position(self, value):
+    def position(self, value: VectorLike):
         """Set the world position of the body."""
         rot = lib.b2Body_GetRotation(self._body_id)
-        lib.b2Body_SetTransform(self._body_id, value, rot)
+        value = to_vec2(value)
+        lib.b2Body_SetTransform(self._body_id, value.b2Vec2[0], rot)
 
     @property
     def linear_velocity(self):
@@ -515,11 +516,10 @@ class Body:
         return Vec2(vel.x, vel.y)
 
     @linear_velocity.setter
-    def linear_velocity(self, value):
+    def linear_velocity(self, value: VectorLike):
         """Set the linear velocity of the body."""
-        x, y = value
-        vec = ffi.new("b2Vec2 *", {"x": x, "y": y})
-        lib.b2Body_SetLinearVelocity(self._body_id, vec[0])
+        value = to_vec2(value).b2Vec2[0]
+        lib.b2Body_SetLinearVelocity(self._body_id, value)
 
     @property
     def angular_velocity(self):

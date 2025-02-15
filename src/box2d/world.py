@@ -3,7 +3,7 @@
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
 from .joint import MouseJoint, WeldJoint, RevoluteJoint
-from .math import Vec2, VectorLike, AABB, Transform
+from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape_def import CircleDef
@@ -178,11 +178,10 @@ class World:
         return Vec2(g.x, g.y)
 
     @gravity.setter
-    def gravity(self, value):
+    def gravity(self, value: VectorLike):
         """Set world gravity vector"""
-        x, y = value
-        vec = ffi.new("b2Vec2*", {"x": value[0], "y": value[1]})
-        lib.b2World_SetGravity(self._world_id, vec[0])
+        value = to_vec2(value)
+        lib.b2World_SetGravity(self._world_id, value.b2Vec2[0])
 
     def step(self, time_step, substep_count=4):
         """Advance simulation by time step.
