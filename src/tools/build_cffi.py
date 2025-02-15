@@ -1,4 +1,4 @@
-# build_box2d.py
+# build_cffi.py
 import os
 import subprocess
 import re
@@ -58,7 +58,8 @@ def process_header(filename):
 combined_header = ""
 for headerfn in header_files:
     combined_header += process_header(os.path.join(cdef_dir, headerfn))
-
+with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as ts:
+    combined_header += "".join(l for l in ts)
 
 # Combine the headers
 combined_header_file = os.path.join(TEMP_DIR, "combined_header.h.modified")
@@ -72,14 +73,27 @@ src_dir = "box2d/src"
 source_files = [
     os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".c")
 ]
-# print(source_files)
+
+# Add the task scheduler source file (which uses enkiTS)
+task_scheduler_path = os.path.join("src", "tasks", "task_scheduler.c")
+source_files.append(task_scheduler_path)
+
+print("Compiling the following source files:")
+for s in source_files:
+    print("  ", s)
+
 
 ffibuilder.set_source(
     "box2d._box2d",
-    """#include "box2d/box2d.h"
+    """
+    #include "box2d/box2d.h"
+    #include "enkiTS/TaskScheduler_c.h"
+    #include "tasks/task_scheduler.h"
     """,
     sources=source_files,
-    include_dirs=[include_dir, cdef_dir],
+    include_dirs=[include_dir, cdef_dir, "src"],
+    library_dirs=["/usr/lib"],
+    libraries=["enkiTS"],
     extra_compile_args=[
         "-D__linux__",
         "-DB2_ENABLE_ASSERT=1",
@@ -88,5 +102,13 @@ ffibuilder.set_source(
 )
 
 
+def main():
+    build_dir = os.path.join(PROJECT_ROOT, "src", "box2d")
+    os.makedirs(build_dir, exist_ok=True)
+
+    target_path = os.path.join(build_dir, "_box2d.so")
+    ffibuilder.compile(target=target_path, verbose=True)
+
+
 if __name__ == "__main__":
-    ffibuilder.compile(verbose=True)
+    main()

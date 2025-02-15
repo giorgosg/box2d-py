@@ -16,3 +16,5 @@ src/box2d/__pycache__
 src/box2d/box2d_py.egg-info
 comb_box2d.h
 docs/build
+temp
+src/tasks/task_scheduler.o

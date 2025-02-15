@@ -2,6 +2,16 @@
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[project]
+name = "box2d-py"
+version = "0.1.0"
+description = "Bindings for box2d v3"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cffi>=1.16.0",
+]
+
 [tool.poetry]
 name = "box2d-py"
 version = "0.1.0"
@@ -23,6 +33,7 @@ packages = [
 python = ">=3.12"
 cffi = ">=1.16.0"
 dearpygui = { version = "*", optional = true }
+setuptools = "^75.8.0"
 
 [tool.poetry.extras]
 testbed = ["dearpygui"]
@@ -32,6 +43,7 @@ pytest = "*"
 
 [tool.poetry.scripts]
 box2d-testbed = "testbed.testbed:main"
+build-box2d-cffi = "src.tools.build_cffi:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
