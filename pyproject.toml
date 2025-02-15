@@ -1,36 +1,36 @@
 [build-system]
-requires = [
-    "setuptools>=61.0", 
-    "wheel", 
-    "cffi", 
-    "pytest",
-    "setuptools_scm[toml]>=6.2",
-    "sphinx",
-    "sphinx_rtd_theme"
-]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "box2d-py"
 version = "0.1.0"
 description = "Bindings for box2d v3"
-authors = [
-    {name = "Giorgos Giagas", email = "giorgosg@gmail.com"}
-]
-license = {text = "MIT"}
+authors = ["Giorgos Giagas <giorgosg@gmail.com>"]
+license = "MIT"
+readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-readme = "README.md"
-requires-python = ">=3.7"
+packages = [
+    { include = "box2d", from = "src" },
+    { include = "testbed", from = "src" },
+]
 
-[project.optional-dependencies]
-test = ["pytest"]
+[tool.poetry.dependencies]
+python = ">=3.12"
+cffi = ">=1.16.0"
+dearpygui = { version = "*", optional = true }
+
+[tool.poetry.extras]
 testbed = ["dearpygui"]
 
-[project.scripts]
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+
+[tool.poetry.scripts]
 box2d-testbed = "testbed.testbed:main"
 
 [tool.pytest.ini_options]
@@ -43,7 +43,6 @@ testpaths = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["box2d*", "testbed*"]
-exclude = ["box2d.build_cffi"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
