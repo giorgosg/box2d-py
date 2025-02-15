@@ -1,16 +1,6 @@
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core", "setuptools", "cffi>=1.16.0", "wheel"]
 build-backend = "poetry.core.masonry.api"
-
-[project]
-name = "box2d-py"
-version = "0.1.0"
-description = "Bindings for box2d v3"
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "cffi>=1.16.0",
-]
 
 [tool.poetry]
 name = "box2d-py"
@@ -28,6 +18,15 @@ packages = [
     { include = "box2d", from = "src" },
     { include = "testbed", from = "src" },
 ]
+# Top-level include to add package data files
+include = [
+    "src/box2d/*.so",
+    "src/box2d/*.txt",
+    "src/box2d/*.rst",
+    "src/testbed/*.so",
+    "src/testbed/*.txt",
+    "src/testbed/*.rst"
+]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
@@ -37,6 +36,10 @@ setuptools = "^75.8.0"
 
 [tool.poetry.extras]
 testbed = ["dearpygui"]
+
+[tool.poetry.build]
+generate-setup-file = true
+script = "build_box2d_cffi.py"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
@@ -58,3 +61,19 @@ include = ["box2d*", "testbed*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
+
+[project]
+name = "box2d-py"
+version = "0.1.0"
+description = "Bindings for box2d v3"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.12"
+authors = [
+  { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
+]
+maintainers = [
+    { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
+]
+optional-dependencies = { testbed = ["dearpygui"] }
+dependencies = ["cffi"]
+dynamic = ["scripts"]
