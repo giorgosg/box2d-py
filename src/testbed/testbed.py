@@ -33,6 +33,7 @@ class TestbedSimulation:
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
+        self.threads = 4
         self.world = World(gravity=(0, -10))
         self.current_test = None
         self.simulation_paused = False
@@ -61,7 +62,8 @@ class TestbedSimulation:
         # Reinitialize the world.
         if self.world:
             self.world.destroy()
-        self.world = World(gravity=(0, -10))
+        threads = dpg.get_value("threads_input")
+        self.world = World(gravity=(0, -10), threads=threads)
         self.step_counter = 0
         container = self.coordinator.ui.create_test_ui_window(test_cls)
         self.current_test = test_cls(self.world, self.coordinator.ui.debug_draw)

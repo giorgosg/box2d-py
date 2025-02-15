@@ -33,6 +33,7 @@ class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
                 max_motor_torque=joint_friction,
                 enable_motor=False,
             )
+
             self.joints.append(joint)
             prev_body = body
 

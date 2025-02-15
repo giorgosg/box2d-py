@@ -57,6 +57,14 @@ class TestbedUI:
                     tag="sim_step_button",
                     callback=self.on_step_simulation,
                 )
+                dpg.add_text("Threads:")
+                dpg.add_input_int(
+                    tag="threads_input",
+                    label="",
+                    default_value=4,
+                    width=80,
+                    callback=self.on_thread_settings_change,
+                )
                 dpg.add_text("Substeps:")
                 dpg.add_input_int(
                     tag="substeps_input",
@@ -292,6 +300,14 @@ class TestbedUI:
                     default_value=element.default,
                     **callback_kwargs,
                 )
+
+    def on_thread_settings_change(self, sender, app_data, user_data=None):
+        """
+        Callback executed when the timestep, substeps, or thread setting is changed.
+        It propagates the new values to the simulation.
+        """
+        self.coordinator.sim.update_settings()
+        self.coordinator.sim.reset_current_test()
 
     def on_viewport_resize(self, sender, app_data):
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()

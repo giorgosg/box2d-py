@@ -34,6 +34,82 @@ def make_overlap_callback(results: list, max_results: int = None):
     return overlap_callback
 
 
+_WORLD_REGISTRY = {}
+
+
+# src/box2d/world.py
+@ffi.callback("void* (b2TaskCallback*, int, int, void*, void*)")
+def _enqueue_task_callback(task, itemCount, minRange, taskContext, userContext):
+    futures = []
+    try:
+        world_id = ffi.from_handle(userContext)
+    except RuntimeError:
+        return ffi.new_handle([])  # Handle already GC'd
+
+    world_instance = _WORLD_REGISTRY.get(world_id)
+    if world_instance is None:
+        return ffi.new_handle([])
+
+    n_workers = world_instance._threads
+
+    # Calculate the work chunk per worker.
+    # Use max(minRange, computed_chunk) to avoid scheduling tasks that are too small.
+    computed_chunk = (itemCount + n_workers - 1) // n_workers
+    chunk = max(minRange, computed_chunk)
+
+    for worker in range(n_workers):
+        start = worker * chunk
+        end = min(start + chunk, itemCount)
+        if start >= end:
+            break
+
+        def run_task(
+            start=start, end=end, worker=worker, task=task, taskContext=taskContext
+        ):
+            task(start, end, worker, taskContext)
+
+        future = world_instance._executor.submit(run_task)
+        futures.append(future)
+
+    # Create a handle for the futures list.
+    handle = ffi.new_handle(futures)
+    # Store the handle on the world instance to keep it alive until the task finishes.
+    if not hasattr(world_instance, "_task_handles"):
+        world_instance._task_handles = []
+    world_instance._task_handles.append(handle)
+    return handle
+
+
+@ffi.callback("void (void*, void*)")
+def _finish_task_callback(userTask, userContext):
+    try:
+        world_id = ffi.from_handle(userContext)
+    except RuntimeError:
+        return  # Handle already garbage collected
+
+    try:
+        futures = ffi.from_handle(userTask)
+    except RuntimeError:
+        return  # Futures list was GC'd
+
+    if world_id not in _WORLD_REGISTRY:
+        return  # World destroyed, skip processing
+
+    world_instance = _WORLD_REGISTRY.get(world_id)
+    # Remove the handle from the stored list now that we are finishing.
+    if (
+        hasattr(world_instance, "_task_handles")
+        and userTask in world_instance._task_handles
+    ):
+        world_instance._task_handles.remove(userTask)
+
+    for future in futures:
+        try:
+            future.result()
+        except Exception:
+            pass
+
+
 class World:
     """2D physics world containing bodies, joints, and simulation parameters.
 
@@ -47,7 +123,7 @@ class World:
         ...     world.step(1/60, 4)
     """
 
-    def __init__(self, gravity: VectorLike = (0, -10)):
+    def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
         """Initialize physics world with specified gravity vector.
 
         Args:
@@ -58,8 +134,23 @@ class World:
             >>> world.gravity
             Vec2(0.0, -9.8)
         """
+
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
+        self._threads = threads
+        if threads > 1:
+            import concurrent.futures
+
+            self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
+            world_def.workerCount = threads
+            world_def.enqueueTask = _enqueue_task_callback
+            world_def.finishTask = _finish_task_callback
+            self._user_task_ctx = ffi.new_handle(id(self))
+            _WORLD_REGISTRY[id(self)] = self
+            world_def.userTaskContext = self._user_task_ctx
+        else:
+            self._executor = None
+
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
         # Store default simulation parameters
@@ -418,6 +509,14 @@ class World:
             >>> world = World()
             >>> world.destroy()
         """
+        if hasattr(self, "_executor") and self._executor is not None:
+            print("shutting down tasks")
+            self._executor.shutdown(wait=False, cancel_futures=True)
+            self._executor = None
+
+        if hasattr(self, "_user_task_ctx"):
+            _WORLD_REGISTRY.pop(id(self), None)
+
         if hasattr(self, "_world_id"):
             lib.b2DestroyWorld(self._world_id)
             del self._world_id

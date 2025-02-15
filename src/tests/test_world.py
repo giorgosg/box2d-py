@@ -1,5 +1,7 @@
 # tests/test_world.py
+import faulthandler
 
+faulthandler.enable()
 import pytest
 import box2d
 from box2d import World, AABB
@@ -441,3 +443,8 @@ def test_query_circle_combined_filter():
         assert shape in results, "Enemy shape should appear in the combined query."
 
     w.destroy()
+
+
+def test_world_threads():
+    w = World(threads=4)
+    w.step(1 / 60)
