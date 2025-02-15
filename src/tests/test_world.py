@@ -446,5 +446,9 @@ def test_query_circle_combined_filter():
 
 
 def test_world_threads():
-    w = World(threads=4)
-    w.step(1 / 60)
+    w = World(gravity=(0, -10), threads=4)
+    bb = w.new_body().box(0.2, 0.2)
+    bodies = [bb.position(x, 0).build() for x in range(30)]
+
+    for _ in range(60):
+        w.step(1 / 60)

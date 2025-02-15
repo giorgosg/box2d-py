@@ -52,16 +52,19 @@ def _enqueue_task_callback(task, itemCount, minRange, taskContext, userContext):
 
     n_workers = world_instance._threads
 
+    # If the work is very fine-grained just execute inline.
+    if itemCount < minRange:
+        task(0, itemCount, 0, taskContext)
+        return ffi.NULL
+
     # Calculate the work chunk per worker.
     # Use max(minRange, computed_chunk) to avoid scheduling tasks that are too small.
     computed_chunk = (itemCount + n_workers - 1) // n_workers
     chunk = max(minRange, computed_chunk)
 
-    for worker in range(n_workers):
-        start = worker * chunk
+    # Instead of scheduling exactly n_workers tasks, we schedule tasks in batches of "chunk" work.
+    for worker, start in enumerate(range(0, itemCount, chunk)):
         end = min(start + chunk, itemCount)
-        if start >= end:
-            break
 
         def run_task(
             start=start, end=end, worker=worker, task=task, taskContext=taskContext
