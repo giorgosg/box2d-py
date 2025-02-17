@@ -128,6 +128,17 @@ class BodyBuilder:
         self._def.position.y = y
         return self
 
+    def rotation(self, rotation: float):
+        """Set the initial rotation of the body.
+
+        Args:
+            rotation: The rotation in radians
+        Returns:
+            The builder instance
+        """
+        self._def.rotation = Rot(rotation).b2Rot[0]
+        return self
+
     def linear_velocity(self, x: float, y: float):
         """Set the initial linear velocity of the body.
 
@@ -661,6 +672,11 @@ class Body:
         pos = lib.b2Body_GetPosition(self._body_id)
         rot = Rot(angle).b2Rot
         lib.b2Body_SetTransform(self._body_id, pos, rot[0])
+
+    @property
+    def mass(self):
+        """Get the mass of the body in kilograms"""
+        return lib.b2Body_GetMass(self._body_id)
 
     @property
     def transform(self) -> Transform:

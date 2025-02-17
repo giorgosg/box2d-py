@@ -99,7 +99,11 @@ class BaseTest:
             body = shape.body
             if body.type == "dynamic":
                 self.mouse_joint = self.world.add_mouse_joint(
-                    body, (pos.x, pos.y), max_force=1000.0, damping_ratio=0.7
+                    body,
+                    (pos.x, pos.y),
+                    max_force=1000.0 * body.mass,
+                    damping_ratio=0.7,
+                    hertz=5,
                 )
                 break
 

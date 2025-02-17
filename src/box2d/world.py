@@ -135,7 +135,12 @@ class World:
         return BodyBuilder(self)
 
     def add_mouse_joint(
-        self, body, target, max_force=1000.0, damping_ratio=0.7
+        self,
+        body,
+        target,
+        max_force=1000.0,
+        damping_ratio=0.7,
+        hertz=5,
     ) -> MouseJoint:
         """Create a mouse joint for interactive dragging between bodies
 
@@ -144,6 +149,7 @@ class World:
             target: Initial target position in world coordinates
             max_force: Maximum constraint force (default 1000.0)
             damping_ratio: Response damping ratio (0-1, default 0.7)
+            herts: Spring stiffness in Hz (higher = stiffer movement)
 
         Example:
             >>> world = World()
@@ -152,7 +158,7 @@ class World:
         """
         if body._body_id not in self._bodies:
             raise ValueError("Bodies must belong to this world")
-        return MouseJoint(self, body, target, max_force, damping_ratio)
+        return MouseJoint(self, body, target, max_force, damping_ratio, hertz)
 
     def add_weld_joint(
         self,
@@ -166,6 +172,7 @@ class World:
         linear_damping_ratio=None,
         angular_hertz=None,
         angular_damping_ratio=None,
+        reference_angle=None,
     ) -> WeldJoint:
         """Create a weld joint that rigidly connects two bodies.
 
@@ -213,6 +220,7 @@ class World:
             linear_damping_ratio,
             angular_hertz,
             angular_damping_ratio,
+            reference_angle,
         )
 
     def add_revolute_joint(

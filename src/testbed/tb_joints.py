@@ -1,6 +1,7 @@
 # tb_joints.py
 
 from .base_test import BaseTest
+from .shared import donut
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -56,3 +57,9 @@ class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
             enable_motor=True,
         )
         self.joints.append(final_joint)
+
+
+class SoftBody(BaseTest, category="Joints", name="Soft Body"):
+    def setup(self):
+        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        soft_body = donut(self.world, (0, 10), 5, 15)

@@ -508,8 +508,8 @@ class TestbedInput:
         settings.current_test_obj.on_mouse_drag(pos, Vec2(0, 0))
 
     def global_mouse_release_handler(self, sender, app_data):
-        if not dpg.is_item_hovered(self.simulation_canvas):
-            return
+        # if not dpg.is_item_hovered(self.simulation_canvas):
+        #    return
         canvas_min = dpg.get_item_pos(self.simulation_canvas)
         mouse_pos = dpg.get_mouse_pos()
         local_mouse = Vec2(*mouse_pos) - canvas_min - (7, 10)
