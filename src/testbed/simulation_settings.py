@@ -24,7 +24,7 @@ class SimulationControler:
                 0,
                 0,
             ),  # physics world point that should be at the center of the canvas
-            "scale": 30,  # pixels per meter (initial zoom)
+            "scale": 20,  # pixels per meter (initial zoom)
             "gravity": (0, -10),
             "hertz": 60,
             "substeps": 4,

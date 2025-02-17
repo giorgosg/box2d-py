@@ -1,6 +1,6 @@
 # tb_joints.py
 
-from .base_test import BaseTest
+from .base_test import BaseTest, UIElement
 from .shared import donut
 
 
@@ -60,6 +60,66 @@ class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
 
 
 class SoftBody(BaseTest, category="Joints", name="Soft Body"):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ui_elements += [
+            UIElement(
+                key="segments",
+                control_type="int_input",
+                max_value=30,
+                min_value=4,
+                default=15,
+                label="Segments",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="radius",
+                control_type="int_input",
+                max_value=30,
+                min_value=1,
+                default=5,
+                label="Radius",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="hertz",
+                control_type="int_input",
+                max_value=60,
+                min_value=1,
+                default=5,
+                label="Hertz",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="damping",
+                control_type="int_input",
+                max_value=10,
+                min_value=0,
+                default=1,
+                label="Damping",
+                callback=self.on_change,
+            ),
+        ]
+        self.segments = 15
+        self.radius = 5
+        self.hertz = 5.0
+        self.damping = 0.0
+
+    def on_change(self, key, value):
+        if key == "segments":
+            self.segments = value
+        elif key == "radius":
+            self.radius = value
+        elif key == "hertz":
+            self.hertz = value
+        elif key == "damping":
+            self.damping = value
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
     def setup(self):
         ground = self.world.new_body().position(0, -5).box(100, 1).build()
-        soft_body = donut(self.world, (0, 10), 5, 15)
+        soft_body = donut(
+            self.world, (0, 20), self.radius, self.segments, self.hertz, self.damping
+        )

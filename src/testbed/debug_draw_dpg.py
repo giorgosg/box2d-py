@@ -269,7 +269,7 @@ class DearpyguiDebugDraw(DebugDraw):
         p1_minus = (sp1[0] - round(offset.x), sp1[1] - round(offset.y))
         p2_plus = (sp2[0] + round(offset.x), sp2[1] + round(offset.y))
         p2_minus = (sp2[0] - round(offset.x), sp2[1] - round(offset.y))
-        fill_color = tuple(color)
+        fill_color = tuple(color.changed(a=150))
         dpg.draw_polygon(
             [p1_plus, p2_plus, p2_minus, p1_minus],
             fill=fill_color,
@@ -282,8 +282,7 @@ class DearpyguiDebugDraw(DebugDraw):
         dpg.draw_circle(
             center=sp2, radius=sr, fill=fill_color, thickness=0, parent=self.canvas
         )
-        outline_color = tuple(min(255, c + 50) for c in (color.r, color.g, color.b))
-        outline_color += (255,)
+        outline_color = tuple(color)
         dpg.draw_polyline(
             [p1_plus, p2_plus, p2_minus, p1_minus],
             color=outline_color,

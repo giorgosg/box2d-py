@@ -240,6 +240,7 @@ class TestbedUI:
             pos=(10, dpg.get_viewport_height() - ui_window_height - 50),
             no_close=True,
             width=ui_window_width,
+            min_size=(ui_window_width, 30),
         ):
             self.test_ui_container = dpg.add_child_window(tag="test_ui_container")
         return self.test_ui_container
@@ -309,6 +310,14 @@ class TestbedUI:
                     max_value=element.max_value,
                     **callback_kwargs,
                 )
+        # container_height = dpg.get_item_height("test_ui_container")
+        new_height = len(ui_elements) * 25 + 45
+        print(new_height)
+        dpg.configure_item(
+            "test_ui_window",
+            height=new_height,
+            pos=(10, settings.height - new_height - 50),
+        )
 
     def on_viewport_resize(self, sender, app_data):
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()

@@ -18,9 +18,9 @@ def create_random_polygon(self, extent, **kwargs):
     return self
 
 
-def donut(world: World, position, radius, segments=10):
+def donut(world: World, position, radius, segments=10, hertz=5.0, damping=0.0):
     delta_angle = 2 * math.pi / segments
-    length = 2 * math.pi * radius / segments
+    length = 2 * radius * math.sin(math.pi / segments)
     capsule_points = ((0, -length / 2), (0, length / 2))
     capsule_r = 0.4 * length
     center = Vec2(*position)
@@ -39,8 +39,8 @@ def donut(world: World, position, radius, segments=10):
         for position, angle in zip(positions, angles)
     ]
     joint_kw = {
-        "angular_hertz": 5.0,
-        "angular_damping_ratio": 0.0,
+        "angular_hertz": hertz,
+        "angular_damping_ratio": damping,
         "local_anchor_a": capsule_points[0],
         "local_anchor_b": capsule_points[1],
     }
