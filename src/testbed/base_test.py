@@ -78,10 +78,9 @@ class BaseTest:
             )
         )
 
-    def update(self, dt):
+    def update(self, debug_draw):
         """
         Called every frame after the debug draw has rendered the simulation.
-        dt: elapsed time since last frame.
         """
         pass
 
@@ -97,7 +96,7 @@ class BaseTest:
         query_aabb = AABB(
             lower=(pos.x - 0.1, pos.y - 0.1), upper=(pos.x + 0.1, pos.y + 0.1)
         )
-        shapes = self.world.query_aabb(query_aabb)
+        shapes = self.world.query_circle(pos, 0.0001)
         for shape in shapes:
             body = shape.body
             if body.type == "dynamic":

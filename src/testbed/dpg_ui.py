@@ -1,6 +1,8 @@
 import dearpygui.dearpygui as dpg
 from .base_test import get_first_test, get_all_tests
 from .debug_draw_dpg import DearpyguiDebugDraw
+from .simulation_settings import settings
+from box2d import ScaledTransform, Vec2
 
 
 class TestbedUI:
@@ -8,11 +10,7 @@ class TestbedUI:
     Handles all UI layout, window creation, and widget callbacks.
     """
 
-    def __init__(self, coordinator):
-        self.coordinator = coordinator
-        self.viewport_width = coordinator.config.WIDTH
-        self.viewport_height = coordinator.config.HEIGHT
-
+    def __init__(self):
         # Layout constants
         self.controls_height = 40
         self.toggles_height = 35
@@ -38,10 +36,11 @@ class TestbedUI:
         dpg.configure_app(manual_callback_management=True)
         dpg.create_viewport(
             title="Box2D TestBed - DearPyGui",
-            width=self.viewport_width,
-            height=self.viewport_height,
+            width=settings.width,
+            height=settings.height,
         )
-
+        # Items with a tag starting with settings_ are automatically updated when a settings value
+        # with what follows in their tag is changed.
         with dpg.window(
             label="TestBed", tag="main_window", no_scrollbar=True
         ) as self.main_window:
@@ -59,47 +58,53 @@ class TestbedUI:
                 )
                 dpg.add_text("Threads:")
                 dpg.add_input_int(
-                    tag="threads_input",
-                    label="",
-                    default_value=4,
+                    tag="settings_threads",
+                    default_value=settings.threads,
                     width=80,
-                    callback=self.on_thread_settings_change,
+                    callback=self.on_ui_settings_change,
+                    max_value=32,
+                    min_value=1,
+                    min_clamped=True,
+                    max_clamped=True,
                 )
                 dpg.add_text("Substeps:")
-                dpg.add_input_int(
-                    tag="substeps_input",
-                    label="",
-                    default_value=4,
+                dpg.add_slider_int(
+                    tag="settings_substeps",
+                    default_value=settings.substeps,
                     width=80,
-                    callback=self.on_physics_settings_change,
+                    min_value=1,
+                    max_value=40,
+                    drop_callback=self.on_ui_settings_change,
                 )
                 dpg.add_text("Hertz:")
-                dpg.add_input_int(
-                    tag="timestep_input",
+                dpg.add_slider_int(
+                    tag="settings_hertz",
                     label="",
-                    default_value=60,
+                    default_value=settings.hertz,
+                    min_value=5,
+                    max_value=240,
                     width=80,
-                    callback=self.on_physics_settings_change,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
-                    tag="enable_continuous_checkbox",
+                    tag="settings_enable_continuous",
                     label="Continuous Collision",
-                    default_value=self.coordinator.sim.world.enable_continuous,
-                    callback=self.on_toggle_continuous,
+                    default_value=settings.enable_continuous,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
-                    tag="enable_sleep_checkbox",
+                    tag="settings_enable_sleep",
                     label="Sleep",
-                    default_value=self.coordinator.sim.world.enable_sleep,
-                    callback=self.on_toggle_sleep,
+                    default_value=settings.enable_sleep,
+                    callback=self.on_ui_settings_change,
                 )
 
             # Create the main content group.
             with dpg.group(horizontal=True, tag="main_content"):
                 self.simulation_canvas = dpg.add_drawlist(
                     tag="simulation_canvas",
-                    width=self.viewport_width,
-                    height=self.viewport_height,
+                    width=100,  # temp values
+                    height=100,
                 )
                 self.tests_tree = dpg.add_child_window(tag="tests_tree")
                 self.build_tests_tree()
@@ -120,7 +125,6 @@ class TestbedUI:
 
         # Initialize the debug draw.
         self.debug_draw = DearpyguiDebugDraw(self.simulation_canvas)
-        self.debug_draw.view_transform = self.coordinator.input.view_transform
 
         # Debug draw toggles window.
         with dpg.window(
@@ -133,90 +137,84 @@ class TestbedUI:
         ) as self.debug_toggles_panel:
             with dpg.group(horizontal=True, horizontal_spacing=10):
                 dpg.add_checkbox(
+                    tag="settings_draw_shapes",
                     label="shapes",
-                    default_value=self.debug_draw.draw_shapes,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_shapes",
+                    default_value=settings.draw_shapes,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_aabbs",
                     label="aabbs",
-                    default_value=self.debug_draw.draw_aabbs,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_aabbs",
+                    default_value=settings.draw_aabbs,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_joints",
                     label="joints",
-                    default_value=self.debug_draw.draw_joints,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_joints",
+                    default_value=settings.draw_joints,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_contacts",
                     label="contacts",
-                    default_value=self.debug_draw.draw_contacts,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_contacts",
+                    default_value=settings.draw_contacts,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_contact_normals",
                     label="contact_normals",
-                    default_value=self.debug_draw.draw_contact_normals,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_contact_normals",
+                    default_value=settings.draw_contact_normals,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_contact_impulses",
                     label="contact_impulses",
-                    default_value=self.debug_draw.draw_contact_impulses,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_contact_impulses",
+                    default_value=settings.draw_contact_impulses,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_friction_impulses",
                     label="friction_impulses",
-                    default_value=self.debug_draw.draw_friction_impulses,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_friction_impulses",
+                    default_value=settings.draw_friction_impulses,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_mass",
                     label="mass",
-                    default_value=self.debug_draw.draw_mass,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_mass",
+                    default_value=settings.draw_mass,
+                    callback=self.on_ui_settings_change,
                 )
                 dpg.add_checkbox(
+                    tag="settings_draw_joint_extras",
                     label="joint_extras",
-                    default_value=self.debug_draw.draw_joint_extras,
-                    callback=self.on_toggle_debug_draw,
-                    user_data="draw_joint_extras",
+                    default_value=settings.draw_joint_extras,
+                    callback=self.on_ui_settings_change,
                 )
-
-        # Register global mouse event handlers.
-        with dpg.handler_registry():
-            dpg.add_mouse_wheel_handler(callback=self.coordinator.input.on_mouse_scroll)
-            dpg.add_mouse_down_handler(
-                callback=self.coordinator.input.global_mouse_down_handler
-            )
-            dpg.add_mouse_drag_handler(
-                callback=self.coordinator.input.global_mouse_drag_handler
-            )
-            dpg.add_mouse_release_handler(
-                callback=self.coordinator.input.global_mouse_release_handler
-            )
 
         dpg.set_viewport_resize_callback(self.on_viewport_resize)
-
-        default_test_cls = get_first_test()
-        if default_test_cls is not None:
-            self.coordinator.sim.load_test(default_test_cls)
 
         dpg.setup_dearpygui()
         dpg.show_viewport()
         dpg.set_primary_window(self.main_window, True)
 
+        self.input = TestbedInput(self.simulation_canvas)
+        settings.subscribe(self.on_settings_changed)
+        settings.subscribe(
+            self.on_update_perf,
+            "step_count",
+            "physics_ms_avg",
+            "physics_ms",
+            "debug_draw_ms_avg",
+            "debug_draw_ms",
+        )
         # Update positions and sizes using the viewport's current dimensions.
         self.on_viewport_resize(None, None)
 
     def build_tests_tree(self):
         self.test_selectable_ids = []
-        tests_registry = get_all_tests()
-        for category, tests in tests_registry.items():
+        if not settings.all_tests:
+            return
+        for category, tests in settings.all_tests.items():
             with dpg.tree_node(
                 label=category, default_open=False, parent=self.tests_tree
             ):
@@ -301,14 +299,6 @@ class TestbedUI:
                     **callback_kwargs,
                 )
 
-    def on_thread_settings_change(self, sender, app_data, user_data=None):
-        """
-        Callback executed when the timestep, substeps, or thread setting is changed.
-        It propagates the new values to the simulation.
-        """
-        self.coordinator.sim.update_settings()
-        self.coordinator.sim.reset_current_test()
-
     def on_viewport_resize(self, sender, app_data):
         new_width, new_height = dpg.get_viewport_width(), dpg.get_viewport_height()
         content_height = new_height - self.controls_height - self.toggles_height
@@ -326,9 +316,6 @@ class TestbedUI:
         dpg.configure_item(
             self.tests_tree, width=self.sidebar_width, height=tests_tree_height
         )
-
-        new_view_center = (canvas_width // 2, content_height // 2)
-        self.coordinator.input.set_view_center(new_view_center)
         dpg.configure_item(
             self.debug_toggles_panel,
             pos=(0, new_height - self.toggles_height),
@@ -349,34 +336,19 @@ class TestbedUI:
                     - self.stats_bottom_offset,
                 ),
             )
+        settings.width, settings.height = new_width, new_height
 
     # --- Callback wrappers ---
     def on_toggle_simulation(self, sender, app_data, user_data=None):
-        new_label = self.coordinator.sim.toggle_simulation(sender, app_data)
-        dpg.set_item_label(sender, new_label)
-
-    def on_toggle_continuous(self, sender, app_data, user_data=None):
-        self.coordinator.sim.toggle_continuous(sender, app_data)
-
-    def on_toggle_sleep(self, sender, app_data, user_data=None):
-        self.coordinator.sim.toggle_sleep(sender, app_data)
-
-    def on_toggle_debug_draw(self, sender, app_data, user_data):
-        new_value = dpg.get_value(sender)
-        setattr(self.debug_draw, user_data, new_value)
+        settings.simulation_paused = not settings.simulation_paused
+        new_label = "Play" if settings.simulation_paused else "Pause"
+        dpg.set_item_label("sim_start_pause_button", new_label)
 
     def on_test_select(self, sender, app_data, user_data):
         for sid in self.test_selectable_ids:
             dpg.set_value(sid, False)
         dpg.set_value(sender, True)
-        self.coordinator.sim.load_test(user_data)
-
-    def on_physics_settings_change(self, sender, app_data, user_data=None):
-        """
-        Callback executed when the timestep or substeps setting is changed.
-        It propagates the new values to the simulation.
-        """
-        self.coordinator.sim.update_settings()
+        settings.current_test = user_data
 
     def on_step_simulation(self, sender, app_data, user_data=None):
         """
@@ -384,16 +356,151 @@ class TestbedUI:
         If the simulation is running, pause it first.
         Then step the simulation for one physics update.
         """
-        if not self.coordinator.sim.simulation_paused:
-            # If not paused, pause the simulation.
-            new_label = self.coordinator.sim.toggle_simulation(
-                "sim_start_pause_button", app_data
-            )
-            dpg.set_item_label("sim_start_pause_button", new_label)
-        # Step the simulation for one physics update.
-        self.coordinator.sim.update_physics()
-        # Update the step counter in the UI.
-        dpg.set_value("step_text", f"Step: {self.coordinator.sim.step_counter}")
+        if not settings.simulation_paused:
+            self.on_toggle_simulation(None, None)
+        settings.step_number += 1
 
-    def update(self):
-        self.debug_draw.view_transform = self.coordinator.input.view_transform
+    def on_update_perf(self, key, value):
+        # print(f"update perf: {key}: {value}")
+        if key == "step_count":
+            dpg.set_value("step_text", f"Step: {value}")
+        if key == "debug_draw_ms_avg":
+            dpg.set_value("draw_time_text", f"Draw: {value:.2f}")
+        if key in ("physics_ms", "physics_ms_avg"):
+            if settings.simulation_paused:
+                phys = f"Physics: {settings.physics_ms:.2f} ms"
+            else:
+                phys = f"Physics: {settings.physics_ms_avg:.2f} ms (avg)"
+            dpg.set_value("physics_time_text", phys)
+
+    def on_ui_settings_change(self, sender, app_data, user_data=None):
+        """
+        Callback for when the user changes one of the ui settings that map
+        to the settings controler.
+        """
+        sender_tag = dpg.get_item_info(sender).get("tag", sender)
+        settings_key = sender_tag.removeprefix("settings_")
+        setattr(settings, settings_key, dpg.get_value(sender))
+
+    def on_settings_changed(self, key, new_value):
+        """
+        Callback for when a simulation setting is updated externally.
+        This method updates the corresponding UI widget.
+        """
+        widget_tag = "settings_" + key
+        if dpg.does_item_exist(widget_tag):
+            dpg.set_value(widget_tag, new_value)
+
+
+class TestbedInput:
+    """
+    Handles mouse, viewport, and coordinate transforms.
+    """
+
+    def __init__(self, simulation_canvas):
+        self.simulation_canvas = simulation_canvas
+        self.last_mouse_pos = None
+        self.last_drag_pos = None
+        self.update_transform()
+        settings.subscribe(self.update_transform, "center", "scale", "width", "height")
+        # Register global mouse event handlers.
+        with dpg.handler_registry():
+            dpg.add_mouse_wheel_handler(callback=self.on_mouse_scroll)
+            dpg.add_mouse_click_handler(
+                callback=self.global_mouse_down_handler, button=dpg.mvMouseButton_Left
+            )
+            dpg.add_mouse_drag_handler(
+                callback=self.global_mouse_drag_handler, button=dpg.mvMouseButton_Left
+            )
+            dpg.add_mouse_release_handler(
+                callback=self.global_mouse_release_handler,
+                button=dpg.mvMouseButton_Left,
+            )
+            dpg.add_mouse_drag_handler(
+                button=dpg.mvMouseButton_Right, callback=self.update_panning
+            )
+            dpg.add_mouse_release_handler(
+                callback=self.stop_panning, button=dpg.mvMouseButton_Right
+            )
+
+    def update_transform(self, key=None, value=None):
+        canvas_width = dpg.get_item_width(self.simulation_canvas)
+        canvas_height = dpg.get_item_height(self.simulation_canvas)
+        canvas = Vec2(canvas_width, canvas_height) / 2
+        s = settings.scale
+        p = Vec2(*settings.center)
+        self.view_transform = ScaledTransform(
+            position=Vec2(canvas.x - p.x * s, canvas.y + p.y * s),
+            rotation=0,
+            scale=(settings.scale, -settings.scale),
+        )
+
+    def on_mouse_scroll(self, sender, app_data):
+        # Only zoom if the mouse is over the simulation canvas.
+        if not dpg.is_item_hovered(self.simulation_canvas):
+            return
+        zoom_speed = 1.1
+        current_zoom = settings.scale
+        if app_data > 0:
+            new_zoom = current_zoom * zoom_speed
+        elif app_data < 0:
+            new_zoom = current_zoom / zoom_speed
+        else:
+            new_zoom = current_zoom
+        new_zoom = max(5, min(new_zoom, 200))
+        settings.scale = new_zoom
+
+    def update_panning(self, sender, app_data):
+        if not dpg.is_item_hovered(self.simulation_canvas):
+            self.last_drag_pos = None
+            return
+
+        current_mouse_pos = dpg.get_mouse_pos()
+        if self.last_drag_pos is None:
+            self.last_drag_pos = current_mouse_pos
+            return
+
+        dx = current_mouse_pos[0] - self.last_drag_pos[0]
+        dy = current_mouse_pos[1] - self.last_drag_pos[1]
+
+        # Update last_right_mouse_pos for the next callback.
+        self.last_drag_pos = current_mouse_pos
+
+        world_dx = dx / settings.scale
+        world_dy = -dy / settings.scale
+
+        settings.center = Vec2(
+            settings.center[0] - world_dx,
+            settings.center[1] - world_dy,
+        )
+
+    def stop_panning(self, sender, app_data):
+        self.last_drag_pos = None
+
+    # What's up with that offset needed....?
+    def global_mouse_down_handler(self, sender, app_data):
+        if not dpg.is_item_hovered(self.simulation_canvas):
+            return
+        canvas_min = dpg.get_item_pos(self.simulation_canvas)
+        mouse_pos = dpg.get_mouse_pos()
+        local_mouse = Vec2(*mouse_pos) - canvas_min - (7, 10)
+        pos = self.view_transform.inverse(local_mouse)
+        settings.current_test_obj.on_mouse_down(pos)
+
+    def global_mouse_drag_handler(self, sender, app_data):
+        if not dpg.is_item_hovered(self.simulation_canvas):
+            return
+        canvas_min = dpg.get_item_pos(self.simulation_canvas)
+        mouse_pos = dpg.get_mouse_pos()
+        local_mouse = Vec2(*mouse_pos) - canvas_min - (7, 10)
+        pos = self.view_transform.inverse(local_mouse)
+        settings.current_test_obj.on_mouse_drag(pos, Vec2(0, 0))
+
+    def global_mouse_release_handler(self, sender, app_data):
+        if not dpg.is_item_hovered(self.simulation_canvas):
+            return
+        canvas_min = dpg.get_item_pos(self.simulation_canvas)
+        mouse_pos = dpg.get_mouse_pos()
+        local_mouse = Vec2(*mouse_pos) - canvas_min - (7, 10)
+        pos = self.view_transform.inverse(local_mouse)
+        settings.current_test_obj.on_mouse_release(pos)

@@ -2,6 +2,7 @@ import math
 import time
 import dearpygui.dearpygui as dpg
 from box2d import Vec2, DebugDraw, Color, ScaledTransform, Rot
+from .simulation_settings import settings
 
 
 class DearpyguiDebugDraw(DebugDraw):
@@ -13,16 +14,44 @@ class DearpyguiDebugDraw(DebugDraw):
         # canvas: an item id of a dpg.drawlist
         super().__init__()
         self.canvas = canvas
-        self.draw_shapes = True
-        self.draw_joints = True
         self.outline_thickness = 1  # use thicker outlines, if desired
 
-        self.view_transform = ScaledTransform(
-            position=(400, 300), rotation=0, scale=(30, -30)
+        settings.subscribe(self.update_transform, "center", "scale", "width", "height")
+        settings.subscribe(self.update_draw)
+        self.update_draw()
+        self.update_transform()
+
+    def update_draw(self, key=None, value=None):
+        draw_keys = (
+            "draw_shapes",
+            "draw_aabbs",
+            "draw_joints",
+            "draw_contacts",
+            "draw_contact_normals",
+            "draw_contact_impulses",
+            "draw_friction_impulses",
+            "draw_mass",
+            "draw_joint_extras",
         )
-        # Initialize draw timing metrics (in milliseconds)
-        self.last_draw_time = 0.0
-        self.draw_time_avg = 0.0
+        if key in draw_keys:
+            self.__setattr__(key, value)
+        if key is None:
+            for k in draw_keys:
+                self.__setattr__(k, settings[k])
+
+    def update_transform(self, key=None, new_value=None):
+        canvas_width = dpg.get_item_width(self.canvas)
+        canvas_height = dpg.get_item_height(self.canvas)
+        scale = settings.scale
+        center_x, center_y = settings.center
+        self.view_transform = ScaledTransform(
+            position=(
+                canvas_width / 2 - center_x * scale,
+                canvas_height / 2 + center_y * scale,
+            ),
+            rotation=0,
+            scale=(settings.scale, -settings.scale),
+        )
 
     def start_frame(self):
         """
@@ -50,7 +79,12 @@ class DearpyguiDebugDraw(DebugDraw):
         elapsed = (
             time.perf_counter() - self._draw_start_time
         ) * 1000.0  # in milliseconds
-        self.record_draw_time(elapsed)
+        smoothing = 0.9
+        settings.debug_draw_ms = elapsed
+        settings.debug_draw_ms_avg = (
+            settings.debug_draw_ms_avg * smoothing + elapsed * (1 - smoothing)
+        )
+        # print(settings.debug_draw_ms_avg)
 
     def round_polygon_vertices(self, vertices, radius):
         """
@@ -154,13 +188,12 @@ class DearpyguiDebugDraw(DebugDraw):
         center_screen = tuple(round(self.view_transform(center)))
         scaled_radius = round(radius * abs(self.view_transform._scale.x))
         fill_color = tuple(color)[:3] + (150,)
-        base = (color.r, color.g, color.b)
-        line_color = tuple(min(255, c + 100) for c in base) + (255,)
+        base_color = tuple(color)
         dpg.draw_circle(
             center=center_screen,
             radius=scaled_radius,
             fill=fill_color,
-            color=line_color,
+            color=base_color,
             thickness=self.outline_thickness,
             parent=self.canvas,
         )
@@ -173,7 +206,7 @@ class DearpyguiDebugDraw(DebugDraw):
         dpg.draw_line(
             center_screen,
             edge_point,
-            color=line_color,
+            color=base_color,
             thickness=self.outline_thickness,
             parent=self.canvas,
         )
@@ -272,12 +305,3 @@ class DearpyguiDebugDraw(DebugDraw):
             thickness=self.outline_thickness,
             parent=self.canvas,
         )
-
-    def record_draw_time(self, time_ms):
-        """
-        Record the draw time and update the rolling average.
-        Both the most recent draw time and the smoothed (rolling average) value are stored.
-        """
-        smoothing = 0.9
-        self.last_draw_time = time_ms
-        self.draw_time_avg = self.draw_time_avg * smoothing + time_ms * (1 - smoothing)
