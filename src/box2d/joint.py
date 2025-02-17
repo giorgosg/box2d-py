@@ -50,13 +50,14 @@ class Joint(ABC):
             lib.b2DestroyJoint(self._joint_id)
         self._joint_id = None
 
-    def __del__(self):
-        """Safely remove the joint from the physics simulation when destroyed.
+    # do we really want joints to be deleted if garbage collacted?
+    # def __del__(self):
+    #    """Safely remove the joint from the physics simulation when destroyed.
 
-        Automatically cleans up the joint connection between bodies if it
-        still exists in the world.
-        """
-        self.destroy()
+    #    Automatically cleans up the joint connection between bodies if it
+    #    still exists in the world.
+    #    """
+    #    self.destroy()
 
     @property
     def is_valid(self):
@@ -282,11 +283,11 @@ class WeldJoint(Joint):
         local_anchor_a,
         local_anchor_b,
         collide_connected=False,
-        linear_hertz=0,
-        linear_damping_ratio=0,
-        angular_hertz=0,
-        angular_damping_ratio=0,
-        reference_angle=0,
+        linear_hertz=None,
+        linear_damping_ratio=None,
+        angular_hertz=None,
+        angular_damping_ratio=None,
+        reference_angle=None,
     ):
         self._local_anchor_a = Vec2(*local_anchor_a)
         self._local_anchor_b = Vec2(*local_anchor_b)
