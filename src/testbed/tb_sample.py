@@ -34,7 +34,7 @@ class PyramidTest(BaseTest, category="Performance", name="Pyramid Test"):
         # Create a static ground body.
         self.world.new_body().static().position(0, -10).box(200, 20).build()
 
-        rows = 100
+        rows = 30
         box_size = 1  # Each box will be 1x1 (if box() takes half-dimensions).
 
         for i in range(rows):

@@ -209,6 +209,9 @@ class TestbedUI:
         )
         # Update positions and sizes using the viewport's current dimensions.
         self.on_viewport_resize(None, None)
+        settings.subscribe(self.build_test_ui, "current_test_obj")
+        if settings.current_test_obj:
+            self.build_test_ui(None, settings.current_test_obj)
 
     def build_tests_tree(self):
         self.test_selectable_ids = []
@@ -241,11 +244,12 @@ class TestbedUI:
             self.test_ui_container = dpg.add_child_window(tag="test_ui_container")
         return self.test_ui_container
 
-    def build_test_ui(self, test):
+    def build_test_ui(self, key, test):
         """
         Build UI controls for a test based on its ui_elements descriptors.
         Supported controls: combo, button, checkbox.
         """
+        self.create_test_ui_window(test)
         # Start with any UI elements defined by the test.
         ui_elements = []
         if hasattr(test, "ui_elements"):
@@ -255,25 +259,23 @@ class TestbedUI:
             ui_elements.extend(test.get_default_ui_elements())
 
         # Helper function to create a callback wrapper that captures the callback and its user_data.
-        def create_callback(callback, user_data):
-            if user_data is not None:
+        def create_callback(element):
+            if element.user_data is not None:
 
                 def wrapped(sender, app_data):
-                    return callback(app_data, user_data)
+                    return element.callback(element.key, app_data, element.user_data)
 
             else:
 
                 def wrapped(sender, app_data):
-                    return callback(app_data)
+                    return element.callback(element.key, app_data)
 
             return wrapped
 
         for element in ui_elements:
             callback_kwargs = {}
             if callable(element.callback):
-                callback_kwargs["callback"] = create_callback(
-                    element.callback, element.user_data
-                )
+                callback_kwargs["callback"] = create_callback(element)
             else:
                 print(f"Element {element.label} has no callable callback.")
 
@@ -296,6 +298,15 @@ class TestbedUI:
                     parent=self.test_ui_container,
                     label=element.label,
                     default_value=element.default,
+                    **callback_kwargs,
+                )
+            elif element.control_type == "int_input":
+                dpg.add_slider_int(
+                    parent=self.test_ui_container,
+                    label=element.label,
+                    default_value=element.default,
+                    min_value=element.min_value,
+                    max_value=element.max_value,
                     **callback_kwargs,
                 )
 

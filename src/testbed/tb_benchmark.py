@@ -1,11 +1,32 @@
-from .base_test import BaseTest
+from .base_test import BaseTest, UIElement
 import itertools
 
 
 class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ui_elements += [
+            UIElement(
+                control_type="int_input",
+                key="count",
+                label="Count",
+                default=3,
+                max_value=10,
+                min_value=2,
+                callback=self.on_change,
+            )
+        ]
+        self.count = 3
+
+    def on_change(self, key, value):
+        self.count = value
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
     def setup(self):
         grid = 1.0
-        rows, cols = 30, 30
+        rows, cols = self.count * 3 + 5, self.count * 3 + 5
         ground = self.world.new_body().static()
 
         ground_box_offsets = (
@@ -19,7 +40,7 @@ class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
             ground.box(1.0, 1.0, offset=offset, friction=0.2)
         ground.build()
 
-        count_x, count_y = 5, 5
+        count_x, count_y = self.count, self.count
         spacing_x, spacing_y = 3.0, 3.0
         start_x = -((count_x - 1) * spacing_x) / 2
         start_y = 50 - ((count_y - 1) * spacing_y) / 2

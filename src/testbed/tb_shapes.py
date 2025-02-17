@@ -10,9 +10,9 @@ class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
         body = (
             self.world.new_body()
             .static()
-            .box(40, 2, offset=(0, -1))
-            .box(2, 10, offset=(19, 5))
-            .box(2, 10, offset=(-19, 5))
+            .box(20, 2, offset=(0, -1))
+            .box(2, 10, offset=(9, 5))
+            .box(2, 10, offset=(-9, 5))
             .build()
         )
 
@@ -52,7 +52,21 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
 
 
 class Restitution(BaseTest, category="Shapes", name="Restitution"):
-    def setup(self, shape="circle"):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.current_shape = "circle"
+        self.ui_elements += [
+            UIElement(
+                control_type="combo",
+                key="shape_selector",
+                label="Shape",
+                default="circle",
+                options=["circle", "box", "polygon", "capsule"],
+                callback=self.on_shape_change,
+            )
+        ]
+
+    def setup(self):
         ground = (
             self.world.new_body().static().segment((-40, 0), (40, 0), restitution=0)
         )
@@ -65,7 +79,7 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
         x_list = [-1.0 * (e_count - 1) + i * dx for i in range(e_count)]
         restitution_list = [i * dr for i in range(e_count)]
         y_position = 40.0
-
+        shape = self.current_shape
         for x, r in zip(x_list, restitution_list):
             builder = self.world.new_body().dynamic().position(x, y_position)
             if shape == "circle":
@@ -82,24 +96,9 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
                 builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
             builder.build()
 
-    def init_ui(self):
-        super().init_ui()
-        self.current_shape = "circle"
-        self.ui_elements += [
-            UIElement(
-                control_type="combo",
-                key="shape_selector",
-                label="Shape",
-                default="circle",
-                options=["circle", "box", "polygon", "capsule"],
-                callback=self.on_shape_change,
-            )
-        ]
-
-    def on_shape_change(self, new_value):
+    def on_shape_change(self, key, new_value):
         self.current_shape = new_value
         # First, clear all existing bodies in the world.
         for body in self.world.bodies:
             body.destroy()
-
-        self.setup(self.current_shape)
+        self.setup()

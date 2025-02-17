@@ -42,9 +42,8 @@ class TestbedSimulation:
         self.world.enable_continuous = settings.enable_continuous
         self.world.enable_sleep = settings.enable_sleep
         settings.step_count = 0
-        current_test_obj = settings.current_test(self.world, self.debug_draw)
+        current_test_obj = settings.current_test(self.world)
         current_test_obj.setup()
-        current_test_obj.init_ui()
         self.current_test = current_test_obj
         settings.current_test_obj = current_test_obj
 
@@ -52,6 +51,7 @@ class TestbedSimulation:
         start = time.perf_counter()
         self.world.step(1 / settings.hertz, settings.substeps)
         elapsed = (time.perf_counter() - start) * 1000.0  # elapsed time in ms
+        self.current_test.after_step(1 / settings.hertz)
         smoothing = 0.9
         settings.physics_ms = elapsed
         settings.physics_ms_avg = settings.physics_ms_avg * smoothing + elapsed * (
@@ -68,7 +68,7 @@ class TestbedSimulation:
     def draw(self, debug_draw):
         debug_draw.start_frame()
         self.world.draw(debug_draw)
-        self.current_test.update(debug_draw)
+        self.current_test.debug_draw(debug_draw)
         debug_draw.end_frame()
 
 

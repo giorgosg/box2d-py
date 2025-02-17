@@ -1,4 +1,5 @@
 from box2d import World, Vec2
+from simulation_settings import settings
 
 
 class UIElement:
@@ -8,6 +9,8 @@ class UIElement:
         key,
         label,
         default=None,
+        max_value=None,
+        min_value=None,
         options=None,
         callback=None,
         user_data=None,
@@ -15,10 +18,12 @@ class UIElement:
         """
         A descriptor for a UI element.
 
-        control_type: The type of control (e.g., "button", "label", "combo").
+        control_type: The type of control ("button", "label", "combo", "toggle", "int_input").
         key: A unique key for the control.
         label: The display label.
         default: The control's default value.
+        max_value: The maximum value (required for int_input)
+        min_value: The minimun value (required for int_input)
         options: (Optional) List of options (useful for combo boxes, etc.)
         callback: (Optional) Function to be called when the control changes.
         user_data: (Optional) Additional data to be passed to the callback.
@@ -27,6 +32,8 @@ class UIElement:
         self.key = key
         self.label = label
         self.default = default
+        self.max_value = max_value
+        self.min_value = min_value
         self.options = options or []
         self.callback = callback
         self.user_data = user_data
@@ -47,10 +54,18 @@ class BaseTest:
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
 
-    def __init__(self, world, debug_draw):
+    def __init__(self, world):
         self.world = world
-        self.debug_draw = debug_draw
         self.mouse_joint = None  # For default dragging
+        self.settings = settings
+        self.ui_elements = [
+            UIElement(
+                control_type="button",
+                key="reset_button",
+                label="Reset",
+                callback=self.on_reset_click,
+            ),
+        ]
 
     def setup(self):
         """
@@ -59,26 +74,13 @@ class BaseTest:
         """
         raise NotImplementedError("Each test must implement the setup method.")
 
-    def init_ui(self):
+    def after_step(self, dt):
         """
-        Initialize test-specific UI elements.
-        Override this method in your test subclass if additional UI is required.
-        The default implementation adds a reset button.
+        Called after each world step.
         """
-        # If subclasses override this method, please call super().init_ui() to ensure
-        # that the reset button is added.
-        if not hasattr(self, "ui_elements"):
-            self.ui_elements = []
-        self.ui_elements.append(
-            UIElement(
-                control_type="button",
-                key="reset_button",
-                label="Reset",
-                callback=self.on_reset_click,
-            )
-        )
+        pass
 
-    def update(self, debug_draw):
+    def debug_draw(self, debug_draw):
         """
         Called every frame after the debug draw has rendered the simulation.
         """
@@ -91,11 +93,7 @@ class BaseTest:
         """
         if self.mouse_joint is not None:
             return
-        from box2d.math import AABB
 
-        query_aabb = AABB(
-            lower=(pos.x - 0.1, pos.y - 0.1), upper=(pos.x + 0.1, pos.y + 0.1)
-        )
         shapes = self.world.query_circle(pos, 0.0001)
         for shape in shapes:
             body = shape.body
@@ -129,21 +127,15 @@ class BaseTest:
         """
         pass
 
-    def on_reset_click(self, app_data, user_data=None):
+    def on_reset_click(self, key, value):
         """
         Callback for the reset button.
         Deletes all bodies in the world and runs the test setup again.
         If the test uses parameters (e.g. current_shape), these are preserved.
         """
-        # Delete all bodies (we use a copy of the list in case bodies modify the list)
         for body in list(self.world.bodies):
             body.destroy()
-
-        # Re-run setup – if the test stores a parameter such as current_shape, pass it.
-        if hasattr(self, "current_shape"):
-            self.setup(self.current_shape)
-        else:
-            self.setup()
+        self.setup()
 
 
 def get_first_test():
