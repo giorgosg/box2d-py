@@ -114,12 +114,17 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
             self.hertz = value
         elif key == "damping":
             self.damping = value
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+        if key in ("segments", "radius"):
+            for body in self.world.bodies:
+                body.destroy()
+            self.setup()
+        if key in ("hertz", "damping"):
+            for joint in self.joints:
+                joint.angular_damping_ratio = self.damping
+                joint.angular_hertz = self.hertz
 
     def setup(self):
         ground = self.world.new_body().position(0, -5).box(100, 1).build()
-        soft_body = donut(
+        self.bodies, self.joints = donut(
             self.world, (0, 20), self.radius, self.segments, self.hertz, self.damping
         )
