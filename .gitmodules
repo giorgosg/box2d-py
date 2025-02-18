@@ -1,6 +1,8 @@
 [submodule "box2d"]
 	path = box2d
 	url = https://github.com/erincatto/box2d.git
+	ignore = untracked
 [submodule "enkits"]
 	path = enkits
 	url = https://github.com/dougbinks/enkiTS.git
+	ignore = untracked
