@@ -68,6 +68,15 @@ with open(combined_header_file, "w") as f:
 
 ffibuilder.cdef(combined_header)
 
+enkits_src_dir = "enkits/src"
+enkits_source_files = [
+    os.path.join(enkits_src_dir, "TaskScheduler.cpp"),
+    os.path.join(enkits_src_dir, "TaskScheduler_c.cpp"),
+]
+
+# Add enkiTS include directory
+enkits_include_dir = "enkits/src"
+
 # Get all .c files in the src directory
 src_dir = "box2d/src"
 source_files = [
@@ -75,6 +84,7 @@ source_files = [
 ]
 
 # Add the task scheduler source file (which uses enkiTS)
+source_files += enkits_source_files
 task_scheduler_path = os.path.join("src", "tasks", "task_scheduler.c")
 source_files.append(task_scheduler_path)
 
@@ -87,18 +97,20 @@ ffibuilder.set_source(
     "box2d._box2d",
     """
     #include "box2d/box2d.h"
-    #include "enkiTS/TaskScheduler_c.h"
+    #include "TaskScheduler_c.h"
     #include "tasks/task_scheduler.h"
     """,
     sources=source_files,
-    include_dirs=[include_dir, cdef_dir, "src"],
-    library_dirs=["/usr/lib"],
-    libraries=["enkiTS"],
+    include_dirs=[include_dir, cdef_dir, "src", enkits_include_dir],
+    library_dirs=[],
+    libraries=[],
     extra_compile_args=[
         "-D__linux__",
         "-DB2_ENABLE_ASSERT=1",
         "-DB2_INTERNAL_ASSERT_ENABLED=1",
+        "--std=c++11",
     ],
+    extra_link_args=["-lstdc++"],
 )
 
 

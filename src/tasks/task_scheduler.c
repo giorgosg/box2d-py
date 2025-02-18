@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "enkiTS/TaskScheduler_c.h"
+#include "TaskScheduler_c.h"
 #include "task_scheduler.h"
 #include "box2d/box2d.h"
 
