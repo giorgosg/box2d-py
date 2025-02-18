@@ -312,7 +312,6 @@ class TestbedUI:
                 )
         # container_height = dpg.get_item_height("test_ui_container")
         new_height = len(ui_elements) * 25 + 45
-        print(new_height)
         dpg.configure_item(
             "test_ui_window",
             height=new_height,

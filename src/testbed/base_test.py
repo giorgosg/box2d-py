@@ -1,5 +1,5 @@
 from box2d import World, Vec2
-from simulation_settings import settings
+from .simulation_settings import settings
 
 
 class UIElement:
