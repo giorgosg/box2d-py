@@ -1,5 +1,5 @@
 from box2d import World, Vec2
-from .simulation_settings import settings
+from .testbed_state import state
 
 
 class UIElement:
@@ -57,7 +57,7 @@ class BaseTest:
     def __init__(self, world):
         self.world = world
         self.mouse_joint = None  # For default dragging
-        self.settings = settings
+        self.app_state = state
         self.ui_elements = [
             UIElement(
                 control_type="button",
@@ -141,19 +141,19 @@ class BaseTest:
             body.destroy()
         self.setup()
 
+    @classmethod
+    def get_first_test(cls):
+        """
+        Returns an instance of the first registered test.
+        """
+        for category, tests in BaseTest.registry.items():
+            for name, test_cls in tests.items():
+                return test_cls
+        return None
 
-def get_first_test():
-    """
-    Returns an instance of the first registered test.
-    """
-    for category, tests in BaseTest.registry.items():
-        for name, test_cls in tests.items():
-            return test_cls
-    return None
-
-
-def get_all_tests():
-    """
-    Returns the full test registry.
-    """
-    return BaseTest.registry
+    @classmethod
+    def get_all_tests(cls):
+        """
+        Returns the full test registry.
+        """
+        return BaseTest.registry

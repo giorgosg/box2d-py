@@ -18,3 +18,7 @@ docs/build
 temp
 src/tasks/task_scheduler.o
 setup.py
+.env
+.vscode
+Pipfile
+Pipfile.lock

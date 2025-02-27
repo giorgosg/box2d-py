@@ -33,9 +33,11 @@ python = ">=3.12"
 cffi = ">=1.16.0"
 dearpygui = { version = "*", optional = true }
 setuptools = "^75.8.0"
+pyopengl = ">=3.1.9"
+numpy = ">=1.26"
 
 [tool.poetry.extras]
-testbed = ["dearpygui"]
+testbed = ["dearpygui", "pyopengl", "numpy"]
 
 [tool.poetry.build]
 generate-setup-file = true
@@ -74,6 +76,6 @@ authors = [
 maintainers = [
     { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
 ]
-optional-dependencies = { testbed = ["dearpygui"] }
+optional-dependencies = { testbed = ["dearpygui", "pyopengl", "numpy"] }
 dependencies = ["cffi"]
 dynamic = ["scripts"]

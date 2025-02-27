@@ -9,107 +9,261 @@ if __name__ == "__main__" and __package__ is None:
     # Set the package name so relative imports work.
     __package__ = "testbed"
 
+
+from imgui_bundle import hello_imgui, imgui, immapp, icons_fontawesome_6
+from imgui_bundle.demos_python import demo_utils
+from .testbed_state import state
+from .testbed_simulation import TestbedSimulation
+from .base_test import BaseTest
 import time
-import math
-import dearpygui.dearpygui as dpg
-
-from box2d import World, Vec2, ScaledTransform
-from .base_test import get_first_test, get_all_tests
-from .debug_draw_dpg import DearpyguiDebugDraw
-from .dpg_ui import TestbedUI
-from .simulation_settings import settings
-from . import tb_sample, tb_sample, tb_shapes, tb_benchmark, tb_joints
+from .debug_draw_gl import GLDebugDraw
+from OpenGL import GL as gl
+import numpy as np
+from .draw import GLBackground, Camera, GLCircles
+from box2d import Color, Vec2
 
 
-class TestbedSimulation:
-    """
-    Handles Box2D physics, world, and test switching.
-    """
-
-    def __init__(self, debug_draw):
-        self.world = World(gravity=settings.gravity, threads=settings.threads)
-        self.debug_draw = debug_draw
-        settings.subscribe(self.toggle_continuous, "enable_continuous")
-        settings.subscribe(self.toggle_sleep, "enable_sleep")
-        settings.subscribe(self.init_test, "current_test")
-        settings.subscribe(self.init_test, "threads")
-
-    def init_test(self, key=None, value=None):
-        print(f"Initializing test: {settings.current_test.__name__}")
-        if self.world:
-            self.world.destroy()
-        self.world = World(gravity=settings.gravity, threads=settings.threads)
-        self.world.enable_continuous = settings.enable_continuous
-        self.world.enable_sleep = settings.enable_sleep
-        settings.step_count = 0
-        current_test_obj = settings.current_test(self.world)
-        current_test_obj.setup()
-        self.current_test = current_test_obj
-        settings.current_test_obj = current_test_obj
-
-    def update_physics(self):
-        start = time.perf_counter()
-        self.world.step(1 / settings.hertz, settings.substeps)
-        elapsed = (time.perf_counter() - start) * 1000.0  # elapsed time in ms
-        self.current_test.after_step(1 / settings.hertz)
-        smoothing = 0.9
-        settings.physics_ms = elapsed
-        settings.physics_ms_avg = settings.physics_ms_avg * smoothing + elapsed * (
-            1 - smoothing
-        )
-        settings.step_count = settings.step_count + 1
-
-    def toggle_continuous(self, key, value):
-        self.world.enable_continuous = value
-
-    def toggle_sleep(self, key, value):
-        self.world.enable_sleep = value
-
-    def draw(self, debug_draw):
-        debug_draw.start_frame()
-        self.world.draw(debug_draw)
-        self.current_test.debug_draw(debug_draw)
-        debug_draw.end_frame()
-
-
-class TestbedCoordinator:
+class TestbedApp:
     def __init__(self):
-        self.ui = TestbedUI()
-        self.sim = TestbedSimulation(self.ui.debug_draw)
-        settings.all_tests = get_all_tests()
-        settings.current_test = get_first_test()
+        self.simulation = None
+        self.runner_params = hello_imgui.RunnerParams()
+        self.debug_draw = None
+        self.simulation = None
+        self.last_step_time = time.perf_counter()
+        self.triangle_vao = None
+        self.triangle_program = None
+        self.init_app()
+
+    def init_app(self):
+        # Set window type back to docking with default window
+        self.runner_params.imgui_window_params.default_imgui_window_type = (
+            hello_imgui.DefaultImGuiWindowType.provide_full_screen_dock_space
+        )
+
+        # Initialize simulation and debug draw in post_init
+        self.runner_params.callbacks.post_init = self.post_gl_init
+
+        # Rest of window setup
+        # Keep both callbacks
+        # self.runner_params.callbacks.custom_background = self.render_background
+        self.runner_params.callbacks.post_init = self.post_gl_init
+
+        # Menu setup
+        self.runner_params.imgui_window_params.show_menu_bar = True
+        self.runner_params.callbacks.show_menus = self.show_menus
+        self.runner_params.imgui_window_params.show_menu_app = False
+
+        # Status bar
+        self.runner_params.imgui_window_params.show_status_bar = True
+        self.runner_params.imgui_window_params.show_status_fps = False
+        self.runner_params.callbacks.show_status = self.show_status
+
+        # Docking layout
+        self.runner_params.docking_params = self.create_layout()
+        self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
+        self.runner_params.docking_params.main_dock_space_node_flags = (
+            imgui.DockNodeFlags_.none
+        )
+
+    def post_gl_init(self):
+        """Initialize OpenGL resources and simulation"""
+        self.debug_draw = GLDebugDraw()
+        self.simulation = TestbedSimulation(self.debug_draw)
+
+    def render_simulation(self):
+        """Draw the simulation in the window"""
+        # Get window dimensions and position in screen coordinates
+        pos = imgui.get_window_pos()
+        size = imgui.get_window_size()
+        io = imgui.get_io()
+        # Ensure we have valid dimensions
+        if size.x <= 0 or size.y <= 0:
+            return
+
+        # Convert ImGui coordinates to GL coordinates (flip Y)
+        gl_y = io.display_size.y - (pos.y + size.y)
+
+        # Set viewport to window region
+        gl.glViewport(int(pos.x), int(gl_y), int(size.x), int(size.y))
+
+        # Only handle scroll when mouse is over simulation window
+        mouse_scroll = io.mouse_wheel
+        if mouse_scroll != 0.0 and imgui.is_window_hovered():
+            self.on_mouse_scroll(mouse_scroll)
+
+        if io.mouse_down[1] and imgui.is_window_hovered():
+            self.on_right_drag(io.mouse_delta)
+
+        # Update camera dimensions
+        self.debug_draw.camera.set_view(state.center, state.scale, size.x, size.y)
+
+        # self.debug_draw.start_frame()
+        # self.debug_draw.draw_debug_shapes()
+        # self.debug_draw.end_frame()
+
+        if self.simulation is not None:
+            # Draw simulation
+            self.simulation.draw()
+
+        # Reset viewport
+        gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
+
+    def update_physics_timer(self):
+        if self.simulation is None:
+            return
+        now = time.perf_counter()
+        elapsed = now - self.last_step_time
+        target_interval = 1.0 / state.hertz
+
+        if (
+            not state.simulation_paused or state.step_number > 0
+        ) and elapsed >= target_interval:
+            self.simulation.update_physics()
+            self.last_step_time = now
+            if state.step_number > 0:
+                state.step_number -= 1
+
+    def create_layout(self):
+        docking_params = hello_imgui.DockingParams()
+        docking_params.docking_splits = [self.create_right_panel_split()]
+        docking_params.dockable_windows = [
+            self.create_simulation_window(),  # Add back the simulation window
+            self.create_test_list_window(),
+            self.create_stats_window(),
+            self.create_controls_window(),
+        ]
+        return docking_params
+
+    def create_simulation_window(self):
+        window = hello_imgui.DockableWindow()
+        window.label = "Simulation"
+        window.dock_space_name = "MainDockSpace"
+        window.gui_function = self.render_simulation
+        return window
+
+    def create_right_panel_split(self):
+        split = hello_imgui.DockingSplit()
+        split.initial_dock = "MainDockSpace"
+        split.new_dock = "RightPanel"
+        split.direction = imgui.Dir_.right
+        split.ratio = 0.2
+        return split
+
+    def create_test_list_window(self):
+        window = hello_imgui.DockableWindow()
+        window.label = "Tests"
+        window.dock_space_name = "RightPanel"
+        window.gui_function = self.show_test_list
+        return window
+
+    def create_stats_window(self):
+        window = hello_imgui.DockableWindow()
+        window.label = "Performance"
+        window.dock_space_name = "RightPanel"
+        window.gui_function = self.show_stats
+        return window
+
+    def create_controls_window(self):
+        window = hello_imgui.DockableWindow()
+        window.label = "Controls"
+        window.dock_space_name = "RightPanel"
+        window.gui_function = self.show_controls
+        return window
+
+    def show_controls(self):
+        # Play/Pause button
+        if imgui.button(
+            icons_fontawesome_6.ICON_FA_PLAY
+            if state.simulation_paused
+            else icons_fontawesome_6.ICON_FA_PAUSE
+        ):
+            state.simulation_paused = not state.simulation_paused
+        imgui.same_line()
+
+        # Step button
+        if imgui.button(icons_fontawesome_6.ICON_FA_FORWARD):
+            if not state.simulation_paused:
+                state.simulation_paused = True
+            state.step_number += 1
+
+        imgui.push_item_width(100)
+        # Threads slider
+        changed, state.threads = imgui.slider_int("Threads", state.threads, 1, 32)
+        # Substeps slider
+        changed, state.substeps = imgui.slider_int("Substeps", state.substeps, 1, 32)
+        # Hertz slider
+        _, state.hertz = imgui.slider_int("Hertz", state.hertz, 10, 240)
+        imgui.pop_item_width()
+
+        # Checkboxes
+        _, state.enable_continuous = imgui.checkbox(
+            "Continuous Collision", state.enable_continuous
+        )
+        _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
+
+    def show_menus(self):
+        if imgui.begin_menu("Draw"):
+            for key, value, display in state.show_dd.get_current():
+                _, newvalue = imgui.menu_item(display, "", value)
+                setattr(state.show_dd, key, newvalue)
+            imgui.end_menu()
+
+    def show_status(self):
+        imgui.push_style_var(imgui.StyleVar_.item_spacing, (10, 1))
+        for key, value, display in state.show_dd.get_current():
+            _, newvalue = imgui.checkbox(display, value)
+            setattr(state.show_dd, key, newvalue)
+            imgui.same_line()
+        imgui.pop_style_var()
+
+    def show_test_list(self):
+        for category, tests in BaseTest.get_all_tests().items():
+            if imgui.tree_node(category):
+                for test_name, test_cls in tests.items():
+                    if imgui.selectable(test_name, test_cls == state.current_test_cls)[
+                        0
+                    ]:
+                        state.current_test_cls = test_cls
+                        self.simulation.init_test()
+                imgui.tree_pop()
+
+    def show_stats(self):
+        imgui.text(f"Physics: current (avg) [max] ms")
+        imgui.text(
+            f"{state.perf.physics_ms:.2f} ({state.perf.physics_ms_avg:.2f}) [{state.perf.physics_ms_max:.2f}]"
+        )
+        imgui.separator()
+        imgui.text(f"Graphics:")
+        imgui.text(
+            f"{state.perf.draw_ms:.1f} ({state.perf.draw_ms_avg:.1f}) [{state.perf.draw_ms_max:.1f}] ms"
+        )
+
+    def on_mouse_scroll(self, ammount: float):
+        """Handle mouse scroll for zooming"""
+        # Scale factor per scroll unit
+        scale_factor = 1.1
+        if ammount > 0:
+            scale_factor = 1 / scale_factor
+        scale_factor = scale_factor ** abs(ammount)
+        scale = state.scale * scale_factor
+        # Clamp scale to reasonable values
+        state.scale = max(0.02, min(scale, 100.0))
+
+    def on_right_drag(self, delta):
+        """Handle right mouse drag for panning the camera"""
+        # Get current window size for scaling calculation
+        size = imgui.get_window_size()
+
+        screen_to_world = 2.0 * state.scale / size.y
+        world_delta_x = delta.x * screen_to_world
+        world_delta_y = -delta.y * screen_to_world
+
+        state.center = Vec2(*state.center) - Vec2(world_delta_x, world_delta_y)
 
     def run(self):
-        self.ui.initialize()
-        prev_time = time.perf_counter()
-        while dpg.is_dearpygui_running():
-            # Process GUI events.
-            jobs = dpg.get_callback_queue()
-            dpg.run_callbacks(jobs)
-
-            current_time = time.perf_counter()
-            elapsed = current_time - prev_time
-
-            # --- Physics update ---
-            if (not settings.simulation_paused) or (settings.step_number >= 1):
-                dt = 1.0 / settings.hertz
-                if elapsed >= dt:
-                    self.sim.update_physics()
-                    prev_time = current_time
-                settings.step_number -= 1 if settings.step_number else 0
-
-            # --- Drawing ---
-            self.sim.draw(self.ui.debug_draw)
-
-            dpg.render_dearpygui_frame()
-            time.sleep(0.001)
-        dpg.destroy_context()
-
-
-def main():
-    coordinator = TestbedCoordinator()
-    coordinator.run()
+        hello_imgui.run(self.runner_params)
 
 
 if __name__ == "__main__":
-    main()
+    app = TestbedApp()
+    app.run()
