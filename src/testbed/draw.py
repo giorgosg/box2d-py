@@ -770,8 +770,8 @@ class GLSolidCapsules:
 class PolygonData:
     """Storage class for polygon instance data"""
 
-    def __init__(self, transform, points, radius, rgba):
-        count = min(len(points), 8)
+    def __init__(self, transform, points, count, radius, rgba):
+        # count = min(len(points), 8)
         dtype = np.dtype(
             [
                 ("transform", np.float32, 4),
@@ -787,7 +787,7 @@ class PolygonData:
         # Pack eight points (flattened); fill missing with 0.0
         points_flat = []
         for i in range(8):
-            if i < len(points):
+            if i < count:
                 points_flat.extend([points[i].x, points[i].y])
             else:
                 points_flat.extend([0.0, 0.0])
@@ -945,15 +945,10 @@ class GLSolidPolygons:
             glDeleteProgram(self.program_id)
             self.program_id = None
 
-    def add_polygon(self, transform, points, radius, color):
+    def add_polygon(self, transform, points, count, radius, color):
         """Add polygon for batch rendering"""
-        count = len(points)
-        if count > 8:
-            print("WARNING: polygon has too many vertices")
-            count = 8
-
         rgba = make_rgba8(color)
-        self.polygons.append(PolygonData(transform, points[:count], radius, rgba))
+        self.polygons.append(PolygonData(transform, points, count, radius, rgba))
 
     def draw(self):
         """Render all polygons in batch"""

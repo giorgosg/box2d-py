@@ -52,11 +52,9 @@ class GLDebugDraw(DebugDraw):
         for i in range(n):
             self.lines.add_line(vertices[i], vertices[(i + 1) % n], color.hex)
 
-    def draw_solid_polygon(self, transform, vertices: list, radius: float, color):
+    def draw_solid_polygon(self, transform, vertices, count, radius: float, color):
         # Delegate to solid_polygons; pass the raw b2Transform from the Transform wrapper
-        self.solid_polygons.add_polygon(
-            transform.b2Transform[0], vertices, radius, color.hex
-        )
+        self.solid_polygons.add_polygon(transform, vertices, count, radius, color)
 
     def draw_circle(self, center, radius: float, color):
         # Queue border circle drawing

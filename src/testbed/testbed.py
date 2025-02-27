@@ -56,6 +56,8 @@ class TestbedApp:
         # Status bar
         self.runner_params.imgui_window_params.show_status_bar = True
         self.runner_params.imgui_window_params.show_status_fps = False
+        self.runner_params.fps_idling.enable_idling = False
+
         self.runner_params.callbacks.show_status = self.show_status
 
         # Docking layout
@@ -265,5 +267,7 @@ class TestbedApp:
 
 
 if __name__ == "__main__":
+    import cProfile
+
     app = TestbedApp()
-    app.run()
+    cProfile.run("app.run()", sort="cumtime")

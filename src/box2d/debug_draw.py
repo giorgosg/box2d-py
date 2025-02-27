@@ -79,9 +79,9 @@ def draw_polygon(vertices, count, color, context):
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
 def draw_solid_polygon(transform, vertices, count, radius, color, context):
     instance = ffi.from_handle(context)
-    py_transform = Transform.from_b2Transform(transform)
-    py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance.draw_solid_polygon(py_transform, py_vertices, radius, Color(color))
+    # py_transform = Transform.from_b2Transform(transform)
+    # py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
+    instance.draw_solid_polygon(transform, vertices, count, radius, color)
 
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
