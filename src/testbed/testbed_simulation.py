@@ -37,7 +37,9 @@ class TestbedSimulation:
         state.step_count = 0
         self.current_test_obj = state.current_test_cls(self.world)
         self.current_test_obj.setup()
+        state.current_test_obj = self.current_test_obj
         state.perf.physics_ms_max = 0
+        state.perf.draw_ms_max = 0
 
     def update_physics(self):
         if (

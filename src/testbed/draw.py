@@ -4,6 +4,9 @@ import math
 import os
 from box2d.math import Vec2, AABB, Transform, Rot
 from .shader import create_program_from_files, create_program_from_strings
+import OpenGL
+
+OpenGL.ERROR_CHECKING = False
 
 
 def make_rgba8(hex_color, alpha=255):
@@ -19,18 +22,27 @@ class Camera:
         self.width = 1280
         self.height = 800
         self.reset_view()
+        self._matrix = None
 
     def reset_view(self):
         """Reset camera to initial position and zoom"""
         self.center = Vec2(0.0, 0.0)
         self.zoom = 1.0
+        self._matrix = None
 
     def set_view(self, center, zoom, width, height):
         """Set camera view parameters"""
-        self.center = Vec2(*center)
-        self.zoom = zoom
-        self.width = width
-        self.height = height
+        if (
+            self.center != Vec2(*center)
+            or self.zoom != zoom
+            or self.width != width
+            or self.height != height
+        ):
+            self.center = Vec2(*center)
+            self.zoom = zoom
+            self.width = width
+            self.height = height
+            self._matrix = None
 
     def convert_screen_to_world(self, ps):
         """Convert from screen coordinates to world coordinates"""
@@ -68,6 +80,8 @@ class Camera:
 
     def build_projection_matrix(self, z_bias=0.0):
         """Build projection matrix for rendering"""
+        if self._matrix is not None:
+            return self._matrix
         ratio = float(self.width) / float(self.height)
         extents = Vec2(self.zoom * ratio, self.zoom)
 
@@ -88,7 +102,7 @@ class Camera:
         matrix[13] = -2.0 * self.center.y / h
         matrix[14] = z_bias
         matrix[15] = 1.0
-
+        self._matrix = matrix
         return matrix
 
     def get_view_bounds(self):
@@ -368,6 +382,8 @@ class GLCircles:
 class SolidCircleData:
     """Storage class for solid circle instance data"""
 
+    __slots__ = ["size"]
+
     def __init__(self, transform, radius, rgba):
         # Use a structured dtype where color is uint32.
         dtype = np.dtype(
@@ -386,8 +402,8 @@ class SolidCircleData:
                     (
                         transform.p.x,
                         transform.p.y,
-                        transform.q.s,
                         transform.q.c,
+                        transform.q.s,
                         radius,
                         rgba,
                     )
@@ -786,7 +802,8 @@ class GLSolidPolygons:
     def __init__(self, camera):
         self.camera = camera
         # Preallocate buffers using the structured dtype.
-        self.instance_buffers = []  # full batches
+        self.instance_buffers = []  # Full batches filled this frame.
+        self.free_buffers = []  # Buffers available for reuse.
         self.current_buffer = np.empty(self.BATCH_SIZE, dtype=polygon_dtype)
         self.polygons_count = 0
 
@@ -848,12 +865,10 @@ class GLSolidPolygons:
         )
         stride = polygon_dtype.itemsize
         offset = 0
-        # Attribute for transform (4 floats).
         glVertexAttribPointer(
             instance_transform, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-        # Four consecutive attributes for points. Divided into 4 groups of 4 floats.
         glVertexAttribPointer(
             instance_point12, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
@@ -870,17 +885,14 @@ class GLSolidPolygons:
             instance_point78, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-        # Integer attribute for count.
         glVertexAttribIPointer(
             instance_point_count, 1, GL_INT, stride, ctypes.c_void_p(offset)
         )
         offset += 4
-        # Float attribute for radius.
         glVertexAttribPointer(
             instance_radius, 1, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 4
-        # Unsigned bytes for color.
         glVertexAttribPointer(
             instance_color,
             4,
@@ -907,12 +919,10 @@ class GLSolidPolygons:
         rgba = make_rgba8(color)
         rec = self.current_buffer[self.polygons_count]
         rec["transform"] = [transform.p.x, transform.p.y, transform.q.c, transform.q.s]
-        pts = []
-        for i in range(8):
-            if i < count:
-                pts.extend([points[i].x, points[i].y])
-            else:
-                pts.extend([0.0, 0.0])
+        pts = np.zeros(16, dtype=np.float32)
+        for i in range(count):
+            pts[i * 2] = points[i].x
+            pts[i * 2 + 1] = points[i].y
         rec["points"] = pts
         rec["count"] = count
         rec["radius"] = radius
@@ -920,9 +930,13 @@ class GLSolidPolygons:
 
         self.polygons_count += 1
 
+        # When the current buffer is full, recycle it.
         if self.polygons_count == self.BATCH_SIZE:
             self.instance_buffers.append(self.current_buffer)
-            self.current_buffer = np.empty(self.BATCH_SIZE, dtype=polygon_dtype)
+            if self.free_buffers:
+                self.current_buffer = self.free_buffers.pop()
+            else:
+                self.current_buffer = np.empty(self.BATCH_SIZE, dtype=polygon_dtype)
             self.polygons_count = 0
 
     def draw(self):
@@ -940,12 +954,12 @@ class GLSolidPolygons:
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        # Upload full batches.
+        # Draw upload full batches.
         for buf in self.instance_buffers:
             glBufferSubData(GL_ARRAY_BUFFER, 0, buf.nbytes, buf.ravel())
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, self.BATCH_SIZE)
 
-        # Partial batch upload.
+        # Draw partial batch.
         if self.polygons_count > 0:
             buf = self.current_buffer[: self.polygons_count]
             glBufferSubData(GL_ARRAY_BUFFER, 0, buf.nbytes, buf.ravel())
@@ -956,7 +970,10 @@ class GLSolidPolygons:
         glBindVertexArray(0)
         glUseProgram(0)
 
-        # Reset for next frame.
+        # Instead of discarding buffers, add them to the free pool for reuse.
+        self.free_buffers.extend(self.instance_buffers)
+        # Also, keep the current_buffer for future use.
+        # Reset for the next frame.
         self.instance_buffers.clear()
         self.polygons_count = 0
 

@@ -83,7 +83,7 @@ class GLDebugDraw(DebugDraw):
 
     def draw_solid_circle(self, transform, radius: float, color):
         # Queue solid circle drawing; pass the underlying b2Transform
-        self.solid_circles.add_circle(transform.b2Transform[0], radius, color.hex)
+        self.solid_circles.add_circle(transform, radius, color)
 
     def draw_transform(self, transform):
         # Draw coordinate axes. Use a fixed scale.

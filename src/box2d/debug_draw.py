@@ -125,8 +125,7 @@ def draw_solid_capsule(p1, p2, radius, color, context):
 @ffi.callback("void(b2Transform, float, b2HexColor, void*)")
 def draw_solid_circle(transform, radius, color, context):
     instance = ffi.from_handle(context)
-    py_transform = Transform.from_b2Transform(transform)
-    instance.draw_solid_circle(py_transform, radius, Color(color))
+    instance.draw_solid_circle(transform, radius, color)
 
 
 @ffi.callback("void(b2Transform, void*)")

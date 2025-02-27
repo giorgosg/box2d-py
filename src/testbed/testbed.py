@@ -18,6 +18,9 @@ from .base_test import BaseTest
 import time
 from .debug_draw_gl import GLDebugDraw
 from OpenGL import GL as gl
+import OpenGL
+
+OpenGL.ERROR_CHECKING = False
 import numpy as np
 from .draw import GLBackground, Camera, GLCircles
 from box2d import Color, Vec2
@@ -39,13 +42,8 @@ class TestbedApp:
         self.runner_params.imgui_window_params.default_imgui_window_type = (
             hello_imgui.DefaultImGuiWindowType.provide_full_screen_dock_space
         )
-
+        self.runner_params.app_window_params.window_geometry.size = (1024, 768)
         # Initialize simulation and debug draw in post_init
-        self.runner_params.callbacks.post_init = self.post_gl_init
-
-        # Rest of window setup
-        # Keep both callbacks
-        # self.runner_params.callbacks.custom_background = self.render_background
         self.runner_params.callbacks.post_init = self.post_gl_init
 
         # Menu setup
@@ -62,10 +60,11 @@ class TestbedApp:
 
         # Docking layout
         self.runner_params.docking_params = self.create_layout()
-        self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
         self.runner_params.docking_params.main_dock_space_node_flags = (
             imgui.DockNodeFlags_.none
         )
+
+        self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
 
     def post_gl_init(self):
         """Initialize OpenGL resources and simulation"""
@@ -99,10 +98,6 @@ class TestbedApp:
         # Update camera dimensions
         self.debug_draw.camera.set_view(state.center, state.scale, size.x, size.y)
 
-        # self.debug_draw.start_frame()
-        # self.debug_draw.draw_debug_shapes()
-        # self.debug_draw.end_frame()
-
         if self.simulation is not None:
             # Draw simulation
             self.simulation.draw()
@@ -133,8 +128,43 @@ class TestbedApp:
             self.create_test_list_window(),
             self.create_stats_window(),
             self.create_controls_window(),
+            self.create_test_ui_window(),
         ]
         return docking_params
+
+    def create_test_ui_window(self):
+        window = hello_imgui.DockableWindow()
+        if state.current_test_cls is not None:
+            window.label = state.current_test_cls.name
+        else:
+            window.label = "Test UI"
+        window.dock_space_name = "RightPanel"  # adjust as needed
+        window.gui_function = self.render_test_ui
+        return window
+
+    def render_test_ui(self):
+        # Only render if a test object exists.
+        imgui.text(f"Test: {state.current_test_cls.name}")
+        imgui.separator()
+        # Iterate through UI elements defined in the current test.
+        for elem in state.current_test_obj.ui_elements:
+            if elem.control_type == "button":
+                if imgui.button(elem.label):
+                    if elem.callback:
+                        elem.callback(elem.key, None)
+            elif elem.control_type == "int_input":
+                # Get current value from state if exists, default otherwise.
+                current_val = getattr(
+                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
+                )
+                imgui.set_next_item_width(50)
+                changed, new_val = imgui.slider_int(
+                    elem.label, current_val, elem.min_value, elem.max_value
+                )
+                if changed:
+                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
+                    if elem.callback:
+                        elem.callback(elem.key, new_val)
 
     def create_simulation_window(self):
         window = hello_imgui.DockableWindow()
@@ -270,4 +300,5 @@ if __name__ == "__main__":
     import cProfile
 
     app = TestbedApp()
-    cProfile.run("app.run()", sort="cumtime")
+    # cProfile.run("app.run()", sort="cumtime")
+    app.run()
