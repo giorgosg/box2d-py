@@ -767,47 +767,28 @@ class GLSolidCapsules:
     BATCH_SIZE = 2048  # Maximum number of capsules per batch
 
 
-class PolygonData:
-    """Storage class for polygon instance data"""
-
-    def __init__(self, transform, points, count, radius, rgba):
-        # count = min(len(points), 8)
-        dtype = np.dtype(
-            [
-                ("transform", np.float32, 4),
-                ("points", np.float32, 16),
-                ("count", np.int32),
-                ("radius", np.float32),
-                ("color", np.uint32),
-            ]
-        )
-        data = np.zeros(1, dtype=dtype)
-        # Pack transform as [p.x, p.y, q.s, q.c]
-        data["transform"] = [transform.p.x, transform.p.y, transform.q.c, transform.q.s]
-        # Pack eight points (flattened); fill missing with 0.0
-        points_flat = []
-        for i in range(8):
-            if i < count:
-                points_flat.extend([points[i].x, points[i].y])
-            else:
-                points_flat.extend([0.0, 0.0])
-        data["points"] = points_flat
-        data["count"] = count
-        data["radius"] = radius
-        data["color"] = rgba
-        # Change: pack as a numpy float32 array instead of bytes
-        self.size = data.view(np.float32).reshape(-1)
+# Define a structured dtype for the instance data.
+# Total size = 4*4 (transform) + 16*4 (points) + 4 (count) + 4 (radius) + 4 (color) = 92 bytes.
+polygon_dtype = np.dtype(
+    [
+        ("transform", np.float32, 4),  # transform: p.x, p.y, q.c, q.s
+        ("points", np.float32, 16),  # 8 points * 2 components each
+        ("count", np.int32),  # integer count
+        ("radius", np.float32),
+        ("color", np.uint32),
+    ]
+)
 
 
 class GLSolidPolygons:
+    BATCH_SIZE = 512  # Maximum number of polygons per batch
+
     def __init__(self, camera):
         self.camera = camera
-        self.vao_id = None
-        self.vbo_ids = [None, None]
-        self.program_id = None
-        self.projection_uniform = None
-        self.pixel_scale_uniform = None
-        self.polygons = []
+        # Preallocate buffers using the structured dtype.
+        self.instance_buffers = []  # full batches
+        self.current_buffer = np.empty(self.BATCH_SIZE, dtype=polygon_dtype)
+        self.polygons_count = 0
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         vertex_shader = os.path.join(current_dir, "shaders", "solid_polygon.vs")
@@ -823,8 +804,6 @@ class GLSolidPolygons:
         self.vbo_ids = glGenBuffers(2)
 
         glBindVertexArray(self.vao_id)
-
-        # Attribute locations
         vertex_attribute = 0
         instance_transform = 1
         instance_point12 = 2
@@ -835,88 +814,73 @@ class GLSolidPolygons:
         instance_radius = 7
         instance_color = 8
 
-        # Enable all attributes
         for attr in range(9):
             glEnableVertexAttribArray(attr)
 
-        # Vertex buffer for single quad
         a = 1.1
         vertices = np.array(
             [
                 -a,
-                -a,  # Bottom left
-                a,
-                -a,  # Bottom right
                 -a,
-                a,  # Top left
                 a,
-                -a,  # Bottom right
-                a,
-                a,  # Top right
                 -a,
-                a,  # Top left
+                -a,
+                a,
+                a,
+                -a,
+                a,
+                a,
+                -a,
+                a,
             ],
             dtype=np.float32,
         )
-
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo_ids[0])
         glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
         glVertexAttribPointer(vertex_attribute, 2, GL_FLOAT, GL_FALSE, 0, None)
 
-        # Polygon instance buffer
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo_ids[1])
-        # UPDATE: allocate 92 bytes per instance
         glBufferData(
-            GL_ARRAY_BUFFER, self.BATCH_SIZE * 92, None, GL_DYNAMIC_DRAW
-        )  # 92 bytes per instance
-
-        # Setup instance attributes with stride = 92 bytes:
-        stride = 92  # 4*4 + 16*4 + 4 + 4 + 4 = 92 bytes
+            GL_ARRAY_BUFFER,
+            self.BATCH_SIZE * polygon_dtype.itemsize,
+            None,
+            GL_DYNAMIC_DRAW,
+        )
+        stride = polygon_dtype.itemsize
         offset = 0
-
-        # Transform (4 floats)
+        # Attribute for transform (4 floats).
         glVertexAttribPointer(
             instance_transform, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
-        offset += 16  # 4 floats * 4 bytes
-
-        # Points 1-2 (4 floats)
+        offset += 16
+        # Four consecutive attributes for points. Divided into 4 groups of 4 floats.
         glVertexAttribPointer(
             instance_point12, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-
-        # Points 3-4 (4 floats)
         glVertexAttribPointer(
             instance_point34, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-
-        # Points 5-6 (4 floats)
         glVertexAttribPointer(
             instance_point56, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-
-        # Points 7-8 (4 floats)
         glVertexAttribPointer(
             instance_point78, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 16
-
-        # Point count (1 int)
+        # Integer attribute for count.
         glVertexAttribIPointer(
             instance_point_count, 1, GL_INT, stride, ctypes.c_void_p(offset)
         )
         offset += 4
-
-        # Radius (1 float)
+        # Float attribute for radius.
         glVertexAttribPointer(
             instance_radius, 1, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(offset)
         )
         offset += 4
-
-        # Color (4 bytes)
+        # Unsigned bytes for color.
         glVertexAttribPointer(
             instance_color,
             4,
@@ -925,73 +889,76 @@ class GLSolidPolygons:
             stride,
             ctypes.c_void_p(offset),
         )
-
-        # Set attribute divisors for instancing
         for attr in range(1, 9):
             glVertexAttribDivisor(attr, 1)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindVertexArray(0)
 
-    def destroy(self):
-        """Clean up OpenGL resources"""
-        if self.vao_id:
-            glDeleteVertexArrays(1, [self.vao_id])
-            glDeleteBuffers(2, self.vbo_ids)
-            self.vao_id = None
-            self.vbo_ids = [None, None]
-
-        if self.program_id:
-            glDeleteProgram(self.program_id)
-            self.program_id = None
-
     def add_polygon(self, transform, points, count, radius, color):
-        """Add polygon for batch rendering"""
+        """Pack polygon data into the current instance buffer using the structured dtype.
+        Format:
+            transform: [p.x, p.y, q.c, q.s]
+            points: 8 pairs of (x, y) (fill remaining with 0.0)
+            count: integer
+            radius: float
+            color: uint32 bit pattern
+        """
         rgba = make_rgba8(color)
-        self.polygons.append(PolygonData(transform, points, count, radius, rgba))
+        rec = self.current_buffer[self.polygons_count]
+        rec["transform"] = [transform.p.x, transform.p.y, transform.q.c, transform.q.s]
+        pts = []
+        for i in range(8):
+            if i < count:
+                pts.extend([points[i].x, points[i].y])
+            else:
+                pts.extend([0.0, 0.0])
+        rec["points"] = pts
+        rec["count"] = count
+        rec["radius"] = radius
+        rec["color"] = rgba
+
+        self.polygons_count += 1
+
+        if self.polygons_count == self.BATCH_SIZE:
+            self.instance_buffers.append(self.current_buffer)
+            self.current_buffer = np.empty(self.BATCH_SIZE, dtype=polygon_dtype)
+            self.polygons_count = 0
 
     def draw(self):
         """Render all polygons in batch"""
-        if not self.polygons:
+        if self.polygons_count == 0 and not self.instance_buffers:
             return
 
         glUseProgram(self.program_id)
-
-        # Update uniforms
         proj_matrix = self.camera.build_projection_matrix(0.2)
         glUniformMatrix4fv(self.projection_uniform, 1, GL_FALSE, proj_matrix)
         glUniform1f(self.pixel_scale_uniform, self.camera.height / self.camera.zoom)
 
         glBindVertexArray(self.vao_id)
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo_ids[1])
-
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        # Convert polygons to numpy array for efficient upload
-        instance_data = np.array([p.size for p in self.polygons], dtype=np.float32)
+        # Upload full batches.
+        for buf in self.instance_buffers:
+            glBufferSubData(GL_ARRAY_BUFFER, 0, buf.nbytes, buf.ravel())
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, self.BATCH_SIZE)
 
-        # Draw in batches if needed
-        count = len(self.polygons)
-        base = 0
-        while count > 0:
-            batch_count = min(count, self.BATCH_SIZE)
-            batch_data = instance_data[base : base + batch_count]
-
-            glBufferSubData(GL_ARRAY_BUFFER, 0, batch_data.nbytes, batch_data)
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, batch_count)
-
-            count -= self.BATCH_SIZE
-            base += self.BATCH_SIZE
+        # Partial batch upload.
+        if self.polygons_count > 0:
+            buf = self.current_buffer[: self.polygons_count]
+            glBufferSubData(GL_ARRAY_BUFFER, 0, buf.nbytes, buf.ravel())
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, self.polygons_count)
 
         glDisable(GL_BLEND)
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindVertexArray(0)
         glUseProgram(0)
 
-        self.polygons.clear()
-
-    BATCH_SIZE = 512  # Maximum number of polygons per batch
+        # Reset for next frame.
+        self.instance_buffers.clear()
+        self.polygons_count = 0
 
 
 class GLPoints:
