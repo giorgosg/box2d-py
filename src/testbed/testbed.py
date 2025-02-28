@@ -184,6 +184,20 @@ class TestbedApp:
                     setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
                     if elem.callback:
                         elem.callback(elem.key, new_val)
+            elif elem.control_type == "combo":
+                current_val = getattr(
+                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
+                )
+                current_item = elem.options.index(current_val)
+                changed, new_val = imgui.combo(elem.label, current_item, elem.options)
+                if changed:
+                    setattr(
+                        state.current_test_obj,
+                        "_ui_control_" + elem.key,
+                        elem.options[new_val],
+                    )
+                    if elem.callback:
+                        elem.callback(elem.key, elem.options[new_val])
 
     def create_simulation_window(self):
         window = hello_imgui.DockableWindow()
