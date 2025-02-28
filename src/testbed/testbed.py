@@ -22,7 +22,7 @@ import OpenGL
 
 OpenGL.ERROR_CHECKING = False
 import numpy as np
-from .draw import GLBackground, Camera, GLCircles
+from .draw import GLBackground, GLCircles
 from box2d import Color, Vec2
 
 
@@ -92,8 +92,27 @@ class TestbedApp:
         if mouse_scroll != 0.0 and imgui.is_window_hovered():
             self.on_mouse_scroll(mouse_scroll)
 
+        # Handle right mouse drag for panning
         if io.mouse_down[1] and imgui.is_window_hovered():
             self.on_right_drag(io.mouse_delta)
+
+        # If a current test exists and the simulation window is hovered,
+        # convert mouse coordinates to world coordinates and call test mouse events.
+        if state.current_test_obj and imgui.is_window_hovered():
+            # Wrap ImGui mouse position into a Vec2
+            mouse_pos = Vec2(io.mouse_pos.x, io.mouse_pos.y) - Vec2(pos.x, pos.y)
+            # Convert screen position to world coordinates using camera
+            world_pos = self.debug_draw.camera.convert_screen_to_world(mouse_pos)
+
+            # Check left mouse button events.
+            if io.mouse_clicked[0]:
+                state.current_test_obj.on_mouse_down(world_pos)
+            elif io.mouse_down[0]:
+                # Use the mouse delta as-is; wrap it as a Vec2 if needed.
+                delta = Vec2(io.mouse_delta.x, io.mouse_delta.y)
+                state.current_test_obj.on_mouse_drag(world_pos, delta)
+            if io.mouse_released[0]:
+                state.current_test_obj.on_mouse_release(world_pos)
 
         # Update camera dimensions
         self.debug_draw.camera.set_view(state.center, state.scale, size.x, size.y)
