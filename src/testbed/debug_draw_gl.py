@@ -1,5 +1,5 @@
 from OpenGL.GL import *
-from box2d import DebugDraw, Vec2, Transform
+from box2d import DebugDraw, Vec2, Transform, AABB
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines
 from .draw import GLSolidPolygons, GLSolidCircles, GLSolidCapsules

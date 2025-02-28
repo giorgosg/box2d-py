@@ -2,6 +2,8 @@
 
 from .base_test import BaseTest, UIElement
 from .shared import donut
+import math
+from box2d import Vec2
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -128,3 +130,49 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
         self.bodies, self.joints = donut(
             self.world, (0, 20), self.radius, self.segments, self.hertz, self.damping
         )
+
+
+class Arrow(BaseTest, category="Joints", name="Arrow"):
+    def setup(self):
+        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        boxbuilder = self.world.new_body().dynamic().box(0.5, 0.5)
+        boxstack = [boxbuilder.position(20, -4.25 + 0.5 * i).build() for i in range(30)]
+
+        def create_arrow(position, rotation, velocity):
+            vel_v = Vec2(velocity, 0).rotate(rotation)
+            arrow_body = (
+                self.world.new_body()
+                .dynamic()
+                .position(*position)
+                .rotation(rotation)
+                .box(1, 0.1)
+                .polygon(([0.7, 0], [0.5, 0.2], [0.5, -0.2]))
+                .linear_velocity(*vel_v)
+                .angular_damping(1)
+                .build()
+            )
+            arrow_fletch = (
+                self.world.new_body()
+                .dynamic()
+                .position(*position)
+                .rotation(rotation)
+                .polygon(((-0.4, 0), (-0.5, 0.1), (-0.5, -0.1)), density=1)
+                .linear_damping(1)
+                .linear_velocity(*vel_v)
+                .build()
+            )
+            joint = self.world.add_weld_joint(
+                arrow_body,
+                arrow_fletch,
+                local_anchor_a=(0, 0),
+                local_anchor_b=(0, 0),
+            )
+
+            return arrow_body, arrow_fletch, joint
+
+        self.arrows = [
+            create_arrow((-10, 20 + y), rotation, 20)
+            for y, rotation in zip(
+                range(-5, 50), (math.radians(a) for a in range(-45, 90, 10))
+            )
+        ]
