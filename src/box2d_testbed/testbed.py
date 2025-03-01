@@ -7,7 +7,7 @@ if __name__ == "__main__" and __package__ is None:
     # Add the parent directory (the project root's "src" directory) to sys.path.
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     # Set the package name so relative imports work.
-    __package__ = "testbed"
+    __package__ = "box2d_testbed"
 
 
 from imgui_bundle import hello_imgui, imgui, immapp, icons_fontawesome_6
@@ -324,9 +324,10 @@ class TestbedApp:
         hello_imgui.run(self.runner_params)
 
 
-if __name__ == "__main__":
-    import cProfile
-
+def main():
     app = TestbedApp()
-    # cProfile.run("app.run()", sort="cumtime")
     app.run()
+
+
+if __name__ == "__main__":
+    main()

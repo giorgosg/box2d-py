@@ -1,68 +1,6 @@
 [build-system]
-requires = ["poetry-core", "setuptools", "cffi>=1.16.0", "wheel"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
-name = "box2d-py"
-version = "0.1.0"
-description = "Bindings for box2d v3"
-authors = ["Giorgos Giagas <giorgosg@gmail.com>"]
-license = "MIT"
-readme = "README.md"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-packages = [
-    { include = "box2d", from = "src" },
-    { include = "testbed", from = "src" },
-]
-# Top-level include to add package data files
-include = [
-    "src/box2d/*.so",
-    "src/box2d/*.txt",
-    "src/box2d/*.rst",
-    "src/testbed/*.so",
-    "src/testbed/*.txt",
-    "src/testbed/*.rst"
-]
-
-[tool.poetry.dependencies]
-python = ">=3.12"
-cffi = ">=1.16.0"
-dearpygui = { version = "*", optional = true }
-setuptools = "^75.8.0"
-pyopengl = ">=3.1.9"
-numpy = ">=1.26"
-
-[tool.poetry.extras]
-testbed = ["dearpygui", "pyopengl", "numpy"]
-
-[tool.poetry.build]
-generate-setup-file = true
-script = "build_box2d_cffi.py"
-
-[tool.poetry.group.test.dependencies]
-pytest = "*"
-
-[tool.poetry.scripts]
-box2d-testbed = "testbed.testbed:main"
-build-box2d-cffi = "src.tools.build_cffi:main"
-
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q"
-testpaths = [
-    "src/tests",
-]
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["box2d*", "testbed*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll"]
+requires = ["setuptools>=75.8.0", "cffi>=1.16.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "box2d-py"
@@ -70,12 +8,44 @@ version = "0.1.0"
 description = "Bindings for box2d v3"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
+license = { text = "MIT" }
 authors = [
   { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
 ]
 maintainers = [
-    { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
+  { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
 ]
-optional-dependencies = { testbed = ["dearpygui", "pyopengl", "numpy"] }
-dependencies = ["cffi"]
-dynamic = ["scripts"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+  "cffi>=1.16.0"
+]
+
+[project.optional-dependencies]
+box2d-testbed = [
+  "imgui_bundle",
+  "PyOpenGL",
+  "PyOpenGL-accelerate",
+  "numpy"
+]
+
+[project.scripts]
+box2d-testbed = "box2d_testbed:main"
+build-box2d-cffi = "src.tools.build_cffi:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["box2d*", "box2d_testbed*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+  "src/tests",
+]
