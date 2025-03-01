@@ -114,12 +114,15 @@ ffibuilder.set_source(
 )
 
 
-def main():
-    build_dir = os.path.join(PROJECT_ROOT, "src", "box2d")
-    os.makedirs(build_dir, exist_ok=True)
-
-    target_path = os.path.join(build_dir, "_box2d.so")
-    ffibuilder.compile(target=target_path, verbose=True)
+def main(build_target=None):
+    # build_dir = os.path.join(PROJECT_ROOT, "src", "box2d")
+    # os.makedirs(build_dir, exist_ok=True)
+    # target_path = os.path.join(build_dir, "_box2d.so")
+    # ffibuilder.compile(target=target_path, verbose=True)
+    if build_target:
+        ffibuilder.compile(target=build_target, verbose=True)
+    else:
+        ffibuilder.compile(verbose=True)
 
 
 if __name__ == "__main__":

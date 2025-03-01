@@ -17,7 +17,6 @@ comb_box2d.h
 docs/build
 temp
 src/tasks/task_scheduler.o
-setup.py
 .env
 .vscode
 Pipfile
