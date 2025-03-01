@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-box2d-testbed = [
+testbed = [
   "imgui_bundle",
   "PyOpenGL",
   "PyOpenGL-accelerate",
@@ -34,7 +34,6 @@ box2d-testbed = [
 
 [project.scripts]
 box2d-testbed = "box2d_testbed:main"
-build-box2d-cffi = "src.tools.build_cffi:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
