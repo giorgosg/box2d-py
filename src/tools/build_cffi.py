@@ -1,98 +1,151 @@
 # build_cffi.py
 import os
 import subprocess
-import re
 import sys
-
 from cffi import FFI
+import re
 
 ffibuilder = FFI()
 
-# Set up directories for temporary files.
+# Set up directories
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+BOX2D_DIR = os.path.join(PROJECT_ROOT, "box2d")
+ENKITS_DIR = os.path.join(PROJECT_ROOT, "enkits")
+BOX2D_BUILD_DIR = os.path.join(BOX2D_DIR, "build")
+ENKITS_BUILD_DIR = os.path.join(ENKITS_DIR, "build")
 TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-# Get all .h files in the include directory
-cdef_dir = "box2d/include/box2d"
-include_dir = "box2d/include/"
-# header_files = [f for f in os.listdir(include_dir) if f.endswith('.h')]
-header_files = [
-    "base.h",
-    "math_functions.h",
-    "collision.h",
-    "id.h",
-    "types.h",
-    "box2d.h",
-]
+
+def build_dependencies():
+    """Build Box2D and enkiTS using CMake"""
+    # Build Box2D
+    print("Building Box2D...")
+    os.makedirs(BOX2D_BUILD_DIR, exist_ok=True)
+
+    box2d_cmake_args = [
+        "cmake",
+        "-S",
+        BOX2D_DIR,
+        "-B",
+        BOX2D_BUILD_DIR,
+        "-DBOX2D_BUILD_DOCS=OFF",
+        "-DBOX2D_SAMPLES=OFF",
+        "-DBOX2D_UNIT_TESTS=OFF",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        "-DCMAKE_BUILD_TYPE=Release",
+    ]
+
+    subprocess.run(box2d_cmake_args, check=True)
+    subprocess.run(["cmake", "--build", BOX2D_BUILD_DIR], check=True)
+
+    # Build enkiTS
+    print("Building enkiTS...")
+    os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
+
+    enkits_cmake_args = [
+        "cmake",
+        "-S",
+        ENKITS_DIR,
+        "-B",
+        ENKITS_BUILD_DIR,
+        "-DENKITS_BUILD_EXAMPLES=OFF",
+        "-DENKITS_BUILD_SHARED=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        "-DCMAKE_BUILD_TYPE=Release",
+    ]
+
+    subprocess.run(enkits_cmake_args, check=True)
+    subprocess.run(["cmake", "--build", ENKITS_BUILD_DIR], check=True)
 
 
-# Read and combine all header files
-def process_header(filename):
-    print("Pre-processing " + filename)
-    with open(filename, "r") as file:
-        filetext = "".join(
-            [
-                line
-                for line in file
-                if ("#include" not in line) and ("b2GetTicks" not in line)
-            ]
+def process_headers():
+    """Process Box2D headers for CFFI"""
+    # Add missing function declarations
+    extra_declarations = """
+    """
+
+    headers = [
+        "base.h",
+        "math_functions.h",
+        "collision.h",
+        "id.h",
+        "types.h",
+        "box2d.h",
+    ]
+
+    combined_header = extra_declarations
+    cdef_dir = os.path.join(BOX2D_DIR, "include", "box2d")
+
+    for header in headers:
+        with open(os.path.join(cdef_dir, header), "r") as f:
+            filetext = "".join(
+                [
+                    line
+                    for line in f
+                    if (
+                        ("#include" not in line)
+                        and ("b2GetTicks" not in line)
+                        and ("b2Internal" not in line)
+                    )
+                ]
+            )
+        command = ["gcc", "-E", "-P", "-D__linux__", "-"]
+        filetext = subprocess.run(
+            command, text=True, input=filetext, stdout=subprocess.PIPE
+        ).stdout
+        filetext = filetext.replace("B2_API", "")
+        filetext = re.sub("B2_INLINE .*?\n{\n(.|\n)*?\n}\n", "", filetext)
+        filetext = "\n".join(
+            [line for line in filetext.splitlines() if not line.startswith("#")]
         )
-    command = ["gcc", "-CC", "-P", "-undef", "-nostdinc", "-D__linux__", "-E", "-"]
-    filetext = subprocess.run(
-        command, text=True, input=filetext, stdout=subprocess.PIPE
-    ).stdout
-    filetext = filetext.replace("B2_API", "")
-    # filetext = filetext.replace("B2_API", "__attribute__((visibility(\"default\")))")
-    filetext = re.sub("B2_INLINE .*?\n{\n(.|\n)*?\n}\n", "", filetext)
-    # filetext = re.sub(r'B2_INLINE .*?{.*?}\n', '', filetext, flags=re.DOTALL)
-    filetext = "\n".join(
-        [line for line in filetext.splitlines() if not line.startswith("#")]
-    )
-    temp_filename = os.path.join(TEMP_DIR, os.path.basename(filename) + ".cffi")
-    with open(temp_filename, "w") as outfile:
-        outfile.write(filetext)
-    return filetext
+        temp_filename = os.path.join(TEMP_DIR, os.path.basename(header) + ".cffi")
+        with open(temp_filename, "w") as outfile:
+            outfile.write(filetext)
+
+        combined_header += filetext + "\n"
+
+    # Add task scheduler definitions
+    with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as f:
+        combined_header += f.read()
+
+    return combined_header
 
 
-combined_header = ""
-for headerfn in header_files:
-    combined_header += process_header(os.path.join(cdef_dir, headerfn))
-with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as ts:
-    combined_header += "".join(l for l in ts)
-
-# Combine the headers
-combined_header_file = os.path.join(TEMP_DIR, "combined_header.h.modified")
-with open(combined_header_file, "w") as f:
-    f.write(combined_header)
-
-ffibuilder.cdef(combined_header)
-
-enkits_src_dir = "enkits/src"
-enkits_source_files = [
-    os.path.join(enkits_src_dir, "TaskScheduler.cpp"),
-    os.path.join(enkits_src_dir, "TaskScheduler_c.cpp"),
-]
-
-# Add enkiTS include directory
-enkits_include_dir = "enkits/src"
-
-# Get all .c files in the src directory
-src_dir = "box2d/src"
-source_files = [
-    os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".c")
-]
-
-# Add the task scheduler source file (which uses enkiTS)
-source_files += enkits_source_files
-task_scheduler_path = os.path.join("src", "tasks", "task_scheduler.c")
-source_files.append(task_scheduler_path)
-
-print("Compiling the following source files:")
-for s in source_files:
-    print("  ", s)
+def compile_task_scheduler():
+    """Compile task_scheduler.c into an object file with PIC."""
+    ts_c_path = os.path.join(PROJECT_ROOT, "src", "tasks", "task_scheduler.c")
+    ts_obj = os.path.join(TEMP_DIR, "task_scheduler.o")
+    enkits_include = os.path.join(ENKITS_DIR, "src")
+    box2d_include = os.path.join(BOX2D_DIR, "include")
+    compile_cmd = [
+        "gcc",
+        "-fPIC",
+        "-c",
+        ts_c_path,
+        "-I",
+        enkits_include,
+        "-I",
+        box2d_include,
+        "-o",
+        ts_obj,
+    ]
+    print("Compiling task_scheduler.c...")
+    subprocess.run(compile_cmd, check=True)
+    return ts_obj
 
 
+# Build dependencies
+build_dependencies()
+
+# Process headers and set up CFFI builder
+ffibuilder.cdef(process_headers())
+
+# Compile the task_scheduler.c and get the object file
+task_scheduler_obj = compile_task_scheduler()
+
+# Configure CFFI builder
 ffibuilder.set_source(
     "box2d._box2d",
     """
@@ -100,25 +153,24 @@ ffibuilder.set_source(
     #include "TaskScheduler_c.h"
     #include "tasks/task_scheduler.h"
     """,
-    sources=source_files,
-    include_dirs=[include_dir, cdef_dir, "src", enkits_include_dir],
-    library_dirs=[],
-    libraries=[],
-    extra_compile_args=[
-        "-D__linux__",
-        "-DB2_ENABLE_ASSERT=1",
-        "-DB2_INTERNAL_ASSERT_ENABLED=1",
-        "--std=c++11",
+    include_dirs=[
+        os.path.join(BOX2D_DIR, "include"),
+        os.path.join(BOX2D_DIR, "src"),
+        os.path.join(ENKITS_DIR, "src"),
+        os.path.join(PROJECT_ROOT, "src", "tasks"),
+        "src",
     ],
-    extra_link_args=["-lstdc++"],
+    library_dirs=[
+        os.path.join(BOX2D_BUILD_DIR, "src"),
+        ENKITS_BUILD_DIR,
+    ],
+    libraries=["box2d", "enkiTS", "stdc++"],
+    extra_objects=[task_scheduler_obj],
+    # extra_compile_args=["-std=c++11"],
 )
 
 
 def main(build_target=None):
-    # build_dir = os.path.join(PROJECT_ROOT, "src", "box2d")
-    # os.makedirs(build_dir, exist_ok=True)
-    # target_path = os.path.join(build_dir, "_box2d.so")
-    # ffibuilder.compile(target=target_path, verbose=True)
     if build_target:
         ffibuilder.compile(target=build_target, verbose=True)
     else:
