@@ -2,6 +2,7 @@
 Python Bindings for Box2D v3 using CFFI
 
 [![Documentation Status](https://readthedocs.org/projects/box2d-py/badge/)](https://box2d-py.readthedocs.io/)
+[![Build Status](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml/badge.svg)](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml)
 
 Python bindings for the [Box2D physics engine](https://box2d.org/) version 3. Provides Pythonic access to Box2D's feature set.
 

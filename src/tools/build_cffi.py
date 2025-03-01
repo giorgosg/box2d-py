@@ -4,6 +4,7 @@ import subprocess
 import sys
 from cffi import FFI
 import re
+import platform
 
 ffibuilder = FFI()
 
@@ -37,8 +38,21 @@ def build_dependencies():
         "-DCMAKE_BUILD_TYPE=Release",
     ]
 
+    if platform.system() == "Windows":
+        box2d_cmake_args.extend(
+            [
+                "-G",
+                "Visual Studio 17 2022",
+                "-A",
+                "x64",
+                "-DCMAKE_CXX_FLAGS_RELEASE=/MD",
+            ]
+        )
+
     subprocess.run(box2d_cmake_args, check=True)
-    subprocess.run(["cmake", "--build", BOX2D_BUILD_DIR], check=True)
+    subprocess.run(
+        ["cmake", "--build", BOX2D_BUILD_DIR, "--config", "Release"], check=True
+    )
 
     # Build enkiTS
     print("Building enkiTS...")
@@ -56,8 +70,21 @@ def build_dependencies():
         "-DCMAKE_BUILD_TYPE=Release",
     ]
 
+    if platform.system() == "Windows":
+        enkits_cmake_args.extend(
+            [
+                "-G",
+                "Visual Studio 17 2022",
+                "-A",
+                "x64",
+                "-DCMAKE_CXX_FLAGS_RELEASE=/MD",
+            ]
+        )
+
     subprocess.run(enkits_cmake_args, check=True)
-    subprocess.run(["cmake", "--build", ENKITS_BUILD_DIR], check=True)
+    subprocess.run(
+        ["cmake", "--build", ENKITS_BUILD_DIR, "--config", "Release"], check=True
+    )
 
 
 def process_headers():
@@ -136,6 +163,35 @@ def compile_task_scheduler():
     return ts_obj
 
 
+def get_platform_specific_config():
+    """Get platform-specific build configuration."""
+    import platform
+
+    if platform.system() == "Windows":
+        return {
+            "libraries": ["box2d", "enkiTS"],  # Use box2dd.lib on Windows
+            "extra_compile_args": ["/MD", "/O2"],  # Use release runtime
+            "extra_link_args": [
+                "/NODEFAULTLIB:LIBCMTD",
+                "/NODEFAULTLIB:MSVCRTD",
+            ],  # Ignore debug runtime
+            "library_dirs": [
+                os.path.join(BOX2D_BUILD_DIR, "src", "Release"),  # Updated path
+                os.path.join(ENKITS_BUILD_DIR, "Release"),
+            ],
+        }
+    else:
+        return {
+            "libraries": ["box2d", "enkiTS", "stdc++"],
+            "extra_compile_args": [],
+            "extra_link_args": [],
+            "library_dirs": [
+                os.path.join(BOX2D_BUILD_DIR, "src"),
+                ENKITS_BUILD_DIR,
+            ],
+        }
+
+
 # Build dependencies
 build_dependencies()
 
@@ -146,6 +202,7 @@ ffibuilder.cdef(process_headers())
 task_scheduler_obj = compile_task_scheduler()
 
 # Configure CFFI builder
+platform_config = get_platform_specific_config()
 ffibuilder.set_source(
     "box2d._box2d",
     """
@@ -160,13 +217,11 @@ ffibuilder.set_source(
         os.path.join(PROJECT_ROOT, "src", "tasks"),
         "src",
     ],
-    library_dirs=[
-        os.path.join(BOX2D_BUILD_DIR, "src"),
-        ENKITS_BUILD_DIR,
-    ],
-    libraries=["box2d", "enkiTS", "stdc++"],
+    library_dirs=platform_config["library_dirs"],  # Use platform-specific paths
+    libraries=platform_config["libraries"],
     extra_objects=[task_scheduler_obj],
-    # extra_compile_args=["-std=c++11"],
+    extra_compile_args=platform_config["extra_compile_args"],
+    extra_link_args=platform_config["extra_link_args"],
 )
 
 
