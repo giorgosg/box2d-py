@@ -56,10 +56,10 @@ class TestbedData:
     def __init__(self):
         self.window_size = (1024, 768)
         self.center = (0, 0)  # Center at origin
-        self.scale = 20  # Increased default scale
+        self.scale = 20
         self.gravity = (0, -10)
         self.threads = 4
-        self.substeps = 4
+        self.substeps = 20
         self.hertz = 60
         self.enable_continuous = True
         self.enable_sleep = True

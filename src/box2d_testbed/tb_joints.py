@@ -1,9 +1,9 @@
 # tb_joints.py
 
 from .base_test import BaseTest, UIElement
-from .shared import donut
+from .shared import donut, create_random_polygon
 import math
-from box2d import Vec2
+from box2d import Vec2, World, Body
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -68,27 +68,18 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
             UIElement(
                 key="segments",
                 control_type="int_input",
-                max_value=30,
+                max_value=100,
                 min_value=4,
-                default=15,
+                default=30,
                 label="Segments",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="radius",
-                control_type="int_input",
-                max_value=30,
-                min_value=1,
-                default=5,
-                label="Radius",
                 callback=self.on_change,
             ),
             UIElement(
                 key="hertz",
                 control_type="int_input",
-                max_value=60,
+                max_value=200,
                 min_value=1,
-                default=5,
+                default=12,
                 label="Hertz",
                 callback=self.on_change,
             ),
@@ -97,26 +88,24 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
                 control_type="int_input",
                 max_value=10,
                 min_value=0,
-                default=1,
+                default=2,
                 label="Damping",
                 callback=self.on_change,
             ),
         ]
-        self.segments = 15
+        self.segments = 30
         self.radius = 5
-        self.hertz = 5.0
+        self.hertz = 12.0
         self.damping = 0.0
 
     def on_change(self, key, value):
         if key == "segments":
             self.segments = value
-        elif key == "radius":
-            self.radius = value
         elif key == "hertz":
             self.hertz = value
         elif key == "damping":
             self.damping = value
-        if key in ("segments", "radius"):
+        if key in ("segments",):
             for body in self.world.bodies:
                 body.destroy()
             self.setup()
@@ -128,7 +117,7 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
     def setup(self):
         ground = self.world.new_body().position(0, -5).box(100, 1).build()
         self.bodies, self.joints = donut(
-            self.world, (0, 20), self.radius, self.segments, self.hertz, self.damping
+            self.world, (0, 30), self.radius, self.segments, self.hertz, self.damping
         )
 
 
@@ -175,4 +164,64 @@ class Arrow(BaseTest, category="Joints", name="Arrow"):
             for y, rotation in zip(
                 range(-5, 50), (math.radians(a) for a in range(-45, 90, 10))
             )
+        ]
+
+
+class Bridge(BaseTest, category="Joints", name="Bridge"):
+    def setup(self):
+        ground = self.world.new_body().build()
+
+        def create_bridge(
+            world: World,
+            anchor: Body,
+            psize: Vec2,
+            count: int,
+            center: Vec2 = Vec2(0, 0),
+        ):
+            length = psize.x * count
+            start = center - Vec2(length / 2, 0) + Vec2(psize.x / 2, 0)
+            piece_builder = (
+                world.new_body().dynamic().gravity_scale(0.5).box(*psize, density=20)
+            )
+            pieces = [
+                piece_builder.position(*(start + (i * psize.x, 0))).build()
+                for i in range(count)
+            ]
+            joint_params = {"enable_motor": True, "max_motor_torque": 200}
+            joints = [
+                world.add_revolute_joint(
+                    pieces[i],
+                    pieces[i + 1],
+                    anchor=pieces[i].transform(Vec2(psize.x / 2, 0)),
+                    **joint_params,
+                )
+                for i in range(count - 1)
+            ]
+            world.add_revolute_joint(
+                anchor,
+                pieces[0],
+                anchor=pieces[0].transform(Vec2(-psize.x / 2, 0)),
+                **joint_params,
+            )
+            world.add_revolute_joint(
+                anchor,
+                pieces[-1],
+                anchor=pieces[-1].transform(Vec2(psize.x / 2, 0)),
+                **joint_params,
+            )
+            return pieces, joints
+
+        bridge = create_bridge(self.world, ground, Vec2(1, 0.2), 100, Vec2(0, 10))
+        self.bridge_bodies, self.bridge_joints = bridge
+        circle_builder = self.world.new_body().dynamic().circle(0.5, density=10)
+        self.circles = [
+            circle_builder.position(i, 20).build() for i in range(-10, 10, 2)
+        ]
+        self.polygons = [
+            self.world.new_body()
+            .dynamic()
+            .position(i, 20)
+            .create_random_polygon(0.5, density=10)
+            .build()
+            for i in range(-11, 11, 2)
         ]
