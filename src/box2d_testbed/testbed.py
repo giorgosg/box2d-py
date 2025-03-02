@@ -140,7 +140,12 @@ class TestbedApp:
 
     def create_layout(self):
         docking_params = hello_imgui.DockingParams()
-        docking_params.docking_splits = [self.create_right_panel_split()]
+        docking_params.docking_splits = [
+            self.create_right_panel_split(),
+            self.create_right_panel_split1(),
+            self.create_right_panel_split2(),
+            self.create_right_panel_split3(),
+        ]
         docking_params.dockable_windows = [
             self.create_simulation_window(),  # Add back the simulation window
             self.create_test_list_window(),
@@ -156,7 +161,7 @@ class TestbedApp:
             window.label = state.current_test_cls.name
         else:
             window.label = "Test UI"
-        window.dock_space_name = "RightPanel"  # adjust as needed
+        window.dock_space_name = "RightPanel2"  # adjust as needed
         window.gui_function = self.render_test_ui
         return window
 
@@ -213,17 +218,41 @@ class TestbedApp:
         split.ratio = 0.2
         return split
 
+    def create_right_panel_split1(self):
+        split_right1 = hello_imgui.DockingSplit()
+        split_right1.initial_dock = "RightPanel"
+        split_right1.new_dock = "RightPanel1"
+        split_right1.direction = imgui.Dir_.down
+        split_right1.ratio = 0.73
+        return split_right1
+
+    def create_right_panel_split2(self):
+        split_right2 = hello_imgui.DockingSplit()
+        split_right2.initial_dock = "RightPanel1"
+        split_right2.new_dock = "RightPanel2"
+        split_right2.direction = imgui.Dir_.down
+        split_right2.ratio = 0.5
+        return split_right2
+
+    def create_right_panel_split3(self):
+        split_right3 = hello_imgui.DockingSplit()
+        split_right3.initial_dock = "RightPanel2"
+        split_right3.new_dock = "RightPanel3"
+        split_right3.direction = imgui.Dir_.down
+        split_right3.ratio = 0.4
+        return split_right3
+
     def create_test_list_window(self):
         window = hello_imgui.DockableWindow()
         window.label = "Tests"
-        window.dock_space_name = "RightPanel"
+        window.dock_space_name = "RightPanel1"
         window.gui_function = self.show_test_list
         return window
 
     def create_stats_window(self):
         window = hello_imgui.DockableWindow()
         window.label = "Performance"
-        window.dock_space_name = "RightPanel"
+        window.dock_space_name = "RightPanel3"
         window.gui_function = self.show_stats
         return window
 
@@ -292,14 +321,13 @@ class TestbedApp:
                 imgui.tree_pop()
 
     def show_stats(self):
-        imgui.text(f"Physics: current (avg) [max] ms")
-        imgui.text(
-            f"{state.perf.physics_ms:.2f} ({state.perf.physics_ms_avg:.2f}) [{state.perf.physics_ms_max:.2f}]"
-        )
+        imgui.text(f"current (avg) [max] ms")
         imgui.separator()
-        imgui.text(f"Graphics:")
         imgui.text(
-            f"{state.perf.draw_ms:.1f} ({state.perf.draw_ms_avg:.1f}) [{state.perf.draw_ms_max:.1f}] ms"
+            f"Physics: {state.perf.physics_ms:.2f} ({state.perf.physics_ms_avg:.2f}) [{state.perf.physics_ms_max:.2f}]"
+        )
+        imgui.text(
+            f"Graphics: {state.perf.draw_ms:.1f} ({state.perf.draw_ms_avg:.1f}) [{state.perf.draw_ms_max:.1f}] ms"
         )
 
     def on_mouse_scroll(self, ammount: float):
