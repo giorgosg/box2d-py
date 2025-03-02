@@ -3,6 +3,7 @@ from box2d import DebugDraw, Vec2, Transform, AABB
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines
 from .draw import GLSolidPolygons, GLSolidCircles, GLSolidCapsules
+from imgui_bundle import imgui
 import numpy as np
 import math
 import time
@@ -116,6 +117,8 @@ class GLDebugDraw(DebugDraw):
         self.solid_polygons = GLSolidPolygons(self.camera)
         self.points = GLPoints(self.camera)
         self.lines = GLLines(self.camera)
+        # Add storage for debug strings
+        self.debug_strings = []
 
     def update_settings(self):
         for key, value, _ in state.show_dd.get_current():
@@ -133,6 +136,19 @@ class GLDebugDraw(DebugDraw):
         self.circles.draw()
         self.lines.draw()
         self.points.draw()
+
+        # Draw debug strings
+        for pos, text, color in self.debug_strings:
+            screen_pos = self.camera.convert_world_to_screen(pos)
+            # Convert hex color to RGB float values
+            r = ((color.hex >> 16) & 0xFF) / 255.0
+            g = ((color.hex >> 8) & 0xFF) / 255.0
+            b = (color.hex & 0xFF) / 255.0
+            imgui.set_cursor_screen_pos((screen_pos.x, screen_pos.y))
+            imgui.push_style_color(imgui.Col_.text, (r, g, b, 1.0))
+            imgui.text(text)
+            imgui.pop_style_color()
+        self.debug_strings.clear()
 
         # Calculate and update draw performance metrics
         elapsed = (time.perf_counter() - self._draw_start_time) * 1000.0  # elapsed ms
@@ -165,9 +181,8 @@ class GLDebugDraw(DebugDraw):
         self.points.add_point(p, size, color.hex)
 
     def draw_string(self, p, s: str, color):
-        # Render debug string.
-        # For simplicity, here we print, but a real implementation would use proper text rendering.
-        print(f"Debug string at {p}: {s} (color: {hex(color.hex)})")
+        """Store debug string for rendering during end_frame"""
+        self.debug_strings.append((p, s, color))
 
     def draw_capsule(self, p1, p2, radius: float, color):
         # Draw capsule outline by adding a capsule (the same as solid capsule here)
