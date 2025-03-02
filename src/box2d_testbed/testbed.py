@@ -133,10 +133,16 @@ class TestbedApp:
         if (
             not state.simulation_paused or state.step_number > 0
         ) and elapsed >= target_interval:
-            self.simulation.update_physics()
-            self.last_step_time = now
-            if state.step_number > 0:
-                state.step_number -= 1
+            if not state.simulation_paused:
+                while elapsed >= target_interval:
+                    self.simulation.update_physics()
+                    elapsed -= target_interval
+                    self.last_step_time += target_interval
+            else:
+                self.simulation.update_physics()
+                self.last_step_time = now
+                if state.step_number > 0:
+                    state.step_number -= 1
 
     def create_layout(self):
         docking_params = hello_imgui.DockingParams()
