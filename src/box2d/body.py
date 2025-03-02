@@ -679,6 +679,11 @@ class Body:
         return lib.b2Body_GetMass(self._body_id)
 
     @property
+    def rotational_inertia(self):
+        """Get the rotational inertia of the body."""
+        return lib.b2Body_GetRotationalInertia(self._body_id)
+
+    @property
     def transform(self) -> Transform:
         """Get the body Transform. You can use it to convert world coordinates to body coordinates."""
         b2transform = lib.b2Body_GetTransform(self._body_id)

@@ -1,5 +1,5 @@
 from OpenGL.GL import *
-from box2d import DebugDraw, Vec2, Transform, AABB
+from box2d import DebugDraw, Vec2, Transform, AABB, Color
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines
 from .draw import GLSolidPolygons, GLSolidCircles, GLSolidCapsules
@@ -180,7 +180,7 @@ class GLDebugDraw(DebugDraw):
         # Draw a point as a small circle (or use point API)
         self.points.add_point(p, size, color.hex)
 
-    def draw_string(self, p, s: str, color):
+    def draw_string(self, p, s: str, color=Color(0xFFFFFF)):
         """Store debug string for rendering during end_frame"""
         self.debug_strings.append((p, s, color))
 
@@ -199,13 +199,11 @@ class GLDebugDraw(DebugDraw):
     def draw_transform(self, transform):
         # Draw coordinate axes. Use a fixed scale.
         scale = 0.5
-        p = transform.position
-        # Assume rotation components provided by transform.rotation.x_axis and .y_axis:
-        # If not available, you can compute them via math.cos and math.sin
-        x_axis = transform.rotation.x_axis
-        y_axis = transform.rotation.y_axis
-        self.lines.add_line(p, p + x_axis * scale, 0xFF0000)  # red for x-axis
-        self.lines.add_line(p, p + y_axis * scale, 0x00FF00)  # green for y-axis
+        p = transform.p
+        x_axis = transform((scale, 0))
+        y_axis = transform((0, scale))
+        self.lines.add_line(p, x_axis, 0xFF0000)  # red for x-axis
+        self.lines.add_line(p, y_axis, 0x00FF00)  # green for y-axis
 
     def draw_debug_shapes(self):
         self.circles.add_circle(Vec2(0, 0), 0.5, 0x0000FF)

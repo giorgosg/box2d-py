@@ -3,7 +3,7 @@
 from .base_test import BaseTest, UIElement
 from .shared import donut, create_random_polygon
 import math
-from box2d import Vec2, World, Body
+from box2d import Vec2, World, Body, Transform, Color
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -225,3 +225,132 @@ class Bridge(BaseTest, category="Joints", name="Bridge"):
             .build()
             for i in range(-11, 11, 2)
         ]
+
+
+class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
+    """
+    This shows how to implement a constraint outside of Box2D.
+    The constraint keeps a body at a fixed position relative to anchors using velocity-based control.
+    """
+
+    def setup(self):
+        # Create dynamic body with box shape
+        self.body = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, 0)
+            .box(2.0, 1.0, density=20.0)
+            .angular_damping(0.5)
+            .linear_damping(0.2)
+            .gravity_scale(1.0)
+            .build()
+        )
+
+        self.impulses = [0.0, 0.0]  # Store impulses for visualization
+        self.inv_dt = 0.0
+
+    def after_step(self, dt):
+        if dt == 0.0:
+            return
+        self.inv_dt = 1.0 / dt
+        # Parameters
+        hertz = 3.0
+        damping = 0.7
+        omega = 2.0 * math.pi * hertz
+        sigma = 2.0 * damping + dt * omega
+        s = dt * omega * sigma
+        impulse_coefficient = 1.0 / (1.0 + s)
+        mass_coefficient = s * impulse_coefficient
+        bias_coefficient = omega / sigma
+        max_force = 1000.0
+
+        # Get body state
+        mass = self.body.mass
+        inv_mass = 1.0 / mass if mass > 0.0001 else 0.0
+        inertia = self.body.rotational_inertia
+        inv_inertia = 1.0 / inertia if inertia > 0.0001 else 0.0
+
+        pos = self.body.transform((0, 0))  # convert from local to world
+        vel = self.body.linear_velocity
+        ang_vel = self.body.angular_velocity
+
+        # Define two anchor points for the constraint
+        anchors_a = [Vec2(3.0, 0.0), Vec2(3.0, 0.0)]
+        local_anchors = [Vec2(1.0, -0.5), Vec2(1.0, 0.5)]
+
+        # Transform local anchors to world space
+        anchors_b = [
+            self.body.transform(local_anchor) for local_anchor in local_anchors
+        ]
+
+        # Apply constraint for each anchor point
+        new_vel = vel
+        new_ang_vel = ang_vel
+
+        for i in range(2):
+            # Calculate position error
+            delta = anchors_b[i] - anchors_a[i]
+            length = delta.length
+            slack_length = 1.0
+
+            if length < 0.001 or length < slack_length:
+                self.impulses[i] = 0.0
+                continue
+
+            # Calculate constraint axis
+            axis = delta.normalize()
+
+            # Calculate geometric Jacobian
+            r = anchors_b[i] - pos
+            Jrot = r.cross(axis)
+
+            # Calculate effective mass
+            K = inv_mass + Jrot * inv_inertia * Jrot
+            inv_K = 1.0 / K if K > 0.0001 else 0.0
+
+            # Calculate velocity bias
+            C = length - slack_length
+            bias = bias_coefficient * C
+
+            Cdot = (new_vel + Vec2(-new_ang_vel * r.y, new_ang_vel * r.x)).dot(axis)
+            impulse = -mass_coefficient * inv_K * (Cdot + bias)
+            max_impulse = max_force * dt
+            impulse = max(impulse, -max_impulse)
+
+            # Apply impulse
+            P = axis * impulse
+            new_vel += P * inv_mass
+            new_ang_vel += inv_inertia * r.cross(P)
+
+            self.impulses[i] = impulse
+
+        # Update velocities
+        self.body.linear_velocity = new_vel
+        self.body.angular_velocity = new_ang_vel
+
+    def debug_draw(self, debug_draw):
+        """Draw debug visualization of the constraint"""
+        # Draw coordinate system
+        axes = Vec2(0, 0)
+        debug_draw.draw_transform(Transform(axes, 0.0))
+
+        # Get world anchor points
+        local_anchors = [Vec2(1.0, -0.5), Vec2(1.0, 0.5)]
+        anchors_a = [Vec2(3.0, 0.0), Vec2(3.0, 0.0)]
+        anchors_b = [
+            self.body.transform(local_anchor) for local_anchor in local_anchors
+        ]
+
+        # Draw constraint lines
+        for i in range(2):
+            length = (anchors_b[i] - anchors_a[i]).length
+            if length < 1.0:
+                debug_draw.draw_segment(anchors_a[i], anchors_b[i], Color(0x00FFFF))
+            else:
+                debug_draw.draw_segment(anchors_a[i], anchors_b[i], Color(0xFF00FF))
+
+        # Draw forces
+        debug_draw.draw_string(
+            self.body.transform(Vec2(0, 0)),
+            f"forces = {self.impulses[0] * self.inv_dt:.1f}, {self.impulses[1] * self.inv_dt:.1f}",
+        )
