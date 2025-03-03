@@ -50,15 +50,6 @@ class Joint(ABC):
             lib.b2DestroyJoint(self._joint_id)
         self._joint_id = None
 
-    # do we really want joints to be deleted if garbage collacted?
-    # def __del__(self):
-    #    """Safely remove the joint from the physics simulation when destroyed.
-
-    #    Automatically cleans up the joint connection between bodies if it
-    #    still exists in the world.
-    #    """
-    #    self.destroy()
-
     @property
     def is_valid(self):
         """Check if the joint is currently active in the simulation.
@@ -160,11 +151,11 @@ class MouseJoint(Joint):
 
         Args:
             world: The physics world where the joint exists
-            body: Dynamic body to be dragged (automatically wakes up)
-            target: Initial world position (x,y) to pull toward (defines anchor point)
-            max_force: Maximum force allowed for movement (scales with body mass)
-            damping_ratio: Spring damping (0=oscillatory, 1=critically damped)
-            hertz: Spring stiffness in Hz (higher = stiffer movement)
+            body: Dynamic body to be dragged
+            target: Initial world position (x,y) to pull toward
+            max_force: Maximum force allowed for movement
+            damping_ratio: Spring damping
+            hertz: Spring stiffness in Hz
         """
 
         self._target = Vec2(*target)
@@ -218,38 +209,22 @@ class MouseJoint(Joint):
 
     @property
     def max_force(self):
-        """Maximum pulling force available to move the body.
-
-        Returns:
-            float: Current force limit (higher values = stronger pulls)
-        """
+        """Maximum pulling force available to move the body."""
         return lib.b2MouseJoint_GetMaxForce(self._joint_id)
 
     @max_force.setter
     def max_force(self, value):
-        """Adjust maximum pulling force.
-
-        Args:
-            value: New force limit (must be positive)
-        """
+        """Adjust maximum pulling force."""
         lib.b2MouseJoint_SetMaxForce(self._joint_id, float(value))
 
     @property
     def damping_ratio(self):
-        """Spring damping controlling movement smoothness.
-
-        Returns:
-            float: 0-1 value where 1=critically damped (no overshooting)
-        """
+        """Spring damping controlling movement smoothness."""
         return lib.b2MouseJoint_GetSpringDampingRatio(self._joint_id)
 
     @damping_ratio.setter
     def damping_ratio(self, value):
-        """Set how quickly movement stabilizes at target.
-
-        Args:
-            value: 0=no damping (springy), 1=immediate stabilization
-        """
+        """Set how quickly movement stabilizes at target."""
         lib.b2MouseJoint_SetSpringDampingRatio(self._joint_id, float(value))
 
 
@@ -267,12 +242,12 @@ class WeldJoint(Joint):
         body_b: The second body to be joined.
         local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint is attached.
         local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint is attached.
-        collide_connected (bool, optional): If True, the connected bodies will collide. Defaults to False.
-        linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid). Defaults to 0.
-        linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional). Defaults to 0.
-        angular_hertz (float, optional): Angular spring stiffness in Hertz (0 means rigid). Defaults to 0.
-        angular_damping_ratio (float, optional): Angular damping ratio (non-dimensional). Defaults to 0.
-        reference_angle (float, optional): The reference angle between the two bodies. Defaults to 0.
+        collide_connected (bool, optional): If True, the connected bodies will collide.
+        linear_hertz (float, optional): Linear spring stiffness in Hertz
+        linear_damping_ratio (float, optional): Linear damping ratio
+        angular_hertz (float, optional): Angular spring stiffness in Hertz
+        angular_damping_ratio (float, optional): Angular damping ratio
+        reference_angle (float, optional): The reference angle between the two bodies.
     """
 
     def __init__(
@@ -500,3 +475,260 @@ class RevoluteJoint(Joint):
             upper (float): Upper limit angle.
         """
         lib.b2RevoluteJoint_SetLimits(self._joint_id, float(lower), float(upper))
+
+
+class PrismaticJoint(Joint):
+    """
+    A prismatic joint constrains two bodies to translate along a shared axis while
+    preventing relative rotation. Also known as a slider joint.
+
+    The prismatic joint is useful for things like:
+    - Pistons and linear actuators
+    - Moving platforms and elevators
+    - Sliding doors and drawers
+    - Any motion constrained to a line
+
+    Features include:
+    - Linear limits to restrict range of motion
+    - Motor to drive relative motion
+    - Spring to create soft constraints
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        anchor_a,
+        anchor_b,
+        axis,
+        collide_connected=False,
+        lower_limit=None,
+        upper_limit=None,
+        enable_limit=None,
+        motor_speed=None,
+        max_motor_force=None,
+        enable_motor=None,
+        reference_angle=None,
+        enable_spring=None,
+        hertz=None,
+        damping_ratio=None,
+    ):
+        """Initialize a prismatic joint between two bodies.
+
+        Args:
+            world: The physics world instance
+            body_a: First body to connect
+            body_b: Second body to connect
+            anchor_a (tuple): Local anchor point on body A (x,y)
+            anchor_b (tuple): Local anchor point on body B (x,y)
+            axis (tuple): The axis defining allowed translation (x,y) in body A's frame
+            collide_connected (bool): Whether bodies can collide
+            lower_limit (float): Lower translation limit
+            upper_limit (float): Upper translation limit
+            enable_limit (bool): Whether to enable joint limits
+            motor_speed (float): Desired motor speed in meters/sec
+            max_motor_force (float): Maximum motor force in N
+            enable_motor (bool): Whether to enable the joint motor
+            reference_angle (float): Reference angle between bodies
+            enable_spring (bool): Enable spring behavior
+            hertz (float): Spring oscillation frequency in Hz
+            damping_ratio (float): Spring damping ratio
+        """
+        self._local_anchor_a = Vec2(*anchor_a)
+        self._local_anchor_b = Vec2(*anchor_b)
+        self._local_axis_a = Vec2(*axis)
+        self._lower_limit = lower_limit
+        self._upper_limit = upper_limit
+        self._enable_limit = enable_limit
+        self._motor_speed = motor_speed
+        self._max_motor_force = max_motor_force
+        self._enable_motor = enable_motor
+        self._reference_angle = reference_angle
+        self._enable_spring = enable_spring
+        self._hertz = hertz
+        self._damping_ratio = damping_ratio
+        super().__init__(world, body_a, body_b, collide_connected)
+
+    def _create_joint_def(self, body_a, body_b, collide_connected):
+        """Configure internal joint parameters."""
+        defn = lib.b2DefaultPrismaticJointDef()
+        defn.bodyIdA = body_a._body_id
+        defn.bodyIdB = body_b._body_id
+        defn.collideConnected = collide_connected
+        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
+        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
+        defn.localAxisA = self._local_axis_a.b2Vec2[0]
+
+        if self._reference_angle is not None:
+            defn.referenceAngle = self._reference_angle
+        if self._enable_limit is not None:
+            defn.enableLimit = self._enable_limit
+        if self._lower_limit is not None:
+            defn.lowerTranslation = self._lower_limit
+        if self._upper_limit is not None:
+            defn.upperTranslation = self._upper_limit
+        if self._enable_motor is not None:
+            defn.enableMotor = self._enable_motor
+        if self._motor_speed is not None:
+            defn.motorSpeed = self._motor_speed
+        if self._max_motor_force is not None:
+            defn.maxMotorForce = self._max_motor_force
+        if self._enable_spring is not None:
+            defn.enableSpring = self._enable_spring
+        if self._hertz is not None:
+            defn.hertz = self._hertz
+        if self._damping_ratio is not None:
+            defn.dampingRatio = self._damping_ratio
+
+        return defn
+
+    def _create_joint(self):
+        """Create the joint in the Box2D world."""
+        self._joint_id = lib.b2CreatePrismaticJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        super()._create_joint()
+
+    @property
+    def joint_translation(self):
+        """Get the current joint translation."""
+        return lib.b2PrismaticJoint_GetJointTranslation(self._joint_id)
+
+    @property
+    def joint_speed(self):
+        """Get the current joint linear speed."""
+        return lib.b2PrismaticJoint_GetJointSpeed(self._joint_id)
+
+    @property
+    def is_limit_enabled(self):
+        """Check if the joint limit is enabled."""
+        return lib.b2PrismaticJoint_IsLimitEnabled(self._joint_id)
+
+    def enable_limit(self, enable):
+        """Enable/disable the joint limit.
+
+        Args:
+            enable (bool): True to enable limits, False to disable
+        """
+        lib.b2PrismaticJoint_EnableLimit(self._joint_id, enable)
+
+    @property
+    def lower_limit(self):
+        """Get the lower joint limit."""
+        return lib.b2PrismaticJoint_GetLowerLimit(self._joint_id)
+
+    @lower_limit.setter
+    def lower_limit(self, lower):
+        """Set the lower joint limit."""
+        upper_limit = self.upper_limit
+        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower), float(upper_limit))
+
+    @property
+    def upper_limit(self):
+        """Get the upper joint limit."""
+        return lib.b2PrismaticJoint_GetUpperLimit(self._joint_id)
+
+    @upper_limit.setter
+    def upper_limit(self, upper):
+        """Set the upper joint limit."""
+        lower_limit = self.lower_limit
+        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower_limit), float(upper))
+
+    def set_limits(self, lower, upper):
+        """Set the joint limits.
+
+        Args:
+            lower (float): Lower translation limit
+            upper (float): Upper translation limit
+        """
+        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower), float(upper))
+
+    @property
+    def motor_enabled(self):
+        """Check if the joint motor is enabled."""
+        return lib.b2PrismaticJoint_IsMotorEnabled(self._joint_id)
+
+    @motor_enabled.setter
+    def motor_enabled(self, enable):
+        """Enable/disable the joint motor.
+
+        Args:
+            enable (bool): True to enable motor, False to disable
+        """
+        lib.b2PrismaticJoint_EnableMotor(self._joint_id, enable)
+
+    @property
+    def motor_speed(self):
+        """Get the motor speed in meters per second."""
+        return lib.b2PrismaticJoint_GetMotorSpeed(self._joint_id)
+
+    @motor_speed.setter
+    def motor_speed(self, speed):
+        """Set the motor speed.
+
+        Args:
+            speed (float): Desired speed in meters per second
+        """
+        lib.b2PrismaticJoint_SetMotorSpeed(self._joint_id, float(speed))
+
+    @property
+    def max_motor_force(self):
+        """Get maximum motor force in Newtons."""
+        return lib.b2PrismaticJoint_GetMaxMotorForce(self._joint_id)
+
+    @max_motor_force.setter
+    def max_motor_force(self, force):
+        """Set the maximum motor force.
+
+        Args:
+            force (float): Maximum force in Newtons
+        """
+        lib.b2PrismaticJoint_SetMaxMotorForce(self._joint_id, float(force))
+
+    @property
+    def motor_force(self):
+        """Get the current motor force in Newtons."""
+        return lib.b2PrismaticJoint_GetMotorForce(self._joint_id)
+
+    @property
+    def spring_enabled(self):
+        """Check if spring behavior is enabled."""
+        return lib.b2PrismaticJoint_IsSpringEnabled(self._joint_id)
+
+    @spring_enabled.setter
+    def spring_enabled(self, enable):
+        """Enable/disable spring behavior.
+
+        Args:
+            enable (bool): True to enable spring, False to disable
+        """
+        lib.b2PrismaticJoint_EnableSpring(self._joint_id, enable)
+
+    @property
+    def spring_hertz(self):
+        """Get spring frequency in Hertz."""
+        return lib.b2PrismaticJoint_GetSpringHertz(self._joint_id)
+
+    @spring_hertz.setter
+    def spring_hertz(self, hertz):
+        """Set spring oscillation frequency.
+
+        Args:
+            hertz (float): Frequency in Hertz (cycles/sec)
+        """
+        lib.b2PrismaticJoint_SetSpringHertz(self._joint_id, float(hertz))
+
+    @property
+    def spring_damping_ratio(self):
+        """Get spring damping ratio (non-dimensional)."""
+        return lib.b2PrismaticJoint_GetSpringDampingRatio(self._joint_id)
+
+    @spring_damping_ratio.setter
+    def spring_damping_ratio(self, damping):
+        """Set spring damping ratio.
+
+        Args:
+            damping (float): Damping ratio (0 = no damping, 1 = critical damping)
+        """
+        lib.b2PrismaticJoint_SetSpringDampingRatio(self._joint_id, float(damping))

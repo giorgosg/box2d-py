@@ -194,6 +194,22 @@ class TestbedApp:
                     setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
                     if elem.callback:
                         elem.callback(elem.key, new_val)
+            elif elem.control_type == "float_input":
+                current_val = getattr(
+                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
+                )
+                imgui.set_next_item_width(50)
+                changed, new_val = imgui.slider_float(
+                    elem.label,
+                    current_val,
+                    elem.min_value,
+                    elem.max_value,
+                    format="%.1f",
+                )
+                if changed:
+                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
+                    if elem.callback:
+                        elem.callback(elem.key, new_val)
             elif elem.control_type == "combo":
                 current_val = getattr(
                     state.current_test_obj, "_ui_control_" + elem.key, elem.default
@@ -208,6 +224,17 @@ class TestbedApp:
                     )
                     if elem.callback:
                         elem.callback(elem.key, elem.options[new_val])
+            elif elem.control_type == "toggle":
+                current_val = getattr(
+                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
+                )
+                changed, new_val = imgui.checkbox(elem.label, current_val)
+                if changed:
+                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
+                    if elem.callback:
+                        elem.callback(elem.key, new_val)
+            else:
+                print(f"Unknown control type: {elem.control_type}")
 
     def create_simulation_window(self):
         window = hello_imgui.DockableWindow()

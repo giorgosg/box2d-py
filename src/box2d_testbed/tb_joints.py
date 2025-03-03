@@ -253,6 +253,7 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
         if dt == 0.0:
             return
         self.inv_dt = 1.0 / dt
+
         # Parameters
         hertz = 3.0
         damping = 0.7
@@ -354,3 +355,120 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
             self.body.transform(Vec2(0, 0)),
             f"forces = {self.impulses[0] * self.inv_dt:.1f}, {self.impulses[1] * self.inv_dt:.1f}",
         )
+
+
+class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
+    def __init__(self, world):
+        super().__init__(world)
+        self.ui_elements += [
+            UIElement(
+                key="enable_limit",
+                control_type="toggle",
+                default=True,
+                label="Limit",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="enable_motor",
+                control_type="toggle",
+                default=False,
+                label="Motor",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="max_force",
+                label="Max Force",
+                control_type="int_input",
+                min_value=0,
+                max_value=200,
+                default=50,
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="motor_speed",
+                label="Speed",
+                control_type="int_input",
+                min_value=-40,
+                max_value=40,
+                default=10,
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="enable_spring",
+                control_type="toggle",
+                default=False,
+                label="Spring",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="spring_hertz",
+                control_type="float_input",
+                min_value=0,
+                max_value=10,
+                default=2,
+                label="Hertz",
+                callback=self.on_change,
+            ),
+            UIElement(
+                key="spring_damping",
+                control_type="float_input",
+                min_value=0,
+                max_value=2,
+                default=0.1,
+                label="Damping",
+                callback=self.on_change,
+            ),
+        ]
+        self.enable_limit = True
+        self.enable_motor = False
+        self.max_force = 50
+        self.motor_speed = 10
+        self.enable_spring = False
+        self.spring_hertz = 2
+        self.spring_damping = 0.1
+
+    def on_change(self, key, value):
+        if key == "enable_limit":
+            self.enable_limit = value
+        elif key == "enable_motor":
+            self.enable_motor = value
+        elif key == "max_force":
+            self.max_force = value
+        elif key == "motor_speed":
+            self.motor_speed = value
+        elif key == "enable_spring":
+            self.enable_spring = value
+        elif key == "spring_hertz":
+            self.spring_hertz = value
+        elif key == "spring_damping":
+            self.spring_damping = value
+        self.joint.limit_enabled = self.enable_limit
+        self.joint.motor_enabled = self.enable_motor
+        self.joint.max_motor_force = self.max_force
+        self.joint.motor_speed = self.motor_speed
+        self.joint.spring_enabled = self.enable_spring
+        self.joint.spring_damping_ratio = self.spring_damping
+        self.joint.spring_frequency_hertz = self.spring_hertz
+        self.body.awake = True
+
+    def setup(self):
+        ground = self.world.new_body().position(0, 0).build()
+        body = self.world.new_body().dynamic().position(0, 10).box(1, 4).build()
+        pivot = Vec2(0, 9)
+        axis = Vec2(1, 1).normalize()
+        self.joint = self.world.add_prismatic_joint(
+            ground,
+            body,
+            anchor=pivot,
+            axis=ground.transform.q(axis),
+            enable_limit=self.enable_limit,
+            lower_limit=-10,
+            upper_limit=10,
+            enable_motor=self.enable_motor,
+            max_motor_force=self.max_force,
+            motor_speed=self.motor_speed,
+            enable_spring=self.enable_spring,
+            damping_ratio=self.spring_damping,
+            hertz=self.spring_hertz,
+        )
+        self.body = body

@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
-from .joint import MouseJoint, WeldJoint, RevoluteJoint
+from .joint import MouseJoint, WeldJoint, RevoluteJoint, PrismaticJoint
 from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
@@ -297,6 +297,95 @@ class World:
             max_motor_torque,
             enable_motor,
             reference_angle,
+        )
+
+    def add_prismatic_joint(
+        self,
+        body_a,
+        body_b,
+        local_anchor_a=None,
+        local_anchor_b=None,
+        axis=(1, 0),
+        anchor=None,
+        collide_connected=False,
+        lower_limit=None,
+        upper_limit=None,
+        enable_limit=None,
+        motor_speed=None,
+        max_motor_force=None,
+        enable_motor=None,
+        reference_angle=None,
+        enable_spring=None,
+        hertz=None,
+        damping_ratio=None,
+    ) -> "PrismaticJoint":
+        """Create a prismatic joint that allows sliding motion along an axis.
+
+        Args:
+            body_a: First body to connect (must belong to this world)
+            body_b: Second body to connect (must belong to this world)
+            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
+            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
+            axis (tuple): The axis defining allowed translation (x,y) in body A's frame
+            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
+            collide_connected (bool): Whether bodies can collide with each other
+            lower_limit (float): Lower translation limit
+            upper_limit (float): Upper translation limit
+            enable_limit (bool): Whether to enable joint limits
+            motor_speed (float): Desired motor speed in meters/sec
+            max_motor_force (float): Maximum motor force in Newtons
+            enable_motor (bool): Whether to enable the joint motor
+            reference_angle (float): Reference angle between bodies in radians
+            enable_spring (bool): Enable spring behavior
+            hertz (float): Spring stiffness frequency in Hz
+            damping_ratio (float): Spring damping ratio
+
+        Returns:
+            PrismaticJoint: The created prismatic joint
+
+        Example:
+            >>> world = World()
+            >>> body_a = world.new_body().dynamic().position(0,0).build()
+            >>> body_b = world.new_body().dynamic().position(1,0).build()
+            >>> # Create sliding joint along x-axis
+            >>> joint = world.add_prismatic_joint(
+            ...     body_a, body_b,
+            ...     anchor=(0.5,0),
+            ...     axis=(1,0),
+            ...     enable_limit=True,
+            ...     lower_limit=-1,
+            ...     upper_limit=1
+            ... )
+        """
+        if (body_a._body_id not in self._bodies) or (
+            body_b._body_id not in self._bodies
+        ):
+            raise ValueError("Both bodies must belong to this world")
+
+        if anchor is not None:
+            if local_anchor_a is not None or local_anchor_b is not None:
+                raise ValueError("Can't set local anchors when setting a world anchor")
+            local_anchor_a = body_a.transform.inverse(anchor)
+            local_anchor_b = body_b.transform.inverse(anchor)
+
+        return PrismaticJoint(
+            self,
+            body_a,
+            body_b,
+            local_anchor_a,
+            local_anchor_b,
+            axis,
+            collide_connected,
+            lower_limit,
+            upper_limit,
+            enable_limit,
+            motor_speed,
+            max_motor_force,
+            enable_motor,
+            reference_angle,
+            enable_spring,
+            hertz,
+            damping_ratio,
         )
 
     def _track_body(self, body: "Body"):
