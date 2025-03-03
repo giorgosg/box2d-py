@@ -1,25 +1,15 @@
-from .base_test import BaseTest, UIElement
+from .base_test import BaseTest, UI
 import itertools
 
 
 class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
+    count = UI.int(3, max=10, min=2)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ui_elements += [
-            UIElement(
-                control_type="int_input",
-                key="count",
-                label="Count",
-                default=3,
-                max_value=10,
-                min_value=2,
-                callback=self.on_change,
-            )
-        ]
-        self.count = 3
 
-    def on_change(self, key, value):
-        self.count = value
+    @count.callback
+    def on_count_change(self, key, value):
         for body in self.world.bodies:
             body.destroy()
         self.setup()

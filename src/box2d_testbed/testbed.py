@@ -176,28 +176,23 @@ class TestbedApp:
         imgui.text(f"Test: {state.current_test_cls.name}")
         imgui.separator()
         # Iterate through UI elements defined in the current test.
-        for elem in state.current_test_obj.ui_elements:
-            if elem.control_type == "button":
+        for name, elem in state.current_test_obj.ui_elements:
+            if elem.type == "button":
                 if imgui.button(elem.label):
-                    if elem.callback:
-                        elem.callback(elem.key, None)
-            elif elem.control_type == "int_input":
+                    v = getattr(state.current_test_obj, elem.name)
+                    v = v or 1
+                    setattr(state.current_test_obj, elem.name, v + 1)
+            elif elem.type == "int":
                 # Get current value from state if exists, default otherwise.
-                current_val = getattr(
-                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
-                )
+                current_val = elem.value
                 imgui.set_next_item_width(50)
                 changed, new_val = imgui.slider_int(
                     elem.label, current_val, elem.min_value, elem.max_value
                 )
                 if changed:
-                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
-                    if elem.callback:
-                        elem.callback(elem.key, new_val)
-            elif elem.control_type == "float_input":
-                current_val = getattr(
-                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
-                )
+                    setattr(state.current_test_obj, elem.name, new_val)
+            elif elem.type == "float":
+                current_val = elem.value
                 imgui.set_next_item_width(50)
                 changed, new_val = imgui.slider_float(
                     elem.label,
@@ -207,32 +202,22 @@ class TestbedApp:
                     format="%.1f",
                 )
                 if changed:
-                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
-                    if elem.callback:
-                        elem.callback(elem.key, new_val)
-            elif elem.control_type == "combo":
-                current_val = getattr(
-                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
-                )
+                    setattr(state.current_test_obj, elem.name, new_val)
+            elif elem.type == "select":
+                current_val = elem.value
                 current_item = elem.options.index(current_val)
                 changed, new_val = imgui.combo(elem.label, current_item, elem.options)
                 if changed:
                     setattr(
                         state.current_test_obj,
-                        "_ui_control_" + elem.key,
+                        elem.name,
                         elem.options[new_val],
                     )
-                    if elem.callback:
-                        elem.callback(elem.key, elem.options[new_val])
-            elif elem.control_type == "toggle":
-                current_val = getattr(
-                    state.current_test_obj, "_ui_control_" + elem.key, elem.default
-                )
+            elif elem.type == "bool":
+                current_val = elem.value
                 changed, new_val = imgui.checkbox(elem.label, current_val)
                 if changed:
-                    setattr(state.current_test_obj, "_ui_control_" + elem.key, new_val)
-                    if elem.callback:
-                        elem.callback(elem.key, new_val)
+                    setattr(state.current_test_obj, elem.name, new_val)
             else:
                 print(f"Unknown control type: {elem.control_type}")
 

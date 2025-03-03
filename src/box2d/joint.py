@@ -601,11 +601,12 @@ class PrismaticJoint(Joint):
         return lib.b2PrismaticJoint_GetJointSpeed(self._joint_id)
 
     @property
-    def is_limit_enabled(self):
+    def limit_enabled(self):
         """Check if the joint limit is enabled."""
         return lib.b2PrismaticJoint_IsLimitEnabled(self._joint_id)
 
-    def enable_limit(self, enable):
+    @limit_enabled.setter
+    def limit_enabled(self, enable):
         """Enable/disable the joint limit.
 
         Args:

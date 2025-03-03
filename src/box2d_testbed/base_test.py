@@ -1,42 +1,6 @@
 from box2d import World, Vec2
 from .testbed_state import state
-
-
-class UIElement:
-    def __init__(
-        self,
-        control_type,
-        key,
-        label,
-        default=None,
-        max_value=None,
-        min_value=None,
-        options=None,
-        callback=None,
-        user_data=None,
-    ):
-        """
-        A descriptor for a UI element.
-
-        control_type: The type of control ("button", "label", "combo", "toggle", "int_input").
-        key: A unique key for the control.
-        label: The display label.
-        default: The control's default value.
-        max_value: The maximum value (required for int_input)
-        min_value: The minimun value (required for int_input)
-        options: (Optional) List of options (useful for combo boxes, etc.)
-        callback: (Optional) Function to be called when the control changes.
-        user_data: (Optional) Additional data to be passed to the callback.
-        """
-        self.control_type = control_type
-        self.key = key
-        self.label = label
-        self.default = default
-        self.max_value = max_value
-        self.min_value = min_value
-        self.options = options or []
-        self.callback = callback
-        self.user_data = user_data
+from .ui import UI, UIProperty
 
 
 class BaseTest:
@@ -46,6 +10,7 @@ class BaseTest:
     """
 
     registry = {}
+    reset = UI.button("Reset")
 
     def __init_subclass__(cls, *, category, name, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -58,14 +23,18 @@ class BaseTest:
         self.world = world
         self.mouse_joint = None  # For default dragging
         self.app_state = state
-        self.ui_elements = [
-            UIElement(
-                control_type="button",
-                key="reset_button",
-                label="Reset",
-                callback=self.on_reset_click,
-            ),
-        ]
+        self._ui_values = {}
+        for key in dir(self.__class__):
+            attr = getattr(self.__class__, key)
+            if isinstance(attr, UIProperty):
+                # This call will trigger __get__ and store the UIValue in _ui_values.
+                getattr(self, key)
+
+    @property
+    def ui_elements(self):
+        """Return UI elements in declaration order"""
+        values = sorted(self._ui_values.items(), key=lambda x: x[1].order)
+        return values
 
     def setup(self):
         """
@@ -131,7 +100,8 @@ class BaseTest:
         """
         pass
 
-    def on_reset_click(self, key, value):
+    @reset.callback
+    def on_reset(self, key, value):
         """
         Callback for the reset button.
         Deletes all bodies in the world and runs the test setup again.

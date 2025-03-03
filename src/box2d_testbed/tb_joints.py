@@ -1,6 +1,6 @@
 # tb_joints.py
 
-from .base_test import BaseTest, UIElement
+from .base_test import BaseTest, UI
 from .shared import donut, create_random_polygon
 import math
 from box2d import Vec2, World, Body, Transform, Color
@@ -62,62 +62,27 @@ class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
 
 
 class SoftBody(BaseTest, category="Joints", name="Soft Body"):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ui_elements += [
-            UIElement(
-                key="segments",
-                control_type="int_input",
-                max_value=100,
-                min_value=4,
-                default=30,
-                label="Segments",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="hertz",
-                control_type="int_input",
-                max_value=200,
-                min_value=1,
-                default=12,
-                label="Hertz",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="damping",
-                control_type="int_input",
-                max_value=10,
-                min_value=0,
-                default=2,
-                label="Damping",
-                callback=self.on_change,
-            ),
-        ]
-        self.segments = 30
-        self.radius = 5
-        self.hertz = 12.0
-        self.damping = 0.0
+    segments = UI.int(30, min=4, max=100)
+    hertz = UI.int(12, min=1, max=200)
+    damping = UI.int(2, min=0, max=10)
 
-    def on_change(self, key, value):
-        if key == "segments":
-            self.segments = value
-        elif key == "hertz":
-            self.hertz = value
-        elif key == "damping":
-            self.damping = value
-        if key in ("segments",):
-            for body in self.world.bodies:
-                body.destroy()
-            self.setup()
-        if key in ("hertz", "damping"):
-            for joint in self.joints:
-                joint.angular_damping_ratio = self.damping
-                joint.angular_hertz = self.hertz
+    @segments.callback
+    def on_change_segments(self, key, value):
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
+    @hertz.callback
+    @damping.callback
+    def on_change_joint(self, key, value):
+        for joint in self.joints:
+            joint.angular_damping_ratio = self.damping
+            joint.angular_hertz = self.hertz
 
     def setup(self):
         ground = self.world.new_body().position(0, -5).box(100, 1).build()
         self.bodies, self.joints = donut(
-            self.world, (0, 30), self.radius, self.segments, self.hertz, self.damping
+            self.world, (0, 50), 5, self.segments, self.hertz, self.damping
         )
 
 
@@ -358,90 +323,22 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
 
 
 class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
-    def __init__(self, world):
-        super().__init__(world)
-        self.ui_elements += [
-            UIElement(
-                key="enable_limit",
-                control_type="toggle",
-                default=True,
-                label="Limit",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="enable_motor",
-                control_type="toggle",
-                default=False,
-                label="Motor",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="max_force",
-                label="Max Force",
-                control_type="int_input",
-                min_value=0,
-                max_value=200,
-                default=50,
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="motor_speed",
-                label="Speed",
-                control_type="int_input",
-                min_value=-40,
-                max_value=40,
-                default=10,
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="enable_spring",
-                control_type="toggle",
-                default=False,
-                label="Spring",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="spring_hertz",
-                control_type="float_input",
-                min_value=0,
-                max_value=10,
-                default=2,
-                label="Hertz",
-                callback=self.on_change,
-            ),
-            UIElement(
-                key="spring_damping",
-                control_type="float_input",
-                min_value=0,
-                max_value=2,
-                default=0.1,
-                label="Damping",
-                callback=self.on_change,
-            ),
-        ]
-        self.enable_limit = True
-        self.enable_motor = False
-        self.max_force = 50
-        self.motor_speed = 10
-        self.enable_spring = False
-        self.spring_hertz = 2
-        self.spring_damping = 0.1
+    enable_limit = UI.bool(True)
+    enable_motor = UI.bool(False)
+    max_force = UI.int(50, min=0, max=200)
+    motor_speed = UI.int(10, min=-40, max=40)
+    enable_spring = UI.bool(False)
+    spring_hertz = UI.float(2, min=0, max=10)
+    spring_damping = UI.float(0.1, min=0, max=2)
 
+    @enable_limit.callback
+    @enable_motor.callback
+    @max_force.callback
+    @motor_speed.callback
+    @enable_spring.callback
+    @spring_hertz.callback
+    @spring_damping.callback
     def on_change(self, key, value):
-        if key == "enable_limit":
-            self.enable_limit = value
-        elif key == "enable_motor":
-            self.enable_motor = value
-        elif key == "max_force":
-            self.max_force = value
-        elif key == "motor_speed":
-            self.motor_speed = value
-        elif key == "enable_spring":
-            self.enable_spring = value
-        elif key == "spring_hertz":
-            self.spring_hertz = value
-        elif key == "spring_damping":
-            self.spring_damping = value
         self.joint.limit_enabled = self.enable_limit
         self.joint.motor_enabled = self.enable_motor
         self.joint.max_motor_force = self.max_force

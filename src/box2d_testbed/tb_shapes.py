@@ -1,6 +1,6 @@
 # test_shapes.py
 
-from .base_test import BaseTest, UIElement
+from .base_test import BaseTest, UI
 from itertools import product
 from .shared import create_random_polygon
 
@@ -52,19 +52,7 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
 
 
 class Restitution(BaseTest, category="Shapes", name="Restitution"):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.current_shape = "circle"
-        self.ui_elements += [
-            UIElement(
-                control_type="combo",
-                key="shape_selector",
-                label="Shape",
-                default="circle",
-                options=["circle", "box", "polygon", "capsule"],
-                callback=self.on_shape_change,
-            )
-        ]
+    shape = UI.select("circle", ["circle", "box", "polygon", "capsule"])
 
     def setup(self):
         ground = (
@@ -79,7 +67,7 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
         x_list = [-1.0 * (e_count - 1) + i * dx for i in range(e_count)]
         restitution_list = [i * dr for i in range(e_count)]
         y_position = 40.0
-        shape = self.current_shape
+        shape = self.shape
         for x, r in zip(x_list, restitution_list):
             builder = self.world.new_body().dynamic().position(x, y_position)
             if shape == "circle":
@@ -96,9 +84,8 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
                 builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
             builder.build()
 
+    @shape.callback
     def on_shape_change(self, key, new_value):
-        self.current_shape = new_value
-        # First, clear all existing bodies in the world.
         for body in self.world.bodies:
             body.destroy()
         self.setup()
