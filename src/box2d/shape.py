@@ -313,7 +313,6 @@ class Chain:
 
     def __init__(self, body, shapedef):
         self._body = body
-        # Note: Do not call _finalize because chain shapes do not require user data setup.
         self._shape_id = lib.b2CreateChain(
             body._body_id, ffi.addressof(shapedef.shapedef)
         )

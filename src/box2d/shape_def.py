@@ -339,6 +339,7 @@ class ChainDef:
             )
         point_count = len(vertices)
         points = ffi.new("b2Vec2[]", point_count)
+        self._points = points
         for i, v in enumerate(vertices):
             points[i].x, points[i].y = v
         chain_def = lib.b2DefaultChainDef()

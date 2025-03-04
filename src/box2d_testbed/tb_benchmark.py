@@ -1,6 +1,7 @@
 from .base_test import BaseTest, UI
 import itertools
-from box2d import World, Vec2
+import math
+from box2d import World, Vec2, Rot
 
 
 class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
@@ -105,3 +106,62 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
             for x in range(self.gridcount)
             for y in range(self.gridcount)
         ]
+
+
+class Spinner(BaseTest, category="Benchmark", name="Spinner"):
+    body_count = UI.int(500, min=100, max=3000)
+
+    @body_count.callback
+    def on_change(self, key, value):
+        self.on_reset(key, value)
+
+    def setup(self):
+        pcount = 100
+        rotations = [Rot(-2 * math.pi / pcount * i) for i in range(pcount)]
+        p = Vec2(0, 40)
+        chain_points = [r(p) for r in rotations]
+        ground = (
+            self.world.new_body().chain(chain_points, loop=True, friction=0.1).build()
+        )
+        self.ground = ground
+        spinner = (
+            self.world.new_body()
+            .dynamic()
+            .enable_sleep(False)
+            .box(0.8, 40, radius=0.2, friction=0.0)
+            .position(0, -20)
+            .build()
+        )
+        self.spinner = spinner
+
+        spinner_j = self.world.add_revolute_joint(
+            ground,
+            spinner,
+            anchor=spinner.position,
+            enable_motor=True,
+            motor_speed=5,
+            max_motor_torque=50000,
+        )
+        shapeargs = {"friction": 0.1, "restitution": 0.1, "density": 0.25}
+        capsule = (
+            self.world.new_body()
+            .dynamic()
+            .capsule((-0.25, 0), (0.25, 0), 0.25, **shapeargs)
+        )
+        circle = self.world.new_body().dynamic().circle(0.35, **shapeargs)
+        box = self.world.new_body().dynamic().box(0.7, 0.7, **shapeargs)
+
+        x, y = -24, 2
+        for i in range(self.body_count):
+            remainder = i % 3
+            if remainder == 0:
+                capsule.position(x, y).build()
+            elif remainder == 1:
+                circle.position(x, y).build()
+            elif remainder == 2:
+                box.position(x, y).build()
+
+            x += 1.0
+            if x > 24.0:
+                x = -24.0
+                y += 1.0
