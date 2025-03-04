@@ -1,5 +1,6 @@
 from .base_test import BaseTest, UI
 import itertools
+from box2d import World, Vec2
 
 
 class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
@@ -45,3 +46,62 @@ class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
             for offset in fixture_positions:
                 body_builder.box(1.0, 1.0, offset=offset, density=1.0)
             body_builder.build()
+
+
+def pyramid(world: World, base_count: int, box_size: float, base_position: Vec2):
+    bb = world.new_body().dynamic().box(box_size, box_size)
+    top_pos = base_position + Vec2(0, box_size / 2 + base_count * box_size)
+    box_positions = (
+        top_pos - Vec2(col * box_size - row * box_size / 2, row * box_size)
+        for row in range(base_count + 1)
+        for col in range(row)
+    )
+    bodies = [bb.position(*pos).build() for pos in box_positions]
+    return bodies
+
+
+class PyramidTest(BaseTest, category="Benchmark", name="Pyramid Test"):
+    base_count = UI.int(20, min=5, max=100)
+
+    @base_count.callback
+    def on_count_change(self, key, value):
+        self.on_reset(key, value)
+
+    def setup(self):
+        # Create a static ground body.
+        self.world.new_body().static().position(0, -10).box(200, 20).build()
+        self.boxes = pyramid(self.world, self.base_count, 1, Vec2(0, 0))
+
+
+class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
+    gridcount = UI.int(5, min=2, max=10)
+
+    @gridcount.callback
+    def on_grid_change(self, key, value):
+        self.on_reset(key, value)
+
+    def setup(self):
+        pyramid_base = 10
+        ground = self.world.new_body().static()
+        ground_width = (pyramid_base + 1) * self.gridcount
+        segments = [
+            (
+                Vec2(-ground_width / 2, y * (pyramid_base + 1)),
+                Vec2(ground_width / 2, y * (pyramid_base + 1)),
+            )
+            for y in range(self.gridcount)
+        ]
+        for s in segments:
+            ground.segment(s[0], s[1])
+        ground = ground.build()
+        xstart = -self.gridcount / 2 * (pyramid_base + 1) + pyramid_base / 2
+        pyramids = [
+            pyramid(
+                self.world,
+                pyramid_base,
+                1,
+                Vec2(xstart + (pyramid_base + 1) * x, y * (pyramid_base + 1)),
+            )
+            for x in range(self.gridcount)
+            for y in range(self.gridcount)
+        ]
