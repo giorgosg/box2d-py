@@ -226,6 +226,7 @@ class TestbedApp:
         window.label = "Simulation"
         window.dock_space_name = "MainDockSpace"
         window.gui_function = self.render_simulation
+        window.imgui_window_flags = imgui.WindowFlags_.no_background
         return window
 
     def create_right_panel_split(self):

@@ -116,7 +116,7 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
         self.on_reset(key, value)
 
     def setup(self):
-        pcount = 100
+        pcount = 200
         rotations = [Rot(-2 * math.pi / pcount * i) for i in range(pcount)]
         p = Vec2(0, 40)
         chain_points = [r(p) for r in rotations]

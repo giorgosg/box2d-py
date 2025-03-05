@@ -330,7 +330,6 @@ class Chain:
     ):
         """
         Create and attach a chain shape to a body.
-        The parameters are the same as the previous initializer.
         """
         shapedef = ChainDef(
             vertices, loop, friction, restitution, collision_filter, custom_color
