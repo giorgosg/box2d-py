@@ -619,3 +619,87 @@ class DistanceJoints(BaseTest, category="Joints", name="Distance Joint"):
     def on_count_change(self, key, value):
         """Update number of bodies in chain."""
         self.on_reset(key, value)
+
+
+class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
+    """Test the motor joint.
+
+    A motor joint can be used to animate a dynamic body. With finite motor forces
+    the body can be blocked by collision with other bodies.
+    By setting the correction factor to zero, the motor joint acts
+    like top-down dry friction.
+    """
+
+    # UI Properties
+    enable_motion = UI.bool(True, label="Go")
+    max_force = UI.float(500.0, min=0, max=1000)
+    max_torque = UI.float(500.0, min=0, max=1000)
+    correction_factor = UI.float(0.3, min=0, max=1.0)
+
+    def setup(self):
+        """Initialize the test."""
+        # Set up camera
+        self.app_state.center = Vec2(0, 7)
+        self.app_state.zoom = 25.0 * 0.4
+
+        # Create ground body with horizontal platform
+        ground = self.world.new_body().segment((-20, 0), (20, 0)).build()
+
+        # Create box body with motor joint
+        self.box = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, 8)
+            .box(2.0, 0.5, density=1.0)
+            .build()
+        )
+
+        # Create motor joint
+        self.motor = self.world.add_motor_joint(
+            ground,
+            self.box,
+            max_force=self.max_force,
+            max_torque=self.max_torque,
+            correction_factor=self.correction_factor,
+        )
+
+        self.time = 0.0
+
+    @enable_motion.callback
+    @max_force.callback
+    @max_torque.callback
+    @correction_factor.callback
+    def on_param_change(self, key, value):
+        """Handle UI parameter changes."""
+        if key == "max_force":
+            self.motor.max_force = value
+        elif key == "max_torque":
+            self.motor.max_torque = value
+        elif key == "correction_factor":
+            self.motor.correction_factor = value
+
+    def after_step(self, dt):
+        """Update motor target position based on time."""
+        if self.enable_motion and dt > 0:
+            self.time += dt
+
+            # Calculate new target position
+            target_x = 6.0 * math.sin(2.0 * self.time)
+            target_y = 8.0 + 4.0 * math.sin(1.0 * self.time)
+            target_angle = math.pi * math.sin(-0.5 * self.time)
+
+            # Update motor joint targets
+            self.motor.linear_offset = (target_x, target_y)
+            self.motor.angular_offset = target_angle
+
+    def debug_draw(self, debug_draw):
+        """Draw debug info."""
+        force = self.motor.constraint_force
+        torque = self.motor.constraint_torque
+        debug_draw.draw_string(
+            (5, 5), f"force = ({force.x:.1f}, {force.y:.1f}), torque = {torque:.1f}"
+        )
+        # Draw target transform for visualization
+        debug_draw.draw_transform(
+            Transform(self.motor.linear_offset, self.motor.angular_offset)
+        )

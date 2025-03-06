@@ -91,7 +91,7 @@ class Joint(ABC):
         return Vec2(vec.x, vec.y)
 
     @property
-    def reaction_force(self):
+    def constraint_force(self):
         """Current force exerted by the joint to maintain its constraint.
 
         Returns:
@@ -101,7 +101,7 @@ class Joint(ABC):
         return Vec2(vec.x, vec.y)
 
     @property
-    def reaction_torque(self):
+    def constraint_torque(self):
         """Current torque exerted by the joint to maintain rotation constraints.
 
         Returns:
@@ -1170,3 +1170,145 @@ class DistanceJoint(Joint):
     def motor_force(self):
         """Get current motor force in Newtons."""
         return lib.b2DistanceJoint_GetMotorForce(self._joint_id)
+
+
+class MotorJoint(Joint):
+    """A motor joint is used to control the relative motion between two bodies.
+
+    The motor joint is used to drive the relative transform between two bodies.
+    It takes a relative position and rotation and applies the forces and torques
+    needed to achieve that relative transform over time.
+
+    A typical usage is to control the movement of a dynamic body with respect
+    to the ground.
+
+    Features:
+    - Control relative linear position between bodies
+    - Control relative angular position between bodies
+    - Maximum force and torque limits
+    - Position correction factor for stability
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        linear_offset=None,
+        angular_offset=None,
+        max_force=None,
+        max_torque=None,
+        correction_factor=None,
+        collide_connected=False,
+    ):
+        """Initialize a motor joint.
+
+        Args:
+            world: The physics world instance
+            body_a: First body to connect
+            body_b: Second body to connect
+            linear_offset (tuple): Position of bodyB minus bodyA, in bodyA's frame
+            angular_offset (float): Angle of bodyB minus bodyA in radians
+            max_force (float): Maximum force in Newtons
+            max_torque (float): Maximum torque in Newton-meters
+            correction_factor (float): Position correction factor in range [0,1]
+            collide_connected (bool): Whether connected bodies can collide
+        """
+        self._linear_offset = linear_offset
+        self._angular_offset = angular_offset
+        self._max_force = max_force
+        self._max_torque = max_torque
+        self._correction_factor = correction_factor
+        self.world = world
+
+        defn = lib.b2DefaultMotorJointDef()
+        defn.bodyIdA = body_a._body_id
+        defn.bodyIdB = body_b._body_id
+        defn.collideConnected = collide_connected
+        if linear_offset is not None:
+            defn.linearOffset = Vec2(*self._linear_offset).b2Vec2[0]
+        if angular_offset is not None:
+            defn.angularOffset = self._angular_offset
+        if max_force is not None:
+            defn.maxForce = self._max_force
+        if max_torque is not None:
+            defn.maxTorque = self._max_torque
+        if correction_factor is not None:
+            defn.correctionFactor = self._correction_factor
+
+        self._def = defn
+        self._joint_id = lib.b2CreateMotorJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        self._set_userdata()
+
+    @property
+    def linear_offset(self):
+        """Get the target linear offset in bodyA's frame."""
+        return Vec2.from_b2Vec2(lib.b2MotorJoint_GetLinearOffset(self._joint_id))
+
+    @linear_offset.setter
+    def linear_offset(self, offset):
+        """Set the target linear offset in bodyA's frame.
+
+        Args:
+            offset (tuple/Vec2): Target position of bodyB in bodyA frame
+        """
+        vec = Vec2(*offset)
+        lib.b2MotorJoint_SetLinearOffset(self._joint_id, vec.b2Vec2[0])
+
+    @property
+    def angular_offset(self):
+        """Get the target angular offset in radians."""
+        return lib.b2MotorJoint_GetAngularOffset(self._joint_id)
+
+    @angular_offset.setter
+    def angular_offset(self, angle):
+        """Set the target angular offset.
+
+        Args:
+            angle (float): Target angle in radians
+        """
+        lib.b2MotorJoint_SetAngularOffset(self._joint_id, float(angle))
+
+    @property
+    def max_force(self):
+        """Get maximum force in Newtons."""
+        return lib.b2MotorJoint_GetMaxForce(self._joint_id)
+
+    @max_force.setter
+    def max_force(self, force):
+        """Set the maximum force in Newtons.
+
+        Args:
+            force (float): Maximum force value
+        """
+        lib.b2MotorJoint_SetMaxForce(self._joint_id, float(force))
+
+    @property
+    def max_torque(self):
+        """Get maximum torque in Newton-meters."""
+        return lib.b2MotorJoint_GetMaxTorque(self._joint_id)
+
+    @max_torque.setter
+    def max_torque(self, torque):
+        """Set the maximum torque in Newton-meters.
+
+        Args:
+            torque (float): Maximum torque value
+        """
+        lib.b2MotorJoint_SetMaxTorque(self._joint_id, float(torque))
+
+    @property
+    def correction_factor(self):
+        """Get position correction factor [0,1]."""
+        return lib.b2MotorJoint_GetCorrectionFactor(self._joint_id)
+
+    @correction_factor.setter
+    def correction_factor(self, factor):
+        """Set the position correction factor.
+
+        Args:
+            factor (float): Correction factor in range [0,1]
+        """
+        lib.b2MotorJoint_SetCorrectionFactor(self._joint_id, float(factor))

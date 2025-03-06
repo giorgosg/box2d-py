@@ -9,6 +9,7 @@ from .joint import (
     PrismaticJoint,
     WheelJoint,
     DistanceJoint,
+    MotorJoint,
 )
 from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
@@ -566,6 +567,54 @@ class World:
             enable_motor,
             motor_speed,
             max_motor_force,
+        )
+
+    def add_motor_joint(
+        self,
+        body_a,
+        body_b,
+        linear_offset=None,
+        angular_offset=None,
+        max_force=None,
+        max_torque=None,
+        correction_factor=None,
+        collide_connected=False,
+    ) -> "MotorJoint":
+        """Create a motor joint to control relative motion between two bodies.
+
+        Args:
+            body_a: First body to connect
+            body_b: Second body to connect
+            linear_offset (tuple): Desired position of bodyB in bodyA's frame
+            angular_offset (float): Desired angle between bodies in radians
+            max_force (float): Maximum force in Newtons
+            max_torque (float): Maximum torque in Newton-meters
+            correction_factor (float): Position correction factor [0,1]
+            collide_connected (bool): Whether bodies can collide
+
+        Returns:
+            MotorJoint: The created motor joint
+
+        Example:
+            >>> world = World()
+            >>> ground = world.new_body().build()
+            >>> body = world.new_body().dynamic().position(0, 4).build()
+            >>> motor = world.add_motor_joint(
+            ...     ground, body,
+            ...     linear_offset=(1, 0),  # Move body 1m right
+            ...     max_force=100
+            ... )
+        """
+        return MotorJoint(
+            self,
+            body_a,
+            body_b,
+            linear_offset,
+            angular_offset,
+            max_force,
+            max_torque,
+            correction_factor,
+            collide_connected,
         )
 
     def _track_body(self, body: "Body"):
