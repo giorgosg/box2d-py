@@ -910,3 +910,263 @@ class WheelJoint(Joint):
     def motor_torque(self):
         """Get current motor torque in N-m."""
         return lib.b2WheelJoint_GetMotorTorque(self._joint_id)
+
+
+class DistanceJoint(Joint):
+    """A distance joint constrains two points on two bodies to maintain a constant distance.
+
+    A distance joint connects two points on two bodies with a massless rod or a spring.
+    The distance can be static (like a rod) or behave like a spring that can stretch.
+    When spring is enabled, it can optionally have a motor to actively change its length.
+
+    Features:
+    - Optional spring behavior with configurable stiffness and damping
+    - Optional length limits to restrict stretching
+    - Optional motor to actively change the distance
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        anchor_a,
+        anchor_b,
+        collide_connected=False,
+        length=None,
+        min_length=None,
+        max_length=None,
+        enable_limit=False,
+        enable_spring=False,
+        hertz=None,
+        damping_ratio=None,
+        enable_motor=False,
+        motor_speed=None,
+        max_motor_force=None,
+    ):
+        """Initialize a distance joint between two bodies.
+
+        Args:
+            world: The physics world instance
+            body_a: First body to connect
+            body_b: Second body to connect
+            anchor_a (tuple): Local anchor point on body A (x,y)
+            anchor_b (tuple): Local anchor point on body B (x,y)
+            collide_connected (bool): Whether bodies can collide
+            length (float): Rest length. Calculated from anchors if None.
+            min_length (float): Minimum allowed length when using limits
+            max_length (float): Maximum allowed length when using limits
+            enable_limit (bool): Whether to enable length limits
+            enable_spring (bool): Enable spring behavior
+            hertz (float): Spring oscillation frequency in Hz when enabled
+            damping_ratio (float): Spring damping ratio [0,1] when enabled
+            enable_motor (bool): Enable the joint motor
+            motor_speed (float): Desired motor speed in meters/second
+            max_motor_force (float): Maximum motor force in Newtons
+        """
+        self._local_anchor_a = Vec2(*anchor_a)
+        self._local_anchor_b = Vec2(*anchor_b)
+        self._length = length
+        self._min_length = min_length
+        self._max_length = max_length
+        self._enable_limit = enable_limit
+        self._enable_spring = enable_spring
+        self._hertz = hertz
+        self._damping_ratio = damping_ratio
+        self._enable_motor = enable_motor
+        self._motor_speed = motor_speed
+        self._max_motor_force = max_motor_force
+        self.world = world
+
+        defn = lib.b2DefaultDistanceJointDef()
+        defn.bodyIdA = body_a._body_id
+        defn.bodyIdB = body_b._body_id
+        defn.collideConnected = collide_connected
+        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
+        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
+
+        if self._length is not None:
+            defn.length = self._length
+        if self._min_length is not None:
+            defn.minLength = self._min_length
+        if self._max_length is not None:
+            defn.maxLength = self._max_length
+
+        defn.enableLimit = self._enable_limit
+        defn.enableSpring = self._enable_spring
+        if self._hertz is not None:
+            defn.hertz = self._hertz
+        if self._damping_ratio is not None:
+            defn.dampingRatio = self._damping_ratio
+        defn.enableMotor = self._enable_motor
+        if self._motor_speed is not None:
+            defn.motorSpeed = self._motor_speed
+        if self._max_motor_force is not None:
+            defn.maxMotorForce = self._max_motor_force
+
+        self._def = defn
+        self._joint_id = lib.b2CreateDistanceJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        self._set_userdata()
+
+    @property
+    def length(self):
+        """Get the rest length of the joint."""
+        return lib.b2DistanceJoint_GetLength(self._joint_id)
+
+    @length.setter
+    def length(self, value):
+        """Set the rest length of the joint.
+
+        Args:
+            value (float): New rest length
+        """
+        lib.b2DistanceJoint_SetLength(self._joint_id, float(value))
+
+    @property
+    def current_length(self):
+        """Get the current distance between anchor points."""
+        return lib.b2DistanceJoint_GetCurrentLength(self._joint_id)
+
+    @property
+    def spring_enabled(self):
+        """Check if spring behavior is enabled."""
+        return lib.b2DistanceJoint_IsSpringEnabled(self._joint_id)
+
+    @spring_enabled.setter
+    def spring_enabled(self, enable):
+        """Enable/disable spring behavior.
+
+        Args:
+            enable (bool): True to enable spring, False for rigid behavior
+        """
+        lib.b2DistanceJoint_EnableSpring(self._joint_id, enable)
+
+    @property
+    def spring_hertz(self):
+        """Get spring frequency in Hertz."""
+        return lib.b2DistanceJoint_GetSpringHertz(self._joint_id)
+
+    @spring_hertz.setter
+    def spring_hertz(self, hertz):
+        """Set spring frequency in Hertz.
+
+        Args:
+            hertz (float): Oscillation frequency in Hz
+        """
+        lib.b2DistanceJoint_SetSpringHertz(self._joint_id, float(hertz))
+
+    @property
+    def spring_damping_ratio(self):
+        """Get spring damping ratio."""
+        return lib.b2DistanceJoint_GetSpringDampingRatio(self._joint_id)
+
+    @spring_damping_ratio.setter
+    def spring_damping_ratio(self, damping):
+        """Set spring damping ratio.
+
+        Args:
+            damping (float): Damping ratio [0,1]
+        """
+        lib.b2DistanceJoint_SetSpringDampingRatio(self._joint_id, float(damping))
+
+    @property
+    def limit_enabled(self):
+        """Check if length limits are enabled."""
+        return lib.b2DistanceJoint_IsLimitEnabled(self._joint_id)
+
+    @limit_enabled.setter
+    def limit_enabled(self, enable):
+        """Enable/disable length limits.
+
+        Args:
+            enable (bool): True to enable limits, False to disable
+        """
+        lib.b2DistanceJoint_EnableLimit(self._joint_id, enable)
+
+    @property
+    def min_length(self):
+        """Get the minimum allowed length."""
+        return lib.b2DistanceJoint_GetMinLength(self._joint_id)
+
+    @min_length.setter
+    def min_length(self, value):
+        """Set the minimum allowed length.
+
+        Args:
+            value (float): New minimum length
+        """
+        self.set_length_range(float(value), self.max_length)
+
+    @property
+    def max_length(self):
+        """Get the maximum allowed length."""
+        return lib.b2DistanceJoint_GetMaxLength(self._joint_id)
+
+    @max_length.setter
+    def max_length(self, value):
+        """Set the maximum allowed length.
+
+        Args:
+            value (float): New maximum length
+        """
+        self.set_length_range(self.min_length, float(value))
+
+    def set_length_range(self, min_length, max_length):
+        """Set the allowed length range.
+
+        Args:
+            min_length (float): Minimum allowed length
+            max_length (float): Maximum allowed length
+        """
+        lib.b2DistanceJoint_SetLengthRange(
+            self._joint_id, float(min_length), float(max_length)
+        )
+
+    @property
+    def motor_enabled(self):
+        """Check if the joint motor is enabled."""
+        return lib.b2DistanceJoint_IsMotorEnabled(self._joint_id)
+
+    @motor_enabled.setter
+    def motor_enabled(self, enable):
+        """Enable/disable the joint motor.
+
+        Args:
+            enable (bool): True to enable motor, False to disable
+        """
+        lib.b2DistanceJoint_EnableMotor(self._joint_id, enable)
+
+    @property
+    def motor_speed(self):
+        """Get motor speed in meters per second."""
+        return lib.b2DistanceJoint_GetMotorSpeed(self._joint_id)
+
+    @motor_speed.setter
+    def motor_speed(self, speed):
+        """Set motor speed.
+
+        Args:
+            speed (float): Desired speed in meters per second
+        """
+        lib.b2DistanceJoint_SetMotorSpeed(self._joint_id, float(speed))
+
+    @property
+    def max_motor_force(self):
+        """Get maximum motor force in Newtons."""
+        return lib.b2DistanceJoint_GetMaxMotorForce(self._joint_id)
+
+    @max_motor_force.setter
+    def max_motor_force(self, force):
+        """Set maximum motor force.
+
+        Args:
+            force (float): Maximum force in Newtons
+        """
+        lib.b2DistanceJoint_SetMaxMotorForce(self._joint_id, float(force))
+
+    @property
+    def motor_force(self):
+        """Get current motor force in Newtons."""
+        return lib.b2DistanceJoint_GetMotorForce(self._joint_id)

@@ -2,7 +2,14 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
-from .joint import MouseJoint, WeldJoint, RevoluteJoint, PrismaticJoint, WheelJoint
+from .joint import (
+    MouseJoint,
+    WeldJoint,
+    RevoluteJoint,
+    PrismaticJoint,
+    WheelJoint,
+    DistanceJoint,
+)
 from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
@@ -249,13 +256,13 @@ class World:
             local_anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
             collide_connected (bool, optional): Whether the connected bodies should collide with each other.
                                                   Defaults to False.
-            lower_angle (float, optional): Lower joint limit in radians. Defaults to 0.0.
-            upper_angle (float, optional): Upper joint limit in radians. Defaults to 0.0.
-            enable_limit (bool, optional): Enable joint limits if True. Defaults to False.
-            motor_speed (float, optional): Desired motor speed in radians per second. Defaults to 0.0.
-            max_motor_torque (float, optional): Maximum motor torque in newton-meters. Defaults to 0.0.
-            enable_motor (bool, optional): Enable the joint motor if True. Defaults to False.
-            reference_angle (float, optional): Reference angle between the two bodies. Defaults to 0.0.
+            lower_angle (float, optional): Lower joint limit in radians.
+            upper_angle (float, optional): Upper joint limit in radians.
+            enable_limit (bool, optional): Enable joint limits if True.
+            motor_speed (float, optional): Desired motor speed in radians per second.
+            max_motor_torque (float, optional): Maximum motor torque in newton-meters.
+            enable_motor (bool, optional): Enable the joint motor if True.
+            reference_angle (float, optional): Reference angle between the two bodies.
 
         Returns:
             RevoluteJoint: The created revolute joint connecting body_a and body_b.
@@ -472,6 +479,93 @@ class World:
             enable_spring,
             spring_hertz,
             spring_damping_ratio,
+        )
+
+    def add_distance_joint(
+        self,
+        body_a,
+        body_b,
+        local_anchor_a=None,
+        local_anchor_b=None,
+        collide_connected=False,
+        length=None,
+        min_length=None,
+        max_length=None,
+        enable_limit=False,
+        enable_spring=False,
+        hertz=None,
+        damping_ratio=None,
+        enable_motor=False,
+        motor_speed=None,
+        max_motor_force=None,
+    ) -> "DistanceJoint":
+        """Create a distance joint that maintains or limits distance between points on two bodies.
+
+        Args:
+            body_a: First body to connect (must belong to this world)
+            body_b: Second body to connect (must belong to this world)
+            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
+            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
+            collide_connected (bool): Whether bodies can collide with each other
+            length (float): Rest length. Calculated from anchors if None.
+            min_length (float): Minimum allowed length when using limits
+            max_length (float): Maximum allowed length when using limits
+            enable_limit (bool): Whether to enable length limits
+            enable_spring (bool): Enable spring behavior
+            hertz (float): Spring oscillation frequency in Hz
+            damping_ratio (float): Spring damping ratio
+            enable_motor (bool): Enable the joint motor
+            motor_speed (float): Desired motor speed in meters/second
+            max_motor_force (float): Maximum motor force in Newtons
+
+        Returns:
+            DistanceJoint: The created distance joint
+
+        Example:
+            >>> world = World()
+            >>> body_a = world.new_body().dynamic().position(0,0).build()
+            >>> body_b = world.new_body().dynamic().position(2,0).build()
+            >>> # Create spring joint
+            >>> spring = world.add_distance_joint(
+            ...     body_a, body_b,
+            ...     anchor_a=(0,0),
+            ...     anchor_b=(2,0),
+            ...     enable_spring=True,
+            ...     hertz=4.0,
+            ...     damping_ratio=0.5
+            ... )
+            >>> # Create rope joint
+            >>> rope = world.add_distance_joint(
+            ...     body_a, body_b,
+            ...     anchor_a=(0,1),
+            ...     anchor_b=(2,1),
+            ...     enable_limit=True,
+            ...     min_length=1.0,
+            ...     max_length=3.0
+            ... )
+        """
+        if (body_a._body_id not in self._bodies) or (
+            body_b._body_id not in self._bodies
+        ):
+            raise ValueError("Both bodies must belong to this world")
+
+        return DistanceJoint(
+            self,
+            body_a,
+            body_b,
+            local_anchor_a,
+            local_anchor_b,
+            collide_connected,
+            length,
+            min_length,
+            max_length,
+            enable_limit,
+            enable_spring,
+            hertz,
+            damping_ratio,
+            enable_motor,
+            motor_speed,
+            max_motor_force,
         )
 
     def _track_body(self, body: "Body"):

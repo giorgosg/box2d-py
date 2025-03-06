@@ -529,3 +529,93 @@ class Driving(BaseTest, category="Joints", name="Driving"):
         """Update camera to follow the car"""
         car_pos = self.car.chassis.position
         self.app_state.center = Vec2(car_pos.x, car_pos.y)
+
+
+class DistanceJoints(BaseTest, category="Joints", name="Distance Joint"):
+    """Test the distance joint and all options."""
+
+    # UI Properties
+    length = UI.float(1.0, min=0.1, max=4.0)
+    count = UI.int(1, min=1, max=10)
+    enable_spring = UI.bool(False)
+    enable_limit = UI.bool(False)
+    min_length = UI.float(1.0, min=0.1, max=4.0)
+    max_length = UI.float(1.0, min=0.1, max=4.0)
+    hertz = UI.float(2.0, min=0, max=15)
+    damping_ratio = UI.float(0.5, min=0, max=4)
+
+    def setup(self):
+        """Initialize test objects."""
+        # Create ground body
+        self.ground = self.world.new_body().build()
+
+        # Create new chain
+        prev_body = self.ground
+        radius = 0.25
+        y_offset = 0.0
+
+        # Configure distance joint parameters
+        joint_params = {
+            "hertz": self.hertz,
+            "damping_ratio": self.damping_ratio,
+            "length": self.length,
+            "min_length": self.min_length,
+            "max_length": self.max_length,
+            "enable_spring": self.enable_spring,
+            "enable_limit": self.enable_limit,
+        }
+
+        self.bodies = []
+        self.joints = []
+
+        # Create chain of bodies connected by distance joints
+        for i in range(self.count):
+            # Create body
+            body = (
+                self.world.new_body()
+                .dynamic()
+                .position(self.length * (i + 1), y_offset)
+                .circle(radius=radius, density=20.0)
+                .build()
+            )
+            self.bodies.append(body)
+
+            # Create distance joint
+            pivot_a = Vec2(0, 0)
+            pivot_b = Vec2(0, 0)
+
+            joint = self.world.add_distance_joint(
+                prev_body,
+                body,
+                local_anchor_a=pivot_a,
+                local_anchor_b=pivot_b,
+                **joint_params,
+            )
+            self.joints.append(joint)
+
+            prev_body = body
+
+    @enable_spring.callback
+    @enable_limit.callback
+    @length.callback
+    @min_length.callback
+    @max_length.callback
+    @hertz.callback
+    @damping_ratio.callback
+    def on_joint_change(self, key, value):
+        """Update joint properties when toggles change."""
+        for joint in self.joints:
+            joint.spring_enabled = self.enable_spring
+            joint.limit_enabled = self.enable_limit
+            joint.length = self.length
+            joint.min_length = self.min_length
+            joint.max_length = self.max_length
+            joint.spring_hertz = self.hertz
+            joint.spring_damping_ratio = self.damping_ratio
+
+            joint.wake_bodies()
+
+    @count.callback
+    def on_count_change(self, key, value):
+        """Update number of bodies in chain."""
+        self.on_reset(key, value)
