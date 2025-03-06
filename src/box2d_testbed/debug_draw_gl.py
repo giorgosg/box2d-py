@@ -139,7 +139,7 @@ class GLDebugDraw(DebugDraw):
 
         # Draw debug strings
         for pos, text, color in self.debug_strings:
-            screen_pos = self.camera.convert_world_to_screen(pos)
+            screen_pos = self.camera.convert_world_to_screen(Vec2(*pos))
             # Convert hex color to RGB float values
             r = ((color.hex >> 16) & 0xFF) / 255.0
             g = ((color.hex >> 8) & 0xFF) / 255.0

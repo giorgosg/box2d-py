@@ -1,7 +1,7 @@
 # tb_joints.py
 
 from .base_test import BaseTest, UI
-from .shared import donut, create_random_polygon
+from .shared import donut, create_random_polygon, Car
 import math
 from box2d import Vec2, World, Body, Transform, Color
 
@@ -369,3 +369,163 @@ class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
             hertz=self.spring_hertz,
         )
         self.body = body
+
+
+class Driving(BaseTest, category="Joints", name="Driving"):
+    """
+    A fun demo that shows off the wheel joint with a driveable car.
+    Use A/S/D keys to drive left/brake/right.
+    """
+
+    hertz = UI.int(5, min=0, max=20)
+    damping = UI.float(0.7, 0, 10)
+    speed = UI.int(35, 0, 100)
+    torque = UI.float(5, 0, 10)
+    car = None
+
+    @hertz.callback
+    @damping.callback
+    @speed.callback
+    @torque.callback
+    def on_joint_change(self, key, value):
+        if self.car:
+            self.car.set_hertz(self.hertz)
+            self.car.set_damping_ratio(self.damping)
+            # self.car.set_speed(self.speed)
+            self.car.set_torque(self.torque)
+
+    def setup(self):
+        # Create ground body and terrain
+        ground = self.world.new_body().static()
+
+        # Define points for terrain shape
+        points = []
+
+        # Base platform
+        points.extend([(-20, -20), (-20, 0), (20, 0)])
+
+        # Add hills
+        heights = [0.25, 1.0, 4.0, 0.0, 0.0, -1.0, -2.0, -2.0, -1.25, 0.0]
+        x = 20.0
+        dx = 5.0
+
+        for _ in range(2):
+            for h in heights:
+                points.append((x + dx, h))
+                x += dx
+
+        # Add flat sections and ramps
+        points.extend(
+            [
+                (x + 40, 0),  # Flat before bridge
+                (x + 40, -20),  # Back to base level
+                (x + 80, 0),  # Bridge approach
+                (x + 120, 0),  # Bridge end
+                (x + 140, 0),  # Pre-ramp
+                (x + 150, 5),  # Jump ramp
+                (x + 160, 0),  # Landing
+                (x + 200, 0),  # Final straight
+                (x + 200, 20),  # End wall
+            ]
+        )
+
+        # Create chain shape for ground
+        ground = ground.chain(points[::-1]).build()
+
+        # Create teeter platform
+        teeter_pos = Vec2(140.0, 1.0)
+        teeter = (
+            self.world.new_body()
+            .dynamic()
+            .position(*teeter_pos)
+            .angular_velocity(1.0)
+            .box(20.0, 0.5)
+            .build()
+        )
+
+        # Add revolute joint to teeter with angle limits
+        teeter_j = self.world.add_revolute_joint(
+            ground,
+            teeter,
+            anchor=teeter_pos,
+            enable_limit=True,
+            collide_connected=False,
+            lower_angle=math.radians(-18),
+            upper_angle=math.radians(18),
+        )
+        print(teeter_j.collide_connected)
+        # Create bridge
+        bridge_count = 20
+        bridge_start = Vec2(161.0, -0.125)
+
+        # Create bridge segments connected by revolute joints
+        prev_body = ground
+        for i in range(bridge_count):
+            pos = bridge_start + Vec2(2.0 * i, 0)
+            segment = (
+                self.world.new_body()
+                .dynamic()
+                .position(*pos)
+                .capsule(point1=(-1, 0), point2=(1, 0), radius=0.125)
+                .build()
+            )
+
+            pivot = Vec2(160.0 + 2.0 * i, -0.125)
+            self.world.add_revolute_joint(prev_body, segment, anchor=pivot)
+            prev_body = segment
+
+        # Connect final bridge segment to ground
+        pivot = Vec2(160.0 + 2.0 * bridge_count, -0.125)
+        self.world.add_revolute_joint(
+            prev_body, ground, anchor=pivot, enable_motor=True, max_motor_torque=50.0
+        )
+
+        # Create stack of boxes
+        box_builder = (
+            self.world.new_body()
+            .dynamic()
+            .box(0.5, 0.5, density=0.25, friction=0.25, restitution=0.25)
+        )
+
+        for i in range(5):
+            box_builder.position(230.0, 0.5 + i).build()
+
+        self.car = Car(
+            self.world,
+            position=(0, 0),
+            scale=1.0,
+            hertz=self.hertz,
+            damping_ratio=self.damping,
+            torque=self.torque,
+        )
+
+    def on_key_down(self, key):
+        """Handle keyboard input for car control"""
+        if key == "a":  # Drive left
+            self.car.set_torque(self.torque)
+            self.car.set_speed(self.speed)
+        elif key == "s":  # Brake
+            self.car.set_torque(self.torque)
+            self.car.set_speed(0.0)
+        elif key == "d":  # Drive right
+            self.car.set_torque(self.torque)
+            self.car.set_speed(-self.speed)
+
+    def on_key_up(self, key):
+        """Handle key release"""
+        if key in ["a", "s", "d"]:
+            self.car.set_torque(0.0)
+            self.car.set_speed(0.0)
+
+    def debug_draw(self, debug_draw):
+        """Display help text and speed"""
+        debug_draw.draw_string((0, 5), "Keys: left = a, brake = s, right = d")
+
+        velocity = self.car.chassis.linear_velocity
+        kph = velocity.x * 3.6  # Convert m/s to km/h
+        debug_draw.draw_string(self.car.chassis.position + (-1, 1), f"kph: {kph:.1f}")
+
+    def after_step(self, dt):
+        """Update camera to follow the car"""
+        car_pos = self.car.chassis.position
+        self.app_state.center = Vec2(car_pos.x, car_pos.y)

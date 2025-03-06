@@ -55,6 +55,18 @@ class BaseTest:
         """
         pass
 
+    def on_key_down(self, key):
+        """
+        Called when a key is pressed
+        """
+        pass
+
+    def on_key_up(self, key):
+        """
+        Called when a key is released
+        """
+        pass
+
     def on_mouse_down(self, pos):
         """
         Default mouse-down: if a shape is hit, create a mouse joint for dragging.

@@ -100,6 +100,9 @@ class TestbedApp:
         if io.mouse_down[1] and imgui.is_window_hovered():
             self.on_right_drag(io.mouse_delta)
 
+        # send key press events to current test
+        self.key_press_events()
+
         # If a current test exists and the simulation window is hovered,
         # convert mouse coordinates to world coordinates and call test mouse events.
         if state.current_test_obj and imgui.is_window_hovered():
@@ -122,6 +125,41 @@ class TestbedApp:
 
         # Reset viewport
         gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
+
+    def key_press_events(self):
+        io = imgui.get_io()
+
+        # Map of ImGui key codes to string identifiers
+        key_map = {
+            imgui.Key.space: "space",
+            imgui.Key.left_arrow: "left",
+            imgui.Key.right_arrow: "right",
+            imgui.Key.up_arrow: "up",
+            imgui.Key.down_arrow: "down",
+            imgui.Key.escape: "escape",
+            imgui.Key.enter: "enter",
+            imgui.Key.tab: "tab",
+            # Add letter keys
+            **{
+                getattr(imgui.Key, f"{chr(i)}"): chr(i)
+                for i in range(ord("a"), ord("z") + 1)
+            },
+            # Add number keys
+            **{getattr(imgui.Key, f"_{i}"): str(i) for i in range(10)},
+        }
+
+        # Check for key events
+        if not hasattr(self, "_prev_keys_down"):
+            self._prev_keys_down = set()
+
+        # Check currently pressed keys
+        for key_code, key_name in key_map.items():
+            if imgui.is_key_pressed(key_code, repeat=False):
+                if state.current_test_obj:
+                    state.current_test_obj.on_key_down(key_name)
+            if imgui.is_key_released(key_code):
+                if state.current_test_obj:
+                    state.current_test_obj.on_key_up(key_name)
 
     def update_physics_timer(self):
         if self.simulation is None:

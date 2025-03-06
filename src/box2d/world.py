@@ -2,7 +2,7 @@
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
-from .joint import MouseJoint, WeldJoint, RevoluteJoint, PrismaticJoint
+from .joint import MouseJoint, WeldJoint, RevoluteJoint, PrismaticJoint, WheelJoint
 from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
@@ -386,6 +386,92 @@ class World:
             enable_spring,
             hertz,
             damping_ratio,
+        )
+
+    def add_wheel_joint(
+        self,
+        body_a,
+        body_b,
+        local_anchor_a=None,
+        local_anchor_b=None,
+        axis=(1, 0),
+        anchor=None,
+        collide_connected=False,
+        enable_limit=False,
+        lower_translation=0.0,
+        upper_translation=0.0,
+        enable_motor=False,
+        motor_speed=0.0,
+        max_motor_torque=0.0,
+        enable_spring=False,
+        spring_hertz=0.0,
+        spring_damping_ratio=0.0,
+    ) -> "WheelJoint":
+        """Create a wheel joint for vehicle suspension simulation.
+
+        Args:
+            body_a: First body to connect (must belong to this world)
+            body_b: Second body to connect (must belong to this world)
+            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
+            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
+            axis (tuple): The axis defining translation (x,y) in body A's frame
+            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
+            collide_connected (bool): Whether bodies can collide with each other
+            enable_limit (bool): Enable translation limits
+            lower_translation (float): Lower translation limit
+            upper_translation (float): Upper translation limit
+            enable_motor (bool): Enable the joint motor
+            motor_speed (float): Desired motor speed in radians/sec
+            max_motor_torque (float): Maximum motor torque in N-m
+            enable_spring (bool): Enable spring behavior
+            spring_hertz (float): Spring oscillation frequency in Hz
+            spring_damping_ratio (float): Spring damping ratio (non-dimensional)
+
+        Returns:
+            WheelJoint: The created wheel joint
+
+        Example:
+            >>> world = World()
+            >>> chassis = world.new_body().dynamic().position(0,1).box(2,0.5).build()
+            >>> wheel = world.new_body().dynamic().position(1,0).circle(0.4).build()
+            >>> # Create wheel suspension
+            >>> joint = world.add_wheel_joint(
+            ...     chassis, wheel,
+            ...     anchor=(1,0),
+            ...     axis=(0,1),  # Vertical suspension movement
+            ...     enable_spring=True,
+            ...     spring_hertz=4.0,
+            ...     spring_damping_ratio=0.7
+            ... )
+        """
+        if (body_a._body_id not in self._bodies) or (
+            body_b._body_id not in self._bodies
+        ):
+            raise ValueError("Both bodies must belong to this world")
+
+        if anchor is not None:
+            if local_anchor_a is not None or local_anchor_b is not None:
+                raise ValueError("Can't set local anchors when setting a world anchor")
+            local_anchor_a = body_a.transform.inverse(anchor)
+            local_anchor_b = body_b.transform.inverse(anchor)
+
+        return WheelJoint(
+            self,
+            body_a,
+            body_b,
+            local_anchor_a,
+            local_anchor_b,
+            axis,
+            collide_connected,
+            enable_limit,
+            lower_translation,
+            upper_translation,
+            enable_motor,
+            motor_speed,
+            max_motor_torque,
+            enable_spring,
+            spring_hertz,
+            spring_damping_ratio,
         )
 
     def _track_body(self, body: "Body"):
