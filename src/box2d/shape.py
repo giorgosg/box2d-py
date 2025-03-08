@@ -304,6 +304,27 @@ class Box(Polygon):
         return cls(body, shapedef)
 
 
+class ChainSegment(Shape):
+    """
+    A segment of a chain shape.
+    Chain segments are created automatically by the Chain class and represent
+    individual segments within a chain. Each segment has a reference to its parent chain.
+    """
+
+    def __init__(self, b2chainsegment, chain: "Chain"):
+        """
+        Initialize a chain segment with its parent chain and endpoints.
+
+        Parameters:
+        - b2chainsegment: The b2ChainSegment b2ShapeId
+        - chain: The parent Chain object
+        """
+        self._shape_id = b2chainsegment
+        self.parent_chain = chain
+        super().__init__(chain.body, None)
+        self._finalize()
+
+
 class Chain:
     """
     A chain shape that can be attached to a body.
@@ -316,6 +337,10 @@ class Chain:
         self._shape_id = lib.b2CreateChain(
             body._body_id, ffi.addressof(shapedef.shapedef)
         )
+        segment_count = lib.b2Chain_GetSegmentCount(self._shape_id)
+        segments = ffi.new("b2ShapeId[]", segment_count)
+        lib.b2Chain_GetSegments(self._shape_id, segments, segment_count)
+        self.segments = [ChainSegment(segments[i], self) for i in range(segment_count)]
 
     @classmethod
     def create(

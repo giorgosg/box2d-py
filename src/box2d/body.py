@@ -79,7 +79,7 @@ class BodyBuilder:
         self._def.type = lib.b2_kinematicBody
         return self
 
-    def fixed_rotation(self, fixed):
+    def fixed_rotation(self, fixed=True):
         """Set whether the body has fixed rotation.
 
         Fixed rotation bodies will not rotate. Useful for objects like characters.

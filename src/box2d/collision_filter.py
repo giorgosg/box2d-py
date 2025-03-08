@@ -182,8 +182,8 @@ class CollisionFilter:
 
     def __init__(
         self,
-        category: int | str = DEFAULT_CATEGORY,
-        mask: int | str = ALL,
+        category: int | str | list[int | str] | tuple[int | str] = DEFAULT_CATEGORY,
+        mask: int | str | list[int | str] | tuple[int | str] = ALL,
         group: int = 0,
         registry: "CollisionCategoryRegistry" = None,
     ):
@@ -191,10 +191,12 @@ class CollisionFilter:
         Initialize a new CollisionFilter.
 
         Args:
-            category (int or str): The collision category bitmask or name.
-                                   If a string is provided, it is resolved via the registry.
-            mask (int or str): The collision mask bitmask or name.
-                               Similarly, a string is resolved via the registry.
+            category (int or str or list): The collision category bitmask, name, or list of names/bitmasks.
+                                          If string(s) are provided, they are resolved via the registry.
+                                          If a list is provided, all categories are combined with bitwise OR.
+            mask (int or str or list): The collision mask bitmask, name, or list of names/bitmasks.
+                                      Similarly, string(s) are resolved via the registry.
+                                      If a list is provided, all masks are combined with bitwise OR.
             group (int): The collision group index.
                          * 0 indicates no grouping; standard category/mask rules apply.
                          * A nonzero value overrides the usual filtering, as follows:
@@ -211,10 +213,28 @@ class CollisionFilter:
             >>> filter_a = CollisionFilter(category=0x1, mask=CollisionFilter.ALL, group=0, registry=reg)
             >>> filter_a
             CollisionFilter(category=0x1, mask=0xFFFF, group=0)
+            >>> filter_b = CollisionFilter(category=["player", "ally"], mask=["enemy", "projectile"], registry=reg)
+            >>> filter_b
+            CollisionFilter(category=0x3, mask=0xC, group=0)
         """
         self.registry = registry if registry is not None else DEFAULT_CATEGORY_REGISTRY
-        self.category = self.registry.parse(category)
-        self.mask = self.registry.parse(mask)
+
+        # Handle category (single value or list)
+        if isinstance(category, list) or isinstance(category, tuple):
+            self.category = 0
+            for cat in category:
+                self.category |= self.registry.parse(cat)
+        else:
+            self.category = self.registry.parse(category)
+
+        # Handle mask (single value or list)
+        if isinstance(mask, list) or isinstance(mask, tuple):
+            self.mask = 0
+            for m in mask:
+                self.mask |= self.registry.parse(m)
+        else:
+            self.mask = self.registry.parse(mask)
+
         self.group = group
 
     def add_category(self, *cats) -> "CollisionFilter":
