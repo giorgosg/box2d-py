@@ -15,6 +15,40 @@ from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape_def import CircleDef
+from .shape import Shape
+from dataclasses import dataclass
+
+from dataclasses import dataclass
+from .math import Vec2
+from ._box2d import ffi, lib
+
+
+@dataclass
+class RayCastResult:
+    """Result from a ray cast query."""
+
+    shape: "Shape"  # Shape that was hit
+    point: Vec2  # Hit point in world coords
+    normal: Vec2  # Surface normal at hit point
+    fraction: float  # Fraction along ray where hit occurred (0-1)
+
+
+def make_ray_cast_callback(results: list):
+    """Create a ray cast callback function."""
+
+    @ffi.callback("float(b2ShapeId, b2Vec2, b2Vec2, float, void*)")
+    def ray_cast_callback(shape_id, point, normal, fraction, _):
+        shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
+        result = RayCastResult(
+            shape=shape,
+            point=Vec2(point.x, point.y),
+            normal=Vec2(normal.x, normal.y),
+            fraction=fraction,
+        )
+        results.append(result)
+        return 1.0  # Continue querying
+
+    return ray_cast_callback
 
 
 def make_overlap_callback(results: list, max_results: int = None):
@@ -748,6 +782,58 @@ class World:
             overlap_callback,
             ffi.NULL,
         )
+        return results
+
+    def ray_cast(
+        self,
+        origin: VectorLike,
+        translation: VectorLike,
+        collision_filter: "CollisionFilter" = None,
+        first_hit_only: bool = False,
+    ) -> list[RayCastResult]:
+        """Cast a ray and find intersecting shapes.
+
+        Args:
+            origin: Starting point of the ray (x,y)
+            translation: The translation of the ray from the start point to the end point
+            collision_filter: Optional filter to control which shapes are tested
+            first_hit_only: If True, only return the first hit encountered
+
+        Returns:
+            List of RayCastResult objects containing hit information
+
+        Example:
+            >>> world = World()
+            >>> box = world.new_body().dynamic().position(5,0).box(1,1).build()
+            >>> hits = world.ray_cast((0,0), (10,0))
+            >>> len(hits) > 0
+            True
+            >>> hits[0].shape  # First intersected shape
+            <Shape>
+        """
+        if collision_filter is None:
+            collision_filter = CollisionFilter()
+
+        results = []
+
+        p1 = to_vec2(origin).b2Vec2[0]
+        p2 = to_vec2(translation).b2Vec2[0]
+        c_filter = collision_filter.b2QueryFilter
+        if first_hit_only:
+            result = lib.b2World_CastRayClosest(self._world_id, p1, p2, c_filter[0])
+            if result.hit:
+                results.append(
+                    RayCastResult(
+                        shape=ffi.from_handle(lib.b2Shape_GetUserData(result.shapeId)),
+                        point=Vec2(result.point.x, result.point.y),
+                        normal=Vec2(result.normal.x, result.normal.y),
+                        fraction=result.fraction,
+                    )
+                )
+        else:
+            callback = make_ray_cast_callback(results)
+            lib.b2World_CastRay(self._world_id, p1, p2, c_filter[0], callback, ffi.NULL)
+        results.sort(key=lambda r: r.fraction)
         return results
 
     def destroy(self):

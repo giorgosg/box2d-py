@@ -177,7 +177,7 @@ class GLDebugDraw(DebugDraw):
         self.lines.add_line(p1, p2, color.hex)
 
     def draw_point(self, p, size: float, color):
-        # Draw a point as a small circle (or use point API)
+        # Draw a point as a small circle
         self.points.add_point(p, size, color.hex)
 
     def draw_string(self, p, s: str, color=Color(0xFFFFFF)):
