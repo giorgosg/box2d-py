@@ -8,16 +8,22 @@ Python bindings for the [Box2D physics engine](https://box2d.org/) version 3. Pr
 
 ## Installation
 
-Install from source using [pipx](https://pipx.pypa.io/stable/installation/):
+Install from source using pip
 
 ```bash
-pipx install "git+https://github.com/giorgosg/box2d-py.git"
+pip install "git+https://github.com/giorgosg/box2d-py.git"
 ```
 
 To include the testbed:
 
 ```bash
-pipx install "box2d-py[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
+pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
+```
+
+Or Install from pypi:
+
+```bash
+pip install box2d-python[testbed]
 ```
 
 ## Running the Testbed

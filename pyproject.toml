@@ -3,8 +3,8 @@ requires = ["setuptools>=75.8.0", "cffi>=1.16.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "box2d-py"
-version = "0.1.0"
+name = "box2d-python"
+version = "0.1.2"
 description = "Bindings for box2d v3"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
@@ -37,7 +37,7 @@ box2d-testbed = "box2d_testbed:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["box2d*", "box2d_testbed*"]
+include = ["box2d*", "box2d_testbed*", "tools"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs"]
