@@ -98,12 +98,7 @@ class Circle(Shape):
         body,
         radius,
         center=(0, 0),
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_kwargs,
     ):
         """
         Create and attach a circle shape to a body.
@@ -112,12 +107,7 @@ class Circle(Shape):
         shapedef = CircleDef(
             radius,
             center,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_kwargs,
         )
         return cls(body, shapedef)
 
@@ -144,12 +134,7 @@ class Capsule(Shape):
         point1,
         point2,
         radius,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_kwargs,
     ):
         """
         Create and attach a capsule shape to a body.
@@ -159,12 +144,7 @@ class Capsule(Shape):
             point1,
             point2,
             radius,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color=None,
+            **shapedef_kwargs,
         )
         return cls(body, shapedef)
 
@@ -190,12 +170,7 @@ class Segment(Shape):
         body,
         point1,
         point2,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_kwargs,
     ):
         """
         Create and attach a segment shape to a body.
@@ -204,12 +179,7 @@ class Segment(Shape):
         shapedef = SegmentDef(
             point1,
             point2,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_kwargs,
         )
         return cls(body, shapedef)
 
@@ -238,12 +208,7 @@ class Polygon(Shape):
         body,
         vertices,
         radius=0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_kwargs,
     ):
         """
         Create and attach a polygon shape to a body.
@@ -252,12 +217,7 @@ class Polygon(Shape):
         shapedef = PolygonDef(
             vertices,
             radius,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_kwargs,
         )
         return cls(body, shapedef)
 
@@ -277,12 +237,7 @@ class Box(Polygon):
         radius=0.0,
         offset=(0, 0),
         angle=0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_kwargs,
     ):
         """
         Create and attach a box shape to a body.
@@ -294,12 +249,7 @@ class Box(Polygon):
             offset,
             radius,
             angle,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_kwargs,
         )
         return cls(body, shapedef)
 

@@ -10,9 +10,26 @@ the underlying C structure.
 """
 
 from ._box2d import lib, ffi
-from .math import Transform
+from .math import Transform, VectorLike, to_vec2
 from .collision_filter import CollisionFilter
 import math
+
+SHAPE_DEF_PARAMS_DOC = """
+                Common ShapeDef Parameters:
+                    density: The density of the shape.
+                    friction: The friction of the shape.
+                    restitution: The restitution (bounciness) of the shape.
+                    is_sensor: Flag to indicate if the shape is a sensor.
+                    collision_filter: An optional CollisionFilter instance.
+                    custom_color: Optional custom debug draw color (uint32_t).
+                    enable_contact_events: Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+                    enable_hit_events: Enable hit events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+                    enable_sensor_events: Enable sensor events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+                    force_contact_creation: Normally shapes on static bodies don't invoke contact creation when they are added to the world.
+                        This overrides that behavior and causes contact creation. This significantly slows down static body creation which can be important when there are many static shapes. This is implicitly always true for sensors.
+
+
+"""
 
 
 class ShapeDef:
@@ -27,51 +44,65 @@ class ShapeDef:
 
     def __init__(
         self,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        density: float = None,
+        friction: float = None,
+        restitution: float = None,
+        is_sensor: bool = None,
+        collision_filter: CollisionFilter = None,
+        custom_color: int = None,
+        enable_contact_events: bool = None,
+        enable_hit_events: bool = None,
+        enable_sensor_events: bool = None,
+        force_contact_creation: bool = None,
+        user_data=None,
     ):
         """
-        Initialize a new ShapeDef.
+                Initialize a new ShapeDef.
 
-        Parameters:
-            density: The density of the shape.
-            friction: The friction of the shape.
-            restitution: The restitution (bounciness) of the shape.
-            is_sensor: Flag to indicate if the shape is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+                {common_params}
+                user_data: Optional user data pointer.
 
-        Example:
-            >>> shape = ShapeDef(
-            ...     density=1.0,
-            ...     friction=0.5,
-            ...     restitution=0.3,
-            ...     is_sensor=False,
-            ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
-            ...     custom_color=0xFF00FF
-            ... )
-        """
+                Example:
+                    >>> shape = ShapeDef(
+                    ...     density=1.0,
+                    ...     friction=0.5,
+                    ...     restitution=0.3,
+                    ...     is_sensor=False,
+                    ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
+                    ...     custom_color=0xFF00FF
+                    ... )
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
+        )
+
         self.shapedef = lib.b2DefaultShapeDef()
+        shapedef = self.shapedef
         if density is not None:
-            self.shapedef.density = density
+            shapedef.density = density
         if friction is not None:
-            self.shapedef.friction = friction
+            shapedef.friction = friction
         if restitution is not None:
-            self.shapedef.restitution = restitution
+            shapedef.restitution = restitution
         if is_sensor is not None:
-            self.shapedef.isSensor = is_sensor
+            shapedef.isSensor = is_sensor
         if collision_filter is not None:
             c_filter = collision_filter.b2Filter
             # Copy the filter bits into the b2ShapeDef.filter field.
-            self.shapedef.filter.categoryBits = c_filter.categoryBits
-            self.shapedef.filter.maskBits = c_filter.maskBits
-            self.shapedef.filter.groupIndex = c_filter.groupIndex
+            shapedef.filter.categoryBits = c_filter.categoryBits
+            shapedef.filter.maskBits = c_filter.maskBits
+            shapedef.filter.groupIndex = c_filter.groupIndex
         if custom_color is not None:
-            self.shapedef.customColor = custom_color
+            shapedef.customColor = custom_color
+        if enable_contact_events is not None:
+            shapedef.enableContactEvents = enable_contact_events
+        if enable_hit_events is not None:
+            shapedef.enableHitEvents = enable_hit_events
+        if enable_sensor_events is not None:
+            shapedef.enableSensorEvents = enable_sensor_events
+        if force_contact_creation is not None:
+            shapedef.forceContactCreation = force_contact_creation
+        if user_data is not None:
+            shapedef.userData = user_data
 
 
 class CircleDef(ShapeDef):
@@ -81,29 +112,15 @@ class CircleDef(ShapeDef):
     Creates a circle geometry (b2Circle) with a given radius and center position.
     """
 
-    def __init__(
-        self,
-        radius,
-        center=(0, 0),
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
-    ):
+    def __init__(self, radius: float, center: VectorLike = (0, 0), **shapedef_args):
         """
         Initialize a new CircleDef.
 
         Parameters:
             radius: The radius of the circle.
             center: A tuple representing the center coordinates.
-            density: The density of the circle.
-            friction: The friction of the circle.
-            restitution: The restitution of the circle.
-            is_sensor: Flag to indicate if the circle is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+
+        {common_params}
 
         Example:
             >>> circle = CircleDef(
@@ -116,14 +133,14 @@ class CircleDef(ShapeDef):
             ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
             ...     custom_color=0xFF00FF
             ... )
-        """
-        super().__init__(
-            density, friction, restitution, is_sensor, collision_filter, custom_color
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
         )
+
+        super().__init__(**shapedef_args)
         self.circle = ffi.new("b2Circle*")
         self.circle.radius = radius
-        self.circle.center.x, self.circle.center.y = center
-        # The common shapedef is available via self.shapedef
+        self.circle.center.x, self.circle.center.y = to_vec2(center)
 
 
 class CapsuleDef(ShapeDef):
@@ -135,15 +152,10 @@ class CapsuleDef(ShapeDef):
 
     def __init__(
         self,
-        point1,
-        point2,
-        radius,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        point1: VectorLike,
+        point2: VectorLike,
+        radius: float,
+        **shapedef_args,
     ):
         """
         Initialize a new CapsuleDef.
@@ -152,12 +164,8 @@ class CapsuleDef(ShapeDef):
             point1: The first endpoint as a tuple.
             point2: The second endpoint as a tuple.
             radius: The radius of the capsule.
-            density: The density of the capsule.
-            friction: The friction of the capsule.
-            restitution: The restitution of the capsule.
-            is_sensor: Flag to indicate if the capsule is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+
+            {common_params}
 
         Example:
             >>> capsule = CapsuleDef(
@@ -170,10 +178,11 @@ class CapsuleDef(ShapeDef):
             ...     is_sensor=True,
             ...     collision_filter=CollisionFilter(category="enemy", mask="player", group=0)
             ... )
-        """
-        super().__init__(
-            density, friction, restitution, is_sensor, collision_filter, custom_color
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
         )
+
+        super().__init__(**shapedef_args)
         self.capsule = ffi.new("b2Capsule*")
         self.capsule.center1.x, self.capsule.center1.y = point1
         self.capsule.center2.x, self.capsule.center2.y = point2
@@ -191,12 +200,7 @@ class SegmentDef(ShapeDef):
         self,
         point1,
         point2,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_args,
     ):
         """
         Initialize a new SegmentDef.
@@ -204,12 +208,7 @@ class SegmentDef(ShapeDef):
         Parameters:
             point1: The first endpoint as a tuple.
             point2: The second endpoint as a tuple.
-            density: The density of the segment.
-            friction: The friction of the segment.
-            restitution: The restitution of the segment.
-            is_sensor: Flag to indicate if the segment is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {common_params}
 
         Example:
             >>> segment = SegmentDef(
@@ -221,10 +220,10 @@ class SegmentDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0)
             ... )
-        """
-        super().__init__(
-            density, friction, restitution, is_sensor, collision_filter, custom_color
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
         )
+        super().__init__(**shapedef_args)
         self.segment = ffi.new("b2Segment*")
         self.segment.point1.x, self.segment.point1.y = point1
         self.segment.point2.x, self.segment.point2.y = point2
@@ -243,12 +242,7 @@ class PolygonDef(ShapeDef):
         self,
         vertices,
         radius=0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_args,
     ):
         """
         Initialize a new PolygonDef.
@@ -256,12 +250,7 @@ class PolygonDef(ShapeDef):
         Parameters:
             vertices: A list of vertices (tuples) for the polygon.
             radius: Optional radius for rounded corners.
-            density: The density of the polygon.
-            friction: The friction of the polygon.
-            restitution: The restitution of the polygon.
-            is_sensor: Flag to indicate if the polygon is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {common_params}
 
         Example:
             >>> polygon = PolygonDef(
@@ -273,10 +262,10 @@ class PolygonDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="ally", mask="enemy", group=0)
             ... )
-        """
-        super().__init__(
-            density, friction, restitution, is_sensor, collision_filter, custom_color
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
         )
+        super().__init__(**shapedef_args)
         point_count = len(vertices)
         if point_count < 3 or point_count > 8:
             raise ValueError("Polygon must have 3-8 vertices")
@@ -378,12 +367,7 @@ class BoxDef(PolygonDef):
         offset: tuple = (0, 0),
         radius: float = 0.0,
         angle: float = 0.0,
-        density=None,
-        friction=None,
-        restitution=None,
-        is_sensor=None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_args,
     ):
         """
         Initialize a new BoxDef.
@@ -394,12 +378,7 @@ class BoxDef(PolygonDef):
             offset: A tuple representing the offset position.
             radius: The corner radius for rounded corners.
             angle: The rotation angle in radians.
-            density: The density of the box.
-            friction: The friction of the box.
-            restitution: The restitution of the box.
-            is_sensor: Flag to indicate if the box is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {common_params}
 
         Example:
             >>> box = BoxDef(
@@ -414,7 +393,9 @@ class BoxDef(PolygonDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="box", mask="enemy", group=0)
             ... )
-        """
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
+        )
         # Adjust half dimensions to account for the corner radius.
         hw = width / 2.0 - radius
         hh = height / 2.0 - radius
@@ -426,16 +407,7 @@ class BoxDef(PolygonDef):
         transformed_vertices = [transform(v) for v in base_vertices]
         # Call the PolygonDef initializer to compute the convex hull and
         # create the polygon geometry.
-        super().__init__(
-            vertices=transformed_vertices,
-            radius=radius,
-            density=density,
-            friction=friction,
-            restitution=restitution,
-            is_sensor=is_sensor,
-            collision_filter=collision_filter,
-            custom_color=custom_color,
-        )
+        super().__init__(vertices=transformed_vertices, radius=radius, **shapedef_args)
         # Optionally alias the created polygon for clarity.
         self.box = self.polygon
 
@@ -451,12 +423,7 @@ class ChainSegmentDef(ShapeDef):
         self,
         start: tuple,
         end: tuple,
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_args,
     ):
         """
         Initialize a new ChainSegmentDef.
@@ -464,12 +431,7 @@ class ChainSegmentDef(ShapeDef):
         Parameters:
             start: The starting point of the segment as a tuple.
             end: The ending point of the segment as a tuple.
-            density: The density of the segment.
-            friction: The friction of the segment.
-            restitution: The restitution of the segment.
-            is_sensor: Flag to indicate if the segment is a sensor.
-            collision_filter: An optional CollisionFilter instance.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {common_params}
 
         Example:
             >>> chain_segment = ChainSegmentDef(
@@ -481,10 +443,10 @@ class ChainSegmentDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="chain_seg", mask="enemy", group=0)
             ... )
-        """
-        super().__init__(
-            density, friction, restitution, is_sensor, collision_filter, custom_color
+        """.format(
+            common_params=SHAPE_DEF_PARAMS_DOC
         )
+        super().__init__(**shapedef_args)
         self.chainsegment = ffi.new("b2ChainSegment*")
         self.chainsegment.segment.point1.x, self.chainsegment.segment.point1.y = start
         self.chainsegment.segment.point2.x, self.chainsegment.segment.point2.y = end

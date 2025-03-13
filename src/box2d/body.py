@@ -1,7 +1,7 @@
 from box2d._box2d import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, to_vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
-from .shape_def import PolygonDef
+from .shape_def import PolygonDef, SHAPE_DEF_PARAMS_DOC
 from .collision_filter import CollisionFilter
 
 
@@ -735,12 +735,7 @@ class Body:
         radius: float = 0.0,
         offset: tuple = (0, 0),
         angle: float = 0.0,
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_params,
     ):
         """Add a box shape to the body.
 
@@ -750,16 +745,14 @@ class Body:
             radius: The radius of the rounded corners (default: 0.0).
             offset: The offset of the box from the body's position (default: (0, 0)).
             angle: The rotation angle of the box in radians (default: 0.0).
-            density: Mass density of the shape.
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            is_sensor: Flag indicating whether the shape is a sensor.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
+
+            {shape_def_params}
 
         Returns:
             The created box shape.
-        """
+        """.format(
+            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        )
         shape = Box.create(
             self,
             width,
@@ -767,12 +760,7 @@ class Body:
             radius,
             offset,
             angle,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_params,
         )
         self._shapes.append(shape)
         return shape
@@ -781,38 +769,25 @@ class Body:
         self,
         radius: float,
         center: tuple = (0, 0),
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_params,
     ):
         """Add a circle shape to the body.
 
         Args:
             radius: Radius of the circle.
             center: Center of the circle (default: (0, 0)).
-            density: Mass density of the shape.
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            is_sensor: Flag indicating whether the shape is a sensor.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {shape_def_params}
 
         Returns:
             The created circle shape.
-        """
+        """.format(
+            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        )
         shape = Circle.create(
             self,
             radius,
             center,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_params,
         )
         self._shapes.append(shape)
         return shape
@@ -822,12 +797,7 @@ class Body:
         point1: tuple,
         point2: tuple,
         radius: float,
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_params,
     ):
         """Add a capsule shape to the body.
 
@@ -835,27 +805,19 @@ class Body:
             point1: First endpoint of the capsule.
             point2: Second endpoint of the capsule.
             radius: Radius of the capsule.
-            density: Mass density of the shape.
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            is_sensor: Flag indicating whether the shape is a sensor.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {shape_def_params}
 
         Returns:
             The created capsule shape.
-        """
+        """.format(
+            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        )
         shape = Capsule.create(
             self,
             point1,
             point2,
             radius,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_params,
         )
         self._shapes.append(shape)
         return shape
@@ -864,38 +826,25 @@ class Body:
         self,
         vertices: list[tuple],
         radius: float = 0.0,
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_params,
     ):
         """Add a convex polygon shape to the body.
 
         Args:
             vertices: List of vertices defining the polygon.
             radius: Optional radius for rounded corners (default: 0.0).
-            density: Mass density of the shape.
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            is_sensor: Flag indicating whether the shape is a sensor.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {shape_def_params}
 
         Returns:
             The created polygon shape.
-        """
+        """.format(
+            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        )
         shape = Polygon.create(
             self,
             vertices,
             radius,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_params,
         )
         self._shapes.append(shape)
         return shape
@@ -904,38 +853,25 @@ class Body:
         self,
         point1: tuple,
         point2: tuple,
-        density: float = None,
-        friction: float = None,
-        restitution: float = None,
-        is_sensor: bool = None,
-        collision_filter=None,
-        custom_color=None,
+        **shapedef_params,
     ):
         """Add a line segment shape to the body.
 
         Args:
             point1: Starting point of the segment.
             point2: Ending point of the segment.
-            density: Mass density of the shape.
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            is_sensor: Flag indicating whether the shape is a sensor.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
+        {shape_def_params}
 
         Returns:
             The created segment shape.
-        """
+        """.format(
+            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        )
         shape = Segment.create(
             self,
             point1,
             point2,
-            density,
-            friction,
-            restitution,
-            is_sensor,
-            collision_filter,
-            custom_color,
+            **shapedef_params,
         )
         self._shapes.append(shape)
         return shape
@@ -944,10 +880,10 @@ class Body:
         self,
         vertices: list[tuple],
         loop: bool = False,
+        collision_filter: CollisionFilter = None,
         friction: float = None,
         restitution: float = None,
-        collision_filter=None,
-        custom_color=None,
+        custom_color: int = None,
     ):
         """Add a chain shape to the body.
 
