@@ -155,10 +155,11 @@ class CollisionFilter:
                     a collision is possible (subject to group filtering).
         group (int): Collision group index for this shape.
                      The group overrides normal category/mask filtering:
+
                        - A value of 0 (the default) means no grouping; collision is determined solely by category and mask.
                        - If both shapes share a nonzero group:
-                           • A positive value forces them to always collide.
-                           • A negative value forces them to never collide.
+                         - A positive value forces them to always collide.
+                         - A negative value forces them to never collide.
                        - If the group values differ (or only one is nonzero), the standard category/mask rules are applied.
 
     The API is chainable and accepts categories (and masks) as either integers or names (resolved
@@ -198,10 +199,11 @@ class CollisionFilter:
                                       Similarly, string(s) are resolved via the registry.
                                       If a list is provided, all masks are combined with bitwise OR.
             group (int): The collision group index.
-                         * 0 indicates no grouping; standard category/mask rules apply.
-                         * A nonzero value overrides the usual filtering, as follows:
-                              - If both shapes have the same nonzero positive group, they always collide.
-                              - If both shapes have the same nonzero negative group, they never collide.
+
+                         - 0 indicates no grouping; standard category/mask rules apply.
+                         - A nonzero value overrides the usual filtering, as follows:
+                           - If both shapes have the same nonzero positive group, they always collide.
+                           - If both shapes have the same nonzero negative group, they never collide.
             registry (CollisionCategoryRegistry, optional): The registry used for resolving category names.
                                                               Defaults to the module-level default.
 
@@ -336,10 +338,11 @@ class CollisionFilter:
 
         Args:
             group (int): The collision group index.
-                         * 0: No overriding group filtering—the standard category/mask rules apply.
-                         * Nonzero: Overrides the default filtering when both shapes share the same group.
-                                  - Positive values force an always collide scenario.
-                                  - Negative values force a never collide scenario.
+
+                - 0: No overriding group filtering—the standard category/mask rules apply.
+                - Nonzero: Overrides the default filtering when both shapes share the same group.
+                  - Positive values force an always collide scenario.
+                  - Negative values force a never collide scenario.
 
         Returns:
             CollisionFilter: Self, to allow chaining.
@@ -476,6 +479,7 @@ def filters_collide(filter_a: CollisionFilter, filter_b: CollisionFilter) -> boo
     Collision is determined as follows:
       1. Group filtering:
          If both filters share the same nonzero group:
+
             - A positive group forces collision.
             - A negative group prevents collision.
       2. Otherwise, collision occurs if:

@@ -35,6 +35,8 @@ dev = [
     "black",
     "pre-commit",
     "pytest",
+    "sphinx",
+    "sphinx-rtd-theme",
 ]
 
 [project.scripts]

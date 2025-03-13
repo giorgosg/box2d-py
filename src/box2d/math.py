@@ -7,16 +7,18 @@ VectorLike = Iterable[float]
 
 b2Vec2_ctype = ffi.getctype("b2Vec2")
 b2Rot_ctype = ffi.getctype("b2Rot")
+b2Vec2_type = type(lib.b2Vec2_zero)
+b2Rot_type = type(lib.b2Rot_identity)
 
 
-def to_vec2(vec: VectorLike | ffi.CData) -> "Vec2":
+def to_vec2(vec: Union[VectorLike, b2Vec2_type]) -> "Vec2":
     """
     Convert a VectorLike object into a Vec2 instance, checking that it has exactly 2 elements.
     If 'vec' is already a Vec2, it is returned as is.
     """
     if isinstance(vec, Vec2):
         return vec
-    if isinstance(vec, ffi.CData):
+    if isinstance(vec, b2Vec2_type):
         if ffi.typeof(vec).cname == b2Vec2_ctype:
             return Vec2.from_b2Vec2(vec)
         elif ffi.typeof(vec).cname == b2Vec2_ctype + " *":
@@ -80,7 +82,7 @@ class Vec2:
         """
         if y is None:
             # Check if x is a b2Vec2
-            if isinstance(x, ffi.CData):
+            if isinstance(x, b2Vec2_type):
                 if ffi.typeof(x).cname == b2Vec2_ctype:
                     pass
                 elif ffi.typeof(x).cname == b2Vec2_ctype + " *":
@@ -107,7 +109,7 @@ class Vec2:
         return self._y
 
     @classmethod
-    def from_b2Vec2(cls, b2_vec) -> "Vec2":
+    def from_b2Vec2(cls, b2_vec: b2Vec2_type) -> "Vec2":
         """Create from Box2D b2Vec2 structure.
 
         Example:
@@ -118,7 +120,7 @@ class Vec2:
         return cls(b2_vec)
 
     @property
-    def b2Vec2(self) -> ffi.CData:
+    def b2Vec2(self) -> b2Vec2_type:
         """Box2D b2Vec2 equivalent (managed by FFI).
 
         Example:
@@ -582,7 +584,7 @@ class Rot:
 
     __slots__ = ("_s", "_c", "_b2rot")  # sin/cos storage like Box2D
 
-    def __init__(self, angle: float | ffi.CData = 0.0):
+    def __init__(self, angle: Union[float, b2Rot_type] = 0.0):
         """
         Initialize from rotation angle in radians.
 
@@ -594,7 +596,7 @@ class Rot:
             >>> r.c, r.s
             (6.123233995736766e-17, 1.0)
         """
-        if isinstance(angle, ffi.CData):
+        if isinstance(angle, b2Rot_type):
             if ffi.typeof(angle).cname == b2Rot_ctype:
                 pass
             elif ffi.typeof(angle).cname == b2Rot_ctype + " *":
@@ -628,7 +630,7 @@ class Rot:
         return self._s
 
     @classmethod
-    def from_b2Rot(cls, b2_rot):
+    def from_b2Rot(cls, b2_rot: b2Rot_type) -> "Rot":
         """Create a Rot instance from Box2D's b2Rot structure.
 
         Args:

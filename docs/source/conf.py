@@ -8,7 +8,7 @@ import sys, os, sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "box2d-py"
+project = "box2d-python"
 copyright = "2025, Giorgos Giagas"
 author = "Giorgos Giagas"
 release = "2025"
