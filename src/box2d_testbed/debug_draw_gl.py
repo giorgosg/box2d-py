@@ -164,9 +164,11 @@ class GLDebugDraw(DebugDraw):
         for i in range(n):
             self.lines.add_line(vertices[i], vertices[(i + 1) % n], color.hex)
 
-    def draw_solid_polygon(self, transform, vertices, count, radius: float, color):
+    def draw_solid_polygon(self, transform, vertices, radius: float, color):
         # Delegate to solid_polygons; pass the raw b2Transform from the Transform wrapper
-        self.solid_polygons.add_polygon(transform, vertices, count, radius, color)
+        self.solid_polygons.add_polygon(
+            transform, vertices, len(vertices), radius, color.hex
+        )
 
     def draw_circle(self, center, radius: float, color):
         # Queue border circle drawing
@@ -194,7 +196,7 @@ class GLDebugDraw(DebugDraw):
 
     def draw_solid_circle(self, transform, radius: float, color):
         # Queue solid circle drawing; pass the underlying b2Transform
-        self.solid_circles.add_circle(transform, radius, color)
+        self.solid_circles.add_circle(transform.b2Transform, radius, color.hex)
 
     def draw_transform(self, transform):
         # Draw coordinate axes. Use a fixed scale.
