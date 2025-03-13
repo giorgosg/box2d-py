@@ -1070,7 +1070,7 @@ class Transform:
         Vec2(2.0, 4.0)
     """
 
-    __slots__ = ("_p", "_q", "_b2transorm")
+    __slots__ = ("_p", "_q", "_b2transform")
 
     def __init__(
         self, position: VectorLike = Vec2(0, 0), rotation: Union[float, Rot] = Rot(0)
@@ -1088,7 +1088,7 @@ class Transform:
         """
         self._p = position if isinstance(position, Vec2) else Vec2(*position)
         self._q = rotation if isinstance(rotation, Rot) else Rot(rotation)
-        self._b2transorm = None
+        self._b2transform = None
 
     @classmethod
     def from_b2Transform(cls, b2_transform: ffi.CData) -> "Transform":
@@ -1105,7 +1105,7 @@ class Transform:
         p = Vec2.from_b2Vec2(b2_transform.p)
         q = Rot.from_b2Rot(b2_transform.q)
         t = cls(p, q)
-        t._b2transorm = b2_transform
+        t._b2transform = b2_transform
         return t
 
     @property
@@ -1118,12 +1118,12 @@ class Transform:
             >>> ct.p.x, ct.p.y
             (1.0, 2.0)
         """
-        if self._b2transorm is None:
+        if self._b2transform is None:
             transform = ffi.new("b2Transform*")
             transform.p = self.p.b2Vec2[0]
             transform.q = self.q.b2Rot[0]
-            self._b2transorm = transform
-        return transform
+            self._b2transform = transform
+        return self._b2transform
 
     def __call__(self, point: VectorLike) -> Vec2:
         """

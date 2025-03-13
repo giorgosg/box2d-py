@@ -4,6 +4,8 @@ from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .shape_def import PolygonDef, SHAPE_DEF_PARAMS_DOC
 from .collision_filter import CollisionFilter
 
+SHAPE_DEF_PARAMS_DOC = """test test test"""
+
 
 class BodyBuilder:
     """Builder for creating Box2D bodies with chained configuration methods.
@@ -737,7 +739,8 @@ class Body:
         angle: float = 0.0,
         **shapedef_params,
     ):
-        """Add a box shape to the body.
+        (
+            """Add a box shape to the body.
 
         Args:
             width: Full width of the box.
@@ -745,13 +748,13 @@ class Body:
             radius: The radius of the rounded corners (default: 0.0).
             offset: The offset of the box from the body's position (default: (0, 0)).
             angle: The rotation angle of the box in radians (default: 0.0).
-
-            {shape_def_params}
+        """
+            + SHAPE_DEF_PARAMS_DOC
+            + """
 
         Returns:
             The created box shape.
-        """.format(
-            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        """
         )
         shape = Box.create(
             self,
@@ -771,17 +774,19 @@ class Body:
         center: tuple = (0, 0),
         **shapedef_params,
     ):
-        """Add a circle shape to the body.
+        (
+            """Add a circle shape to the body.
 
         Args:
             radius: Radius of the circle.
             center: Center of the circle (default: (0, 0)).
-        {shape_def_params}
+        """
+            + SHAPE_DEF_PARAMS_DOC
+            + """
 
         Returns:
             The created circle shape.
-        """.format(
-            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        """
         )
         shape = Circle.create(
             self,
@@ -799,18 +804,20 @@ class Body:
         radius: float,
         **shapedef_params,
     ):
-        """Add a capsule shape to the body.
+        (
+            """Add a capsule shape to the body.
 
         Args:
             point1: First endpoint of the capsule.
             point2: Second endpoint of the capsule.
             radius: Radius of the capsule.
-        {shape_def_params}
+        """
+            + SHAPE_DEF_PARAMS_DOC
+            + """
 
         Returns:
             The created capsule shape.
-        """.format(
-            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        """
         )
         shape = Capsule.create(
             self,
@@ -828,17 +835,19 @@ class Body:
         radius: float = 0.0,
         **shapedef_params,
     ):
-        """Add a convex polygon shape to the body.
+        (
+            """Add a convex polygon shape to the body.
 
         Args:
             vertices: List of vertices defining the polygon.
             radius: Optional radius for rounded corners (default: 0.0).
-        {shape_def_params}
+        """
+            + SHAPE_DEF_PARAMS_DOC
+            + """
 
         Returns:
             The created polygon shape.
-        """.format(
-            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        """
         )
         shape = Polygon.create(
             self,
@@ -855,17 +864,19 @@ class Body:
         point2: tuple,
         **shapedef_params,
     ):
-        """Add a line segment shape to the body.
+        (
+            """Add a line segment shape to the body.
 
         Args:
             point1: Starting point of the segment.
             point2: Ending point of the segment.
-        {shape_def_params}
+        """
+            + SHAPE_DEF_PARAMS_DOC
+            + """
 
         Returns:
             The created segment shape.
-        """.format(
-            shape_def_params=SHAPE_DEF_PARAMS_DOC
+        """
         )
         shape = Segment.create(
             self,

@@ -56,24 +56,23 @@ class ShapeDef:
         force_contact_creation: bool = None,
         user_data=None,
     ):
+        f"""
+        Initialize a new ShapeDef.
+
+        user_data: Optional user data pointer.
+
+        {SHAPE_DEF_PARAMS_DOC}
+
+        Example:
+            >>> shape = ShapeDef(
+            ...     density=1.0,
+            ...     friction=0.5,
+            ...     restitution=0.3,
+            ...     is_sensor=False,
+            ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
+            ...     custom_color=0xFF00FF
+            ... )
         """
-                Initialize a new ShapeDef.
-
-                {common_params}
-                user_data: Optional user data pointer.
-
-                Example:
-                    >>> shape = ShapeDef(
-                    ...     density=1.0,
-                    ...     friction=0.5,
-                    ...     restitution=0.3,
-                    ...     is_sensor=False,
-                    ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
-                    ...     custom_color=0xFF00FF
-                    ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
 
         self.shapedef = lib.b2DefaultShapeDef()
         shapedef = self.shapedef
@@ -113,14 +112,14 @@ class CircleDef(ShapeDef):
     """
 
     def __init__(self, radius: float, center: VectorLike = (0, 0), **shapedef_args):
-        """
+        f"""
         Initialize a new CircleDef.
 
         Parameters:
             radius: The radius of the circle.
             center: A tuple representing the center coordinates.
 
-        {common_params}
+        {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> circle = CircleDef(
@@ -133,9 +132,7 @@ class CircleDef(ShapeDef):
             ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
             ...     custom_color=0xFF00FF
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
 
         super().__init__(**shapedef_args)
         self.circle = ffi.new("b2Circle*")
@@ -157,7 +154,7 @@ class CapsuleDef(ShapeDef):
         radius: float,
         **shapedef_args,
     ):
-        """
+        f"""
         Initialize a new CapsuleDef.
 
         Parameters:
@@ -165,7 +162,7 @@ class CapsuleDef(ShapeDef):
             point2: The second endpoint as a tuple.
             radius: The radius of the capsule.
 
-            {common_params}
+            {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> capsule = CapsuleDef(
@@ -178,9 +175,7 @@ class CapsuleDef(ShapeDef):
             ...     is_sensor=True,
             ...     collision_filter=CollisionFilter(category="enemy", mask="player", group=0)
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
 
         super().__init__(**shapedef_args)
         self.capsule = ffi.new("b2Capsule*")
@@ -202,13 +197,13 @@ class SegmentDef(ShapeDef):
         point2,
         **shapedef_args,
     ):
-        """
+        f"""
         Initialize a new SegmentDef.
 
         Parameters:
             point1: The first endpoint as a tuple.
             point2: The second endpoint as a tuple.
-        {common_params}
+        {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> segment = SegmentDef(
@@ -220,9 +215,7 @@ class SegmentDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0)
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
         super().__init__(**shapedef_args)
         self.segment = ffi.new("b2Segment*")
         self.segment.point1.x, self.segment.point1.y = point1
@@ -244,13 +237,13 @@ class PolygonDef(ShapeDef):
         radius=0.0,
         **shapedef_args,
     ):
-        """
+        f"""
         Initialize a new PolygonDef.
 
         Parameters:
             vertices: A list of vertices (tuples) for the polygon.
             radius: Optional radius for rounded corners.
-        {common_params}
+        {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> polygon = PolygonDef(
@@ -262,9 +255,7 @@ class PolygonDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="ally", mask="enemy", group=0)
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
         super().__init__(**shapedef_args)
         point_count = len(vertices)
         if point_count < 3 or point_count > 8:
@@ -369,7 +360,7 @@ class BoxDef(PolygonDef):
         angle: float = 0.0,
         **shapedef_args,
     ):
-        """
+        f"""
         Initialize a new BoxDef.
 
         Parameters:
@@ -378,7 +369,7 @@ class BoxDef(PolygonDef):
             offset: A tuple representing the offset position.
             radius: The corner radius for rounded corners.
             angle: The rotation angle in radians.
-        {common_params}
+        {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> box = BoxDef(
@@ -393,9 +384,7 @@ class BoxDef(PolygonDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="box", mask="enemy", group=0)
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
         # Adjust half dimensions to account for the corner radius.
         hw = width / 2.0 - radius
         hh = height / 2.0 - radius
@@ -425,13 +414,13 @@ class ChainSegmentDef(ShapeDef):
         end: tuple,
         **shapedef_args,
     ):
-        """
+        f"""
         Initialize a new ChainSegmentDef.
 
         Parameters:
             start: The starting point of the segment as a tuple.
             end: The ending point of the segment as a tuple.
-        {common_params}
+        {SHAPE_DEF_PARAMS_DOC}
 
         Example:
             >>> chain_segment = ChainSegmentDef(
@@ -443,9 +432,7 @@ class ChainSegmentDef(ShapeDef):
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="chain_seg", mask="enemy", group=0)
             ... )
-        """.format(
-            common_params=SHAPE_DEF_PARAMS_DOC
-        )
+        """
         super().__init__(**shapedef_args)
         self.chainsegment = ffi.new("b2ChainSegment*")
         self.chainsegment.segment.point1.x, self.chainsegment.segment.point1.y = start

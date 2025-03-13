@@ -30,14 +30,14 @@ Rot
    :special-members: __init__
 
 Transform
---------
+---------
 
 .. autoclass:: box2d.Transform
    :members:
    :special-members: __init__
 
 ScaledTransform
---------------
+---------------
 
 .. autoclass:: box2d.ScaledTransform
    :members:
@@ -58,7 +58,7 @@ Mat22
    :special-members: __init__
 
 Utility Functions
----------------
+-----------------
 
 .. autofunction:: box2d.math.to_vec2
 .. autofunction:: box2d.math.format_num
