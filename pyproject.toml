@@ -21,7 +21,7 @@ classifiers = [
   "Operating System :: OS Independent"
 ]
 dependencies = [
-  "cffi>=1.16.0"
+  "cffi>=1.16.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +30,11 @@ testbed = [
   "PyOpenGL",
   "PyOpenGL-accelerate",
   "numpy"
+]
+dev = [
+    "black",
+    "pre-commit",
+    "pytest",
 ]
 
 [project.scripts]
