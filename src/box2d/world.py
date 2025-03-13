@@ -580,8 +580,8 @@ class World:
             >>> # Create spring joint
             >>> spring = world.add_distance_joint(
             ...     body_a, body_b,
-            ...     anchor_a=(0,0),
-            ...     anchor_b=(2,0),
+            ...     local_anchor_a=(0,0),
+            ...     local_anchor_b=(2,0),
             ...     enable_spring=True,
             ...     hertz=4.0,
             ...     damping_ratio=0.5
@@ -589,8 +589,8 @@ class World:
             >>> # Create rope joint
             >>> rope = world.add_distance_joint(
             ...     body_a, body_b,
-            ...     anchor_a=(0,1),
-            ...     anchor_b=(2,1),
+            ...     local_anchor_a=(0,1),
+            ...     local_anchor_b=(2,1),
             ...     enable_limit=True,
             ...     min_length=1.0,
             ...     max_length=3.0
@@ -825,8 +825,9 @@ class World:
             >>> hits = world.ray_cast((0,0), (10,0))
             >>> len(hits) > 0
             True
-            >>> hits[0].shape  # First intersected shape
-            <Shape>
+            >>> s = hits[0].shape  # First intersected shape
+            >>> isinstance(s, Shape)
+            True
         """
         if collision_filter is None:
             collision_filter = CollisionFilter()
@@ -875,11 +876,9 @@ class World:
             >>> world.step(1/60)
             >>> # Get events
             >>> events = world.get_sensor_events()
-            >>> for event in events:
-            ...     if event['begin']:
-            ...         print(f"Sensor began contact with object")
-            ...     else:
-            ...         print(f"Sensor ended contact with object")
+            >>> for event in events.begin:
+            ...      print(f"Sensor began contact with object")
+
         """
         events = []
 

@@ -66,8 +66,8 @@ def test_mouse_joint_reaction_forces(world_and_bodies):
     world.step(1 / 60)
 
     # Verify reaction forces make sense
-    assert joint.reaction_force.length > 0  # Should have some force
-    assert joint.reaction_torque > 0
+    assert joint.constraint_force.length > 0  # Should have some force
+    assert joint.constraint_torque > 0
 
 
 def test_weld_joint_creation(world_and_bodies):
