@@ -6,7 +6,7 @@
 Module Overviews
 ================
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Modules at a Glance:
    
    glance/index
@@ -17,7 +17,7 @@ box2d-python API Reference
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: API Reference:
 
    api/api
 
