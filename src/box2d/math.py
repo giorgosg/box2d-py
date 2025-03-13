@@ -3,41 +3,31 @@ from typing import Union, Iterable, TypeAlias, Protocol, runtime_checkable, Iter
 from ._box2d import ffi, lib
 
 
-@runtime_checkable
-class VectorLike(Protocol):
-    """
-    A protocol representing a vector-like object.
+VectorLike = Iterable[float]
 
-    A vector-like object must:
-      - Support indexing via __getitem__ (for indices 0 and 1) returning a float.
-      - Be iterable, yielding floats.
-      - Have a length of exactly 2.
-    """
-
-    # fmt: off
-    def __getitem__(self, index: int) -> float: ...
-
-    def __iter__(self) -> Iterator[float]: ...
-
-    def __len__(self) -> int: ...
-    # fmt: on
+b2Vec2_ctype = ffi.getctype("b2Vec2")
+b2Rot_ctype = ffi.getctype("b2Rot")
 
 
-def ensure_two_elements(vec: VectorLike) -> None:
-    """Raise a ValueError if 'vec' does not have exactly 2 elements."""
-    if len(vec) != 2:
-        raise ValueError(f"VectorLike must have exactly 2 elements, got {len(vec)}.")
-
-
-def to_vec2(vec: VectorLike) -> "Vec2":
+def to_vec2(vec: VectorLike | ffi.CData) -> "Vec2":
     """
     Convert a VectorLike object into a Vec2 instance, checking that it has exactly 2 elements.
     If 'vec' is already a Vec2, it is returned as is.
     """
     if isinstance(vec, Vec2):
         return vec
-    ensure_two_elements(vec)
-    return Vec2(vec[0], vec[1])
+    if isinstance(vec, ffi.CData):
+        if ffi.typeof(vec).cname == b2Vec2_ctype:
+            return Vec2.from_b2Vec2(vec)
+        elif ffi.typeof(vec).cname == b2Vec2_ctype + " *":
+            return Vec2.from_b2Vec2(vec[0])
+    else:
+        if len(vec) != 2:
+            raise ValueError(
+                f"VectorLike must have exactly 2 elements, got {len(vec)}."
+            )
+        else:
+            return Vec2(vec[0], vec[1])
 
 
 def format_num(n: float) -> str:
@@ -76,20 +66,35 @@ class Vec2:
         1.0
     """
 
-    __slots__ = ("_x", "_y")
+    __slots__ = ("_x", "_y", "_b2vec2")
 
-    def __init__(self, x, y):
+    def __init__(self, x, y=None):
         """Initialize a 2D vector with the given components.
 
         Args:
-            x (float): The x-component of the vector.
+            x (float or b2Vec2 struct): The x-component of the vector.
             y (float): The y-component of the vector.
 
         Returns:
             Vec2: A new instance of Vec2 with the specified components.
         """
-        self._x = float(x)
-        self._y = float(y)
+        if y is None:
+            # Check if x is a b2Vec2
+            if isinstance(x, ffi.CData):
+                if ffi.typeof(x).cname == b2Vec2_ctype:
+                    pass
+                elif ffi.typeof(x).cname == b2Vec2_ctype + " *":
+                    x = x[0]
+                else:
+                    raise ValueError("Invalid CData type")
+                self._x = float(x.x)
+                self._y = float(x.y)
+                self._b2vec2 = x
+                return
+        else:
+            self._x = float(x)
+            self._y = float(y)
+            self._b2vec2 = None
 
     @property
     def x(self):
@@ -102,7 +107,7 @@ class Vec2:
         return self._y
 
     @classmethod
-    def from_b2Vec2(cls, b2_vec):
+    def from_b2Vec2(cls, b2_vec) -> "Vec2":
         """Create from Box2D b2Vec2 structure.
 
         Example:
@@ -110,10 +115,10 @@ class Vec2:
             >>> Vec2.from_b2Vec2(vec_c)
             Vec2(1.5, 2.5)
         """
-        return cls(b2_vec.x, b2_vec.y)
+        return cls(b2_vec)
 
     @property
-    def b2Vec2(self):
+    def b2Vec2(self) -> ffi.CData:
         """Box2D b2Vec2 equivalent (managed by FFI).
 
         Example:
@@ -123,13 +128,15 @@ class Vec2:
             >>> cv.y
             2.5
         """
+        if self._b2vec2 is not None:
+            return self._b2vec2
         vec = ffi.new("b2Vec2*")
         vec.x = self.x
         vec.y = self.y
         return vec
 
     @classmethod
-    def zero(cls):
+    def zero(cls) -> "Vec2":
         """Create a zero vector (0,0).
 
         Returns:
@@ -142,7 +149,7 @@ class Vec2:
         return cls(0.0, 0.0)
 
     @classmethod
-    def right(cls):
+    def right(cls) -> "Vec2":
         """Create a right-pointing vector (1,0).
 
         Returns:
@@ -155,7 +162,7 @@ class Vec2:
         return cls(1.0, 0.0)
 
     @classmethod
-    def left(cls):
+    def left(cls) -> "Vec2":
         """Create a left-pointing vector (-1,0).
 
         Returns:
@@ -168,7 +175,7 @@ class Vec2:
         return cls(-1.0, 0.0)
 
     @classmethod
-    def up(cls):
+    def up(cls) -> "Vec2":
         """Create an up-pointing vector (0,1).
 
         Returns:
@@ -181,7 +188,7 @@ class Vec2:
         return cls(0.0, 1.0)
 
     @classmethod
-    def down(cls):
+    def down(cls) -> "Vec2":
         """Create a down-pointing vector (0,-1).
 
         Returns:
@@ -194,7 +201,7 @@ class Vec2:
         return cls(0.0, -1.0)
 
     @classmethod
-    def from_angle(cls, angle):
+    def from_angle(cls, angle) -> "Vec2":
         """Create a unit vector from the given angle in radians.
 
         Args:
@@ -218,7 +225,7 @@ class Vec2:
         """
         return math.isfinite(self.x) and math.isfinite(self.y)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> float:
         """Allow indexing to access vector components.
 
         Args:
@@ -243,7 +250,7 @@ class Vec2:
             return self.y
         raise IndexError("Index out of range. Must be 0 or 1.")
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return the number of components in the vector.
 
         Returns:
@@ -251,7 +258,7 @@ class Vec2:
         """
         return 2
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[float]:
         """Allow tuple unpacking of the vector components.
 
         Yields:
@@ -438,6 +445,11 @@ class Vec2:
         return Vec2(self.x / length, self.y / length)
 
     @property
+    def normalized(self) -> "Vec2":
+        """Return a normalized vector (alias for `normalize`)."""
+        return self.normalize()
+
+    @property
     def angle(self) -> float:
         """Return the angle of the vector in radians.
 
@@ -515,11 +527,6 @@ class Vec2:
         return self.max(min_value).min(max_value)
 
     @property
-    def heading(self) -> "Vec2":
-        """Return the normalized (heading) vector."""
-        return self.normalize()
-
-    @property
     def inverse(self) -> "Vec2":
         """Return a new vector which is the component-wise inverse (negation)."""
         return -self
@@ -573,9 +580,9 @@ class Rot:
         Vec2(0.0, 1.0)
     """
 
-    __slots__ = ("_s", "_c")  # sin/cos storage like Box2D
+    __slots__ = ("_s", "_c", "_b2rot")  # sin/cos storage like Box2D
 
-    def __init__(self, angle_radians=0.0):
+    def __init__(self, angle: float | ffi.CData = 0.0):
         """
         Initialize from rotation angle in radians.
 
@@ -587,8 +594,18 @@ class Rot:
             >>> r.c, r.s
             (6.123233995736766e-17, 1.0)
         """
-        self._c = math.cos(angle_radians)
-        self._s = math.sin(angle_radians)
+        if isinstance(angle, ffi.CData):
+            if ffi.typeof(angle).cname == b2Rot_ctype:
+                pass
+            elif ffi.typeof(angle).cname == b2Rot_ctype + " *":
+                angle = angle[0]
+            self._s = angle.s
+            self._c = angle.c
+            self._b2rot = angle
+        else:
+            self._c = math.cos(angle)
+            self._s = math.sin(angle)
+            self._b2rot = None
 
     @property
     def c(self):
@@ -622,7 +639,7 @@ class Rot:
             >>> Rot.from_b2Rot(rot_c).angle_degrees
             90.0
         """
-        return cls.from_sincos(b2_rot.s, b2_rot.c)
+        return cls(b2_rot)
 
     @property
     def b2Rot(self):
@@ -634,10 +651,12 @@ class Rot:
             >>> cr.s, cr.c
             (0.7071067690849304, 0.7071067690849304)
         """
-        rot = ffi.new("b2Rot*")
-        rot.s = self.s
-        rot.c = self.c
-        return rot
+        if self._b2rot is None:
+            rot = ffi.new("b2Rot*")
+            rot.s = self.s
+            rot.c = self.c
+            self._b2rot = rot
+        return self._b2rot
 
     @classmethod
     def from_sincos(cls, s: float, c: float) -> "Rot":
@@ -679,7 +698,7 @@ class Rot:
         return cls(math.radians(degrees))
 
     @property
-    def angle_radians(self) -> float:
+    def angle(self) -> float:
         """
         Rotation angle in radians [-π, π].
 
@@ -691,6 +710,8 @@ class Rot:
             3.141592653589793
         """
         return math.atan2(self.s, self.c)
+
+    angle_radians = angle
 
     @property
     def angle_degrees(self) -> float:
@@ -963,7 +984,7 @@ class Rot:
         """
         return Rot(-self.angle_radians)
 
-    def interpolate(self, other, t, ccw=True):
+    def interpolate(self, other: "Rot", t: float, ccw=True) -> "Rot":
         """
         Linearly interpolate between two rotations with a forced direction.
 
@@ -1047,7 +1068,7 @@ class Transform:
         Vec2(2.0, 4.0)
     """
 
-    __slots__ = ("p", "q")
+    __slots__ = ("_p", "_q", "_b2transorm")
 
     def __init__(
         self, position: VectorLike = Vec2(0, 0), rotation: Union[float, Rot] = Rot(0)
@@ -1063,11 +1084,12 @@ class Transform:
             >>> Transform((1, 2), math.pi)
             Transform(p=Vec2(1.0, 2.0), q=Rot(3.141593))
         """
-        self.p = position if isinstance(position, Vec2) else Vec2(*position)
-        self.q = rotation if isinstance(rotation, Rot) else Rot(rotation)
+        self._p = position if isinstance(position, Vec2) else Vec2(*position)
+        self._q = rotation if isinstance(rotation, Rot) else Rot(rotation)
+        self._b2transorm = None
 
     @classmethod
-    def from_b2Transform(cls, b2_transform):
+    def from_b2Transform(cls, b2_transform: ffi.CData) -> "Transform":
         """Create Transform from Box2D's b2Transform structure.
 
         Args:
@@ -1080,7 +1102,9 @@ class Transform:
         """
         p = Vec2.from_b2Vec2(b2_transform.p)
         q = Rot.from_b2Rot(b2_transform.q)
-        return cls(p, q)
+        t = cls(p, q)
+        t._b2transorm = b2_transform
+        return t
 
     @property
     def b2Transform(self):
@@ -1092,9 +1116,11 @@ class Transform:
             >>> ct.p.x, ct.p.y
             (1.0, 2.0)
         """
-        transform = ffi.new("b2Transform*")
-        transform.p = self.p.b2Vec2[0]
-        transform.q = self.q.b2Rot[0]
+        if self._b2transorm is None:
+            transform = ffi.new("b2Transform*")
+            transform.p = self.p.b2Vec2[0]
+            transform.q = self.q.b2Rot[0]
+            self._b2transorm = transform
         return transform
 
     def __call__(self, point: VectorLike) -> Vec2:
@@ -1123,14 +1149,18 @@ class Transform:
         Returns:
             Rot: Current rotation component
         """
-        return self.q
+        return self._q
+
+    q = rotation
 
     @property
     def position(self) -> Vec2:
         """
         Get the position component of the transform.
         """
-        return self.p
+        return self._p
+
+    p = position
 
     @property
     def inverse(self) -> "Transform":
@@ -1165,7 +1195,9 @@ class Transform:
         """
         return f"Transform(p={self.p!r}, q={self.q!r})"
 
-    def __mul__(self, other: Union["Transform", "ScaledTransform"]) -> "Transform":
+    def __mul__(
+        self, other: Union["Transform", "ScaledTransform"]
+    ) -> "Transform|ScaledTransform":
         """
         Compose two transformations.
 
@@ -1544,8 +1576,8 @@ class AABB:
             >>> AABB((0, 0), (2, 2))
             AABB(lower=Vec2(0.0, 0.0), upper=Vec2(2.0, 2.0))
         """
-        self._lower = Vec2(*lower)
-        self._upper = Vec2(*upper)
+        self._lower = to_vec2(lower)
+        self._upper = to_vec2(upper)
 
     @property
     def lower(self) -> Vec2:
