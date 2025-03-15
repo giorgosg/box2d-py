@@ -1,1 +1,9 @@
 include src/box2d/_box2d.so
+recursive-include box2d *
+recursive-include enkits *
+
+include LICENSE
+include LICENSE-Box2D
+include README.md
+
+recursive-include src/tasks *

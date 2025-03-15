@@ -6,8 +6,6 @@ from cffi import FFI
 import re
 import platform
 
-ffibuilder = FFI()
-
 # Set up directories
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BOX2D_DIR = os.path.join(PROJECT_ROOT, "box2d")
@@ -15,15 +13,30 @@ ENKITS_DIR = os.path.join(PROJECT_ROOT, "enkits")
 BOX2D_BUILD_DIR = os.path.join(BOX2D_DIR, "build")
 ENKITS_BUILD_DIR = os.path.join(ENKITS_DIR, "build")
 TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
-os.makedirs(TEMP_DIR, exist_ok=True)
+
+
+def ensure_temp_dir():
+    """Ensure the temporary directory exists."""
+    os.makedirs(TEMP_DIR, exist_ok=True)
 
 
 def build_dependencies():
     """Build Box2D and enkiTS using CMake"""
-    # Build Box2D
-    print("Building Box2D...")
+    # Always start with clean build directories to avoid CMake cache issues
+    import shutil
+
+    if os.path.exists(BOX2D_BUILD_DIR):
+        print(f"Removing existing build directory: {BOX2D_BUILD_DIR}")
+        shutil.rmtree(BOX2D_BUILD_DIR)
     os.makedirs(BOX2D_BUILD_DIR, exist_ok=True)
 
+    if os.path.exists(ENKITS_BUILD_DIR):
+        print(f"Removing existing build directory: {ENKITS_BUILD_DIR}")
+        shutil.rmtree(ENKITS_BUILD_DIR)
+    os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
+
+    # Build Box2D
+    print("Building Box2D...")
     box2d_cmake_args = [
         "cmake",
         "-S",
@@ -56,8 +69,6 @@ def build_dependencies():
 
     # Build enkiTS
     print("Building enkiTS...")
-    os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
-
     enkits_cmake_args = [
         "cmake",
         "-S",
@@ -89,6 +100,8 @@ def build_dependencies():
 
 def process_headers():
     """Process Box2D headers for CFFI"""
+    ensure_temp_dir()
+
     # Add missing function declarations
     extra_declarations = """
     """
@@ -142,6 +155,8 @@ def process_headers():
 
 def compile_task_scheduler():
     """Compile task_scheduler.c into an object file with PIC."""
+    ensure_temp_dir()
+
     ts_c_path = os.path.join(PROJECT_ROOT, "src", "tasks", "task_scheduler.c")
     ts_obj = os.path.join(TEMP_DIR, "task_scheduler.o")
     enkits_include = os.path.join(ENKITS_DIR, "src")
@@ -192,40 +207,52 @@ def get_platform_specific_config():
         }
 
 
-# Build dependencies
-build_dependencies()
+def create_ffibuilder():
+    """Create and configure the FFI builder."""
+    ffibuilder = FFI()
 
-# Process headers and set up CFFI builder
-ffibuilder.cdef(process_headers())
+    # Process headers and set up CFFI builder
+    ffibuilder.cdef(process_headers())
 
-# Compile the task_scheduler.c and get the object file
-task_scheduler_obj = compile_task_scheduler()
+    # Compile the task_scheduler.c and get the object file
+    task_scheduler_obj = compile_task_scheduler()
 
-# Configure CFFI builder
-platform_config = get_platform_specific_config()
-ffibuilder.set_source(
-    "box2d._box2d",
-    """
-    #include "box2d/box2d.h"
-    #include "TaskScheduler_c.h"
-    #include "tasks/task_scheduler.h"
-    """,
-    include_dirs=[
-        os.path.join(BOX2D_DIR, "include"),
-        os.path.join(BOX2D_DIR, "src"),
-        os.path.join(ENKITS_DIR, "src"),
-        os.path.join(PROJECT_ROOT, "src", "tasks"),
-        "src",
-    ],
-    library_dirs=platform_config["library_dirs"],  # Use platform-specific paths
-    libraries=platform_config["libraries"],
-    extra_objects=[task_scheduler_obj],
-    extra_compile_args=platform_config["extra_compile_args"],
-    extra_link_args=platform_config["extra_link_args"],
-)
+    # Configure CFFI builder
+    platform_config = get_platform_specific_config()
+    ffibuilder.set_source(
+        "box2d._box2d",
+        """
+        #include "box2d/box2d.h"
+        #include "TaskScheduler_c.h"
+        #include "tasks/task_scheduler.h"
+        """,
+        include_dirs=[
+            os.path.join(BOX2D_DIR, "include"),
+            os.path.join(BOX2D_DIR, "src"),
+            os.path.join(ENKITS_DIR, "src"),
+            os.path.join(PROJECT_ROOT, "src", "tasks"),
+            "src",
+        ],
+        library_dirs=platform_config["library_dirs"],  # Use platform-specific paths
+        libraries=platform_config["libraries"],
+        extra_objects=[task_scheduler_obj],
+        extra_compile_args=platform_config["extra_compile_args"],
+        extra_link_args=platform_config["extra_link_args"],
+    )
+
+    return ffibuilder
 
 
-def main(build_target=None):
+ffibuilder = create_ffibuilder()
+
+
+def build(build_target=None):
+    """Build the entire project."""
+    # Build dependencies first
+    build_dependencies()
+
+    # Create FFI builder and compile
+    # ffibuilder = create_ffibuilder()
     if build_target:
         ffibuilder.compile(target=build_target, verbose=True)
     else:
@@ -233,4 +260,4 @@ def main(build_target=None):
 
 
 if __name__ == "__main__":
-    main()
+    build()
