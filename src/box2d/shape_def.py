@@ -14,32 +14,12 @@ from .math import Transform, VectorLike, to_vec2
 from .collision_filter import CollisionFilter
 import math
 
-SHAPE_DEF_PARAMS_DOC = """
-                Common ShapeDef Parameters:
-                    density: The density of the shape.
-                    friction: The friction of the shape.
-                    restitution: The restitution (bounciness) of the shape.
-                    is_sensor: Flag to indicate if the shape is a sensor.
-                    collision_filter: An optional CollisionFilter instance.
-                    custom_color: Optional custom debug draw color (uint32_t).
-                    enable_contact_events: Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
-                    enable_hit_events: Enable hit events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
-                    enable_sensor_events: Enable sensor events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
-                    force_contact_creation: Normally shapes on static bodies don't invoke contact creation when they are added to the world.
-                        This overrides that behavior and causes contact creation. This significantly slows down static body creation which can be important when there are many static shapes. This is implicitly always true for sensors.
-
-
-"""
-
 
 class ShapeDef:
     """
     Base shape definition.
 
-    Wraps the common shape definition (b2ShapeDef) which contains properties like
-    density, friction, restitution, sensor flag, and now collision filtering.
-    collision_filter (CollisionFilter): Optional CollisionFilter instance.
-    When provided, its C representation is copied to the underlying b2ShapeDef.filter.
+    Wraps the common shape definition (b2ShapeDef)
     """
 
     def __init__(
@@ -52,16 +32,22 @@ class ShapeDef:
         custom_color: int = None,
         enable_contact_events: bool = None,
         enable_hit_events: bool = None,
-        enable_sensor_events: bool = None,
         force_contact_creation: bool = None,
         user_data=None,
     ):
-        f"""
+        """
         Initialize a new ShapeDef.
 
-        user_data: Optional user data pointer.
-
-        {SHAPE_DEF_PARAMS_DOC}
+        Parameters:
+            density: The density of the shape.
+            friction: The friction of the shape.
+            restitution: The restitution (bounciness) of the shape.
+            is_sensor: Flag to indicate if the shape is a sensor.
+            collision_filter: An optional CollisionFilter instance.
+            custom_color: Optional custom debug draw color (uint32_t).
+            enable_contact_events: Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+            enable_hit_events: Enable hit events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+            user_data: Optional user data pointer.
 
         Example:
             >>> shape = ShapeDef(
@@ -70,7 +56,9 @@ class ShapeDef:
             ...     restitution=0.3,
             ...     is_sensor=False,
             ...     collision_filter=CollisionFilter(category="player", mask="enemy", group=0),
-            ...     custom_color=0xFF00FF
+            ...     custom_color=0xFF00FF,
+            ...     enable_contact_events=True,
+            ...     enable_hit_events=True,
             ... )
         """
 
@@ -96,8 +84,6 @@ class ShapeDef:
             shapedef.enableContactEvents = enable_contact_events
         if enable_hit_events is not None:
             shapedef.enableHitEvents = enable_hit_events
-        if enable_sensor_events is not None:
-            shapedef.enableSensorEvents = enable_sensor_events
         if force_contact_creation is not None:
             shapedef.forceContactCreation = force_contact_creation
         if user_data is not None:
@@ -112,14 +98,13 @@ class CircleDef(ShapeDef):
     """
 
     def __init__(self, radius: float, center: VectorLike = (0, 0), **shapedef_args):
-        f"""
+        """
         Initialize a new CircleDef.
 
         Parameters:
             radius: The radius of the circle.
             center: A tuple representing the center coordinates.
-
-        {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> circle = CircleDef(
@@ -161,8 +146,7 @@ class CapsuleDef(ShapeDef):
             point1: The first endpoint as a tuple.
             point2: The second endpoint as a tuple.
             radius: The radius of the capsule.
-
-            {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> capsule = CapsuleDef(
@@ -203,7 +187,7 @@ class SegmentDef(ShapeDef):
         Parameters:
             point1: The first endpoint as a tuple.
             point2: The second endpoint as a tuple.
-        {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> segment = SegmentDef(
@@ -237,13 +221,13 @@ class PolygonDef(ShapeDef):
         radius=0.0,
         **shapedef_args,
     ):
-        f"""
+        """
         Initialize a new PolygonDef.
 
         Parameters:
             vertices: A list of vertices (tuples) for the polygon.
             radius: Optional radius for rounded corners.
-        {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> polygon = PolygonDef(
@@ -360,7 +344,7 @@ class BoxDef(PolygonDef):
         angle: float = 0.0,
         **shapedef_args,
     ):
-        f"""
+        """
         Initialize a new BoxDef.
 
         Parameters:
@@ -369,7 +353,7 @@ class BoxDef(PolygonDef):
             offset: A tuple representing the offset position.
             radius: The corner radius for rounded corners.
             angle: The rotation angle in radians.
-        {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> box = BoxDef(
@@ -420,7 +404,7 @@ class ChainSegmentDef(ShapeDef):
         Parameters:
             start: The starting point of the segment as a tuple.
             end: The ending point of the segment as a tuple.
-        {SHAPE_DEF_PARAMS_DOC}
+            **shapedef_args: Additional arguments for the ShapeDef initializer.
 
         Example:
             >>> chain_segment = ChainSegmentDef(
