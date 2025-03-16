@@ -1,134 +1,316 @@
 # tests/test_shapes.py
 
 import pytest
-from box2d import World, Vec2
-from box2d._box2d import lib
-from pytest import approx
+from box2d import World, Vec2, AABB
+from box2d.shape import Circle, Capsule, Segment, Polygon, Box, Chain
+from box2d.material import SurfaceMaterial
+from box2d.collision_filter import CollisionFilter
+from box2d.dataclasses import MassData, RayCastResult
 
 
-def test_capsule_shape():
-    world = World()
-    body = world.new_body().dynamic().position(0, 0).build()
-
-    body.add_capsule(point1=(-1, 0), point2=(1, 0), radius=0.5)
-
-    assert lib.b2Body_GetShapeCount(body._body_id) == 1
-    shape_type = lib.b2Shape_GetType(body._shapes[0]._shape_id)
-    assert shape_type == lib.b2_capsuleShape
+@pytest.fixture
+def world():
+    return World()
 
 
-def test_segment_shape():
-    world = World()
-    body = world.new_body().static().build()
-
-    body.add_segment(point1=(-2, 0), point2=(2, 0))
-
-    assert lib.b2Body_GetShapeCount(body._body_id) == 1
-    assert lib.b2Shape_GetType(body._shapes[0]._shape_id) == lib.b2_segmentShape
+@pytest.fixture
+def static_body(world):
+    return world.new_body().static().build()
 
 
-def test_shape_properties():
-    world = World()
-    body = world.new_body().build()
-
-    shape = body.add_box(1, 1, density=2.0, friction=0.5, restitution=0.8)
-
-    assert lib.b2Shape_GetDensity(shape._shape_id) == approx(2.0)
-    assert lib.b2Shape_GetFriction(shape._shape_id) == approx(0.5)
-    assert lib.b2Shape_GetRestitution(shape._shape_id) == approx(0.8)
+@pytest.fixture
+def dynamic_body(world):
+    return world.new_body().dynamic().position(0, 0).build()
 
 
-def test_sensor_shape_events():
-    world = World()
-    body = world.new_body().build()
+def test_circle_shape(dynamic_body):
+    circle = dynamic_body.add_circle(radius=0.5)
 
-    sensor_shape = body.add_capsule(
+    assert len(dynamic_body._shapes) == 1
+    assert isinstance(circle, Circle)
+    assert circle.body == dynamic_body
+
+
+def test_capsule_shape(dynamic_body):
+    capsule = dynamic_body.add_capsule(point1=(-1, 0), point2=(1, 0), radius=0.5)
+
+    assert len(dynamic_body._shapes) == 1
+    assert isinstance(capsule, Capsule)
+    assert capsule.body == dynamic_body
+
+
+def test_segment_shape(static_body):
+    segment = static_body.add_segment(point1=(-2, 0), point2=(2, 0))
+
+    assert len(static_body._shapes) == 1
+    assert isinstance(segment, Segment)
+    assert segment.body == static_body
+
+
+def test_shape_properties_creation(dynamic_body):
+    shape = dynamic_body.add_box(1, 1, density=2.0, friction=0.5, restitution=0.8)
+
+    assert isinstance(shape, Box)
+    assert shape.density == pytest.approx(2.0)
+    assert shape.friction == pytest.approx(0.5)
+    assert shape.restitution == pytest.approx(0.8)
+
+
+def test_sensor_shape(dynamic_body):
+    sensor = dynamic_body.add_capsule(
         point1=(-1, 0), point2=(1, 0), radius=0.3, is_sensor=True
     )
 
-    assert lib.b2Shape_IsSensor(sensor_shape._shape_id) is True
+    assert sensor.is_sensor is True
 
 
-def test_polygon_shape():
-    world = World()
-    body = world.new_body().dynamic().position(0, 0).build()
-
+def test_polygon_shape(dynamic_body):
     # Valid convex polygon
     vertices = [(-1, -1), (1, -1), (1, 1), (0, 2), (-1, 1)]
-    poly_shape = body.add_polygon(vertices=vertices)
+    poly = dynamic_body.add_polygon(vertices=vertices)
 
-    assert lib.b2Shape_GetType(poly_shape._shape_id) == lib.b2_polygonShape
+    assert isinstance(poly, Polygon)
+    assert len(dynamic_body._shapes) == 1
 
 
-def test_invalid_polygon():
-    world = World()
-    body = world.new_body().build()
-
+def test_invalid_polygon(dynamic_body):
     # Too few vertices
     with pytest.raises(ValueError):
-        body.add_polygon(vertices=[(0, 0), (1, 0)])
+        dynamic_body.add_polygon(vertices=[(0, 0), (1, 0)])
 
     # Too many vertices
     with pytest.raises(ValueError):
-        body.add_polygon(vertices=[(i, i) for i in range(9)])
+        dynamic_body.add_polygon(vertices=[(i, i) for i in range(9)])
 
 
-def test_polygon_properties():
-    world = World()
-    body = world.new_body().build()
-
-    triangle = [(0, 0), (1, 0), (0.5, 1)]
-    poly = body.add_polygon(
-        vertices=triangle, density=1.5, friction=0.3, restitution=0.7, is_sensor=True
-    )
-
-    assert lib.b2Shape_GetDensity(poly._shape_id) == approx(1.5)
-    assert lib.b2Shape_GetFriction(poly._shape_id) == approx(0.3)
-    assert lib.b2Shape_GetRestitution(poly._shape_id) == approx(0.7)
-    assert lib.b2Shape_IsSensor(poly._shape_id) is True
-
-
-def test_shape_setters():
-    world = World()
-    body = world.new_body().build()
-
-    shape = body.add_box(1, 1)
+def test_shape_setters(dynamic_body):
+    shape = dynamic_body.add_box(1, 1)
 
     # Test density setter
     shape.density = 1.5
-    assert lib.b2Shape_GetDensity(shape._shape_id) == approx(1.5)
+    assert shape.density == pytest.approx(1.5)
 
     # Test friction setter
     shape.friction = 0.7
-    assert lib.b2Shape_GetFriction(shape._shape_id) == approx(0.7)
+    assert shape.friction == pytest.approx(0.7)
 
     # Test restitution setter
     shape.restitution = 0.6
-    assert lib.b2Shape_GetRestitution(shape._shape_id) == approx(0.6)
+    assert shape.restitution == pytest.approx(0.6)
 
 
-def test_chain_shape_valid():
-    world = World()
-    # Create a static body so that chain shape (which has no density) works fine.
-    body = world.new_body().static().build()
+def test_box_shape(dynamic_body):
+    box = dynamic_body.add_box(width=1.0, height=0.5)
 
-    # A valid chain requires at least 4 vertices.
+    assert isinstance(box, Box)
+    assert isinstance(box, Polygon)  # Box inherits from Polygon
+
+
+def test_chain_shape(static_body):
+    # A valid chain requires at least 4 vertices
     vertices = [(0, 0), (1, 0), (1, 1), (0, 1)]
-    chain_shape = body.add_chain(
+    chain = static_body.add_chain(
         vertices=vertices, loop=True, friction=0.25, restitution=0.1
     )
 
-    # It creates 4 shapes, one for each edge of the chain.
-    assert lib.b2Body_GetShapeCount(body._body_id) == 4
-    # nope
-    # assert lib.b2Shape_GetType(chain_shape._shape_id) == lib.b2_chainShape
+    assert isinstance(chain, Chain)
+    assert len(chain.segments) == 4  # One segment for each edge
+
+    # Test that segments reference the chain properly
+    for segment in chain.segments:
+        assert segment.parent_chain == chain
+        assert segment.body == static_body
 
 
-def test_chain_shape_invalid():
-    world = World()
-    body = world.new_body().static().build()
-
-    # Providing fewer than 4 vertices should raise a ValueError.
+def test_chain_shape_invalid(static_body):
+    # Providing fewer than 4 vertices should raise a ValueError
     vertices = [(0, 0), (1, 0), (0.5, 1)]
     with pytest.raises(ValueError):
-        body.add_chain(vertices=vertices)
+        static_body.add_chain(vertices=vertices)
+
+
+def test_material_property(dynamic_body):
+    shape = dynamic_body.add_circle(radius=0.5)
+
+    # Test getting the material ID
+    default_material = shape.material
+    assert isinstance(default_material, int)
+
+    # Test setting a new material ID
+    shape.material = 42
+    assert shape.material == 42
+
+    # Test with SurfaceMaterial object
+    custom_material = SurfaceMaterial(friction=0.8)
+    shape.material = custom_material
+    assert shape.material == custom_material.material
+
+
+def test_shape_collision_filter(dynamic_body):
+    shape = dynamic_body.add_box(1, 1)
+
+    custom_filter = CollisionFilter(category=0x0002, mask=0x0004, group=3)
+    shape.filter = custom_filter
+
+    retrieved_filter = shape.filter
+    assert retrieved_filter.category == 0x0002
+    assert retrieved_filter.mask == 0x0004
+    assert retrieved_filter.group == 3
+
+
+# New tests for previously untested properties and methods
+
+
+def test_event_flags(dynamic_body):
+    """Test enable_contact_events, enable_pre_solve_events, enable_hit_events properties"""
+    shape = dynamic_body.add_circle(radius=0.5)
+
+    # Contact events
+    assert not shape.enable_contact_events  # Should be False by default
+    shape.enable_contact_events = True
+    assert shape.enable_contact_events is True
+
+    # Pre-solve events
+    assert not shape.enable_pre_solve_events  # Should be False by default
+    shape.enable_pre_solve_events = True
+    assert shape.enable_pre_solve_events is True
+
+    # Hit events
+    assert not shape.enable_hit_events  # Should be False by default
+    shape.enable_hit_events = True
+    assert shape.enable_hit_events is True
+
+
+def test_shape_introspection_properties(dynamic_body, world):
+    """Test shape_type, world, aabb, mass_data properties"""
+    shape = dynamic_body.add_circle(radius=0.5)
+
+    # Test shape_type property
+    assert isinstance(shape.shape_type, int)
+
+    # Test world property
+    assert shape.world == world
+
+    # Test aabb property
+    aabb = shape.aabb
+    assert isinstance(aabb, AABB)
+    assert aabb.lower.x < aabb.upper.x
+    assert aabb.lower.y < aabb.upper.y
+
+    # Test mass_data property
+    mass_data = shape.mass_data
+    assert isinstance(mass_data, MassData)
+    assert mass_data.mass > 0
+    assert isinstance(mass_data.center, Vec2)
+    assert mass_data.rotational_inertia >= 0
+
+
+def test_shape_validity_and_collision_methods(dynamic_body):
+    """Test is_valid, test_point, ray_cast, get_closest_point methods"""
+    shape = dynamic_body.add_circle(radius=1.0, center=(0, 0))
+
+    # Test is_valid
+    assert shape.is_valid() is True
+
+    # Test test_point
+    assert shape.test_point((0, 0)) is True  # Point at center should be inside
+    assert shape.test_point((1.5, 0)) is False  # Point outside radius should be outside
+
+    # Test ray_cast
+    hit_result = shape.ray_cast(
+        (-2, 0), (4, 0)
+    )  # Ray from left to right through circle
+    assert hit_result is not None
+    assert isinstance(hit_result, RayCastResult)
+    assert isinstance(hit_result.point, Vec2)
+    assert isinstance(hit_result.normal, Vec2)
+    assert 0 < hit_result.fraction < 1
+
+    miss_result = shape.ray_cast((-2, 2), (4, 0))  # Ray above the circle
+    assert miss_result is None
+
+    # Test get_closest_point
+    closest = shape.get_closest_point((2, 0))
+    assert isinstance(closest, Vec2)
+    assert abs(closest.x) <= 1.0  # Should be on the circle boundary
+    assert abs(closest.y) <= 1.0
+
+
+def test_contact_and_sensor_methods(world):
+    """Test contact_data, get_contact_data, get_contact_capacity, sensor_overlaps methods"""
+    body1 = world.new_body().dynamic().position(0, 0).build()
+    shape1 = body1.add_circle(radius=1.0)
+
+    body2 = (
+        world.new_body().static().position(5, 0).build()
+    )  # Far apart, no contact initially
+    shape2 = body2.add_box(1, 1)
+
+    # Test get_contact_capacity
+    assert shape1.get_contact_capacity() == 0  # No contacts initially
+
+    # Test get_contact_data
+    contacts = shape1.get_contact_data()
+    assert isinstance(contacts, list)
+    assert len(contacts) == 0  # No contacts initially
+
+    # Test contact_data property
+    assert len(shape1.contact_data) == 0
+
+    # Create a sensor shape and test sensor methods
+    body3 = world.new_body().static().position(0, 0).build()
+    sensor = body3.add_circle(radius=2.0, is_sensor=True)
+
+    # Test get_sensor_capacity
+    assert sensor.get_sensor_capacity() >= 0
+
+    # Test get_sensor_overlaps
+    overlaps = sensor.get_sensor_overlaps()
+    assert isinstance(overlaps, list)
+
+    # Test sensor_overlaps property
+    assert isinstance(sensor.sensor_overlaps, list)
+
+
+def test_chain_segments(static_body):
+    """Test ChainSegment class and its properties"""
+    vertices = [(0, 0), (3, 0), (3, 3), (0, 3)]
+    chain = static_body.add_chain(vertices=vertices, loop=True)
+
+    # Test that we have the right number of segments
+    assert len(chain.segments) == 4
+
+    # Test segment properties
+    for segment in chain.segments:
+        # Test parent chain reference
+        assert segment.parent_chain == chain
+
+        # Test body reference
+        assert segment.body == static_body
+
+        # Test shape properties
+        assert hasattr(segment, "friction")
+        assert hasattr(segment, "restitution")
+
+        # Test valid shape
+        assert segment.is_valid()
+
+
+def test_shape_multiple_materials(static_body):
+    """Test creating a chain with multiple materials"""
+    vertices = [(0, 0), (3, 0), (3, 3), (0, 3)]
+
+    # Create two different materials
+    mat1 = SurfaceMaterial(friction=0.1, restitution=0.9)
+    mat2 = SurfaceMaterial(friction=0.9, restitution=0.1)
+
+    chain = static_body.add_chain(
+        vertices=vertices,
+        loop=True,
+        materials=[mat1, mat2, mat1, mat2, mat1],  # One material per segment
+    )
+
+    # Test that segments have different materials
+    assert chain.segments[0].material != chain.segments[1].material
+    assert chain.segments[0].material == chain.segments[2].material
+    assert chain.segments[1].material == chain.segments[3].material

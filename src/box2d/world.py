@@ -132,6 +132,9 @@ class World:
         else:
             self._use_c_scheduler = False
 
+        self._handle = ffi.new_handle(self)
+        world_def.userData = self._handle
+
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
         # Store default simulation parameters

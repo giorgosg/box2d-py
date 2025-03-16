@@ -2,6 +2,8 @@ from box2d._box2d import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, to_vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .collision_filter import CollisionFilter
+from typing import Sequence
+from .material import SurfaceMaterial
 
 
 class BodyBuilder:
@@ -810,6 +812,7 @@ class Body:
         friction: float = None,
         restitution: float = None,
         custom_color: int = None,
+        materials: Sequence[SurfaceMaterial] = None,
     ):
         """Add a chain shape to the body.
 
@@ -820,6 +823,7 @@ class Body:
             restitution: Bounciness.
             collision_filter: Optional CollisionFilter instance for collision filtering.
             custom_color: Optional custom debug draw color (uint32_t).
+            matrials: Optional list of SurfaceMaterial instances.
 
         Returns:
             The created chain shape.
@@ -832,6 +836,7 @@ class Body:
             restitution=restitution,
             filter=filter,
             custom_color=custom_color,
+            materials=materials,
         )
         self._shapes.append(shape)
         return shape
