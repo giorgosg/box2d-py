@@ -311,9 +311,13 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
         for i in range(2):
             length = (anchors_b[i] - anchors_a[i]).length
             if length < 1.0:
-                debug_draw.draw_segment(anchors_a[i], anchors_b[i], Color(0x00FFFF))
+                debug_draw.draw_segment(
+                    anchors_a[i], anchors_b[i], Color.from_b2HexColor(0x00FFFF)
+                )
             else:
-                debug_draw.draw_segment(anchors_a[i], anchors_b[i], Color(0xFF00FF))
+                debug_draw.draw_segment(
+                    anchors_a[i], anchors_b[i], Color.from_b2HexColor(0xFF00FF)
+                )
 
         # Draw forces
         debug_draw.draw_string(

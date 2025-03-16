@@ -38,11 +38,15 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
         self.ray_end = pos
 
     def debug_draw(self, debug_draw):
-        debug_draw.draw_segment(self.ray_start, self.ray_end, color=Color(0x00FFFF))
+        debug_draw.draw_segment(
+            self.ray_start, self.ray_end, color=Color.from_b2HexColor(0x00FFFF)
+        )
         translation = self.ray_end - self.ray_start
         first_only = True if self.collisions == 1 else False
         collisions = self.world.ray_cast(
             self.ray_start, translation, first_hit_only=first_only
         )
         for collision in collisions[: self.collisions]:
-            debug_draw.draw_point(collision.point, 5, color=Color(0xFF0000))
+            debug_draw.draw_point(
+                collision.point, 5, color=Color.from_b2HexColor(0xFF0000)
+            )

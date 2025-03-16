@@ -9,9 +9,7 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
         ground.chain(
             chain_points,
             loop=False,
-            collision_filter=CollisionFilter(
-                category="ground", mask=["foot", "player"]
-            ),
+            filter=CollisionFilter(category="ground", mask=["foot", "player"]),
         )
         ground = ground.build()
 
@@ -20,13 +18,13 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
             (0, -0.5),
             (0, 0.5),
             0.5,
-            collision_filter=CollisionFilter(category="player", mask=["ground"]),
+            filter=CollisionFilter(category="player", mask=["ground"]),
         )
         player = player.box(
             1,
             0.5,
             offset=(0, -1),
-            collision_filter=CollisionFilter(category="foot", mask=["ground"]),
+            filter=CollisionFilter(category="foot", mask=["ground"]),
             is_sensor=True,
         )
         self.player = player.build()
