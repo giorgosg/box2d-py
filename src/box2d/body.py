@@ -1,7 +1,6 @@
 from box2d._box2d import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, to_vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
-from .shape_def import PolygonDef
 from .collision_filter import CollisionFilter
 
 
@@ -218,11 +217,7 @@ class BodyBuilder:
         radius=0.0,
         offset=(0, 0),
         angle=0.0,
-        density: float = 1.0,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        is_sensor: bool = False,
-        collision_filter: CollisionFilter = None,
+        **shapedef_args,
     ):
         """Add a box shape to the body during construction.
 
@@ -232,11 +227,7 @@ class BodyBuilder:
             radius: The radius of the rounded corners (default: 0.0).
             offset: The offset of the box from the body's position (default: (0, 0)).
             angle: The angle of the box (default: 0.0).
-            density: Mass density (kg/m²).
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            is_sensor: True for sensor shape (no collision response).
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
         """
@@ -248,11 +239,7 @@ class BodyBuilder:
                     "radius": radius,
                     "offset": offset,
                     "angle": angle,
-                    "density": density,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "is_sensor": is_sensor,
-                    "collision_filter": collision_filter,
+                    **shapedef_args,
                 },
             }
         )
@@ -262,22 +249,14 @@ class BodyBuilder:
         self,
         radius: float,
         center: tuple = (0, 0),
-        density: float = 1.0,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        is_sensor: bool = False,
-        collision_filter: CollisionFilter = None,
+        **shapedef_args,
     ):
         """Add a circle shape to the body during construction.
 
         Args:
             radius: Radius of the circle.
             center: Local center position (x, y).
-            density: Mass density (kg/m²).
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            is_sensor: True for sensor shape.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
         """
@@ -286,11 +265,7 @@ class BodyBuilder:
                 "type": "circle",
                 "params": (radius, center),
                 "kwargs": {
-                    "density": density,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "is_sensor": is_sensor,
-                    "collision_filter": collision_filter,
+                    **shapedef_args,
                 },
             }
         )
@@ -301,11 +276,7 @@ class BodyBuilder:
         point1: tuple,
         point2: tuple,
         radius: float,
-        density: float = 1.0,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        is_sensor: bool = False,
-        collision_filter: CollisionFilter = None,
+        **shapedef_args,
     ):
         """Add a vertical capsule shape (cylinder with hemispherical ends).
 
@@ -313,11 +284,7 @@ class BodyBuilder:
             point1: The first endpoint of the capsule.
             point2: The second endpoint of the capsule.
             radius: Radius of the hemispherical ends.
-            density: Mass density (kg/m²).
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            is_sensor: True for sensor shape.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
         """
@@ -326,11 +293,7 @@ class BodyBuilder:
                 "type": "capsule",
                 "params": (point1, point2, radius),
                 "kwargs": {
-                    "density": density,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "is_sensor": is_sensor,
-                    "collision_filter": collision_filter,
+                    **shapedef_args,
                 },
             }
         )
@@ -340,11 +303,7 @@ class BodyBuilder:
         self,
         vertices: list[tuple],
         radius: float = 0.0,
-        density: float = 1.0,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        is_sensor: bool = False,
-        collision_filter: CollisionFilter = None,
+        **shapedef_args,
     ):
         """Add a convex polygon shape.
 
@@ -354,29 +313,20 @@ class BodyBuilder:
         Args:
             vertices: List of points that define the polygon shape.
             radius: The radius of the rounded corners (default: 0.0).
-            density: Mass density (kg/m²).
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            is_sensor: True for sensor shape.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **shapedef_args: Additional parameters for the shape definition.
+
         Returns:
             Self for method chaining.
         Raises:
             Exception: If the vertices cannot form a convex polygon.
         """
-        # Validate convexity (this will raise an exception if the polygon is not convex)
-        PolygonDef(vertices)
         self._shape_defs.append(
             {
                 "type": "polygon",
                 "params": (vertices,),
                 "kwargs": {
                     "radius": radius,
-                    "density": density,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "is_sensor": is_sensor,
-                    "collision_filter": collision_filter,
+                    **shapedef_args,
                 },
             }
         )
@@ -386,22 +336,14 @@ class BodyBuilder:
         self,
         start: tuple,
         end: tuple,
-        density: float = 0.0,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        is_sensor: bool = False,
-        collision_filter: CollisionFilter = None,
+        **shapedef_args,
     ):
         """Add a line segment shape with optional edge radius.
 
         Args:
             start: Starting point (x, y) in local coordinates.
             end: Ending point (x, y) in local coordinates.
-            density: Typically 0 for static segments.
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            is_sensor: True for sensor shape.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
         """
@@ -410,11 +352,7 @@ class BodyBuilder:
                 "type": "segment",
                 "params": (start, end),
                 "kwargs": {
-                    "density": density,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "is_sensor": is_sensor,
-                    "collision_filter": collision_filter,
+                    **shapedef_args,
                 },
             }
         )
@@ -424,18 +362,14 @@ class BodyBuilder:
         self,
         vertices: list[tuple],
         loop: bool = False,
-        friction: float = 0.2,
-        restitution: float = 0.0,
-        collision_filter: CollisionFilter = None,
+        **chaindef_args,
     ):
         """Add a chain shape to the body during construction.
 
         Args:
             vertices: List of points that define the chain shape. Must contain at least 4 vertices.
             loop: Boolean indicating whether the chain should be closed (looped). Default is False.
-            friction: Friction coefficient (0-1).
-            restitution: Bounciness (0-1).
-            collision_filter: Optional CollisionFilter instance for collision filtering.
+            **chaindef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
         """
@@ -445,9 +379,7 @@ class BodyBuilder:
                 "params": (vertices,),
                 "kwargs": {
                     "loop": loop,
-                    "friction": friction,
-                    "restitution": restitution,
-                    "collision_filter": collision_filter,
+                    **chaindef_args,
                 },
             }
         )
@@ -497,7 +429,7 @@ class Body:
         self._body_id = lib.b2CreateBody(
             self.world._world_id, ffi.addressof(self.body_def)
         )
-        self._handle = ffi.addressof(self._body_id)
+        self._handle = ffi.new_handle(self)
         lib.b2Body_SetUserData(self._body_id, self._handle)
         self._shapes = []
         self.world._track_body(self)
@@ -874,7 +806,7 @@ class Body:
         self,
         vertices: list[tuple],
         loop: bool = False,
-        collision_filter: CollisionFilter = None,
+        filter: CollisionFilter = None,
         friction: float = None,
         restitution: float = None,
         custom_color: int = None,
@@ -893,7 +825,13 @@ class Body:
             The created chain shape.
         """
         shape = Chain.create(
-            self, vertices, loop, friction, restitution, collision_filter, custom_color
+            self,
+            vertices,
+            loop,
+            friction=friction,
+            restitution=restitution,
+            filter=filter,
+            custom_color=custom_color,
         )
         self._shapes.append(shape)
         return shape

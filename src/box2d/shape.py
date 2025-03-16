@@ -1,6 +1,6 @@
 """
 This module defines high-level shape objects for Box2D.
-Each shape’s constructor now accepts a body and a shape definition.
+Each shape’s constructor accepts a body and a shape definition.
 Each shape (except Chain) subclasses a common base that implements common properties.
 Each shape also has a classmethod “create” that matches the signature from before.
 Chain is now implemented as a separate class.
@@ -9,30 +9,28 @@ Chain is now implemented as a separate class.
 from ._box2d import lib, ffi
 from abc import ABC
 from .math import Vec2, Transform, VectorLike
-from .shape_def import (
+from .shapedef import (
+    ShapeDef,
     CircleDef,
     CapsuleDef,
     SegmentDef,
     PolygonDef,
-    BoxDef,
     ChainDef,
 )
+from .material import SurfaceMaterial
 
 
 class Shape(ABC):
     """
     Base class for all non-chain shapes.
-    Its constructor now accepts only a body and a shape definition.
-    It provides common properties like density, friction, restitution, and a helper _finalize.
+    It provides common properties like density, friction, restitution
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body"):
         self._body = body
 
-    def _finalize(self):
-        """
-        Finalize shape creation by setting the user data pointer.
-        """
+    def _set_handle(self):
+        """Set the handle for the shape."""
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
 
@@ -82,15 +80,16 @@ class Circle(Shape):
     A circle shape that can be attached to a body.
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body", shapedef: ShapeDef, circledef: CircleDef):
         """
-        Initialize a Circle shape from a body and a CircleDef instance.
+        Initialize a Circle shape from a body a ShapeDef and a CircleDef instance.
         """
-        super().__init__(body, shapedef)
+        super().__init__(body)
+        sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCircleShape(
-            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.circle
+            body._body_id, ffi.addressof(sd), circledef.b2Circle
         )
-        self._finalize()
+        self._set_handle()
 
     @classmethod
     def create(
@@ -104,12 +103,9 @@ class Circle(Shape):
         Create and attach a circle shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = CircleDef(
-            radius,
-            center,
-            **shapedef_kwargs,
-        )
-        return cls(body, shapedef)
+        circledef = CircleDef(radius, center)
+        shapedef = ShapeDef(**shapedef_kwargs)
+        return cls(body, shapedef, circledef)
 
 
 class Capsule(Shape):
@@ -117,15 +113,16 @@ class Capsule(Shape):
     A capsule shape that can be attached to a body.
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body", shapedef: ShapeDef, capsuledef: CapsuleDef):
         """
         Initialize a Capsule shape from a body and a CapsuleDef instance.
         """
-        super().__init__(body, shapedef)
+        super().__init__(body)
+        sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCapsuleShape(
-            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.capsule
+            body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
         )
-        self._finalize()
+        self._set_handle()
 
     @classmethod
     def create(
@@ -140,13 +137,9 @@ class Capsule(Shape):
         Create and attach a capsule shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = CapsuleDef(
-            point1,
-            point2,
-            radius,
-            **shapedef_kwargs,
-        )
-        return cls(body, shapedef)
+        capsuledef = CapsuleDef(point1, point2, radius)
+        shapedef = ShapeDef(**shapedef_kwargs)
+        return cls(body, shapedef, capsuledef)
 
 
 class Segment(Shape):
@@ -154,15 +147,16 @@ class Segment(Shape):
     A line segment shape that can be attached to a body.
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body", shapedef: ShapeDef, segmentdef: SegmentDef):
         """
         Initialize a Segment shape from a body and a SegmentDef instance.
         """
-        super().__init__(body, shapedef)
+        super().__init__(body)
+        sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateSegmentShape(
-            body._body_id, ffi.addressof(shapedef.shapedef), shapedef.segment
+            body._body_id, ffi.addressof(sd), segmentdef.b2Segment
         )
-        self._finalize()
+        self._set_handle()
 
     @classmethod
     def create(
@@ -176,12 +170,9 @@ class Segment(Shape):
         Create and attach a segment shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = SegmentDef(
-            point1,
-            point2,
-            **shapedef_kwargs,
-        )
-        return cls(body, shapedef)
+        segmentdef = SegmentDef(point1, point2)
+        shapedef = ShapeDef(**shapedef_kwargs)
+        return cls(body, shapedef, segmentdef)
 
 
 class Polygon(Shape):
@@ -189,18 +180,19 @@ class Polygon(Shape):
     A convex polygon shape that can be attached to a body.
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body", shapedef: ShapeDef, polygondef: PolygonDef):
         """
         Initialize a Polygon shape from a body and a PolygonDef instance.
         """
-        super().__init__(body, shapedef)
-        # Note: shapedef.polygon is the geometry computed (via b2MakePolygon)
+        super().__init__(body)
+        sd = shapedef.b2ShapeDef
+        pd = polygondef.b2Polygon
         self._shape_id = lib.b2CreatePolygonShape(
             body._body_id,
-            ffi.addressof(shapedef.shapedef),
-            ffi.addressof(shapedef.polygon),
+            ffi.addressof(sd),
+            ffi.addressof(pd),
         )
-        self._finalize()
+        self._set_handle()
 
     @classmethod
     def create(
@@ -208,18 +200,25 @@ class Polygon(Shape):
         body,
         vertices,
         radius=0.0,
+        offset=(0, 0),
+        angle=0.0,
         **shapedef_kwargs,
     ):
         """
         Create and attach a polygon shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = PolygonDef(
+        polygondef = PolygonDef(
             vertices,
-            radius,
+            radius=radius,
+            offset=offset,
+            rotation=angle,
+        )
+        shapedef = ShapeDef(
             **shapedef_kwargs,
         )
-        return cls(body, shapedef)
+        b2sd = shapedef.b2ShapeDef
+        return cls(body, shapedef, polygondef)
 
 
 class Box(Polygon):
@@ -243,15 +242,20 @@ class Box(Polygon):
         Create and attach a box shape to a body.
         The parameters are the same as the previous initializer.
         """
-        shapedef = BoxDef(
-            width,
-            height,
-            offset,
-            radius,
-            angle,
+        vertices = [
+            (-width / 2, -height / 2),
+            (width / 2, -height / 2),
+            (width / 2, height / 2),
+            (-width / 2, height / 2),
+        ]
+        return super().create(
+            body,
+            vertices,
+            radius=radius,
+            offset=offset,
+            angle=angle,
             **shapedef_kwargs,
         )
-        return cls(body, shapedef)
 
 
 class ChainSegment(Shape):
@@ -271,8 +275,8 @@ class ChainSegment(Shape):
         """
         self._shape_id = b2chainsegment
         self.parent_chain = chain
-        super().__init__(chain.body, None)
-        self._finalize()
+        super().__init__(chain.body)
+        self._set_handle()
 
 
 class Chain:
@@ -282,11 +286,10 @@ class Chain:
     because they are typically used for static boundaries and have no density/sensor properties.
     """
 
-    def __init__(self, body, shapedef):
+    def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
-        self._shape_id = lib.b2CreateChain(
-            body._body_id, ffi.addressof(shapedef.shapedef)
-        )
+        cd = chaindef.b2ChainDef
+        self._shape_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
         segment_count = lib.b2Chain_GetSegmentCount(self._shape_id)
         segments = ffi.new("b2ShapeId[]", segment_count)
         lib.b2Chain_GetSegments(self._shape_id, segments, segment_count)
@@ -298,17 +301,28 @@ class Chain:
         body,
         vertices,
         loop=False,
+        filter=None,
+        materials=None,
         friction=None,
         restitution=None,
-        collision_filter=None,
+        rolling_resistance=None,
+        tangent_speed=None,
         custom_color=None,
     ):
         """
         Create and attach a chain shape to a body.
         """
-        shapedef = ChainDef(
-            vertices, loop, friction, restitution, collision_filter, custom_color
-        )
+        if materials is None:
+            materials = [
+                SurfaceMaterial(
+                    friction=friction,
+                    restitution=restitution,
+                    tangent_speed=tangent_speed,
+                    rolling_resistance=rolling_resistance,
+                    custom_color=custom_color,
+                )
+            ]
+        shapedef = ChainDef(vertices, loop, filter=filter, materials=materials)
         return cls(body, shapedef)
 
     @property

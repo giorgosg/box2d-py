@@ -25,5 +25,7 @@ jobs:
           pip install cffi setuptools wheel
           
       - name: Install package
-        run: pip install -e .
+        run: |
+          cd ${{ github.workspace }}
+          pip install -e .
 

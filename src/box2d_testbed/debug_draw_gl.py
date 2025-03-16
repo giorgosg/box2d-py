@@ -182,7 +182,7 @@ class GLDebugDraw(DebugDraw):
         # Draw a point as a small circle
         self.points.add_point(p, size, color.hex)
 
-    def draw_string(self, p, s: str, color=Color(0xFFFFFF)):
+    def draw_string(self, p, s: str, color=Color(255, 255, 255, 255)):
         """Store debug string for rendering during end_frame"""
         self.debug_strings.append((p, s, color))
 

@@ -121,10 +121,10 @@ def test_draw_contacts():
 
 def test_color_parsing():
     """Test color conversion from hex values"""
-    color = debug_draw.Color(0x3366FF)
+    color = debug_draw.Color.from_b2HexColor(0x3366FF)
     assert color.r == 0x33 and color.g == 0x66 and color.b == 0xFF
     assert color.a == 255  # Default alpha
 
-    color_with_alpha = debug_draw.Color(0x123456)
+    color_with_alpha = debug_draw.Color.from_b2HexColor(0x123456)
     color_with_alpha.a = 128
     assert color_with_alpha.hex == 0x123456  # Alpha not part of hex

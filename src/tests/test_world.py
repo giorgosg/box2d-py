@@ -293,14 +293,14 @@ def test_query_aabb_filter_player():
         w.new_body()
         .dynamic()
         .position(1, 1)
-        .box(width=1, height=1, collision_filter=player_filter)
+        .box(width=1, height=1, filter=player_filter)
         .build()
     )
     enemy_body = (
         w.new_body()
         .dynamic()
         .position(1, 1)
-        .box(width=1, height=1, collision_filter=enemy_filter)
+        .box(width=1, height=1, filter=enemy_filter)
         .build()
     )
 
@@ -309,7 +309,7 @@ def test_query_aabb_filter_player():
 
     # Query AABB using a filter for "player" only.
     query_filter = CollisionFilter(category="player", mask="player")
-    results = w.query_aabb(aabb, collision_filter=query_filter)
+    results = w.query_aabb(aabb, filter=query_filter)
 
     # Expect only the player's shape to appear.
     for shape in player_body.shapes:
@@ -338,14 +338,14 @@ def test_query_aabb_filter_enemy():
         w.new_body()
         .dynamic()
         .position(1, 1)
-        .box(width=1, height=1, collision_filter=player_filter)
+        .box(width=1, height=1, filter=player_filter)
         .build()
     )
     enemy_body = (
         w.new_body()
         .dynamic()
         .position(1, 1)
-        .box(width=1, height=1, collision_filter=enemy_filter)
+        .box(width=1, height=1, filter=enemy_filter)
         .build()
     )
 
@@ -353,7 +353,7 @@ def test_query_aabb_filter_enemy():
 
     # Query using an "enemy" filter.
     query_filter = CollisionFilter(category="enemy", mask="enemy")
-    results = w.query_aabb(aabb, collision_filter=query_filter)
+    results = w.query_aabb(aabb, filter=query_filter)
 
     for shape in enemy_body.shapes:
         assert shape in results, "Enemy shape should be in query results."
@@ -381,19 +381,19 @@ def test_query_circle_filter_single():
         w.new_body()
         .dynamic()
         .position(0, 0)
-        .circle(radius=1, collision_filter=friend_filter)
+        .circle(radius=1, filter=friend_filter)
         .build()
     )
     enemy_body = (
         w.new_body()
         .dynamic()
         .position(3, 0)  # Placed away so that it is out of the query circle.
-        .circle(radius=1, collision_filter=enemy_filter)
+        .circle(radius=1, filter=enemy_filter)
         .build()
     )
 
     query_filter = CollisionFilter(category="friend", mask="friend")
-    results = w.query_circle(position=(0, 0), radius=1.5, collision_filter=query_filter)
+    results = w.query_circle(position=(0, 0), radius=1.5, filter=query_filter)
 
     for shape in friend_body.shapes:
         assert shape in results, "Friend shape should be returned by the circle query."
@@ -420,22 +420,20 @@ def test_query_circle_combined_filter():
         w.new_body()
         .dynamic()
         .position(0, 0)
-        .circle(radius=1, collision_filter=friend_filter)
+        .circle(radius=1, filter=friend_filter)
         .build()
     )
     enemy_body = (
         w.new_body()
         .dynamic()
         .position(0, 0)
-        .circle(radius=1, collision_filter=enemy_filter)
+        .circle(radius=1, filter=enemy_filter)
         .build()
     )
 
     # Combine the filters so that both categories are allowed.
     combined_filter = friend_filter | enemy_filter
-    results = w.query_circle(
-        position=(0, 0), radius=1.5, collision_filter=combined_filter
-    )
+    results = w.query_circle(position=(0, 0), radius=1.5, filter=combined_filter)
 
     for shape in friend_body.shapes:
         assert shape in results, "Friend shape should appear in the combined query."

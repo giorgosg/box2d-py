@@ -4,16 +4,25 @@ from .math import Vec2, Rot, Transform, AABB, Mat22
 
 
 class Color:
-    def __init__(self, hex_color: int):
-        self._hex = hex_color
-        self.r = (hex_color >> 16) & 0xFF
-        self.g = (hex_color >> 8) & 0xFF
-        self.b = hex_color & 0xFF
-        self.a = 255  # Alpha not part of b2HexColor, default opaque
+    def __init__(self, r: int, g: int, b: int, a: int = 0xFF):
+        self.r, self.g, self.b, self.a = r, g, b, a
+        self.hexcolor = None
+
+    @classmethod
+    def from_b2HexColor(cls, hex_color: int):
+        r = (hex_color >> 16) & 0xFF
+        g = (hex_color >> 8) & 0xFF
+        b = hex_color & 0xFF
+        a = 0xFF  # Alpha not part of b2HexColor, default opaque
+        color = cls(r, g, b, a)
+        return color
 
     @property
-    def hex(self) -> int:
-        return self._hex
+    def b2HexColor(self) -> int:
+        hexcolor = (self.r << 16) | (self.g << 8) | self.b
+        return hexcolor
+
+    hex = b2HexColor
 
     @property
     def as_float(self):
@@ -37,9 +46,7 @@ class Color:
         new_g = g if g is not None else self.g
         new_b = b if b is not None else self.b
         new_a = a if a is not None else self.a
-        new_hex = (new_r << 16) | (new_g << 8) | new_b
-        new_color = Color(new_hex)
-        new_color.a = new_a  # Override alpha if changed
+        new_color = Color(new_r, new_g, new_b, new_a)
         return new_color
 
     def __iter__(self):
@@ -73,7 +80,7 @@ class Color:
 def draw_polygon(vertices, count, color, context):
     instance = ffi.from_handle(context)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance.draw_polygon(py_vertices, Color(color))
+    instance.draw_polygon(py_vertices, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
@@ -81,14 +88,16 @@ def draw_solid_polygon(transform, vertices, count, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance.draw_solid_polygon(py_transform, py_vertices, radius, Color(color))
+    instance.draw_solid_polygon(
+        py_transform, py_vertices, radius, Color.from_b2HexColor(color)
+    )
 
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_circle(center, radius, color, context):
     instance = ffi.from_handle(context)
     py_center = Vec2.from_b2Vec2(center)
-    instance.draw_circle(py_center, radius, Color(color))
+    instance.draw_circle(py_center, radius, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Vec2, b2Vec2, b2HexColor, void*)")
@@ -96,14 +105,14 @@ def draw_segment(p1, p2, color, context):
     instance = ffi.from_handle(context)
     py_p1 = Vec2.from_b2Vec2(p1)
     py_p2 = Vec2.from_b2Vec2(p2)
-    instance.draw_segment(py_p1, py_p2, Color(color))
+    instance.draw_segment(py_p1, py_p2, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
 def draw_point(p, size, color, context):
     instance = ffi.from_handle(context)
     py_p = Vec2.from_b2Vec2(p)
-    instance.draw_point(py_p, size, Color(color))
+    instance.draw_point(py_p, size, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Vec2, const char*, b2HexColor, void*)")
@@ -111,7 +120,7 @@ def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
     py_p = Vec2.from_b2Vec2(p)
     py_str = ffi.string(s).decode("utf-8")
-    instance.draw_string(py_p, py_str, Color(color))
+    instance.draw_string(py_p, py_str, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Vec2, b2Vec2, float, b2HexColor, void*)")
@@ -119,14 +128,14 @@ def draw_solid_capsule(p1, p2, radius, color, context):
     instance = ffi.from_handle(context)
     py_p1 = Vec2.from_b2Vec2(p1)
     py_p2 = Vec2.from_b2Vec2(p2)
-    instance.draw_solid_capsule(py_p1, py_p2, radius, Color(color))
+    instance.draw_solid_capsule(py_p1, py_p2, radius, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Transform, float, b2HexColor, void*)")
 def draw_solid_circle(transform, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
-    instance.draw_solid_circle(py_transform, radius, Color(color))
+    instance.draw_solid_circle(py_transform, radius, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Transform, void*)")

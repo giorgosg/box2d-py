@@ -14,10 +14,9 @@ from .joint import (
 from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
-from .shape_def import CircleDef
 from .shape import Shape
 from dataclasses import dataclass
-
+from .shapedef import CircleDef
 from dataclasses import dataclass
 from .math import Vec2
 from ._box2d import ffi, lib
@@ -707,17 +706,16 @@ class World:
     def query_aabb(
         self,
         aabb: AABB,
-        collision_filter: "CollisionFilter" = None,
+        filter: "CollisionFilter" = None,
         max_results: int = None,
     ) -> list:
         """Find shapes overlapping an axis-aligned bounding box using an optional collision filter.
 
         Args:
             aabb: Axis-aligned bounding box to query.
-            collision_filter: Optional CollisionFilter instance for filtering.
-                          If None, a default CollisionFilter is used.
+            filter: Optional CollisionFilter instance for filtering.
+                If None, a default CollisionFilter is used.
             max_results: Optional maximum number of shapes to return.
-                     The callback will return False when this limit is reached.
 
         Returns:
             list: Shapes with overlapping fixtures.
@@ -726,19 +724,19 @@ class World:
             >>> world = World()
             >>> box = world.new_body().dynamic().position(0, 0).box(1, 1).build()
             >>> aabb = AABB(lower=Vec2(-1, -1), upper=Vec2(1, 1))
-            >>> overlaps = world.query_aabb(aabb, collision_filter=CollisionFilter(), max_results=10)
+            >>> overlaps = world.query_aabb(aabb, filter=CollisionFilter(), max_results=10)
             >>> len(overlaps) <= 10
             True
         """
 
-        if collision_filter is None:
-            collision_filter = CollisionFilter()
+        if filter is None:
+            filter = CollisionFilter()
 
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
 
         # Convert the CollisionFilter to a Box2D c_filter.
-        c_filter = collision_filter.b2QueryFilter
+        c_filter = filter.b2QueryFilter
         filter_dict = {
             "categoryBits": c_filter.categoryBits,
             "maskBits": c_filter.maskBits,
@@ -757,7 +755,7 @@ class World:
         self,
         position: VectorLike,
         radius: float,
-        collision_filter: "CollisionFilter" = None,
+        filter: "CollisionFilter" = None,
         max_results: int = None,
     ) -> list:
         """Find shapes overlapping a circle.
@@ -777,19 +775,19 @@ class World:
             >>> world = World()
             >>> # Create a body with a circle fixture
             >>> box = world.new_body().dynamic().circle(1).build()
-            >>> overlaps = world.query_circle((0, 0), 1.5, collision_filter=CollisionFilter(), max_results=10)
+            >>> overlaps = world.query_circle((0, 0), 1.5, filter=CollisionFilter(), max_results=10)
             >>> len(overlaps) <= 10
             True
         """
-        if collision_filter is None:
-            collision_filter = CollisionFilter()
+        if filter is None:
+            filter = CollisionFilter()
 
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
 
-        circle = CircleDef(radius).circle
+        circle = CircleDef(radius).b2Circle
         transform = Transform(position=position).b2Transform
-        c_filter = collision_filter.b2QueryFilter
+        c_filter = filter.b2QueryFilter
 
         lib.b2World_OverlapCircle(
             self._world_id,
@@ -805,7 +803,7 @@ class World:
         self,
         origin: VectorLike,
         translation: VectorLike,
-        collision_filter: "CollisionFilter" = None,
+        filter: "CollisionFilter" = None,
         first_hit_only: bool = False,
     ) -> list[RayCastResult]:
         """Cast a ray and find intersecting shapes.
@@ -813,7 +811,7 @@ class World:
         Args:
             origin: Starting point of the ray (x,y)
             translation: The translation of the ray from the start point to the end point
-            collision_filter: Optional filter to control which shapes are tested
+            filter: Optional filter to control which shapes are tested
             first_hit_only: If True, only return the first hit encountered
 
         Returns:
@@ -829,14 +827,14 @@ class World:
             >>> isinstance(s, Shape)
             True
         """
-        if collision_filter is None:
-            collision_filter = CollisionFilter()
+        if filter is None:
+            filter = CollisionFilter()
 
         results = []
 
         p1 = to_vec2(origin).b2Vec2[0]
         p2 = to_vec2(translation).b2Vec2[0]
-        c_filter = collision_filter.b2QueryFilter
+        c_filter = filter.b2QueryFilter
         if first_hit_only:
             result = lib.b2World_CastRayClosest(self._world_id, p1, p2, c_filter[0])
             if result.hit:
