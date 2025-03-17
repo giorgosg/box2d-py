@@ -92,7 +92,7 @@ class Shape(ABC):
         body_id = lib.b2Shape_GetBody(self._shape_id)
         body_data = lib.b2Body_GetUserData(body_id)
         if body_data == ffi.NULL:
-            return None
+            raise ValueError("Body not found for shape")
         return ffi.from_handle(body_data)
 
     @property
@@ -204,7 +204,7 @@ class Shape(ABC):
         world_id = lib.b2Shape_GetWorld(self._shape_id)
         world_data = lib.b2World_GetUserData(world_id)
         if world_data == ffi.NULL:
-            return None
+            raise ValueError("World not found for shape")
         return ffi.from_handle(world_data)
 
     @property
@@ -751,10 +751,10 @@ class Chain:
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
         cd = chaindef.b2ChainDef
-        self._shape_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
-        segment_count = lib.b2Chain_GetSegmentCount(self._shape_id)
+        self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
+        segment_count = lib.b2Chain_GetSegmentCount(self._chain_id)
         segments = ffi.new("b2ShapeId[]", segment_count)
-        lib.b2Chain_GetSegments(self._shape_id, segments, segment_count)
+        lib.b2Chain_GetSegments(self._chain_id, segments, segment_count)
         self.segments = [ChainSegment(segments[i], self) for i in range(segment_count)]
 
     @classmethod
@@ -791,3 +791,26 @@ class Chain:
     def body(self):
         """Return the body this chain is attached to."""
         return self._body
+
+    def is_valid(self) -> bool:
+        """
+        Chain identifier validation. Can be used to detect orphaned ids.
+
+        Returns:
+            True if the chain id is valid, False otherwise
+        """
+        return lib.b2Chain_IsValid(self._chain_id)
+
+    @property
+    def world(self) -> "World":
+        """
+        Get the world that owns this chain.
+
+        Returns:
+            The World object that owns this chain
+        """
+        world_id = lib.b2Chain_GetWorld(self._chain_id)
+        world_data = lib.b2World_GetUserData(world_id)
+        if world_data == ffi.NULL:
+            raise ValueError("World data is NULL")
+        return ffi.from_handle(world_data)
