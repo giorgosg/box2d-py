@@ -808,22 +808,14 @@ class Body:
         self,
         vertices: list[tuple],
         loop: bool = False,
-        filter: CollisionFilter = None,
-        friction: float = None,
-        restitution: float = None,
-        custom_color: int = None,
-        materials: Sequence[SurfaceMaterial] = None,
+        **chaindef_args,
     ):
         """Add a chain shape to the body.
 
         Args:
             vertices: List of vertices defining the chain (must contain at least 4 vertices).
             loop: Boolean indicating whether the chain should be closed (looped).
-            friction: Friction coefficient.
-            restitution: Bounciness.
-            collision_filter: Optional CollisionFilter instance for collision filtering.
-            custom_color: Optional custom debug draw color (uint32_t).
-            matrials: Optional list of SurfaceMaterial instances.
+            **chaindef_args: Additional parameters for the `Chain` definition.
 
         Returns:
             The created chain shape.
@@ -832,11 +824,7 @@ class Body:
             self,
             vertices,
             loop,
-            friction=friction,
-            restitution=restitution,
-            filter=filter,
-            custom_color=custom_color,
-            materials=materials,
+            **chaindef_args,
         )
         self._shapes.append(shape)
         return shape
