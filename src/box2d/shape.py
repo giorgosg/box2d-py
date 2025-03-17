@@ -461,6 +461,29 @@ class Circle(Shape):
         )
         self._set_handle()
 
+    def get_circle(self) -> CircleDef:
+        """
+        Get the circle geometry of this shape.
+
+        Returns:
+            CircleDef: A circle definition representing this shape's geometry
+        """
+        circle = lib.b2Shape_GetCircle(self._shape_id)
+        return CircleDef.from_b2Circle(circle)
+
+    def set_circle(self, circle_def: CircleDef) -> None:
+        """
+        Update this circle shape's geometry.
+        This does not modify the mass properties of the body.
+
+        Args:
+            circle_def: A CircleDef object defining the new circle geometry
+
+        Note:
+            You may need to call body.apply_mass_from_shapes() to update mass properties.
+        """
+        lib.b2Shape_SetCircle(self._shape_id, circle_def.b2Circle)
+
     @classmethod
     def create(
         cls,
@@ -493,6 +516,29 @@ class Capsule(Shape):
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
         )
         self._set_handle()
+
+    def get_capsule(self) -> CapsuleDef:
+        """
+        Get the capsule geometry of this shape.
+
+        Returns:
+            CapsuleDef: A capsule definition representing this shape's geometry
+        """
+        capsule = lib.b2Shape_GetCapsule(self._shape_id)
+        return CapsuleDef.from_b2Capsule(capsule)
+
+    def set_capsule(self, capsule_def: CapsuleDef) -> None:
+        """
+        Update this capsule shape's geometry.
+        This does not modify the mass properties of the body.
+
+        Args:
+            capsule_def: A CapsuleDef object defining the new capsule geometry
+
+        Note:
+            You may need to call body.apply_mass_from_shapes() to update mass properties.
+        """
+        lib.b2Shape_SetCapsule(self._shape_id, capsule_def.b2Capsule)
 
     @classmethod
     def create(
@@ -527,6 +573,29 @@ class Segment(Shape):
             body._body_id, ffi.addressof(sd), segmentdef.b2Segment
         )
         self._set_handle()
+
+    def get_segment(self) -> SegmentDef:
+        """
+        Get the segment geometry of this shape.
+
+        Returns:
+            SegmentDef: A segment definition representing this shape's geometry
+        """
+        segment = lib.b2Shape_GetSegment(self._shape_id)
+        return SegmentDef.from_b2Segment(segment)
+
+    def set_segment(self, segment_def: SegmentDef) -> None:
+        """
+        Update this segment shape's geometry.
+        This does not modify the mass properties of the body.
+
+        Args:
+            segment_def: A SegmentDef object defining the new segment geometry
+
+        Note:
+            You may need to call body.apply_mass_from_shapes() to update mass properties.
+        """
+        lib.b2Shape_SetSegment(self._shape_id, segment_def.b2Segment)
 
     @classmethod
     def create(
@@ -563,6 +632,29 @@ class Polygon(Shape):
             ffi.addressof(pd),
         )
         self._set_handle()
+
+    def get_polygon(self) -> PolygonDef:
+        """
+        Get the polygon geometry of this shape.
+
+        Returns:
+            PolygonDef: A polygon definition representing this shape's geometry
+        """
+        polygon = lib.b2Shape_GetPolygon(self._shape_id)
+        return PolygonDef.from_b2Polygon(polygon)
+
+    def set_polygon(self, polygon_def: PolygonDef) -> None:
+        """
+        Update this polygon shape's geometry.
+        This does not modify the mass properties of the body.
+
+        Args:
+            polygon_def: A PolygonDef object defining the new polygon geometry
+
+        Note:
+            You may need to call body.apply_mass_from_shapes() to update mass properties.
+        """
+        lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon_def.b2Polygon))
 
     @classmethod
     def create(

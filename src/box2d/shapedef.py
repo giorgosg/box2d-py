@@ -206,6 +206,19 @@ class CircleDef:
         circle.radius = self.radius
         return circle
 
+    @classmethod
+    def from_b2Circle(cls, circle):
+        """
+        Creates a CircleDef from a b2Circle C structure.
+
+        Args:
+            circle: A b2Circle C structure
+
+        Returns:
+            A CircleDef instance with properties from the b2Circle
+        """
+        return cls(radius=circle.radius, center=Vec2.from_b2Vec2(circle.center))
+
 
 @dataclass
 class CapsuleDef:
@@ -245,6 +258,23 @@ class CapsuleDef:
         capsule.radius = self.radius
         return capsule
 
+    @classmethod
+    def from_b2Capsule(cls, capsule):
+        """
+        Creates a CapsuleDef from a b2Capsule C structure.
+
+        Args:
+            capsule: A b2Capsule C structure
+
+        Returns:
+            A CapsuleDef instance with properties from the b2Capsule
+        """
+        return cls(
+            vertex1=Vec2.from_b2Vec2(capsule.center1),
+            vertex2=Vec2.from_b2Vec2(capsule.center2),
+            radius=capsule.radius,
+        )
+
 
 @dataclass
 class SegmentDef:
@@ -280,6 +310,22 @@ class SegmentDef:
         segment.point1 = self.vertex1.b2Vec2[0]
         segment.point2 = self.vertex2.b2Vec2[0]
         return segment
+
+    @classmethod
+    def from_b2Segment(cls, segment):
+        """
+        Creates a SegmentDef from a b2Segment C structure.
+
+        Args:
+            segment: A b2Segment C structure
+
+        Returns:
+            A SegmentDef instance with properties from the b2Segment
+        """
+        return cls(
+            vertex1=Vec2.from_b2Vec2(segment.point1),
+            vertex2=Vec2.from_b2Vec2(segment.point2),
+        )
 
 
 def _compute_hull(vertices: Sequence[VectorLike]):
@@ -355,6 +401,23 @@ class PolygonDef:
             ffi.addressof(hull), offset.b2Vec2[0], rotation.b2Rot[0], radius
         )
         return polygon
+
+    @classmethod
+    def from_b2Polygon(cls, polygon):
+        """
+        Creates a PolygonDef from a b2Polygon C structure.
+
+        Args:
+            polygon: A b2Polygon C structure
+
+        Returns:
+            A PolygonDef instance with properties from the b2Polygon
+        """
+        vertices = []
+        for i in range(polygon.count):
+            vertices.append(Vec2.from_b2Vec2(polygon.vertices[i]))
+
+        return cls(vertices=vertices, radius=polygon.radius)
 
 
 @dataclass

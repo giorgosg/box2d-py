@@ -314,3 +314,160 @@ def test_shape_multiple_materials(static_body):
     assert chain.segments[0].material != chain.segments[1].material
     assert chain.segments[0].material == chain.segments[2].material
     assert chain.segments[1].material == chain.segments[3].material
+
+
+def test_circle_get_set_geometry(dynamic_body):
+    """Test get_circle and set_circle methods for Circle shapes."""
+    # Create a circle with known dimensions
+    initial_radius = 0.5
+    initial_center = (1.0, 2.0)
+    circle = dynamic_body.add_circle(radius=initial_radius, center=initial_center)
+
+    # Get the geometry and verify initial values
+    circle_def = circle.get_circle()
+    assert circle_def.radius == pytest.approx(initial_radius)
+    assert circle_def.center.x == pytest.approx(1.0)
+    assert circle_def.center.y == pytest.approx(2.0)
+
+    # Modify the geometry
+    new_radius = 1.5
+    new_center = Vec2(3.0, 4.0)
+    from box2d.shapedef import CircleDef
+
+    new_circle_def = CircleDef(radius=new_radius, center=new_center)
+    circle.set_circle(new_circle_def)
+
+    # Get the updated geometry and verify changes
+    updated_def = circle.get_circle()
+    assert updated_def.radius == pytest.approx(new_radius)
+    assert updated_def.center.x == pytest.approx(3.0)
+    assert updated_def.center.y == pytest.approx(4.0)
+
+
+def test_capsule_get_set_geometry(dynamic_body):
+    """Test get_capsule and set_capsule methods for Capsule shapes."""
+    # Create a capsule with known dimensions
+    initial_point1 = (-1.0, 0.5)
+    initial_point2 = (1.0, 0.5)
+    initial_radius = 0.3
+    capsule = dynamic_body.add_capsule(
+        point1=initial_point1, point2=initial_point2, radius=initial_radius
+    )
+
+    # Get the geometry and verify initial values
+    capsule_def = capsule.get_capsule()
+    assert capsule_def.vertex1.x == pytest.approx(-1.0)
+    assert capsule_def.vertex1.y == pytest.approx(0.5)
+    assert capsule_def.vertex2.x == pytest.approx(1.0)
+    assert capsule_def.vertex2.y == pytest.approx(0.5)
+    assert capsule_def.radius == pytest.approx(initial_radius)
+
+    # Modify the geometry
+    from box2d.shapedef import CapsuleDef
+
+    new_capsule_def = CapsuleDef(
+        vertex1=Vec2(-2.0, 1.0), vertex2=Vec2(2.0, 1.0), radius=0.6
+    )
+    capsule.set_capsule(new_capsule_def)
+
+    # Get the updated geometry and verify changes
+    updated_def = capsule.get_capsule()
+    assert updated_def.vertex1.x == pytest.approx(-2.0)
+    assert updated_def.vertex1.y == pytest.approx(1.0)
+    assert updated_def.vertex2.x == pytest.approx(2.0)
+    assert updated_def.vertex2.y == pytest.approx(1.0)
+    assert updated_def.radius == pytest.approx(0.6)
+
+
+def test_segment_get_set_geometry(static_body):
+    """Test get_segment and set_segment methods for Segment shapes."""
+    # Create a segment with known dimensions
+    initial_point1 = (-3.0, 0.0)
+    initial_point2 = (3.0, 0.0)
+    segment = static_body.add_segment(point1=initial_point1, point2=initial_point2)
+
+    # Get the geometry and verify initial values
+    segment_def = segment.get_segment()
+    assert segment_def.vertex1.x == pytest.approx(-3.0)
+    assert segment_def.vertex1.y == pytest.approx(0.0)
+    assert segment_def.vertex2.x == pytest.approx(3.0)
+    assert segment_def.vertex2.y == pytest.approx(0.0)
+
+    # Modify the geometry
+    from box2d.shapedef import SegmentDef
+
+    new_segment_def = SegmentDef(vertex1=Vec2(0.0, -2.0), vertex2=Vec2(0.0, 2.0))
+    segment.set_segment(new_segment_def)
+
+    # Get the updated geometry and verify changes
+    updated_def = segment.get_segment()
+    assert updated_def.vertex1.x == pytest.approx(0.0)
+    assert updated_def.vertex1.y == pytest.approx(-2.0)
+    assert updated_def.vertex2.x == pytest.approx(0.0)
+    assert updated_def.vertex2.y == pytest.approx(2.0)
+
+
+def test_polygon_get_set_geometry(dynamic_body):
+    """Test get_polygon and set_polygon methods for Polygon shapes."""
+    # Create a polygon with known dimensions (a simple square)
+    initial_vertices = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    polygon = dynamic_body.add_polygon(vertices=initial_vertices)
+
+    # Get the geometry and verify we have a polygon with 4 vertices
+    polygon_def = polygon.get_polygon()
+    assert len(polygon_def.vertices) == 4
+
+    # Create a new polygon shape (a triangle)
+    from box2d.shapedef import PolygonDef
+
+    new_polygon_def = PolygonDef(vertices=[(0, 0), (2, 0), (1, 2)])
+    polygon.set_polygon(new_polygon_def)
+
+    # Get the updated geometry and verify changes
+    updated_def = polygon.get_polygon()
+    assert len(updated_def.vertices) == 3
+    # Check the first vertex
+    assert updated_def.vertices[0].x == pytest.approx(0.0)
+    assert updated_def.vertices[0].y == pytest.approx(0.0)
+    # Check the second vertex
+    assert updated_def.vertices[1].x == pytest.approx(2.0)
+    assert updated_def.vertices[1].y == pytest.approx(0.0)
+    # Check the third vertex
+    assert updated_def.vertices[2].x == pytest.approx(1.0)
+    assert updated_def.vertices[2].y == pytest.approx(2.0)
+
+
+def test_box_get_set_geometry(dynamic_body):
+    """Test get_polygon and set_polygon for Box shapes (which are Polygons)."""
+    # Create a box with known dimensions
+    box = dynamic_body.add_box(width=2.0, height=1.0)
+
+    # Get the geometry as a polygon
+    polygon_def = box.get_polygon()
+    assert len(polygon_def.vertices) == 4  # Box has 4 corners
+
+    # Calculate expected width and height from vertices
+    # We need to find the width and height by examining min/max coordinates
+    x_coords = [v.x for v in polygon_def.vertices]
+    y_coords = [v.y for v in polygon_def.vertices]
+    width = max(x_coords) - min(x_coords)
+    height = max(y_coords) - min(y_coords)
+    assert width == pytest.approx(2.0)
+    assert height == pytest.approx(1.0)
+
+    # Create a new polygon shape with different dimensions
+    from box2d.shapedef import PolygonDef
+
+    new_box_vertices = [(-1.5, -0.5), (1.5, -0.5), (1.5, 0.5), (-1.5, 0.5)]
+    new_polygon_def = PolygonDef(vertices=new_box_vertices)
+    box.set_polygon(new_polygon_def)
+
+    # Verify the changes
+    updated_def = box.get_polygon()
+    assert len(updated_def.vertices) == 4
+    x_coords = [v.x for v in updated_def.vertices]
+    y_coords = [v.y for v in updated_def.vertices]
+    width = max(x_coords) - min(x_coords)
+    height = max(y_coords) - min(y_coords)
+    assert width == pytest.approx(3.0)
+    assert height == pytest.approx(1.0)
