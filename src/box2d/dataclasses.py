@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Union
 from .math import Vec2, Rot, Transform
+from ._box2d import lib, ffi
 
 
 @dataclass
@@ -18,9 +19,17 @@ class MassData:
     center: Vec2
     rotational_inertia: float
 
+    @classmethod
+    def from_b2MassData(cls, mass_data):
+        return cls(
+            mass=mass_data.mass,
+            center=Vec2.from_b2Vec2(mass_data.center),
+            rotational_inertia=mass_data.rotationalInertia,
+        )
+
 
 @dataclass
-class RayCastResult:
+class CastResult:
     """
     Result of a ray cast operation.
 
@@ -35,6 +44,18 @@ class RayCastResult:
     normal: Optional[Vec2] = None
     fraction: Optional[float] = None
     iterations: Optional[int] = None
+
+    @classmethod
+    def from_b2CastOutput(cls, output):
+        if output.hit:
+            return cls(
+                point=Vec2.from_b2Vec2(output.point),
+                normal=Vec2.from_b2Vec2(output.normal),
+                fraction=output.fraction,
+                iterations=output.iterations,
+            )
+        else:
+            return None
 
 
 @dataclass
@@ -66,6 +87,21 @@ class ManifoldPoint:
     id: int
     persisted: bool
 
+    @classmethod
+    def from_b2ManifoldPoint(cls, manifold_point):
+        return cls(
+            point=Vec2.from_b2Vec2(manifold_point.point),
+            anchor_a=Vec2.from_b2Vec2(manifold_point.anchorA),
+            anchor_b=Vec2.from_b2Vec2(manifold_point.anchorB),
+            separation=manifold_point.separation,
+            normal_impulse=manifold_point.normalImpulse,
+            tangent_impulse=manifold_point.tangentImpulse,
+            max_normal_impulse=manifold_point.maxNormalImpulse,
+            normal_velocity=manifold_point.normalVelocity,
+            id=manifold_point.id,
+            persisted=manifold_point.persisted,
+        )
+
 
 @dataclass
 class Manifold:
@@ -81,6 +117,16 @@ class Manifold:
     normal: Vec2
     rolling_impulse: float
     points: List[ManifoldPoint]
+
+    @classmethod
+    def from_b2Manifold(cls, manifold):
+        normal = (Vec2.from_b2Vec2(manifold.normal),)
+        rolling_impulse = manifold.rollingImpulse
+        points = [
+            ManifoldPoint.from_b2ManifoldPoint(manifold.points[i])
+            for i in range(manifold.pointCount)
+        ]
+        return cls(normal=normal, rolling_impulse=rolling_impulse, points=points)
 
 
 @dataclass
@@ -99,3 +145,18 @@ class ContactData:
     shape_a: "Shape"
     shape_b: "Shape"
     manifold: Manifold
+
+    @classmethod
+    def from_b2ContactData(cls, contact_data):
+        shape_a_data = lib.b2Shape_GetUserData(contact_data.shapeIdA)
+        shape_b_data = lib.b2Shape_GetUserData(contact_data.shapeIdB)
+        if shape_a_data is None or shape_b_data is None:
+            raise ValueError("Shape data not found in contact data")
+
+        manifold = Manifold.from_b2Manifold(contact_data.manifold)
+
+        return cls(
+            shape_a=ffi.from_handle(shape_a_data),
+            shape_b=ffi.from_handle(shape_b_data),
+            manifold=manifold,
+        )

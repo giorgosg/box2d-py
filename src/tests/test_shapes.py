@@ -5,7 +5,7 @@ from box2d import World, Vec2, AABB
 from box2d.shape import Circle, Capsule, Segment, Polygon, Box, Chain
 from box2d.material import SurfaceMaterial
 from box2d.collision_filter import CollisionFilter
-from box2d.dataclasses import MassData, RayCastResult
+from box2d.dataclasses import MassData, CastResult
 
 
 @pytest.fixture
@@ -221,7 +221,7 @@ def test_shape_validity_and_collision_methods(dynamic_body):
         (-2, 0), (4, 0)
     )  # Ray from left to right through circle
     assert hit_result is not None
-    assert isinstance(hit_result, RayCastResult)
+    assert isinstance(hit_result, CastResult)
     assert isinstance(hit_result.point, Vec2)
     assert isinstance(hit_result.normal, Vec2)
     assert 0 < hit_result.fraction < 1

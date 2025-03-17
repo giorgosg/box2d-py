@@ -20,7 +20,7 @@ from .shapedef import (
 )
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
-from .dataclasses import MassData, RayCastResult, ManifoldPoint, Manifold, ContactData
+from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
 
 
 class Shape(ABC):
@@ -229,11 +229,7 @@ class Shape(ABC):
         - rotational_inertia: Moment of inertia about the center of mass
         """
         md = lib.b2Shape_GetMassData(self._shape_id)
-        return MassData(
-            mass=md.mass,
-            center=Vec2(md.center.x, md.center.y),
-            rotational_inertia=md.rotationalInertia,
-        )
+        return MassData.from_b2MassData(md)
 
     def is_valid(self) -> bool:
         """
@@ -258,7 +254,7 @@ class Shape(ABC):
 
     def ray_cast(
         self, origin: VectorLike, translation: VectorLike
-    ) -> Union[RayCastResult, None]:
+    ) -> Union[CastResult, None]:
         """
         Ray cast against this shape directly.
 
@@ -275,15 +271,7 @@ class Shape(ABC):
         input.maxFraction = 1.0
 
         output = lib.b2Shape_RayCast(self._shape_id, input)
-        if output.hit:
-            return RayCastResult(
-                point=Vec2(output.point.x, output.point.y),
-                normal=Vec2(output.normal.x, output.normal.y),
-                fraction=output.fraction,
-                iterations=output.iterations,
-            )
-        else:
-            return None
+        return CastResult.from_b2CastOutput(output)
 
     def get_contact_capacity(self) -> int:
         """
@@ -328,51 +316,7 @@ class Shape(ABC):
         contact_data = ffi.new("b2ContactData[]", capacity)
         count = lib.b2Shape_GetContactData(self._shape_id, contact_data, capacity)
 
-        result = []
-        for i in range(count):
-            data = contact_data[i]
-
-            # Get the shapes from the IDs
-            shape_a_data = lib.b2Shape_GetUserData(data.shapeIdA)
-            shape_b_data = lib.b2Shape_GetUserData(data.shapeIdB)
-
-            shape_a = (
-                None if shape_a_data == ffi.NULL else ffi.from_handle(shape_a_data)
-            )
-            shape_b = (
-                None if shape_b_data == ffi.NULL else ffi.from_handle(shape_b_data)
-            )
-
-            # Convert manifold points
-            manifold_points = []
-            for j in range(data.manifold.pointCount):
-                mp = data.manifold.points[j]
-                manifold_points.append(
-                    ManifoldPoint(
-                        point=Vec2(mp.point.x, mp.point.y),
-                        anchor_a=Vec2(mp.anchorA.x, mp.anchorA.y),
-                        anchor_b=Vec2(mp.anchorB.x, mp.anchorB.y),
-                        separation=mp.separation,
-                        normal_impulse=mp.normalImpulse,
-                        tangent_impulse=mp.tangentImpulse,
-                        max_normal_impulse=mp.maxNormalImpulse,
-                        normal_velocity=mp.normalVelocity,
-                        id=mp.id,
-                        persisted=mp.persisted,
-                    )
-                )
-
-            # Create manifold
-            manifold = Manifold(
-                normal=Vec2(data.manifold.normal.x, data.manifold.normal.y),
-                rolling_impulse=data.manifold.rollingImpulse,
-                points=manifold_points,
-            )
-
-            # Create contact data
-            contact = ContactData(shape_a=shape_a, shape_b=shape_b, manifold=manifold)
-
-            result.append(contact)
+        result = [ContactData.from_b2ContactData(contact_data[i]) for i in range(count)]
 
         return result
 
