@@ -11,6 +11,8 @@ from .collision_filter import CollisionFilter
 from .math import Vec2, to_vec2, VectorLike, AABB, Rot
 from .debug_draw import Color
 
+_default_shape_def = lib.b2DefaultShapeDef()
+
 
 @dataclass
 class ShapeDef:
@@ -40,20 +42,20 @@ class ShapeDef:
     """
 
     user_data: Optional[Any] = None
-    friction: Optional[float] = None
-    restitution: Optional[float] = None
-    rolling_resistance: Optional[float] = None
-    tangent_speed: Optional[float] = None
-    material: Optional[SurfaceMaterial | int] = None
-    density: Optional[float] = None
+    friction: float = _default_shape_def.friction
+    restitution: float = _default_shape_def.restitution
+    rolling_resistance: float = _default_shape_def.rollingResistance
+    tangent_speed: float = _default_shape_def.tangentSpeed
+    material: SurfaceMaterial | int = _default_shape_def.material
+    density: float = _default_shape_def.density
     filter: Optional[CollisionFilter] = None
-    custom_color: Optional[int] = None
-    is_sensor: Optional[bool] = None
-    enable_contact_events: Optional[bool] = None
-    enable_hit_events: Optional[bool] = None
-    enable_pre_solve_events: Optional[bool] = None
-    invoke_contact_creation: Optional[bool] = None
-    update_body_mass: Optional[bool] = None
+    custom_color: int = _default_shape_def.customColor
+    is_sensor: bool = _default_shape_def.isSensor
+    enable_contact_events: bool = _default_shape_def.enableContactEvents
+    enable_hit_events: bool = _default_shape_def.enableHitEvents
+    enable_pre_solve_events: bool = _default_shape_def.enablePreSolveEvents
+    invoke_contact_creation: bool = _default_shape_def.invokeContactCreation
+    update_body_mass: bool = _default_shape_def.updateBodyMass
 
     @property
     def b2ShapeDef(self):
@@ -73,17 +75,10 @@ class ShapeDef:
         if self.user_data is not None:
             shape_def.userData = self.user_data
 
-        if self.friction is not None:
-            shape_def.friction = self.friction
-
-        if self.restitution is not None:
-            shape_def.restitution = self.restitution
-
-        if self.rolling_resistance is not None:
-            shape_def.rollingResistance = self.rolling_resistance
-
-        if self.tangent_speed is not None:
-            shape_def.tangentSpeed = self.tangent_speed
+        shape_def.friction = self.friction
+        shape_def.restitution = self.restitution
+        shape_def.rollingResistance = self.rolling_resistance
+        shape_def.tangentSpeed = self.tangent_speed
 
         # Handle material - either an int or SurfaceMaterial object
         if self.material is not None:
@@ -110,8 +105,7 @@ class ShapeDef:
             else:
                 shape_def.material = self.material
 
-        if self.density is not None:
-            shape_def.density = self.density
+        shape_def.density = self.density
 
         # Handle CollisionFilter
         if self.filter is not None:
@@ -120,57 +114,15 @@ class ShapeDef:
             shape_def.filter.maskBits = filter.maskBits
             shape_def.filter.groupIndex = filter.groupIndex
 
-        if self.custom_color is not None:
-            shape_def.customColor = self.custom_color
-
-        if self.is_sensor is not None:
-            shape_def.isSensor = self.is_sensor
-
-        if self.enable_contact_events is not None:
-            shape_def.enableContactEvents = self.enable_contact_events
-
-        if self.enable_hit_events is not None:
-            shape_def.enableHitEvents = self.enable_hit_events
-
-        if self.enable_pre_solve_events is not None:
-            shape_def.enablePreSolveEvents = self.enable_pre_solve_events
-
-        if self.invoke_contact_creation is not None:
-            shape_def.invokeContactCreation = self.invoke_contact_creation
-
-        if self.update_body_mass is not None:
-            shape_def.updateBodyMass = self.update_body_mass
+        shape_def.customColor = self.custom_color
+        shape_def.isSensor = self.is_sensor
+        shape_def.enableContactEvents = self.enable_contact_events
+        shape_def.enableHitEvents = self.enable_hit_events
+        shape_def.enablePreSolveEvents = self.enable_pre_solve_events
+        shape_def.invokeContactCreation = self.invoke_contact_creation
+        shape_def.updateBodyMass = self.update_body_mass
 
         return shape_def
-
-    @classmethod
-    def default(cls):
-        """
-        Creates a ShapeDef with Box2D default values.
-
-        Uses b2DefaultShapeDef() to get the default values from Box2D.
-
-        Returns:
-            A ShapeDef instance with default values
-        """
-        default_def = lib.b2DefaultShapeDef()
-        return cls(
-            user_data=None,
-            friction=default_def.friction,
-            restitution=default_def.restitution,
-            rolling_resistance=default_def.rollingResistance,
-            tangent_speed=default_def.tangentSpeed,
-            material=default_def.material,
-            density=default_def.density,
-            filter=None,
-            custom_color=default_def.customColor,
-            is_sensor=default_def.isSensor,
-            enable_contact_events=default_def.enableContactEvents,
-            enable_hit_events=default_def.enableHitEvents,
-            enable_pre_solve_events=default_def.enablePreSolveEvents,
-            invoke_contact_creation=default_def.invokeContactCreation,
-            update_body_mass=default_def.updateBodyMass,
-        )
 
 
 @dataclass

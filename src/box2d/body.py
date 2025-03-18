@@ -1,9 +1,11 @@
 from box2d._box2d import lib, ffi
-from .math import Vec2, Rot, Transform, VectorLike, to_vec2
+from .math import Vec2, Rot, Transform, VectorLike, AABB, to_vec2
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
+from .joint import Joint
 from .collision_filter import CollisionFilter
-from typing import Sequence
+from typing import Sequence, List
 from .material import SurfaceMaterial
+from .dataclasses import MassData, ContactData, BodyDef
 
 
 class BodyBuilder:
@@ -25,7 +27,7 @@ class BodyBuilder:
             world: The World instance where the body will be created.
         """
         self.world = world
-        self._def = lib.b2DefaultBodyDef()
+        self._def = BodyDef()
         self._shape_defs = []
 
     @classmethod
@@ -89,7 +91,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.fixedRotation = fixed
+        self._def.fixed_rotation = fixed
         return self
 
     def bullet(self, bullet=True):
@@ -101,7 +103,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.isBullet = bullet
+        self._def.is_bullet = bullet
         return self
 
     def gravity_scale(self, scale):
@@ -113,7 +115,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.gravityScale = scale
+        self._def.gravity_scale = scale
         return self
 
     def position(self, x: float, y: float):
@@ -125,8 +127,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.position.x = x
-        self._def.position.y = y
+        self._def.position = Vec2(x, y)
         return self
 
     def rotation(self, rotation: float):
@@ -137,7 +138,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.rotation = Rot(rotation).b2Rot[0]
+        self._def.rotation = Rot(rotation)
         return self
 
     def linear_velocity(self, x: float, y: float):
@@ -149,8 +150,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.linearVelocity.x = x
-        self._def.linearVelocity.y = y
+        self._def.linear_velocity = Vec2(x, y)
         return self
 
     def angular_velocity(self, radians: float):
@@ -161,7 +161,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.angularVelocity = radians
+        self._def.angular_velocity = radians
         return self
 
     def linear_damping(self, damping: float):
@@ -173,7 +173,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.linearDamping = damping
+        self._def.linear_damping = damping
         return self
 
     def angular_damping(self, damping: float):
@@ -185,7 +185,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.angularDamping = damping
+        self._def.angular_damping = damping
         return self
 
     def enable_sleep(self, enable: bool):
@@ -197,7 +197,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.enableSleep = enable
+        self._def.enable_sleep = enable
         return self
 
     def sleep_threshold(self, threshold: float):
@@ -209,7 +209,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.sleepThreshold = threshold
+        self._def.sleep_threshold = threshold
         return self
 
     def box(
@@ -396,13 +396,6 @@ class BodyBuilder:
         """
         body = Body(self.world, self._def)
 
-        # Apply additional properties after creation
-        if self._def.fixedRotation:
-            lib.b2Body_SetFixedRotation(body._body_id, True)
-        if self._def.isBullet:
-            lib.b2Body_SetBullet(body._body_id, True)
-        lib.b2Body_SetGravityScale(body._body_id, self._def.gravityScale)
-
         # Create shapes
         for shape_def in self._shape_defs:
             method = getattr(body, f'add_{shape_def["type"]}')
@@ -418,7 +411,13 @@ class Body:
     impulses, and constraints applied to them.
     """
 
-    def __init__(self, world, body_def):
+    types = {
+        "static": lib.b2_staticBody,
+        "kinematic": lib.b2_kinematicBody,
+        "dynamic": lib.b2_dynamicBody,
+    }
+
+    def __init__(self, world: "World", body_def: BodyDef):
         """
         Initialize a Body instance.
 
@@ -427,13 +426,12 @@ class Body:
             body_def: The body definition used to create this body.
         """
         self.world = world
-        self.body_def = body_def
-        self._body_id = lib.b2CreateBody(
-            self.world._world_id, ffi.addressof(self.body_def)
-        )
         self._handle = ffi.new_handle(self)
-        lib.b2Body_SetUserData(self._body_id, self._handle)
+        body_def.user_data = self._handle
+        b2BodyDef = body_def.b2BodyDef
+        self._body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(b2BodyDef))
         self._shapes = []
+        self._chains = []
         self.world._track_body(self)
 
     @property
@@ -505,17 +503,6 @@ class Body:
     def sleep_threshold(self, value: float):
         """Set the sleep threshold value."""
         lib.b2Body_SetSleepThreshold(self._body_id, float(value))
-
-    @property
-    def type(self):
-        """Get the body type as a string ('dynamic', 'kinematic', or 'static')."""
-        body_type = lib.b2Body_GetType(self._body_id)
-        if body_type == lib.b2_dynamicBody:
-            return "dynamic"
-        elif body_type == lib.b2_kinematicBody:
-            return "kinematic"
-        else:
-            return "static"
 
     @property
     def fixed_rotation(self):
@@ -820,14 +807,14 @@ class Body:
         Returns:
             The created chain shape.
         """
-        shape = Chain.create(
+        chain = Chain.create(
             self,
             vertices,
             loop,
             **chaindef_args,
         )
-        self._shapes.append(shape)
-        return shape
+        self._chains.append(chain)
+        return chain
 
     def remove_shape(self, shape):
         """Remove a shape from the body."""
@@ -849,6 +836,294 @@ class Body:
         if hasattr(self.world, "_bodies"):
             self.world._bodies.pop(self._body_id, None)
         self._body_id = None
+
+    def get_local_point(self, world_point: VectorLike) -> Vec2:
+        """Convert a point from world space to local body space.
+
+        Args:
+            world_point: A point in world coordinates.
+
+        Returns:
+            The point in local body coordinates.
+        """
+        point = to_vec2(world_point).b2Vec2[0]
+        local_point = lib.b2Body_GetLocalPoint(self._body_id, point)
+        return Vec2(local_point.x, local_point.y)
+
+    def get_world_point(self, local_point: VectorLike) -> Vec2:
+        """Convert a point from local body space to world space.
+
+        Args:
+            local_point: A point in local body coordinates.
+
+        Returns:
+            The point in world coordinates.
+        """
+        point = to_vec2(local_point).b2Vec2
+        world_point = lib.b2Body_GetWorldPoint(self._body_id, point[0])
+        return Vec2.from_b2Vec2(world_point)
+
+    def get_local_vector(self, world_vector: VectorLike) -> Vec2:
+        """Convert a vector from world space to local body space.
+
+        Args:
+            world_vector: A vector in world coordinates.
+
+        Returns:
+            The vector in local body coordinates.
+        """
+        vector = to_vec2(world_vector).b2Vec2
+        local_vector = lib.b2Body_GetLocalVector(self._body_id, vector[0])
+        return Vec2.from_b2Vec2(local_vector)
+
+    def get_world_vector(self, local_vector: VectorLike) -> Vec2:
+        """Convert a vector from local body space to world space.
+
+        Args:
+            local_vector: A vector in local body coordinates.
+
+        Returns:
+            The vector in world coordinates.
+        """
+        vector = to_vec2(local_vector).b2Vec2
+        world_vector = lib.b2Body_GetWorldVector(self._body_id, vector[0])
+        return Vec2.from_b2Vec2(world_vector)
+
+    def get_local_point_velocity(self, local_point: VectorLike) -> Vec2:
+        """Get the velocity of a local point on the body.
+
+        Args:
+            local_point: A point in local body coordinates.
+
+        Returns:
+            The velocity of the point in world coordinates.
+        """
+        point = to_vec2(local_point).b2Vec2
+        velocity = lib.b2Body_GetLocalPointVelocity(self._body_id, point[0])
+        return Vec2.from_b2Vec2(velocity)
+
+    def get_world_point_velocity(self, world_point: VectorLike) -> Vec2:
+        """Get the velocity of a world point if it were attached to the body.
+
+        Args:
+            world_point: A point in world coordinates.
+
+        Returns:
+            The velocity of the point in world coordinates.
+        """
+        point = to_vec2(world_point).b2Vec2
+        velocity = lib.b2Body_GetWorldPointVelocity(self._body_id, point[0])
+        return Vec2.from_b2Vec2(velocity)
+
+    def apply_angular_impulse(self, impulse: float, wake: bool = True):
+        """Apply an angular impulse to the body.
+
+        Args:
+            impulse: The angular impulse in kg*m^2/s.
+            wake: Whether to wake the body.
+        """
+        lib.b2Body_ApplyAngularImpulse(self._body_id, float(impulse), wake)
+
+    @property
+    def local_center_of_mass(self) -> Vec2:
+        """Get the center of mass position in local space.
+
+        Returns:
+            Center of mass in local coordinates.
+        """
+        center = lib.b2Body_GetLocalCenterOfMass(self._body_id)
+        return Vec2.from_b2Vec2(center)
+
+    @property
+    def world_center_of_mass(self) -> Vec2:
+        """Get the center of mass position in world space.
+
+        Returns:
+            Center of mass in world coordinates.
+        """
+        center = lib.b2Body_GetWorldCenterOfMass(self._body_id)
+        return Vec2.from_b2Vec2(center)
+
+    @property
+    def mass_data(self) -> MassData:
+        """Get the complete mass data for the body.
+
+        Returns:
+            MassData object containing mass, center of mass, and rotational inertia.
+        """
+        b2_mass_data = lib.b2Body_GetMassData(self._body_id)
+        return MassData.from_b2MassData(b2_mass_data)
+
+    @mass_data.setter
+    def mass_data(self, mass_data: MassData):
+        """Override the body's mass properties.
+
+        Args:
+            mass_data: Mass data to apply to the body.
+        """
+        b2_mass_data = mass_data.b2MassData
+        lib.b2Body_SetMassData(self._body_id, b2_mass_data[0])
+
+    def apply_mass_from_shapes(self):
+        """Update mass properties to the sum of the mass properties of the shapes.
+
+        This normally doesn't need to be called unless you called set_mass_data()
+        to override the mass and later want to reset the mass.
+        """
+        lib.b2Body_ApplyMassFromShapes(self._body_id)
+
+    @property
+    def aabb(self) -> AABB:
+        """Get the AABB enclosing all shapes attached to the body.
+
+        Returns:
+            AABB object representing the axis-aligned bounding box.
+        """
+        b2_aabb = lib.b2Body_ComputeAABB(self._body_id)
+        return AABB(
+            Vec2.from_b2Vec2(b2_aabb.lowerBound),
+            Vec2.from_b2Vec2(b2_aabb.upperBound),
+        )
+
+    def get_joint_count(self) -> int:
+        """Get the number of joints attached to this body.
+
+        Returns:
+            The number of attached joints.
+        """
+        return lib.b2Body_GetJointCount(self._body_id)
+
+    def get_joints(self) -> List[Joint]:
+        """Get the joints attached to this body.
+
+        Returns:
+            List of Joint objects attached to this body.
+        """
+        count = self.get_joint_count()
+        if count == 0:
+            return []
+
+        joint_ids = ffi.new("b2JointId[]", count)
+        actual_count = lib.b2Body_GetJoints(self._body_id, joint_ids, count)
+
+        joints = []
+        for i in range(actual_count):
+            joint_data = lib.b2Joint_GetUserData(joint_ids[i])
+            if joint_data:
+                joint = ffi.from_handle(joint_data)
+                joints.append(joint)
+
+        return joints
+
+    @property
+    def joints(self) -> List[Joint]:
+        """Get all joints attached to this body.
+
+        Returns:
+            List of Joint objects attached to this body.
+        """
+        return self.get_joints()
+
+    def get_contact_capacity(self) -> int:
+        """Get the maximum capacity for contacts on this body.
+
+        Returns:
+            The maximum capacity for contacts.
+        """
+        return lib.b2Body_GetContactCapacity(self._body_id)
+
+    def get_contact_data(self) -> List[ContactData]:
+        """Get contact data for all active contacts involving this body.
+
+        Returns:
+            List of ContactData objects for touching contacts.
+        """
+        capacity = self.get_contact_capacity()
+        if capacity == 0:
+            return []
+
+        contact_data_array = ffi.new("b2ContactData[]", capacity)
+        count = lib.b2Body_GetContactData(self._body_id, contact_data_array, capacity)
+
+        contacts = []
+        for i in range(count):
+            contacts.append(ContactData.from_b2ContactData(contact_data_array[i]))
+
+        return contacts
+
+    @property
+    def contact_data(self) -> List[ContactData]:
+        """Get all active contacts for this body.
+
+        Returns:
+            List of ContactData objects.
+        """
+        return self.get_contact_data()
+
+    @property
+    def name(self) -> str:
+        """Get the name of the body.
+
+        Returns:
+            The name of the body, or None if no name is set.
+        """
+        name = lib.b2Body_GetName(self._body_id)
+        if name == ffi.NULL:
+            return None
+        return ffi.string(name).decode("utf-8")
+
+    @name.setter
+    def name(self, value: str):
+        """Set the name of the body.
+
+        Args:
+            value: The name to set for the body. Limited to 31 characters.
+        """
+        if value is None:
+            lib.b2Body_SetName(self._body_id, ffi.NULL)
+        else:
+            if len(value) > 31:
+                import warnings
+
+                warnings.warn("Body name truncated to 31 characters")
+                value = value[:31]
+            lib.b2Body_SetName(self._body_id, value.encode("utf-8"))
+
+    def dump(self):
+        """Dump the body data to the log for debugging."""
+        lib.b2Body_Dump(self._body_id)
+
+    def get_next_body(self):
+        """Get the next body in the world's body list.
+
+        Returns:
+            The next body in the world or None if this is the last body.
+        """
+        next_id = lib.b2Body_GetNext(self._body_id)
+        if lib.b2Body_IsValid(next_id):
+            body_data = lib.b2Body_GetUserData(next_id)
+            if body_data:
+                return ffi.from_handle(body_data)
+            else:
+                raise ValueError("Invalid body data")
+        return None
+
+    @property
+    def type(self):
+        """Get/Set the body type as a string ('static', 'kinematic', or 'dynamic')."""
+        type_id = lib.b2Body_GetType(self._body_id)
+        for name, value in Body.types.items():
+            if value == type_id:
+                return name
+
+    @type.setter
+    def set_type(self, body_type: str):
+        if body_type not in Body.types:
+            raise ValueError(
+                f"Invalid body type: {body_type}. Must be one of: {', '.join(type_map.keys())}"
+            )
+
+        lib.b2Body_SetType(self._body_id, type_map[body_type])
 
     # TODO: currently is segfaults one of the tests. need to figure out why.
     # def __del__(self):

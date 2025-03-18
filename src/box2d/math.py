@@ -84,14 +84,14 @@ class Vec2:
             # Check if x is a b2Vec2
             if isinstance(x, b2Vec2_type):
                 if ffi.typeof(x).cname == b2Vec2_ctype:
-                    pass
+                    b2vec = ffi.addressof(x)
                 elif ffi.typeof(x).cname == b2Vec2_ctype + " *":
-                    x = x[0]
+                    b2vec = x
                 else:
                     raise ValueError("Invalid CData type")
                 self._x = float(x.x)
                 self._y = float(x.y)
-                self._b2vec2 = x
+                self._b2vec2 = None  # FIXME: perhaps keeping the b2vec2 for cases where it will be converted back again.
                 return
         else:
             self._x = float(x)

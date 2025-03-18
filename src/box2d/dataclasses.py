@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional, Union
+from enum import IntEnum
 from .math import Vec2, Rot, Transform
 from ._box2d import lib, ffi
 
@@ -26,6 +27,14 @@ class MassData:
             center=Vec2.from_b2Vec2(mass_data.center),
             rotational_inertia=mass_data.rotationalInertia,
         )
+
+    @property
+    def b2MassData(self):
+        mass_data = ffi.new("b2MassData*")
+        mass_data.mass = self.mass
+        mass_data.center = self.center.b2Vec2
+        mass_data.rotationalInertia = self.rotational_inertia
+        return mass_data
 
 
 @dataclass
@@ -160,3 +169,104 @@ class ContactData:
             shape_b=ffi.from_handle(shape_b_data),
             manifold=manifold,
         )
+
+
+class BodyType(IntEnum):
+    """
+    Enum for body types: static (0), kinematic (1), or dynamic (2).
+    """
+
+    STATIC = lib.b2_staticBody
+    KINEMATIC = lib.b2_kinematicBody
+    DYNAMIC = lib.b2_dynamicBody
+
+
+_default_body_def = lib.b2DefaultBodyDef()
+
+
+@dataclass
+class BodyDef:
+    """
+    A body definition holds all the data needed to construct a rigid body.
+
+    You can safely re-use body definitions. Shapes are added to a body after construction.
+
+    Attributes:
+        type: The body type: static (0), kinematic (1), or dynamic (2).
+        position: The initial world position of the body (Vec2).
+        rotation: The initial world rotation of the body (Rot).
+        linear_velocity: The initial linear velocity of the body's origin.
+        angular_velocity: The initial angular velocity of the body in radians per second.
+        linear_damping: Linear damping reduces linear velocity. Can be > 1.
+        angular_damping: Angular damping reduces angular velocity. Can be > 1.
+        gravity_scale: Scale the gravity applied to this body. Non-dimensional.
+        sleep_threshold: Sleep speed threshold, default is 0.05 meters per second.
+        name: Optional body name for debugging (up to 31 characters).
+        user_data: Application specific body data.
+        enable_sleep: Set to false if this body should never fall asleep.
+        is_awake: Is this body initially awake or sleeping?
+        fixed_rotation: Should this body be prevented from rotating?
+        is_bullet: Treat this body as high speed object for continuous collision detection.
+        is_enabled: Used to disable a body. A disabled body doesn't move or collide.
+        allow_fast_rotation: Bypass rotational speed limits. For circular objects like wheels.
+    """
+
+    type: int = _default_body_def.type
+    position: Vec2 = Vec2.from_b2Vec2(_default_body_def.position)
+    rotation: Rot = Rot.from_b2Rot(_default_body_def.rotation)
+    linear_velocity: Vec2 = Vec2.from_b2Vec2(_default_body_def.linearVelocity)
+    angular_velocity: float = _default_body_def.angularVelocity
+    linear_damping: float = _default_body_def.linearDamping
+    angular_damping: float = _default_body_def.angularDamping
+    gravity_scale: float = _default_body_def.gravityScale
+    sleep_threshold: float = _default_body_def.sleepThreshold
+    name: Optional[str] = None
+    user_data: Optional[object] = None
+    enable_sleep: bool = _default_body_def.enableSleep
+    is_awake: bool = _default_body_def.isAwake
+    fixed_rotation: bool = _default_body_def.fixedRotation
+    is_bullet: bool = _default_body_def.isBullet
+    is_enabled: bool = _default_body_def.isEnabled
+    allow_fast_rotation: bool = _default_body_def.allowFastRotation
+
+    @property
+    def b2BodyDef(self):
+        """
+        Creates and returns the C structure for this body definition.
+
+        Uses b2DefaultBodyDef() to get default values and only
+        overrides properties that have been explicitly set.
+
+        Returns:
+            A b2BodyDef C structure representing this body definition
+        """
+        # Start with defaults
+        body_def = lib.b2DefaultBodyDef()
+
+        # Override with any explicitly set values
+        body_def.type = self.type
+        body_def.position = self.position.b2Vec2[0]
+        body_def.rotation = self.rotation.b2Rot
+        body_def.linearVelocity = self.linear_velocity.b2Vec2[0]
+        body_def.angularVelocity = self.angular_velocity
+        body_def.linearDamping = self.linear_damping
+        body_def.angularDamping = self.angular_damping
+        body_def.gravityScale = self.gravity_scale
+        body_def.sleepThreshold = self.sleep_threshold
+
+        if self.name is not None:
+            # Need to keep a reference to the C string
+            self._name_string = ffi.new("char[]", self.name.encode("utf-8"))
+            body_def.name = self._name_string
+
+        if self.user_data is not None:
+            body_def.userData = self.user_data
+
+        body_def.enableSleep = self.enable_sleep
+        body_def.isAwake = self.is_awake
+        body_def.fixedRotation = self.fixed_rotation
+        body_def.isBullet = self.is_bullet
+        body_def.isEnabled = self.is_enabled
+        body_def.allowFastRotation = self.allow_fast_rotation
+
+        return body_def
