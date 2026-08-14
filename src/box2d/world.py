@@ -15,10 +15,8 @@ from .math import Vec2, VectorLike, AABB, Transform, to_vec2
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
+from .lifetime import IdRef, DestroyedError, raw_id, is_live
 from dataclasses import dataclass
-from dataclasses import dataclass
-from .math import Vec2
-from ._box2d import ffi, lib
 
 
 @dataclass
@@ -103,6 +101,8 @@ class World:
         >>> for _ in range(60):
         ...     world.step(1/60, 4)
     """
+
+    _world_id = IdRef(lib.b2World_IsValid, "world")
 
     def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
         """Initialize physics world with specified gravity vector.
@@ -924,8 +924,16 @@ class World:
 
         return SensorEvents(begin=begin_events, end=end_events)
 
+    @property
+    def is_valid(self) -> bool:
+        """Whether this world is still live, i.e. has not been destroyed."""
+        return is_live(self, "_world_id", lib.b2World_IsValid)
+
     def destroy(self):
         """Destroy the world.
+
+        Destroying a world also destroys every body, shape and joint in it.
+        Those objects raise :class:`DestroyedError` if used afterwards.
 
         Example:
             >>> world = World()
@@ -936,8 +944,12 @@ class World:
             lib.cleanup_threadpool()
             self._use_c_scheduler = False
 
-        if hasattr(self, "_world_id"):
-            lib.b2DestroyWorld(self._world_id)
+        # Read past the validity check: destroy must stay callable (and a no-op)
+        # on an already-destroyed world, since __del__ routes through here.
+        raw = raw_id(self, "_world_id")
+        if raw is not None:
+            if lib.b2World_IsValid(raw):
+                lib.b2DestroyWorld(raw)
             del self._world_id
 
     def __del__(self):

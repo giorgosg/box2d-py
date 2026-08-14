@@ -21,6 +21,7 @@ from .shapedef import (
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
+from .lifetime import IdRef, is_live
 
 
 class Shape(ABC):
@@ -28,6 +29,8 @@ class Shape(ABC):
     Base class for all non-chain shapes.
     It provides common properties like density, friction, restitution
     """
+
+    _shape_id = IdRef(lib.b2Shape_IsValid, "shape")
 
     def __init__(self, body: "Body"):
         self._body = body
@@ -238,7 +241,7 @@ class Shape(ABC):
         Returns:
             True if the shape id is valid, False otherwise
         """
-        return lib.b2Shape_IsValid(self._shape_id)
+        return is_live(self, "_shape_id", lib.b2Shape_IsValid)
 
     def test_point(self, point: VectorLike) -> bool:
         """
@@ -692,6 +695,8 @@ class Chain:
     because they are typically used for static boundaries and have no density/sensor properties.
     """
 
+    _chain_id = IdRef(lib.b2Chain_IsValid, "chain")
+
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
         cd = chaindef.b2ChainDef
@@ -743,7 +748,7 @@ class Chain:
         Returns:
             True if the chain id is valid, False otherwise
         """
-        return lib.b2Chain_IsValid(self._chain_id)
+        return is_live(self, "_chain_id", lib.b2Chain_IsValid)
 
     @property
     def world(self) -> "World":

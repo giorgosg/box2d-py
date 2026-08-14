@@ -6,6 +6,7 @@ from .collision_filter import CollisionFilter
 from typing import Sequence, List
 from .material import SurfaceMaterial
 from .dataclasses import MassData, ContactData, BodyDef
+from .lifetime import IdRef, raw_id, is_live
 
 
 class BodyBuilder:
@@ -417,6 +418,8 @@ class Body:
         "dynamic": lib.b2_dynamicBody,
     }
 
+    _body_id = IdRef(lib.b2Body_IsValid, "body")
+
     def __init__(self, world: "World", body_def: BodyDef):
         """
         Initialize a Body instance.
@@ -826,16 +829,29 @@ class Body:
         """Check if the body is allowed to sleep."""
         return lib.b2Body_IsSleepEnabled(self._body_id)
 
+    @property
+    def is_valid(self) -> bool:
+        """Whether this body is still live, i.e. has not been destroyed."""
+        return is_live(self, "_body_id", lib.b2Body_IsValid)
+
     def destroy(self):
         """
         Destroy this body and remove it from the world.
+
+        Destroying a body also destroys its shapes. The body and its shapes
+        raise :class:`DestroyedError` if used afterwards. Destroying twice is a
+        no-op.
         """
-        if getattr(self, "_body_id", None) is None:
+        # Read past the validity check: the id is needed to deregister the body
+        # even once Box2D no longer recognises it (e.g. the world went first).
+        raw = raw_id(self, "_body_id")
+        if raw is None:
             return
-        lib.b2DestroyBody(self._body_id)
+        if lib.b2Body_IsValid(raw):
+            lib.b2DestroyBody(raw)
         if hasattr(self.world, "_bodies"):
-            self.world._bodies.pop(self._body_id, None)
-        self._body_id = None
+            self.world._bodies.pop(raw, None)
+        del self._body_id
 
     def get_local_point(self, world_point: VectorLike) -> Vec2:
         """Convert a point from world space to local body space.

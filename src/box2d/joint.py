@@ -3,6 +3,7 @@
 from box2d._box2d import lib, ffi
 from abc import ABC, abstractmethod
 from .math import Vec2
+from .lifetime import IdRef, raw_id, is_live
 
 
 class Joint(ABC):
@@ -11,6 +12,8 @@ class Joint(ABC):
     Manages the lifecycle and common properties of constraints between bodies,
     such as anchors and collision handling between connected bodies.
     """
+
+    _joint_id = IdRef(lib.b2Joint_IsValid, "joint")
 
     def __init__(self, world, body_a, body_b, collide_connected=False):
         """Initialize a joint between two bodies.
@@ -33,10 +36,17 @@ class Joint(ABC):
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
 
     def destroy(self):
-        """Destroy the joint and remove it from the world."""
-        if self._joint_id and lib.b2Joint_IsValid(self._joint_id):
-            lib.b2DestroyJoint(self._joint_id)
-        self._joint_id = None
+        """Destroy the joint and remove it from the world.
+
+        The joint raises :class:`DestroyedError` if used afterwards. Destroying
+        twice is a no-op.
+        """
+        # Read past the validity check so destroy stays callable on a joint
+        # Box2D has already reclaimed, e.g. one whose bodies went first.
+        raw = raw_id(self, "_joint_id")
+        if raw is not None and lib.b2Joint_IsValid(raw):
+            lib.b2DestroyJoint(raw)
+        del self._joint_id
 
     @property
     def is_valid(self):
@@ -46,7 +56,7 @@ class Joint(ABC):
             True if the joint still connects its bodies, False if it has been
             removed or destroyed
         """
-        return lib.b2Joint_IsValid(self._joint_id)
+        return is_live(self, "_joint_id", lib.b2Joint_IsValid)
 
     @property
     def body_a(self):
