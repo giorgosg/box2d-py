@@ -30,7 +30,7 @@ class MockDebugDraw(DebugDraw):
     def draw_circle(self, center, radius, color):
         self.draw_circle_count += 1
 
-    def draw_solid_circle(self, transform, radius, color):
+    def draw_solid_circle(self, transform, center, radius, color):
         self.draw_solid_circle_count += 1
 
     def draw_segment(self, p1, p2, color):
@@ -79,11 +79,14 @@ def test_draw_circle():
 
 
 def test_draw_shapes_property():
+    """Box2D 3.2 flipped this default to True, so test the toggle, not the default."""
     debug_draw = DebugDraw()
-    assert debug_draw.draw_shapes is False
 
     debug_draw.draw_shapes = True
     assert debug_draw.draw_shapes is True
+
+    debug_draw.draw_shapes = False
+    assert debug_draw.draw_shapes is False
 
 
 def test_draw_aabbs_property():

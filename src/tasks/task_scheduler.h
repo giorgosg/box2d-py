@@ -12,13 +12,11 @@
 // Initializes the task scheduler with the specified number of worker threads.
 API_EXPORT void setup_threadpool(unsigned int num_threads);
 
-// Enqueues a task to be executed with the given parameters.
+// Enqueues one Box2D task on the pool.
 // Returns an opaque pointer (handle) to the task set.
 API_EXPORT void* c_enqueue_tasks(
-    b2TaskCallback* task, 
-    int itemCount, 
-    int minRange, 
-    void *taskContext, 
+    b2TaskCallback* task,
+    void *taskContext,
     void *userContext);
 
 // Waits for the enqueued task set to complete and then deletes the task set.

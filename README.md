@@ -47,8 +47,8 @@ bodies = [bodybuilder.position(x, 5).build() for x in range(-5, 5)]
 # Simulation loop
 for _ in range(180):
     world.step(1/60, 4)
-# Bodies have come to rest on the ground
-print(bodies[0].position)  # Vec2(-5.0, -4.25)
+# Bodies have come to rest on top of the ground
+print(round(bodies[0].position.y, 2))  # -4.25
 ```
 
 ## Development Status

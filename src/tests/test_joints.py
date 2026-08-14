@@ -65,9 +65,11 @@ def test_mouse_joint_reaction_forces(world_and_bodies):
     # for _ in range(10):
     world.step(1 / 60)
 
-    # Verify reaction forces make sense
-    assert joint.constraint_force.length > 0  # Should have some force
-    assert joint.constraint_torque > 0
+    # Verify reaction forces make sense. Since 3.2 the mouse joint is a motor
+    # joint with a linear spring only, so it pulls without twisting: force is
+    # non-zero, torque is not.
+    assert joint.constraint_force.length > 0
+    assert joint.constraint_torque == 0
 
 
 def test_weld_joint_creation(world_and_bodies):

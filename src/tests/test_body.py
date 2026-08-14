@@ -234,9 +234,9 @@ def test_body_damping():
     assert body.angular_velocity < 4
 
 
-def test_fixed_rotation():
+def test_lock_rotation():
     world = World()
-    body = world.new_body().dynamic().fixed_rotation(True).build()
+    body = world.new_body().dynamic().lock_rotation(True).build()
 
     # Apply torque
     body.apply_torque(10.0)
@@ -350,7 +350,7 @@ def test_mixed_body_properties():
         .position(5, 10)
         .linear_velocity(2, -1)
         .angular_velocity(1.5)
-        .fixed_rotation(True)
+        .lock_rotation(True)
         .bullet(True)
         .gravity_scale(0.8)
         .build()
@@ -359,7 +359,7 @@ def test_mixed_body_properties():
     assert body.position == (5, 10)
     assert body.linear_velocity == (2, -1)
     assert body.angular_velocity == 1.5
-    assert body.fixed_rotation == True
+    assert body.lock_rotation == True
     assert body.is_bullet == True
     assert body.gravity_scale == aprx(0.8)
 
@@ -447,7 +447,7 @@ def test_body_properties_get_set():
         .position(5, 10)
         .linear_velocity(2, 3)
         .angular_velocity(1.0)
-        .fixed_rotation(False)
+        .lock_rotation(False)
         .gravity_scale(1.5)
         .bullet(False)
         .linear_damping(0.1)
@@ -464,7 +464,7 @@ def test_body_properties_get_set():
     assert body.angular_damping == pytest.approx(0.2)
     assert body.sleep_threshold == pytest.approx(0.05)
     assert body.type == "dynamic"
-    assert body.fixed_rotation == False
+    assert body.lock_rotation == False
     assert body.is_bullet == False
     assert body.gravity_scale == pytest.approx(1.5)
 
@@ -493,8 +493,8 @@ def test_body_properties_get_set():
     assert body.sleep_threshold == pytest.approx(0.1)
 
     # Modify fixed rotation and bullet flags
-    body.fixed_rotation = True
-    assert body.fixed_rotation is True
+    body.lock_rotation = True
+    assert body.lock_rotation is True
 
     body.is_bullet = True
     assert body.is_bullet is True

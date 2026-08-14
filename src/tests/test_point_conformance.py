@@ -155,8 +155,8 @@ ENTRY_POINTS = {
     "World.add_wheel_joint.axis": lambda w, bs, p: w.add_wheel_joint(
         *bs, local_anchor_a=(0.0, 0.0), local_anchor_b=(0.0, 0.0), axis=p
     ),
-    "World.add_motor_joint.linear_offset": lambda w, bs, p: w.add_motor_joint(
-        *bs, linear_offset=p
+    "World.add_motor_joint.linear_velocity": lambda w, bs, p: w.add_motor_joint(
+        *bs, linear_velocity=p
     ),
     "World.add_mouse_joint.target": lambda w, bs, p: w.add_mouse_joint(bs[0], p),
     # World anchors: resolved through Transform.inverse rather than passed straight
@@ -192,7 +192,7 @@ def test_entry_point_rejects_wrong_length(world, bodies, entry):
 
 # Parameters whose names look point-shaped but are genuinely scalars.
 SCALAR_EXCEPTIONS = {
-    "angular_offset",
+    "angular_velocity",
     "max_motor_force",
     "max_motor_torque",
     "max_force",

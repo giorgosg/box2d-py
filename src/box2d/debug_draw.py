@@ -76,11 +76,12 @@ class Color:
 
 
 # Define callback wrappers with cffi.callback and conversion logic
-@ffi.callback("void(b2Vec2*, int, b2HexColor, void*)")
-def draw_polygon(vertices, count, color, context):
+@ffi.callback("void(b2Transform, b2Vec2*, int, b2HexColor, void*)")
+def draw_polygon(transform, vertices, count, color, context):
     instance = ffi.from_handle(context)
+    py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance.draw_polygon(py_vertices, Color.from_b2HexColor(color))
+    instance.draw_polygon(py_transform, py_vertices, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
@@ -131,11 +132,14 @@ def draw_solid_capsule(p1, p2, radius, color, context):
     instance.draw_solid_capsule(py_p1, py_p2, radius, Color.from_b2HexColor(color))
 
 
-@ffi.callback("void(b2Transform, float, b2HexColor, void*)")
-def draw_solid_circle(transform, radius, color, context):
+@ffi.callback("void(b2Transform, b2Vec2, float, b2HexColor, void*)")
+def draw_solid_circle(transform, center, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
-    instance.draw_solid_circle(py_transform, radius, Color.from_b2HexColor(color))
+    py_center = Vec2.from_b2Vec2(center)
+    instance.draw_solid_circle(
+        py_transform, py_center, radius, Color.from_b2HexColor(color)
+    )
 
 
 @ffi.callback("void(b2Transform, void*)")
@@ -173,7 +177,7 @@ class DebugDraw:
         self._debug_draw.DrawPolygonFcn = draw_polygon
         self._debug_draw.DrawSolidPolygonFcn = draw_solid_polygon
         self._debug_draw.DrawCircleFcn = draw_circle
-        self._debug_draw.DrawSegmentFcn = draw_segment
+        self._debug_draw.DrawLineFcn = draw_segment
         self._debug_draw.DrawPointFcn = draw_point
         self._debug_draw.DrawStringFcn = draw_string
         self._debug_draw.DrawSolidCapsuleFcn = draw_solid_capsule
@@ -226,19 +230,19 @@ class DebugDraw:
 
     @property
     def draw_contact_impulses(self):
-        return bool(self._debug_draw.drawContactImpulses)
+        return bool(self._debug_draw.drawContactForces)
 
     @draw_contact_impulses.setter
     def draw_contact_impulses(self, value: bool):
-        self._debug_draw.drawContactImpulses = bool(value)
+        self._debug_draw.drawContactForces = bool(value)
 
     @property
     def draw_friction_impulses(self):
-        return bool(self._debug_draw.drawFrictionImpulses)
+        return bool(self._debug_draw.drawFrictionForces)
 
     @draw_friction_impulses.setter
     def draw_friction_impulses(self, value: bool):
-        self._debug_draw.drawFrictionImpulses = bool(value)
+        self._debug_draw.drawFrictionForces = bool(value)
 
     @property
     def draw_mass(self):
@@ -257,11 +261,13 @@ class DebugDraw:
         self._debug_draw.drawJointExtras = bool(value)
 
     # Internal callback handlers (override these in subclasses)
-    def draw_polygon(self, vertices: list[Vec2], color: Color):
-        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_aabbs/shapes enabled).
+    def draw_polygon(self, transform: Transform, vertices: list[Vec2], color: Color):
+        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_bounds/shapes enabled).
 
+        Box2D 3.2 added the transform argument; the vertices are in local space.
 
         Args:
+            transform: Position and rotation the vertices are relative to
             vertices: Polygon vertex coordinates in Counter-Clockwise order
             color: RGB color with alpha
         """
@@ -355,11 +361,16 @@ class DebugDraw:
         """
         pass
 
-    def draw_solid_circle(self, transform: Transform, radius: float, color: Color):
+    def draw_solid_circle(
+        self, transform: Transform, center: Vec2, radius: float, color: Color
+    ):
         """Draw filled circles with orientation marker (used for circular fixtures when draw_shapes enabled).
 
+        Box2D 3.2 added the center argument, which is relative to the transform.
+
         Args:
-            transform: Center position and rotation (rotation affects orientation line)
+            transform: Position and rotation (rotation affects orientation line)
+            center: Circle center relative to the transform
             radius: Circle radius in world units
             color: Fill color with alpha channel
         """

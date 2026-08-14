@@ -51,7 +51,7 @@ class RecordingDraw(DebugDraw):
     def draw_circle(self, center, radius, color):
         self.calls += 1
 
-    def draw_solid_circle(self, transform, radius, color):
+    def draw_solid_circle(self, transform, center, radius, color):
         self.calls += 1
 
     def draw_solid_capsule(self, p1, p2, radius, color):

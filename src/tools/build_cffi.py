@@ -98,6 +98,38 @@ def build_dependencies():
     )
 
 
+def strip_inline_definitions(text):
+    """Remove inline function definitions, which cdef() cannot parse.
+
+    cdef() accepts declarations only, so any function carrying a body has to go.
+    Box2D marks these with its B2_INLINE macro in most headers but writes plain
+    'static inline' in id.h, and the bodies contain brace initializers such as
+    ``b2WorldId id = { ... };``, so this counts braces rather than matching a
+    pattern -- a regex cannot handle the nesting, and matching only B2_INLINE
+    silently let id.h's definitions through.
+    """
+    markers = ("B2_INLINE", "static inline")
+    lines = text.splitlines(keepends=True)
+    kept = []
+    i = 0
+    while i < len(lines):
+        if not lines[i].lstrip().startswith(markers):
+            kept.append(lines[i])
+            i += 1
+            continue
+
+        # Consume the signature and its body, balancing braces.
+        depth = 0
+        seen_brace = False
+        while i < len(lines):
+            depth += lines[i].count("{") - lines[i].count("}")
+            seen_brace = seen_brace or "{" in lines[i]
+            i += 1
+            if seen_brace and depth <= 0:
+                break
+    return "".join(kept)
+
+
 def process_headers():
     """Process Box2D headers for CFFI"""
     ensure_temp_dir()
@@ -108,6 +140,7 @@ def process_headers():
 
     headers = [
         "base.h",
+        "constants.h",
         "math_functions.h",
         "collision.h",
         "id.h",
@@ -136,7 +169,7 @@ def process_headers():
             command, text=True, input=filetext, stdout=subprocess.PIPE
         ).stdout
         filetext = filetext.replace("B2_API", "")
-        filetext = re.sub("B2_INLINE .*?\n{\n(.|\n)*?\n}\n", "", filetext)
+        filetext = strip_inline_definitions(filetext)
         filetext = "\n".join(
             [line for line in filetext.splitlines() if not line.startswith("#")]
         )

@@ -205,7 +205,11 @@ class BodyDef:
         user_data: Application specific body data.
         enable_sleep: Set to false if this body should never fall asleep.
         is_awake: Is this body initially awake or sleeping?
-        fixed_rotation: Should this body be prevented from rotating?
+        lock_x: Prevent translation along the world x-axis.
+        lock_y: Prevent translation along the world y-axis.
+        lock_rotation: Prevent rotation. Box2D 3.2 generalised the old
+            fixed_rotation flag into these three independent locks.
+        enable_contact_recycling: Reuse contacts between steps where possible.
         is_bullet: Treat this body as high speed object for continuous collision detection.
         is_enabled: Used to disable a body. A disabled body doesn't move or collide.
         allow_fast_rotation: Bypass rotational speed limits. For circular objects like wheels.
@@ -224,7 +228,10 @@ class BodyDef:
     user_data: Optional[object] = None
     enable_sleep: bool = _default_body_def.enableSleep
     is_awake: bool = _default_body_def.isAwake
-    fixed_rotation: bool = _default_body_def.fixedRotation
+    lock_x: bool = _default_body_def.motionLocks.linearX
+    lock_y: bool = _default_body_def.motionLocks.linearY
+    lock_rotation: bool = _default_body_def.motionLocks.angularZ
+    enable_contact_recycling: bool = _default_body_def.enableContactRecycling
     is_bullet: bool = _default_body_def.isBullet
     is_enabled: bool = _default_body_def.isEnabled
     allow_fast_rotation: bool = _default_body_def.allowFastRotation
@@ -265,7 +272,10 @@ class BodyDef:
 
         body_def.enableSleep = self.enable_sleep
         body_def.isAwake = self.is_awake
-        body_def.fixedRotation = self.fixed_rotation
+        body_def.motionLocks.linearX = self.lock_x
+        body_def.motionLocks.linearY = self.lock_y
+        body_def.motionLocks.angularZ = self.lock_rotation
+        body_def.enableContactRecycling = self.enable_contact_recycling
         body_def.isBullet = self.is_bullet
         body_def.isEnabled = self.is_enabled
         body_def.allowFastRotation = self.allow_fast_rotation

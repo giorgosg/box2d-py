@@ -13,7 +13,7 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
         )
         ground = ground.build()
 
-        player = self.world.new_body().dynamic().fixed_rotation().position(0, 2)
+        player = self.world.new_body().dynamic().lock_rotation().position(0, 2)
         player = player.capsule(
             (0, -0.5),
             (0, 0.5),

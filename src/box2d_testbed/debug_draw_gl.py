@@ -158,11 +158,12 @@ class GLDebugDraw(DebugDraw):
         state.perf.draw_ms_avg += elapsed * (1 - smoothing)
         state.perf.draw_ms_max = max(state.perf.draw_ms_max, elapsed)
 
-    def draw_polygon(self, vertices: list, color):
-        # Draw polygon outlines by connecting vertices in order
-        n = len(vertices)
+    def draw_polygon(self, transform, vertices: list, color):
+        # 3.2 passes vertices in local space, so transform them before drawing.
+        points = [transform(v) for v in vertices]
+        n = len(points)
         for i in range(n):
-            self.lines.add_line(vertices[i], vertices[(i + 1) % n], color.hex)
+            self.lines.add_line(points[i], points[(i + 1) % n], color.hex)
 
     def draw_solid_polygon(self, transform, vertices, radius: float, color):
         # Delegate to solid_polygons; pass the raw b2Transform from the Transform wrapper
@@ -194,9 +195,10 @@ class GLDebugDraw(DebugDraw):
         # Draw a filled capsule
         self.solid_capsules.add_capsule(p1, p2, radius, color.hex)
 
-    def draw_solid_circle(self, transform, radius: float, color):
-        # Queue solid circle drawing; pass the underlying b2Transform
-        self.solid_circles.add_circle(transform.b2Transform, radius, color.hex)
+    def draw_solid_circle(self, transform, center, radius: float, color):
+        # 3.2 passes the centre separately; fold it into the transform's origin.
+        placed = Transform(position=transform(center), rotation=transform.q)
+        self.solid_circles.add_circle(placed.b2Transform, radius, color.hex)
 
     def draw_transform(self, transform):
         # Draw coordinate axes. Use a fixed scale.

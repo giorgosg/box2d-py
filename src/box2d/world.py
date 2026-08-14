@@ -144,7 +144,7 @@ class World:
         self._hit_event_threshold = world_def.hitEventThreshold
         self._contact_hertz = world_def.contactHertz
         self._contact_damping_ratio = world_def.contactDampingRatio
-        self._contact_push_velocity = world_def.maxContactPushSpeed
+        self._contact_push_velocity = world_def.contactSpeed
 
         self._bodies = {}
 
@@ -210,7 +210,9 @@ class World:
         user_data=None,
         enable_sleep: bool = None,
         is_awake: bool = None,
-        fixed_rotation: bool = None,
+        lock_x: bool = None,
+        lock_y: bool = None,
+        lock_rotation: bool = None,
         is_bullet: bool = None,
         is_enabled: bool = None,
         allow_fast_rotation: bool = None,
@@ -240,7 +242,9 @@ class World:
                 afterwards as ``body.user_data``.
             enable_sleep: False if this body should never fall asleep.
             is_awake: Whether the body starts awake.
-            fixed_rotation: True to prevent the body from rotating.
+            lock_x: True to prevent translation along the world x-axis.
+            lock_y: True to prevent translation along the world y-axis.
+            lock_rotation: True to prevent the body from rotating.
             is_bullet: True to use continuous collision detection for this body.
             is_enabled: False to create the body disabled.
             allow_fast_rotation: True to bypass rotational speed limits.
@@ -284,8 +288,12 @@ class World:
             body_def.enable_sleep = enable_sleep
         if is_awake is not None:
             body_def.is_awake = is_awake
-        if fixed_rotation is not None:
-            body_def.fixed_rotation = fixed_rotation
+        if lock_x is not None:
+            body_def.lock_x = lock_x
+        if lock_y is not None:
+            body_def.lock_y = lock_y
+        if lock_rotation is not None:
+            body_def.lock_rotation = lock_rotation
         if is_bullet is not None:
             body_def.is_bullet = is_bullet
         if is_enabled is not None:
@@ -726,23 +734,38 @@ class World:
         self,
         body_a,
         body_b,
-        linear_offset=None,
-        angular_offset=None,
-        max_force=None,
-        max_torque=None,
-        correction_factor=None,
+        linear_velocity=None,
+        angular_velocity=None,
+        max_velocity_force=None,
+        max_velocity_torque=None,
+        linear_hertz=None,
+        linear_damping_ratio=None,
+        max_spring_force=None,
+        angular_hertz=None,
+        angular_damping_ratio=None,
+        max_spring_torque=None,
         collide_connected=False,
     ) -> "MotorJoint":
-        """Create a motor joint to control relative motion between two bodies.
+        """Create a motor joint driving the relative motion of two bodies.
+
+        Box2D 3.2 rewrote this joint: it drives a relative velocity capped by a
+        maximum force, optionally with a spring, rather than correcting toward a
+        target offset. To pull a body toward a world point, use
+        :meth:`add_mouse_joint`.
 
         Args:
             body_a: First body to connect
             body_b: Second body to connect
-            linear_offset (tuple): Desired position of bodyB in bodyA's frame
-            angular_offset (float): Desired angle between bodies in radians
-            max_force (float): Maximum force in Newtons
-            max_torque (float): Maximum torque in Newton-meters
-            correction_factor (float): Position correction factor [0,1]
+            linear_velocity (vector-like): Desired relative linear velocity
+            angular_velocity (float): Desired relative angular velocity, rad/s
+            max_velocity_force (float): Force cap for the linear velocity drive
+            max_velocity_torque (float): Torque cap for the angular velocity drive
+            linear_hertz (float): Linear spring frequency; 0 disables the spring
+            linear_damping_ratio (float): Linear spring damping ratio
+            max_spring_force (float): Force cap for the linear spring
+            angular_hertz (float): Angular spring frequency; 0 disables the spring
+            angular_damping_ratio (float): Angular spring damping ratio
+            max_spring_torque (float): Torque cap for the angular spring
             collide_connected (bool): Whether bodies can collide
 
         Returns:
@@ -754,19 +777,24 @@ class World:
             >>> body = world.new_body().dynamic().position(0, 4).build()
             >>> motor = world.add_motor_joint(
             ...     ground, body,
-            ...     linear_offset=(1, 0),  # Move body 1m right
-            ...     max_force=100
+            ...     linear_velocity=(1, 0),
+            ...     max_velocity_force=100,
             ... )
         """
         return MotorJoint(
             self,
             body_a,
             body_b,
-            linear_offset,
-            angular_offset,
-            max_force,
-            max_torque,
-            correction_factor,
+            linear_velocity,
+            angular_velocity,
+            max_velocity_force,
+            max_velocity_torque,
+            linear_hertz,
+            linear_damping_ratio,
+            max_spring_force,
+            angular_hertz,
+            angular_damping_ratio,
+            max_spring_torque,
             collide_connected,
         )
 
@@ -845,8 +873,11 @@ class World:
             "maskBits": c_filter.maskBits,
         }
 
+        # 3.2 added a query origin for large-world support. Coordinates in
+        # this binding are absolute, so the origin is always the world origin.
         lib.b2World_OverlapAABB(
             self._world_id,
+            Vec2(0, 0).b2Vec2[0],
             aabb.b2AABB[0],
             c_filter[0],
             overlap_callback,
@@ -896,8 +927,11 @@ class World:
         proxy.radius = radius
         c_filter = filter.b2QueryFilter
 
+        # 3.2 added a query origin for large-world support. Coordinates in
+        # this binding are absolute, so the origin is always the world origin.
         lib.b2World_OverlapShape(
             self._world_id,
+            Vec2(0, 0).b2Vec2[0],
             proxy,
             c_filter[0],
             overlap_callback,

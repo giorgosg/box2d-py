@@ -85,16 +85,39 @@ class BodyBuilder:
         self._body_args["body_type"] = "kinematic"
         return self
 
-    def fixed_rotation(self, fixed=True):
-        """Set whether the body has fixed rotation.
+    def lock_rotation(self, lock=True):
+        """Prevent the body from rotating.
 
-        Fixed rotation bodies will not rotate. Useful for objects like characters.
+        Useful for objects like characters. Box2D 3.2 replaced the old
+        fixed_rotation flag with independent locks; see also lock_x and lock_y.
         Args:
-            fixed: Boolean indicating whether rotation should be fixed
+            lock: Boolean indicating whether rotation should be locked
         Returns:
             The builder instance
         """
-        self._body_args["fixed_rotation"] = fixed
+        self._body_args["lock_rotation"] = lock
+        return self
+
+    def lock_x(self, lock=True):
+        """Prevent the body from translating along the world x-axis.
+
+        Args:
+            lock: Boolean indicating whether x translation should be locked
+        Returns:
+            The builder instance
+        """
+        self._body_args["lock_x"] = lock
+        return self
+
+    def lock_y(self, lock=True):
+        """Prevent the body from translating along the world y-axis.
+
+        Args:
+            lock: Boolean indicating whether y translation should be locked
+        Returns:
+            The builder instance
+        """
+        self._body_args["lock_y"] = lock
         return self
 
     def bullet(self, bullet=True):
@@ -528,15 +551,42 @@ class Body:
         """Set the sleep threshold value."""
         lib.b2Body_SetSleepThreshold(self._body_id, float(value))
 
-    @property
-    def fixed_rotation(self):
-        """Check if the body has fixed rotation."""
-        return lib.b2Body_IsFixedRotation(self._body_id)
+    def _set_motion_lock(self, axis: str, value: bool) -> None:
+        """Set one of the three motion locks, leaving the others alone."""
+        locks = lib.b2Body_GetMotionLocks(self._body_id)
+        setattr(locks, axis, bool(value))
+        lib.b2Body_SetMotionLocks(self._body_id, locks)
 
-    @fixed_rotation.setter
-    def fixed_rotation(self, value):
-        """Set whether the body has fixed rotation."""
-        lib.b2Body_SetFixedRotation(self._body_id, value)
+    @property
+    def lock_x(self) -> bool:
+        """Get or set whether translation along the world x-axis is prevented."""
+        return lib.b2Body_GetMotionLocks(self._body_id).linearX
+
+    @lock_x.setter
+    def lock_x(self, value: bool) -> None:
+        self._set_motion_lock("linearX", value)
+
+    @property
+    def lock_y(self) -> bool:
+        """Get or set whether translation along the world y-axis is prevented."""
+        return lib.b2Body_GetMotionLocks(self._body_id).linearY
+
+    @lock_y.setter
+    def lock_y(self, value: bool) -> None:
+        self._set_motion_lock("linearY", value)
+
+    @property
+    def lock_rotation(self) -> bool:
+        """Get or set whether the body is prevented from rotating.
+
+        Box2D 3.2 replaced the single fixed_rotation flag with three
+        independent locks; this is the rotational one.
+        """
+        return lib.b2Body_GetMotionLocks(self._body_id).angularZ
+
+    @lock_rotation.setter
+    def lock_rotation(self, value: bool) -> None:
+        self._set_motion_lock("angularZ", value)
 
     @property
     def is_bullet(self):
@@ -968,7 +1018,7 @@ class Body:
         Returns:
             Center of mass in local coordinates.
         """
-        center = lib.b2Body_GetLocalCenterOfMass(self._body_id)
+        center = lib.b2Body_GetLocalCenter(self._body_id)
         return Vec2.from_b2Vec2(center)
 
     @property
@@ -978,7 +1028,7 @@ class Body:
         Returns:
             Center of mass in world coordinates.
         """
-        center = lib.b2Body_GetWorldCenterOfMass(self._body_id)
+        center = lib.b2Body_GetWorldCenter(self._body_id)
         return Vec2.from_b2Vec2(center)
 
     @property

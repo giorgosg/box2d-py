@@ -2,7 +2,7 @@
 
 from box2d._box2d import lib, ffi
 from abc import ABC, abstractmethod
-from .math import Vec2
+from .math import Vec2, Rot
 from .lifetime import IdRef, raw_id, is_live
 
 
@@ -87,7 +87,7 @@ class Joint(ABC):
         Returns:
             Vec2: Position where the joint attaches to body_a in its local coordinates
         """
-        vec = lib.b2Joint_GetLocalAnchorA(self._joint_id)
+        vec = lib.b2Joint_GetLocalFrameA(self._joint_id).p
         return Vec2(vec.x, vec.y)
 
     @property
@@ -97,7 +97,7 @@ class Joint(ABC):
         Returns:
             Vec2: Position where the joint attaches to body_b in its local coordinates
         """
-        vec = lib.b2Joint_GetLocalAnchorB(self._joint_id)
+        vec = lib.b2Joint_GetLocalFrameB(self._joint_id).p
         return Vec2(vec.x, vec.y)
 
     @property
@@ -150,6 +150,12 @@ class MouseJoint(Joint):
 
     Designed for smoothly pulling dynamic bodies to target positions,
     with spring-like behavior controls for realistic manipulation.
+
+    Box2D 3.2 deleted b2MouseJoint. This keeps the same Python API by building
+    what upstream's own samples now use for dragging: a kinematic proxy body at
+    the target, joined to the dragged body by a motor joint with a linear
+    spring. Moving the target moves the proxy, and the spring pulls the body
+    after it. The proxy is destroyed along with the joint.
     """
 
     def __init__(
@@ -165,26 +171,39 @@ class MouseJoint(Joint):
             damping_ratio: Spring damping
             hertz: Spring stiffness in Hz
         """
-
-        self._target = Vec2(target)
-        self._max_force = max_force
-        self._damping_ratio = damping_ratio
-        self._hertz = hertz
         self.world = world
-        defn = lib.b2DefaultMouseJointDef()
-        defn.bodyIdA = body._body_id
-        defn.bodyIdB = body._body_id
-        defn.target = self._target.b2Vec2[0]
-        defn.maxForce = self._max_force
-        defn.dampingRatio = self._damping_ratio
-        defn.collideConnected = False
-        defn.hertz = self._hertz
+        self._body = body
+
+        # The kinematic proxy the spring pulls towards. It must not sleep, or
+        # dragging would stall once the proxy settles.
+        target = Vec2(target)
+        self._proxy = world.add_body(
+            body_type="kinematic", position=target, enable_sleep=False
+        )
+
+        defn = lib.b2DefaultMotorJointDef()
+        defn.base.bodyIdA = self._proxy._body_id
+        defn.base.bodyIdB = body._body_id
+        defn.base.localFrameB.p = body.get_local_point(target).b2Vec2[0]
+        defn.base.collideConnected = False
+        defn.linearHertz = hertz
+        defn.linearDampingRatio = damping_ratio
+        defn.maxSpringForce = max_force
         self._def = defn
-        self._joint_id = lib.b2CreateMouseJoint(
+
+        self._joint_id = lib.b2CreateMotorJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
         self._set_userdata()
         self.wake_bodies()
+
+    def destroy(self):
+        """Destroy the joint and the kinematic proxy body backing it."""
+        super().destroy()
+        proxy = getattr(self, "_proxy", None)
+        if proxy is not None:
+            proxy.destroy()
+            self._proxy = None
 
     @property
     def target(self):
@@ -193,7 +212,7 @@ class MouseJoint(Joint):
         Returns:
             Vec2: World coordinates of the drag target
         """
-        return Vec2.from_b2Vec2(lib.b2MouseJoint_GetTarget(self._joint_id))
+        return self._proxy.position
 
     @target.setter
     def target(self, value):
@@ -202,27 +221,37 @@ class MouseJoint(Joint):
         Args:
             value (tuple/Vec2): New target position in world coordinates
         """
-        lib.b2MouseJoint_SetTarget(self._joint_id, Vec2(value).b2Vec2[0])
+        self._proxy.position = Vec2(value)
+        self.wake_bodies()
 
     @property
     def max_force(self):
         """Maximum pulling force available to move the body."""
-        return lib.b2MouseJoint_GetMaxForce(self._joint_id)
+        return lib.b2MotorJoint_GetMaxSpringForce(self._joint_id)
 
     @max_force.setter
     def max_force(self, value):
         """Adjust maximum pulling force."""
-        lib.b2MouseJoint_SetMaxForce(self._joint_id, float(value))
+        lib.b2MotorJoint_SetMaxSpringForce(self._joint_id, float(value))
 
     @property
     def damping_ratio(self):
         """Spring damping controlling movement smoothness."""
-        return lib.b2MouseJoint_GetSpringDampingRatio(self._joint_id)
+        return lib.b2MotorJoint_GetLinearDampingRatio(self._joint_id)
 
     @damping_ratio.setter
     def damping_ratio(self, value):
         """Set how quickly movement stabilizes at target."""
-        lib.b2MouseJoint_SetSpringDampingRatio(self._joint_id, float(value))
+        lib.b2MotorJoint_SetLinearDampingRatio(self._joint_id, float(value))
+
+    @property
+    def hertz(self):
+        """Spring stiffness in Hz."""
+        return lib.b2MotorJoint_GetLinearHertz(self._joint_id)
+
+    @hertz.setter
+    def hertz(self, value):
+        lib.b2MotorJoint_SetLinearHertz(self._joint_id, float(value))
 
 
 class WeldJoint(Joint):
@@ -270,15 +299,17 @@ class WeldJoint(Joint):
         self._reference_angle = reference_angle
         self.world = world
         defn = lib.b2DefaultWeldJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
 
         # Use the provided local anchor points directly.
-        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
-        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
+        defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
+        defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
         if self._reference_angle is not None:
-            defn.referenceAngle = self._reference_angle
+            # 3.2 removed referenceAngle; the reference orientation is now
+            # carried by the rotation of the first local frame.
+            defn.base.localFrameA.q = Rot(self._reference_angle).b2Rot[0]
 
         # Set the spring/damping parameters to allow for soft welding.
         if self._linear_hertz is not None:
@@ -385,16 +416,18 @@ class RevoluteJoint(Joint):
 
         # Get a default revolute joint definition from Box2D.
         defn = lib.b2DefaultRevoluteJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
 
         # Use the provided local anchors for each body.
-        defn.localAnchorA = self._localAnchorA.b2Vec2[0]
-        defn.localAnchorB = self._localAnchorB.b2Vec2[0]
+        defn.base.localFrameA.p = self._localAnchorA.b2Vec2[0]
+        defn.base.localFrameB.p = self._localAnchorB.b2Vec2[0]
 
         if self._reference_angle is not None:
-            defn.referenceAngle = self._reference_angle
+            # 3.2 removed referenceAngle; the reference orientation is now
+            # carried by the rotation of the first local frame.
+            defn.base.localFrameA.q = Rot(self._reference_angle).b2Rot[0]
 
         # Configure joint limits.
         if self._lower_angle is not None:
@@ -536,15 +569,21 @@ class PrismaticJoint(Joint):
         self._damping_ratio = damping_ratio
         self.world = world
         defn = lib.b2DefaultPrismaticJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
-        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
-        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
-        defn.localAxisA = self._local_axis_a.b2Vec2[0]
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
+        defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
+        defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
+        # 3.2 removed localAxisA: the axis is the rotation of the local frames.
+        axis = self._local_axis_a
+        axis_rotation = Rot.from_sincos(axis.y, axis.x).b2Rot[0]
+        defn.base.localFrameA.q = axis_rotation
+        defn.base.localFrameB.q = axis_rotation
 
-        if self._reference_angle is not None:
-            defn.referenceAngle = self._reference_angle
+        # reference_angle is deliberately not applied here. In 3.2 the frame
+        # rotation carries the axis, and a prismatic joint has no orientation
+        # left over to hold a separate reference angle. Setting it would
+        # silently overwrite the axis and break the joint.
         if self._enable_limit is not None:
             defn.enableLimit = self._enable_limit
         if self._lower_limit is not None:
@@ -777,12 +816,16 @@ class WheelJoint(Joint):
         self.world = world
 
         defn = lib.b2DefaultWheelJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
-        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
-        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
-        defn.localAxisA = self._local_axis_a.b2Vec2[0]
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
+        defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
+        defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
+        # 3.2 removed localAxisA: the axis is the rotation of the local frames.
+        axis = self._local_axis_a
+        axis_rotation = Rot.from_sincos(axis.y, axis.x).b2Rot[0]
+        defn.base.localFrameA.q = axis_rotation
+        defn.base.localFrameB.q = axis_rotation
         defn.enableLimit = self._enable_limit
         defn.lowerTranslation = self._lower_translation
         defn.upperTranslation = self._upper_translation
@@ -988,11 +1031,11 @@ class DistanceJoint(Joint):
         self.world = world
 
         defn = lib.b2DefaultDistanceJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
-        defn.localAnchorA = self._local_anchor_a.b2Vec2[0]
-        defn.localAnchorB = self._local_anchor_b.b2Vec2[0]
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
+        defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
+        defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
 
         if self._length is not None:
             defn.length = self._length
@@ -1182,20 +1225,18 @@ class DistanceJoint(Joint):
 
 
 class MotorJoint(Joint):
-    """A motor joint is used to control the relative motion between two bodies.
+    """Drives the relative motion between two bodies.
 
-    The motor joint is used to drive the relative transform between two bodies.
-    It takes a relative position and rotation and applies the forces and torques
-    needed to achieve that relative transform over time.
-
-    A typical usage is to control the movement of a dynamic body with respect
-    to the ground.
+    Box2D 3.2 rewrote this joint. It no longer takes a target offset and a
+    correction factor; it drives a relative *velocity* capped by a maximum
+    force, optionally with a spring pulling the bodies toward the joint's rest
+    configuration. For the old "pull a body toward a world point" behaviour,
+    use :class:`MouseJoint`, which is built on this joint.
 
     Features:
-    - Control relative linear position between bodies
-    - Control relative angular position between bodies
-    - Maximum force and torque limits
-    - Position correction factor for stability
+    - Drive a relative linear and angular velocity
+    - Separate force and torque caps for the velocity drive
+    - Optional linear and angular springs with their own force caps
     """
 
     def __init__(
@@ -1203,11 +1244,16 @@ class MotorJoint(Joint):
         world,
         body_a,
         body_b,
-        linear_offset=None,
-        angular_offset=None,
-        max_force=None,
-        max_torque=None,
-        correction_factor=None,
+        linear_velocity=None,
+        angular_velocity=None,
+        max_velocity_force=None,
+        max_velocity_torque=None,
+        linear_hertz=None,
+        linear_damping_ratio=None,
+        max_spring_force=None,
+        angular_hertz=None,
+        angular_damping_ratio=None,
+        max_spring_torque=None,
         collide_connected=False,
     ):
         """Initialize a motor joint.
@@ -1216,34 +1262,44 @@ class MotorJoint(Joint):
             world: The physics world instance
             body_a: First body to connect
             body_b: Second body to connect
-            linear_offset (tuple): Position of bodyB minus bodyA, in bodyA's frame
-            angular_offset (float): Angle of bodyB minus bodyA in radians
-            max_force (float): Maximum force in Newtons
-            max_torque (float): Maximum torque in Newton-meters
-            correction_factor (float): Position correction factor in range [0,1]
+            linear_velocity (vector-like): Desired relative linear velocity
+            angular_velocity (float): Desired relative angular velocity, rad/s
+            max_velocity_force (float): Force cap for the linear velocity drive
+            max_velocity_torque (float): Torque cap for the angular velocity drive
+            linear_hertz (float): Linear spring frequency; 0 disables the spring
+            linear_damping_ratio (float): Linear spring damping ratio
+            max_spring_force (float): Force cap for the linear spring
+            angular_hertz (float): Angular spring frequency; 0 disables the spring
+            angular_damping_ratio (float): Angular spring damping ratio
+            max_spring_torque (float): Torque cap for the angular spring
             collide_connected (bool): Whether connected bodies can collide
         """
-        self._linear_offset = linear_offset
-        self._angular_offset = angular_offset
-        self._max_force = max_force
-        self._max_torque = max_torque
-        self._correction_factor = correction_factor
         self.world = world
 
         defn = lib.b2DefaultMotorJointDef()
-        defn.bodyIdA = body_a._body_id
-        defn.bodyIdB = body_b._body_id
-        defn.collideConnected = collide_connected
-        if linear_offset is not None:
-            defn.linearOffset = Vec2(self._linear_offset).b2Vec2[0]
-        if angular_offset is not None:
-            defn.angularOffset = self._angular_offset
-        if max_force is not None:
-            defn.maxForce = self._max_force
-        if max_torque is not None:
-            defn.maxTorque = self._max_torque
-        if correction_factor is not None:
-            defn.correctionFactor = self._correction_factor
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
+        if linear_velocity is not None:
+            defn.linearVelocity = Vec2(linear_velocity).b2Vec2[0]
+        if angular_velocity is not None:
+            defn.angularVelocity = angular_velocity
+        if max_velocity_force is not None:
+            defn.maxVelocityForce = max_velocity_force
+        if max_velocity_torque is not None:
+            defn.maxVelocityTorque = max_velocity_torque
+        if linear_hertz is not None:
+            defn.linearHertz = linear_hertz
+        if linear_damping_ratio is not None:
+            defn.linearDampingRatio = linear_damping_ratio
+        if max_spring_force is not None:
+            defn.maxSpringForce = max_spring_force
+        if angular_hertz is not None:
+            defn.angularHertz = angular_hertz
+        if angular_damping_ratio is not None:
+            defn.angularDampingRatio = angular_damping_ratio
+        if max_spring_torque is not None:
+            defn.maxSpringTorque = max_spring_torque
 
         self._def = defn
         self._joint_id = lib.b2CreateMotorJoint(
@@ -1252,72 +1308,91 @@ class MotorJoint(Joint):
         self._set_userdata()
 
     @property
-    def linear_offset(self):
-        """Get the target linear offset in bodyA's frame."""
-        return Vec2.from_b2Vec2(lib.b2MotorJoint_GetLinearOffset(self._joint_id))
+    def linear_velocity(self):
+        """Get or set the desired relative linear velocity."""
+        return Vec2.from_b2Vec2(lib.b2MotorJoint_GetLinearVelocity(self._joint_id))
 
-    @linear_offset.setter
-    def linear_offset(self, offset):
-        """Set the target linear offset in bodyA's frame.
-
-        Args:
-            offset (tuple/Vec2): Target position of bodyB in bodyA frame
-        """
-        vec = Vec2(offset)
-        lib.b2MotorJoint_SetLinearOffset(self._joint_id, vec.b2Vec2[0])
+    @linear_velocity.setter
+    def linear_velocity(self, value):
+        lib.b2MotorJoint_SetLinearVelocity(self._joint_id, Vec2(value).b2Vec2[0])
 
     @property
-    def angular_offset(self):
-        """Get the target angular offset in radians."""
-        return lib.b2MotorJoint_GetAngularOffset(self._joint_id)
+    def angular_velocity(self):
+        """Get or set the desired relative angular velocity in radians per second."""
+        return lib.b2MotorJoint_GetAngularVelocity(self._joint_id)
 
-    @angular_offset.setter
-    def angular_offset(self, angle):
-        """Set the target angular offset.
-
-        Args:
-            angle (float): Target angle in radians
-        """
-        lib.b2MotorJoint_SetAngularOffset(self._joint_id, float(angle))
+    @angular_velocity.setter
+    def angular_velocity(self, value):
+        lib.b2MotorJoint_SetAngularVelocity(self._joint_id, float(value))
 
     @property
-    def max_force(self):
-        """Get maximum force in Newtons."""
-        return lib.b2MotorJoint_GetMaxForce(self._joint_id)
+    def max_velocity_force(self):
+        """Get or set the force cap for the linear velocity drive."""
+        return lib.b2MotorJoint_GetMaxVelocityForce(self._joint_id)
 
-    @max_force.setter
-    def max_force(self, force):
-        """Set the maximum force in Newtons.
-
-        Args:
-            force (float): Maximum force value
-        """
-        lib.b2MotorJoint_SetMaxForce(self._joint_id, float(force))
+    @max_velocity_force.setter
+    def max_velocity_force(self, value):
+        lib.b2MotorJoint_SetMaxVelocityForce(self._joint_id, float(value))
 
     @property
-    def max_torque(self):
-        """Get maximum torque in Newton-meters."""
-        return lib.b2MotorJoint_GetMaxTorque(self._joint_id)
+    def max_velocity_torque(self):
+        """Get or set the torque cap for the angular velocity drive."""
+        return lib.b2MotorJoint_GetMaxVelocityTorque(self._joint_id)
 
-    @max_torque.setter
-    def max_torque(self, torque):
-        """Set the maximum torque in Newton-meters.
-
-        Args:
-            torque (float): Maximum torque value
-        """
-        lib.b2MotorJoint_SetMaxTorque(self._joint_id, float(torque))
+    @max_velocity_torque.setter
+    def max_velocity_torque(self, value):
+        lib.b2MotorJoint_SetMaxVelocityTorque(self._joint_id, float(value))
 
     @property
-    def correction_factor(self):
-        """Get position correction factor [0,1]."""
-        return lib.b2MotorJoint_GetCorrectionFactor(self._joint_id)
+    def linear_hertz(self):
+        """Get or set the linear spring frequency. Zero disables the spring."""
+        return lib.b2MotorJoint_GetLinearHertz(self._joint_id)
 
-    @correction_factor.setter
-    def correction_factor(self, factor):
-        """Set the position correction factor.
+    @linear_hertz.setter
+    def linear_hertz(self, value):
+        lib.b2MotorJoint_SetLinearHertz(self._joint_id, float(value))
 
-        Args:
-            factor (float): Correction factor in range [0,1]
-        """
-        lib.b2MotorJoint_SetCorrectionFactor(self._joint_id, float(factor))
+    @property
+    def linear_damping_ratio(self):
+        """Get or set the linear spring damping ratio."""
+        return lib.b2MotorJoint_GetLinearDampingRatio(self._joint_id)
+
+    @linear_damping_ratio.setter
+    def linear_damping_ratio(self, value):
+        lib.b2MotorJoint_SetLinearDampingRatio(self._joint_id, float(value))
+
+    @property
+    def max_spring_force(self):
+        """Get or set the force cap for the linear spring."""
+        return lib.b2MotorJoint_GetMaxSpringForce(self._joint_id)
+
+    @max_spring_force.setter
+    def max_spring_force(self, value):
+        lib.b2MotorJoint_SetMaxSpringForce(self._joint_id, float(value))
+
+    @property
+    def angular_hertz(self):
+        """Get or set the angular spring frequency. Zero disables the spring."""
+        return lib.b2MotorJoint_GetAngularHertz(self._joint_id)
+
+    @angular_hertz.setter
+    def angular_hertz(self, value):
+        lib.b2MotorJoint_SetAngularHertz(self._joint_id, float(value))
+
+    @property
+    def angular_damping_ratio(self):
+        """Get or set the angular spring damping ratio."""
+        return lib.b2MotorJoint_GetAngularDampingRatio(self._joint_id)
+
+    @angular_damping_ratio.setter
+    def angular_damping_ratio(self, value):
+        lib.b2MotorJoint_SetAngularDampingRatio(self._joint_id, float(value))
+
+    @property
+    def max_spring_torque(self):
+        """Get or set the torque cap for the angular spring."""
+        return lib.b2MotorJoint_GetMaxSpringTorque(self._joint_id)
+
+    @max_spring_torque.setter
+    def max_spring_torque(self, value):
+        lib.b2MotorJoint_SetMaxSpringTorque(self._joint_id, float(value))

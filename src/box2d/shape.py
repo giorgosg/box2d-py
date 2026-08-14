@@ -107,16 +107,16 @@ class Shape(ABC):
         through custom callbacks. When setting, you can use either a material ID (int)
         or a SurfaceMaterial object.
         """
-        return lib.b2Shape_GetMaterial(self._shape_id)
+        return lib.b2Shape_GetUserMaterial(self._shape_id)
 
     @material.setter
     def material(self, value: Union[int, SurfaceMaterial]) -> None:
         if hasattr(value, "material"):
             # If it's a SurfaceMaterial object
-            lib.b2Shape_SetMaterial(self._shape_id, value.material)
+            lib.b2Shape_SetUserMaterial(self._shape_id, value.material)
         else:
             # If it's a material ID
-            lib.b2Shape_SetMaterial(self._shape_id, int(value))
+            lib.b2Shape_SetUserMaterial(self._shape_id, int(value))
 
     @property
     def filter(self) -> CollisionFilter:
@@ -231,7 +231,7 @@ class Shape(ABC):
         - center: Center of mass position (Vec2)
         - rotational_inertia: Moment of inertia about the center of mass
         """
-        md = lib.b2Shape_GetMassData(self._shape_id)
+        md = lib.b2Shape_ComputeMassData(self._shape_id)
         return MassData.from_b2MassData(md)
 
     def is_valid(self) -> bool:
@@ -268,12 +268,11 @@ class Shape(ABC):
         Returns:
             A RayCastResult object containing hit information
         """
-        input = ffi.new("b2RayCastInput*")
-        input.origin = Vec2(origin).b2Vec2[0]
-        input.translation = Vec2(translation).b2Vec2[0]
-        input.maxFraction = 1.0
-
-        output = lib.b2Shape_RayCast(self._shape_id, input)
+        # 3.2 takes the origin and translation directly rather than a
+        # b2RayCastInput, and always casts the full translation.
+        output = lib.b2Shape_RayCast(
+            self._shape_id, Vec2(origin).b2Vec2[0], Vec2(translation).b2Vec2[0]
+        )
         return CastResult.from_b2CastOutput(output)
 
     @property
@@ -366,7 +365,7 @@ class Shape(ABC):
             return []
 
         overlaps = ffi.new("b2ShapeId[]", capacity)
-        count = lib.b2Shape_GetSensorOverlaps(self._shape_id, overlaps, capacity)
+        count = lib.b2Shape_GetSensorData(self._shape_id, overlaps, capacity)
 
         result = []
         for i in range(count):
