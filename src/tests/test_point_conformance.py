@@ -118,6 +118,19 @@ ENTRY_POINTS = {
     "World.query_circle.position": lambda w, bs, p: w.query_circle(p, 1.0),
     "World.ray_cast.origin": lambda w, bs, p: w.ray_cast(p, (5.0, 5.0)),
     "World.ray_cast.translation": lambda w, bs, p: w.ray_cast((0.0, 0.0), p),
+    # Character mover queries
+    "World.cast_mover.point1": lambda w, bs, p: w.cast_mover(p, (0, 2), 0.5, (1, 0)),
+    "World.cast_mover.point2": lambda w, bs, p: w.cast_mover((0, 1), p, 0.5, (1, 0)),
+    "World.cast_mover.translation": lambda w, bs, p: w.cast_mover(
+        (0, 1), (0, 2), 0.5, p
+    ),
+    "World.collide_mover.point1": lambda w, bs, p: w.collide_mover(p, (0, 2), 0.5),
+    "World.collide_mover.point2": lambda w, bs, p: w.collide_mover((0, 1), p, 0.5),
+    # Explosion and wind
+    "World.explode.position": lambda w, bs, p: w.explode(
+        p, radius=1.0, impulse_per_length=1.0
+    ),
+    "Shape.apply_wind.wind": lambda w, bs, p: bs[0].shapes[0].apply_wind(p),
     # Joints -- the module that drifted
     "World.add_revolute_joint.local_anchor_a": lambda w, bs, p: w.add_revolute_joint(
         *bs, local_anchor_a=p, local_anchor_b=(0.0, 0.0)

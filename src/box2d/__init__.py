@@ -15,6 +15,13 @@ from .events import (
     ContactHitEvent,
     JointEvent,
 )
+from .mover import (
+    CollisionPlane,
+    MoverResult,
+    Plane,
+    clip_vector,
+    solve_planes,
+)
 from .jointdef import (
     JointDef,
     WeldJointDef,

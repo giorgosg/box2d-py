@@ -15,6 +15,7 @@ from .joint import (
     MotorJoint,
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
+from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
 from .dataclasses import BodyDef, BodyType
 from .events import (
     BodyMoveEvent,
@@ -470,6 +471,103 @@ class World:
             1
         """
         return list(self._bodies.values())
+
+    def cast_mover(
+        self,
+        point1: VectorLike,
+        point2: VectorLike,
+        radius: float,
+        translation: VectorLike,
+        filter: "CollisionFilter" = None,
+    ) -> float:
+        """Sweep a capsule through the world and report how far it gets.
+
+        A shape cast tuned for character movement: it slides along surfaces
+        rather than catching on them, and resists clipping through thin
+        geometry.
+
+        Args:
+            point1: First endpoint of the capsule's axis, in world coordinates.
+            point2: Second endpoint.
+            radius: The capsule's radius.
+            translation: The movement to sweep along.
+            filter: Which shapes to test against. Defaults to everything.
+
+        Returns:
+            float: The fraction of the translation travelled before hitting
+            something, 1.0 if the way is clear.
+
+        Example:
+            >>> world = World()
+            >>> fraction = world.cast_mover((0, 1), (0, 2), 0.5, (0, -10))
+        """
+        if filter is None:
+            filter = CollisionFilter()
+        capsule = ffi.new("b2Capsule*")
+        capsule.center1 = Vec2(point1).b2Vec2[0]
+        capsule.center2 = Vec2(point2).b2Vec2[0]
+        capsule.radius = float(radius)
+        return lib.b2World_CastMover(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            capsule,
+            Vec2(translation).b2Vec2[0],
+            filter.b2QueryFilter[0],
+        )
+
+    def collide_mover(
+        self,
+        point1: VectorLike,
+        point2: VectorLike,
+        radius: float,
+        filter: "CollisionFilter" = None,
+    ) -> list:
+        """Find the surfaces a capsule is up against, as collision planes.
+
+        Feed the result to :func:`box2d.mover.solve_planes` to work out where
+        the character can actually move, then to
+        :func:`box2d.mover.clip_vector` to trim its velocity.
+
+        Args:
+            point1: First endpoint of the capsule's axis, in world coordinates.
+            point2: Second endpoint.
+            radius: The capsule's radius.
+            filter: Which shapes to consider. Defaults to everything.
+
+        Returns:
+            list[CollisionPlane]: One per surface touched, each carrying the
+            shape it came from.
+        """
+        if filter is None:
+            filter = CollisionFilter()
+        capsule = ffi.new("b2Capsule*")
+        capsule.center1 = Vec2(point1).b2Vec2[0]
+        capsule.center2 = Vec2(point2).b2Vec2[0]
+        capsule.radius = float(radius)
+
+        planes = []
+        resolve = self._shape_from_id
+
+        @ffi.callback("bool(b2ShapeId, b2PlaneResult*, void*)")
+        def collect(shape_id, result, _context):
+            try:
+                if result.hit:
+                    planes.append(
+                        CollisionPlane._from_plane_result(result, resolve(shape_id))
+                    )
+            except Exception:
+                traceback.print_exc()
+            return True
+
+        lib.b2World_CollideMover(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            capsule,
+            filter.b2QueryFilter[0],
+            collect,
+            ffi.NULL,
+        )
+        return planes
 
     def explode(
         self,
