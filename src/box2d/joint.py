@@ -86,7 +86,7 @@ class Joint(ABC):
         )
 
     @property
-    def anchor_a(self):
+    def local_anchor_a(self):
         """Local connection point on the first body.
 
         Returns:
@@ -96,7 +96,7 @@ class Joint(ABC):
         return Vec2(vec.x, vec.y)
 
     @property
-    def anchor_b(self):
+    def local_anchor_b(self):
         """Local connection point on the second body.
 
         Returns:
@@ -380,8 +380,8 @@ class RevoluteJoint(Joint):
         world,
         body_a,
         body_b,
-        anchor_a,
-        anchor_b,
+        local_anchor_a,
+        local_anchor_b,
         collide_connected=False,
         lower_angle=None,
         upper_angle=None,
@@ -398,8 +398,8 @@ class RevoluteJoint(Joint):
             world: The physics world instance.
             body_a: The first body to connect.
             body_b: The second body to connect.
-            anchor_a (tuple): The local (x, y) coordinates on body_a for the joint.
-            anchor_b (tuple): The local (x, y) coordinates on body_b for the joint.
+            local_anchor_a (tuple): The local (x, y) coordinates on body_a for the joint.
+            local_anchor_b (tuple): The local (x, y) coordinates on body_b for the joint.
             collide_connected (bool, optional): If True, connected bodies will collide.
             lower_angle (float, optional): Lower joint limit in radians.
             upper_angle (float, optional): Upper joint limit in radians.
@@ -409,8 +409,8 @@ class RevoluteJoint(Joint):
             enable_motor (bool, optional): Whether to enable the joint motor.
             reference_angle (float, optional): Reference angle between the two bodies.
         """
-        self._localAnchorA = Vec2(anchor_a)
-        self._localAnchorB = Vec2(anchor_b)
+        self._localAnchorA = Vec2(local_anchor_a)
+        self._localAnchorB = Vec2(local_anchor_b)
         self._lower_angle = lower_angle
         self._upper_angle = upper_angle
         self._enable_limit = enable_limit
@@ -500,6 +500,69 @@ class RevoluteJoint(Joint):
         """
         lib.b2RevoluteJoint_SetLimits(self._joint_id, float(lower), float(upper))
 
+    @property
+    def limit_enabled(self):
+        """Get or set whether the joint limit is enforced."""
+        return lib.b2RevoluteJoint_IsLimitEnabled(self._joint_id)
+
+    @limit_enabled.setter
+    def limit_enabled(self, enable):
+        lib.b2RevoluteJoint_EnableLimit(self._joint_id, bool(enable))
+
+    @property
+    def motor_enabled(self):
+        """Get or set whether the motor drives the joint."""
+        return lib.b2RevoluteJoint_IsMotorEnabled(self._joint_id)
+
+    @motor_enabled.setter
+    def motor_enabled(self, enable):
+        lib.b2RevoluteJoint_EnableMotor(self._joint_id, bool(enable))
+
+    @property
+    def motor_torque(self):
+        """The torque the motor applied in the last step, in newton-metres."""
+        return lib.b2RevoluteJoint_GetMotorTorque(self._joint_id)
+
+    @property
+    def spring_enabled(self):
+        """Get or set whether the joint's angular spring is active."""
+        return lib.b2RevoluteJoint_IsSpringEnabled(self._joint_id)
+
+    @spring_enabled.setter
+    def spring_enabled(self, enable):
+        lib.b2RevoluteJoint_EnableSpring(self._joint_id, bool(enable))
+
+    @property
+    def spring_hertz(self):
+        """Get or set the angular spring frequency in Hz."""
+        return lib.b2RevoluteJoint_GetSpringHertz(self._joint_id)
+
+    @spring_hertz.setter
+    def spring_hertz(self, value):
+        lib.b2RevoluteJoint_SetSpringHertz(self._joint_id, float(value))
+
+    @property
+    def spring_damping_ratio(self):
+        """Get or set the angular spring damping ratio."""
+        return lib.b2RevoluteJoint_GetSpringDampingRatio(self._joint_id)
+
+    @spring_damping_ratio.setter
+    def spring_damping_ratio(self, value):
+        lib.b2RevoluteJoint_SetSpringDampingRatio(self._joint_id, float(value))
+
+    @property
+    def target_angle(self):
+        """Get or set the angle the spring pulls towards, in radians.
+
+        New in Box2D 3.2, replacing the old reference angle as the way to say
+        where the joint wants to rest.
+        """
+        return lib.b2RevoluteJoint_GetTargetAngle(self._joint_id)
+
+    @target_angle.setter
+    def target_angle(self, value):
+        lib.b2RevoluteJoint_SetTargetAngle(self._joint_id, float(value))
+
 
 class PrismaticJoint(Joint):
     """
@@ -523,8 +586,8 @@ class PrismaticJoint(Joint):
         world,
         body_a,
         body_b,
-        anchor_a,
-        anchor_b,
+        local_anchor_a,
+        local_anchor_b,
         axis,
         collide_connected=False,
         lower_limit=None,
@@ -544,8 +607,8 @@ class PrismaticJoint(Joint):
             world: The physics world instance
             body_a: First body to connect
             body_b: Second body to connect
-            anchor_a (tuple): Local anchor point on body A (x,y)
-            anchor_b (tuple): Local anchor point on body B (x,y)
+            local_anchor_a (tuple): Local anchor point on body A (x,y)
+            local_anchor_b (tuple): Local anchor point on body B (x,y)
             axis (tuple): The axis defining allowed translation (x,y) in body A's frame
             collide_connected (bool): Whether bodies can collide
             lower_limit (float): Lower translation limit
@@ -559,8 +622,8 @@ class PrismaticJoint(Joint):
             hertz (float): Spring oscillation frequency in Hz
             damping_ratio (float): Spring damping ratio
         """
-        self._local_anchor_a = Vec2(anchor_a)
-        self._local_anchor_b = Vec2(anchor_b)
+        self._local_anchor_a = Vec2(local_anchor_a)
+        self._local_anchor_b = Vec2(local_anchor_b)
         self._local_axis_a = Vec2(axis)
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
@@ -772,8 +835,8 @@ class WheelJoint(Joint):
         world,
         body_a,
         body_b,
-        anchor_a,
-        anchor_b,
+        local_anchor_a,
+        local_anchor_b,
         axis,
         collide_connected=False,
         enable_limit=False,
@@ -792,8 +855,8 @@ class WheelJoint(Joint):
             world: The physics world instance
             body_a: First body to connect
             body_b: Second body to connect
-            anchor_a (tuple): Local anchor point on body A (x,y)
-            anchor_b (tuple): Local anchor point on body B (x,y)
+            local_anchor_a (tuple): Local anchor point on body A (x,y)
+            local_anchor_b (tuple): Local anchor point on body B (x,y)
             axis (tuple): The axis defining translation in body A's frame (x,y)
             collide_connected (bool): Whether bodies can collide
             enable_limit (bool): Enable joint translation limits
@@ -806,8 +869,8 @@ class WheelJoint(Joint):
             spring_hertz (float): Spring frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
         """
-        self._local_anchor_a = Vec2(anchor_a)
-        self._local_anchor_b = Vec2(anchor_b)
+        self._local_anchor_a = Vec2(local_anchor_a)
+        self._local_anchor_b = Vec2(local_anchor_b)
         self._local_axis_a = Vec2(axis)
         self._enable_limit = enable_limit
         self._lower_translation = lower_translation
@@ -987,8 +1050,8 @@ class DistanceJoint(Joint):
         world,
         body_a,
         body_b,
-        anchor_a,
-        anchor_b,
+        local_anchor_a,
+        local_anchor_b,
         collide_connected=False,
         length=None,
         min_length=None,
@@ -1007,8 +1070,8 @@ class DistanceJoint(Joint):
             world: The physics world instance
             body_a: First body to connect
             body_b: Second body to connect
-            anchor_a (tuple): Local anchor point on body A (x,y)
-            anchor_b (tuple): Local anchor point on body B (x,y)
+            local_anchor_a (tuple): Local anchor point on body A (x,y)
+            local_anchor_b (tuple): Local anchor point on body B (x,y)
             collide_connected (bool): Whether bodies can collide
             length (float): Rest length. Calculated from anchors if None.
             min_length (float): Minimum allowed length when using limits
@@ -1021,8 +1084,8 @@ class DistanceJoint(Joint):
             motor_speed (float): Desired motor speed in meters/second
             max_motor_force (float): Maximum motor force in Newtons
         """
-        self._local_anchor_a = Vec2(anchor_a)
-        self._local_anchor_b = Vec2(anchor_b)
+        self._local_anchor_a = Vec2(local_anchor_a)
+        self._local_anchor_b = Vec2(local_anchor_b)
         self._length = length
         self._min_length = min_length
         self._max_length = max_length

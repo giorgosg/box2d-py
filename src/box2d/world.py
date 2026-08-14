@@ -13,6 +13,16 @@ from .joint import (
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .dataclasses import BodyDef, BodyType
+from .jointdef import (
+    JointDef,
+    WeldJointDef,
+    RevoluteJointDef,
+    PrismaticJointDef,
+    WheelJointDef,
+    DistanceJointDef,
+    MotorJointDef,
+    MouseJointDef,
+)
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
@@ -303,500 +313,97 @@ class World:
 
         return Body(self, body_def)
 
-    def add_mouse_joint(
-        self,
-        body,
-        target,
-        max_force=1000.0,
-        damping_ratio=0.7,
-        hertz=5,
-    ) -> MouseJoint:
-        """Create a mouse joint for interactive dragging between bodies
+    def add_joint(self, joint_def):
+        """Create a joint in this world from a joint definition.
+
+        This is the single place joints are made. The ``add_*_joint`` methods
+        below are shorthand that build a definition and call this.
 
         Args:
-            body: Body to drag
-            target: Initial target position in world coordinates
-            max_force: Maximum constraint force (default 1000.0)
-            damping_ratio: Response damping ratio (0-1, default 0.7)
-            herts: Spring stiffness in Hz (higher = stiffer movement)
-
-        Example:
-            >>> world = World()
-            >>> box = world.new_body().dynamic().position(0,5).build()
-            >>> mouse_joint = world.add_mouse_joint(box, (0,5))
-        """
-        if body._body_id not in self._bodies:
-            raise ValueError("Bodies must belong to this world")
-        return MouseJoint(self, body, target, max_force, damping_ratio, hertz)
-
-    def add_weld_joint(
-        self,
-        body_a,
-        body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        anchor=None,
-        collide_connected=False,
-        linear_hertz=None,
-        linear_damping_ratio=None,
-        angular_hertz=None,
-        angular_damping_ratio=None,
-        reference_angle=None,
-    ) -> WeldJoint:
-        """Create a weld joint that rigidly connects two bodies.
-
-        Args:
-            body_a: The first body to connect (must belong to this world)
-            body_b: The second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint attaches.
-            local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint attaches.
-            anchor: World coordinates (x, y) where the joint attaches. (Used without local anchors)
-            collide_connected (bool, optional): If True, the connected bodies will collide.
-            linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid).
-            linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional).
-            angular_hertz (float, optional): Angular spring stiffness in Hertz (0 means rigid).
-            angular_damping_ratio (float, optional): Angular damping ratio (non-dimensional).
-            reference_angle (float, optional): The body_b angle minus body_a angle in the reference state (radians)
+            joint_def: Any definition from :mod:`box2d.jointdef`, such as
+                :class:`RevoluteJointDef`.
 
         Returns:
-            WeldJoint: The created weld joint connecting the two bodies.
+            The created joint.
+
+        Raises:
+            ValueError: If either body belongs to a different world, or if a
+                definition gives both a world anchor and local anchors.
 
         Example:
             >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0, 0).build()
-            >>> body_b = world.new_body().dynamic().position(1, 1).build()
-            >>> weld_joint = world.add_weld_joint(body_a, body_b, anchor=(0.5, 0.5))
+            >>> a = world.add_body(body_type='dynamic', position=(0, 0))
+            >>> b = world.add_body(body_type='dynamic', position=(1, 0))
+            >>> joint = world.add_joint(
+            ...     RevoluteJointDef(a, b, anchor=(0.5, 0), enable_motor=True,
+            ...                      max_motor_torque=100)
+            ... )
         """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError(
-                    "You can't set local anchors when setting a world anchor"
-                )
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-        return WeldJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            linear_hertz,
-            linear_damping_ratio,
-            angular_hertz,
-            angular_damping_ratio,
-            reference_angle,
+        self._check_bodies(joint_def)
+        return joint_def.joint_class(self, **joint_def.joint_arguments())
+
+    def _check_bodies(self, joint_def):
+        """Every body a joint connects has to live in this world."""
+        bodies = (
+            [joint_def.body]
+            if isinstance(joint_def, MouseJointDef)
+            else [joint_def.body_a, joint_def.body_b]
+        )
+        for body in bodies:
+            if body._body_id not in self._bodies:
+                raise ValueError("Every body of a joint must belong to this world")
+
+    def add_mouse_joint(
+        self, body, target, max_force=1000.0, damping_ratio=0.7, hertz=5.0
+    ) -> "MouseJoint":
+        """Drag a body toward a world-space target. See :class:`MouseJointDef`."""
+        return self.add_joint(
+            MouseJointDef(body, target, max_force, damping_ratio, hertz)
+        )
+
+    def add_weld_joint(
+        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+    ) -> "WeldJoint":
+        """Hold two bodies rigidly together. See :class:`WeldJointDef`."""
+        return self.add_joint(
+            WeldJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_revolute_joint(
-        self,
-        body_a,
-        body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        anchor=None,
-        collide_connected=False,
-        lower_angle=None,
-        upper_angle=None,
-        enable_limit=None,
-        motor_speed=None,
-        max_motor_torque=None,
-        enable_motor=None,
-        reference_angle=None,
-    ) -> RevoluteJoint:
-        """
-        Create a revolute joint connecting two bodies, allowing relative rotation about an anchor point.
-
-        Args:
-            body_a: The first body to connect (must belong to this world).
-            body_b: The second body to connect (must belong to this world).
-            local_anchor_a (tuple): Local coordinates (x, y) on body_a for the joint.
-            local_anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
-            collide_connected (bool, optional): Whether the connected bodies should collide with each other.
-                                                  Defaults to False.
-            lower_angle (float, optional): Lower joint limit in radians.
-            upper_angle (float, optional): Upper joint limit in radians.
-            enable_limit (bool, optional): Enable joint limits if True.
-            motor_speed (float, optional): Desired motor speed in radians per second.
-            max_motor_torque (float, optional): Maximum motor torque in newton-meters.
-            enable_motor (bool, optional): Enable the joint motor if True.
-            reference_angle (float, optional): Reference angle between the two bodies.
-
-        Returns:
-            RevoluteJoint: The created revolute joint connecting body_a and body_b.
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0, 0).build()
-            >>> body_b = world.new_body().dynamic().position(1, 0).build()
-            >>> revolute_joint = world.add_revolute_joint(
-            ...     body_a, body_b, (0, 0), (0, 0),
-            ...     collide_connected=False,
-            ...     enable_limit=True,
-            ...     lower_angle=-0.5,
-            ...     upper_angle=0.5
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError(
-                    "You can't set local anchors when setting a world anchor"
-                )
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-        return RevoluteJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            lower_angle,
-            upper_angle,
-            enable_limit,
-            motor_speed,
-            max_motor_torque,
-            enable_motor,
-            reference_angle,
+        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+    ) -> "RevoluteJoint":
+        """Pin two bodies at a point they rotate about. See :class:`RevoluteJointDef`."""
+        return self.add_joint(
+            RevoluteJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_prismatic_joint(
-        self,
-        body_a,
-        body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        axis=(1, 0),
-        anchor=None,
-        collide_connected=False,
-        lower_limit=None,
-        upper_limit=None,
-        enable_limit=None,
-        motor_speed=None,
-        max_motor_force=None,
-        enable_motor=None,
-        reference_angle=None,
-        enable_spring=None,
-        hertz=None,
-        damping_ratio=None,
+        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
     ) -> "PrismaticJoint":
-        """Create a prismatic joint that allows sliding motion along an axis.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            axis (tuple): The axis defining allowed translation (x,y) in body A's frame
-            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
-            collide_connected (bool): Whether bodies can collide with each other
-            lower_limit (float): Lower translation limit
-            upper_limit (float): Upper translation limit
-            enable_limit (bool): Whether to enable joint limits
-            motor_speed (float): Desired motor speed in meters/sec
-            max_motor_force (float): Maximum motor force in Newtons
-            enable_motor (bool): Whether to enable the joint motor
-            reference_angle (float): Reference angle between bodies in radians
-            enable_spring (bool): Enable spring behavior
-            hertz (float): Spring stiffness frequency in Hz
-            damping_ratio (float): Spring damping ratio
-
-        Returns:
-            PrismaticJoint: The created prismatic joint
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0,0).build()
-            >>> body_b = world.new_body().dynamic().position(1,0).build()
-            >>> # Create sliding joint along x-axis
-            >>> joint = world.add_prismatic_joint(
-            ...     body_a, body_b,
-            ...     anchor=(0.5,0),
-            ...     axis=(1,0),
-            ...     enable_limit=True,
-            ...     lower_limit=-1,
-            ...     upper_limit=1
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError("Can't set local anchors when setting a world anchor")
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-
-        return PrismaticJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            axis,
-            collide_connected,
-            lower_limit,
-            upper_limit,
-            enable_limit,
-            motor_speed,
-            max_motor_force,
-            enable_motor,
-            reference_angle,
-            enable_spring,
-            hertz,
-            damping_ratio,
+        """Let two bodies slide along one axis. See :class:`PrismaticJointDef`."""
+        return self.add_joint(
+            PrismaticJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_wheel_joint(
-        self,
-        body_a,
-        body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        axis=(1, 0),
-        anchor=None,
-        collide_connected=False,
-        enable_limit=False,
-        lower_translation=0.0,
-        upper_translation=0.0,
-        enable_motor=False,
-        motor_speed=0.0,
-        max_motor_torque=0.0,
-        enable_spring=False,
-        spring_hertz=0.0,
-        spring_damping_ratio=0.0,
+        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
     ) -> "WheelJoint":
-        """Create a wheel joint for vehicle suspension simulation.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            axis (tuple): The axis defining translation (x,y) in body A's frame
-            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
-            collide_connected (bool): Whether bodies can collide with each other
-            enable_limit (bool): Enable translation limits
-            lower_translation (float): Lower translation limit
-            upper_translation (float): Upper translation limit
-            enable_motor (bool): Enable the joint motor
-            motor_speed (float): Desired motor speed in radians/sec
-            max_motor_torque (float): Maximum motor torque in N-m
-            enable_spring (bool): Enable spring behavior
-            spring_hertz (float): Spring oscillation frequency in Hz
-            spring_damping_ratio (float): Spring damping ratio (non-dimensional)
-
-        Returns:
-            WheelJoint: The created wheel joint
-
-        Example:
-            >>> world = World()
-            >>> chassis = world.new_body().dynamic().position(0,1).box(2,0.5).build()
-            >>> wheel = world.new_body().dynamic().position(1,0).circle(0.4).build()
-            >>> # Create wheel suspension
-            >>> joint = world.add_wheel_joint(
-            ...     chassis, wheel,
-            ...     anchor=(1,0),
-            ...     axis=(0,1),  # Vertical suspension movement
-            ...     enable_spring=True,
-            ...     spring_hertz=4.0,
-            ...     spring_damping_ratio=0.7
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError("Can't set local anchors when setting a world anchor")
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-
-        return WheelJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            axis,
-            collide_connected,
-            enable_limit,
-            lower_translation,
-            upper_translation,
-            enable_motor,
-            motor_speed,
-            max_motor_torque,
-            enable_spring,
-            spring_hertz,
-            spring_damping_ratio,
+        """A sliding axis with a spring, as for suspension. See :class:`WheelJointDef`."""
+        return self.add_joint(
+            WheelJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_distance_joint(
-        self,
-        body_a,
-        body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        collide_connected=False,
-        length=None,
-        min_length=None,
-        max_length=None,
-        enable_limit=False,
-        enable_spring=False,
-        hertz=None,
-        damping_ratio=None,
-        enable_motor=False,
-        motor_speed=None,
-        max_motor_force=None,
+        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
     ) -> "DistanceJoint":
-        """Create a distance joint that maintains or limits distance between points on two bodies.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            collide_connected (bool): Whether bodies can collide with each other
-            length (float): Rest length. Calculated from anchors if None.
-            min_length (float): Minimum allowed length when using limits
-            max_length (float): Maximum allowed length when using limits
-            enable_limit (bool): Whether to enable length limits
-            enable_spring (bool): Enable spring behavior
-            hertz (float): Spring oscillation frequency in Hz
-            damping_ratio (float): Spring damping ratio
-            enable_motor (bool): Enable the joint motor
-            motor_speed (float): Desired motor speed in meters/second
-            max_motor_force (float): Maximum motor force in Newtons
-
-        Returns:
-            DistanceJoint: The created distance joint
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0,0).build()
-            >>> body_b = world.new_body().dynamic().position(2,0).build()
-            >>> # Create spring joint
-            >>> spring = world.add_distance_joint(
-            ...     body_a, body_b,
-            ...     local_anchor_a=(0,0),
-            ...     local_anchor_b=(2,0),
-            ...     enable_spring=True,
-            ...     hertz=4.0,
-            ...     damping_ratio=0.5
-            ... )
-            >>> # Create rope joint
-            >>> rope = world.add_distance_joint(
-            ...     body_a, body_b,
-            ...     local_anchor_a=(0,1),
-            ...     local_anchor_b=(2,1),
-            ...     enable_limit=True,
-            ...     min_length=1.0,
-            ...     max_length=3.0
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        return DistanceJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            length,
-            min_length,
-            max_length,
-            enable_limit,
-            enable_spring,
-            hertz,
-            damping_ratio,
-            enable_motor,
-            motor_speed,
-            max_motor_force,
+        """Keep two points a fixed distance apart. See :class:`DistanceJointDef`."""
+        return self.add_joint(
+            DistanceJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
-    def add_motor_joint(
-        self,
-        body_a,
-        body_b,
-        linear_velocity=None,
-        angular_velocity=None,
-        max_velocity_force=None,
-        max_velocity_torque=None,
-        linear_hertz=None,
-        linear_damping_ratio=None,
-        max_spring_force=None,
-        angular_hertz=None,
-        angular_damping_ratio=None,
-        max_spring_torque=None,
-        collide_connected=False,
-    ) -> "MotorJoint":
-        """Create a motor joint driving the relative motion of two bodies.
-
-        Box2D 3.2 rewrote this joint: it drives a relative velocity capped by a
-        maximum force, optionally with a spring, rather than correcting toward a
-        target offset. To pull a body toward a world point, use
-        :meth:`add_mouse_joint`.
-
-        Args:
-            body_a: First body to connect
-            body_b: Second body to connect
-            linear_velocity (vector-like): Desired relative linear velocity
-            angular_velocity (float): Desired relative angular velocity, rad/s
-            max_velocity_force (float): Force cap for the linear velocity drive
-            max_velocity_torque (float): Torque cap for the angular velocity drive
-            linear_hertz (float): Linear spring frequency; 0 disables the spring
-            linear_damping_ratio (float): Linear spring damping ratio
-            max_spring_force (float): Force cap for the linear spring
-            angular_hertz (float): Angular spring frequency; 0 disables the spring
-            angular_damping_ratio (float): Angular spring damping ratio
-            max_spring_torque (float): Torque cap for the angular spring
-            collide_connected (bool): Whether bodies can collide
-
-        Returns:
-            MotorJoint: The created motor joint
-
-        Example:
-            >>> world = World()
-            >>> ground = world.new_body().build()
-            >>> body = world.new_body().dynamic().position(0, 4).build()
-            >>> motor = world.add_motor_joint(
-            ...     ground, body,
-            ...     linear_velocity=(1, 0),
-            ...     max_velocity_force=100,
-            ... )
-        """
-        return MotorJoint(
-            self,
-            body_a,
-            body_b,
-            linear_velocity,
-            angular_velocity,
-            max_velocity_force,
-            max_velocity_torque,
-            linear_hertz,
-            linear_damping_ratio,
-            max_spring_force,
-            angular_hertz,
-            angular_damping_ratio,
-            max_spring_torque,
-            collide_connected,
-        )
+    def add_motor_joint(self, body_a, body_b, **kwargs) -> "MotorJoint":
+        """Drive the relative motion of two bodies. See :class:`MotorJointDef`."""
+        return self.add_joint(MotorJointDef(body_a, body_b, **kwargs))
 
     def _track_body(self, body: "Body"):
         """Internal method to track body references. Called automatically during body creation.
