@@ -1,4 +1,4 @@
-# src/box3d/world.py
+# src/box2d/world.py
 
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
@@ -259,7 +259,7 @@ class World:
         body_def = BodyDef()
 
         if body_type is not None:
-            body_def.type = self._resolve_body_type(body_type)
+            body_def.type = Body.resolve_type(body_type)
         if position is not None:
             body_def.position = Vec2(position)
         if rotation is not None:
@@ -294,19 +294,6 @@ class World:
             body_def.allow_fast_rotation = allow_fast_rotation
 
         return Body(self, body_def)
-
-    @staticmethod
-    def _resolve_body_type(body_type) -> int:
-        """Accept a body type as a name or a BodyType, and return the Box2D value."""
-        if isinstance(body_type, str):
-            try:
-                return Body.types[body_type]
-            except KeyError:
-                raise ValueError(
-                    f"Invalid body type: {body_type!r}. "
-                    f"Must be one of: {', '.join(sorted(Body.types))}."
-                ) from None
-        return int(body_type)
 
     def add_mouse_joint(
         self,

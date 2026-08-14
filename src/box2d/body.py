@@ -1143,22 +1143,47 @@ class Body:
             return None
         return bodies[index + 1] if index + 1 < len(bodies) else None
 
+    @staticmethod
+    def resolve_type(body_type) -> int:
+        """Convert a body type to the Box2D constant.
+
+        Args:
+            body_type: A name -- 'static', 'kinematic' or 'dynamic' -- or a BodyType.
+
+        Returns:
+            The Box2D body type constant.
+
+        Raises:
+            ValueError: If the name is not a valid body type.
+        """
+        if isinstance(body_type, str):
+            try:
+                return Body.types[body_type]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid body type: {body_type!r}. "
+                    f"Must be one of: {', '.join(sorted(Body.types))}."
+                ) from None
+        return int(body_type)
+
     @property
-    def type(self):
-        """Get/Set the body type as a string ('static', 'kinematic', or 'dynamic')."""
+    def type(self) -> str:
+        """Get or set the body type.
+
+        Reads back as a name -- 'static', 'kinematic' or 'dynamic'. Accepts
+        either a name or a BodyType when set.
+
+        Changing type is not free: it destroys and recreates the body's
+        contacts, and wakes both this body and anything touching it.
+        """
         type_id = lib.b2Body_GetType(self._body_id)
         for name, value in Body.types.items():
             if value == type_id:
                 return name
 
     @type.setter
-    def set_type(self, body_type: str):
-        if body_type not in Body.types:
-            raise ValueError(
-                f"Invalid body type: {body_type}. Must be one of: {', '.join(type_map.keys())}"
-            )
-
-        lib.b2Body_SetType(self._body_id, type_map[body_type])
+    def type(self, body_type) -> None:
+        lib.b2Body_SetType(self._body_id, Body.resolve_type(body_type))
 
     # TODO: currently is segfaults one of the tests. need to figure out why.
     # def __del__(self):

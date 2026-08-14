@@ -181,3 +181,41 @@ def test_builder_rotation_is_not_double_wrapped(world):
     """The builder passes radians; add_body is what turns them into a Rot."""
     body = world.new_body().dynamic().rotation(math.pi / 4).build()
     assert body.rotation == pytest.approx(math.pi / 4)
+
+
+# --- Body.type, which was broken in both directions --------------------------
+
+
+def test_body_type_is_readable_and_writable(world):
+    """`body.type = x` raised AttributeError; `body.set_type = x` raised NameError."""
+    body = world.add_body(body_type="dynamic")
+    assert body.type == "dynamic"
+
+    body.type = "static"
+    assert body.type == "static"
+
+
+def test_body_type_accepts_enum(world):
+    body = world.add_body()
+    body.type = BodyType.KINEMATIC
+    assert body.type == "kinematic"
+
+
+def test_body_type_rejects_unknown_name(world):
+    body = world.add_body()
+    with pytest.raises(ValueError, match="Invalid body type"):
+        body.type = "bouncy"
+
+
+def test_stray_set_type_property_is_gone(world):
+    """@type.setter was applied to a function named set_type, creating a second property."""
+    assert not hasattr(world.add_body(), "set_type")
+
+
+def test_add_body_and_type_setter_share_one_resolver(world):
+    """Both paths must accept the same spellings and reject the same ones."""
+    from box2d.body import Body
+
+    assert Body.resolve_type("dynamic") == Body.resolve_type(BodyType.DYNAMIC)
+    with pytest.raises(ValueError, match="Invalid body type"):
+        Body.resolve_type("bouncy")
