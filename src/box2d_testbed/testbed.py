@@ -345,6 +345,26 @@ class TestbedApp:
             f"Graphics: {state.perf.draw_ms:.1f} ({state.perf.draw_ms_avg:.1f}) [{state.perf.draw_ms_max:.1f}] ms"
         )
 
+        profile, counters = state.perf.profile, state.perf.counters
+        if profile is None or counters is None:
+            return
+
+        imgui.separator()
+        # Box2D times itself, so this is the step without the binding around
+        # it. Where it diverges from Physics above, the cost is on our side.
+        imgui.text(f"Box2D step: {profile.step:.2f} ms")
+        for name, milliseconds in profile.slowest(4):
+            imgui.text(f"  {name.replace('_', ' ')}: {milliseconds:.2f}")
+
+        imgui.separator()
+        imgui.text(f"bodies {counters.body_count} ({state.perf.awake} awake)")
+        imgui.text(f"shapes {counters.shape_count}  contacts {counters.contact_count}")
+        imgui.text(f"joints {counters.joint_count}  islands {counters.island_count}")
+        imgui.text(
+            f"tree height {counters.tree_height} / static {counters.static_tree_height}"
+        )
+        imgui.text(f"memory {counters.byte_count / 1024:.0f} KiB")
+
     def on_mouse_scroll(self, ammount: float):
         """Handle mouse scroll for zooming"""
         # Scale factor per scroll unit

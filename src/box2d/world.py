@@ -18,6 +18,7 @@ from .joint import (
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
 from .query import ShapeProxy
+from .diagnostics import Counters, Profile
 from .dataclasses import BodyDef, BodyType
 from .events import (
     BodyMoveEvent,
@@ -1373,3 +1374,134 @@ class World:
             self._contact_damping_ratio,
             self._contact_push_velocity,
         )
+
+    # --- diagnostics --------------------------------------------------------
+
+    @property
+    def profile(self) -> Profile:
+        """Where the time went in the last step, in milliseconds.
+
+        Example:
+            >>> world = World()
+            >>> world.step(1 / 60, 4)
+            >>> world.profile.step >= 0.0
+            True
+        """
+        return Profile.from_b2Profile(lib.b2World_GetProfile(self._world_id))
+
+    @property
+    def counters(self) -> Counters:
+        """How big the simulation is: bodies, contacts, islands, bytes.
+
+        Example:
+            >>> world = World()
+            >>> body = world.new_body().dynamic().circle(1).build()
+            >>> world.step(1 / 60, 4)
+            >>> world.counters.body_count
+            1
+        """
+        return Counters.from_b2Counters(lib.b2World_GetCounters(self._world_id))
+
+    @property
+    def awake_body_count(self) -> int:
+        """How many bodies are awake.
+
+        Bodies that have settled stop being simulated, so this falling to zero
+        is how you know a scene has come to rest.
+        """
+        return lib.b2World_GetAwakeBodyCount(self._world_id)
+
+    @property
+    def bounds(self) -> AABB:
+        """The box containing every shape in the world.
+
+        Computed from the union of all shape bounds, so it is a query rather
+        than a stored value.
+        """
+        aabb = lib.b2World_GetBounds(self._world_id)
+        return AABB(
+            lower=Vec2(aabb.lowerBound.x, aabb.lowerBound.y),
+            upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
+        )
+
+    def dump_memory_stats(self):
+        """Write Box2D's memory breakdown to ``box2d_memory.txt``.
+
+        The filename is Box2D's, not a parameter, and the file lands in the
+        working directory.
+        """
+        lib.b2World_DumpMemoryStats(self._world_id)
+
+    # --- tuning -------------------------------------------------------------
+
+    @property
+    def maximum_linear_speed(self) -> float:
+        """Speed cap applied to every body, in m/s.
+
+        Box2D clamps to this rather than letting a body move so far in one
+        step that collision cannot keep up.
+        """
+        return lib.b2World_GetMaximumLinearSpeed(self._world_id)
+
+    @maximum_linear_speed.setter
+    def maximum_linear_speed(self, value: float):
+        lib.b2World_SetMaximumLinearSpeed(self._world_id, float(value))
+
+    @property
+    def contact_recycle_distance(self) -> float:
+        """How far a contact point may move and still be reused, in metres.
+
+        Reusing contact points keeps stacks stable, because the solver keeps
+        the impulses it had already worked out. Zero disables recycling.
+        """
+        return lib.b2World_GetContactRecycleDistance(self._world_id)
+
+    @contact_recycle_distance.setter
+    def contact_recycle_distance(self, value: float):
+        lib.b2World_SetContactRecycleDistance(self._world_id, float(value))
+
+    @property
+    def worker_count(self) -> int:
+        """How many workers the world may spread a step across.
+
+        Only meaningful for a world created with ``threads`` above one; the
+        task scheduler is what actually runs the work.
+        """
+        return lib.b2World_GetWorkerCount(self._world_id)
+
+    @worker_count.setter
+    def worker_count(self, value: int):
+        lib.b2World_SetWorkerCount(self._world_id, int(value))
+
+    @property
+    def enable_warm_starting(self) -> bool:
+        """Whether the solver starts from last step's impulses.
+
+        On by default and worth leaving on: Box2D's own header notes that
+        turning it off greatly reduces stability and buys no speed. Exposed
+        because seeing that difference is the point of a testbed.
+        """
+        return bool(lib.b2World_IsWarmStartingEnabled(self._world_id))
+
+    @enable_warm_starting.setter
+    def enable_warm_starting(self, value: bool):
+        lib.b2World_EnableWarmStarting(self._world_id, bool(value))
+
+    def enable_speculative(self, value: bool):
+        """Turn speculative contacts on or off.
+
+        Speculative contacts let the solver see a collision before it happens,
+        which is how fast objects stop cleanly instead of overshooting. Box2D
+        marks this as internal testing and offers no getter, so it is a method
+        rather than a property.
+        """
+        lib.b2World_EnableSpeculative(self._world_id, bool(value))
+
+    def rebuild_static_tree(self):
+        """Rebuild the static broad-phase tree from scratch.
+
+        Box2D marks this internal testing. Static shapes are inserted
+        incrementally, which can leave the tree unbalanced after many
+        additions; rebuilding restores query performance.
+        """
+        lib.b2World_RebuildStaticTree(self._world_id)

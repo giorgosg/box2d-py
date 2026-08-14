@@ -78,6 +78,9 @@ class TestbedSimulation:
         state.perf.physics_ms_avg *= smoothing
         state.perf.physics_ms_avg += elapsed * (1 - smoothing)
         state.perf.physics_ms_max = max(state.perf.physics_ms_max, elapsed)
+        state.perf.profile = self.world.profile
+        state.perf.counters = self.world.counters
+        state.perf.awake = self.world.awake_body_count
         state.step_count += 1
 
     def draw(self):

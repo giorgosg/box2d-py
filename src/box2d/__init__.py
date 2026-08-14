@@ -23,6 +23,7 @@ from .mover import (
     solve_planes,
 )
 from .query import MAX_PROXY_POINTS, ShapeProxy
+from .diagnostics import Counters, Profile
 from .jointdef import (
     JointDef,
     FilterJointDef,

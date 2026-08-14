@@ -40,6 +40,12 @@ class PerformanceData:
         self.draw_ms_avg = 0
         self.draw_ms_max = 0
         self.smoothing_avg = 0.9
+        # Box2D's own view of the last step, which is narrower than the
+        # wall-clock physics_ms measured around it: the gap between them is
+        # the binding's overhead.
+        self.profile = None
+        self.counters = None
+        self.awake = 0
 
 
 class TestbedData:
