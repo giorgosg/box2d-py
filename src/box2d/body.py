@@ -1089,24 +1089,20 @@ class Body:
                 value = value[:31]
             lib.b2Body_SetName(self._body_id, value.encode("utf-8"))
 
-    def dump(self):
-        """Dump the body data to the log for debugging."""
-        lib.b2Body_Dump(self._body_id)
-
     def get_next_body(self):
         """Get the next body in the world's body list.
 
         Returns:
             The next body in the world or None if this is the last body.
         """
-        next_id = lib.b2Body_GetNext(self._body_id)
-        if lib.b2Body_IsValid(next_id):
-            body_data = lib.b2Body_GetUserData(next_id)
-            if body_data:
-                return ffi.from_handle(body_data)
-            else:
-                raise ValueError("Invalid body data")
-        return None
+        # Box2D 3.1 removed b2Body_GetNext along with the engine-side body
+        # list, so this walks the world's own tracked bodies instead.
+        bodies = self.world.bodies
+        try:
+            index = bodies.index(self)
+        except ValueError:
+            return None
+        return bodies[index + 1] if index + 1 < len(bodies) else None
 
     @property
     def type(self):

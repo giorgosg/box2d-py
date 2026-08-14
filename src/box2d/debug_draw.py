@@ -170,15 +170,15 @@ class DebugDraw:
         self._debug_draw.context = ffi.new_handle(self)
 
         # Assign decorated callbacks
-        self._debug_draw.DrawPolygon = draw_polygon
-        self._debug_draw.DrawSolidPolygon = draw_solid_polygon
-        self._debug_draw.DrawCircle = draw_circle
-        self._debug_draw.DrawSegment = draw_segment
-        self._debug_draw.DrawPoint = draw_point
-        self._debug_draw.DrawString = draw_string
-        self._debug_draw.DrawSolidCapsule = draw_solid_capsule
-        self._debug_draw.DrawSolidCircle = draw_solid_circle
-        self._debug_draw.DrawTransform = draw_transform
+        self._debug_draw.DrawPolygonFcn = draw_polygon
+        self._debug_draw.DrawSolidPolygonFcn = draw_solid_polygon
+        self._debug_draw.DrawCircleFcn = draw_circle
+        self._debug_draw.DrawSegmentFcn = draw_segment
+        self._debug_draw.DrawPointFcn = draw_point
+        self._debug_draw.DrawStringFcn = draw_string
+        self._debug_draw.DrawSolidCapsuleFcn = draw_solid_capsule
+        self._debug_draw.DrawSolidCircleFcn = draw_solid_circle
+        self._debug_draw.DrawTransformFcn = draw_transform
 
         # Store a handle to this Python object for context
         self._context_handle = ffi.new_handle(self)
@@ -194,11 +194,11 @@ class DebugDraw:
 
     @property
     def draw_aabbs(self):
-        return bool(self._debug_draw.drawAABBs)
+        return bool(self._debug_draw.drawBounds)
 
     @draw_aabbs.setter
     def draw_aabbs(self, value: bool):
-        self._debug_draw.drawAABBs = bool(value)
+        self._debug_draw.drawBounds = bool(value)
 
     @property
     def draw_joints(self):

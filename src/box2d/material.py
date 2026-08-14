@@ -69,7 +69,7 @@ class SurfaceMaterial:
         material = lib.b2DefaultSurfaceMaterial()
 
         # Always set the material ID, even if using the auto-generated one
-        material.material = self.material
+        material.userMaterialId = self.material
 
         # Override with any explicitly set values
         if self.friction is not None:

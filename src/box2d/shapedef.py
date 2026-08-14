@@ -34,6 +34,9 @@ class ShapeDef:
         filter: Collision filtering data as a CollisionFilter object
         custom_color: Custom debug draw color (optional hex color value)
         is_sensor: True if this shape is a sensor (generates events but no collision response). default=False
+        enable_sensor_events: True if sensors may detect this shape. Box2D 3.1 made this
+            opt-in and defaults it to False; box2d-py keeps it True so that sensors
+            behave as they did before the 3.1 upgrade. default=True
         enable_contact_events: True to enable contact events for this shape. default=False
         enable_hit_events: True to enable hit events for this shape. default=False
         enable_pre_solve_events: True to enable pre-solve events (expensive). default=False
@@ -42,15 +45,16 @@ class ShapeDef:
     """
 
     user_data: Optional[Any] = None
-    friction: float = _default_shape_def.friction
-    restitution: float = _default_shape_def.restitution
-    rolling_resistance: float = _default_shape_def.rollingResistance
-    tangent_speed: float = _default_shape_def.tangentSpeed
-    material: SurfaceMaterial | int = _default_shape_def.material
+    friction: float = _default_shape_def.material.friction
+    restitution: float = _default_shape_def.material.restitution
+    rolling_resistance: float = _default_shape_def.material.rollingResistance
+    tangent_speed: float = _default_shape_def.material.tangentSpeed
+    material: SurfaceMaterial | int = _default_shape_def.material.userMaterialId
     density: float = _default_shape_def.density
     filter: Optional[CollisionFilter] = None
-    custom_color: int = _default_shape_def.customColor
+    custom_color: int = _default_shape_def.material.customColor
     is_sensor: bool = _default_shape_def.isSensor
+    enable_sensor_events: bool = True
     enable_contact_events: bool = _default_shape_def.enableContactEvents
     enable_hit_events: bool = _default_shape_def.enableHitEvents
     enable_pre_solve_events: bool = _default_shape_def.enablePreSolveEvents
@@ -75,35 +79,37 @@ class ShapeDef:
         if self.user_data is not None:
             shape_def.userData = self.user_data
 
-        shape_def.friction = self.friction
-        shape_def.restitution = self.restitution
-        shape_def.rollingResistance = self.rolling_resistance
-        shape_def.tangentSpeed = self.tangent_speed
+        shape_def.material.friction = self.friction
+        shape_def.material.restitution = self.restitution
+        shape_def.material.rollingResistance = self.rolling_resistance
+        shape_def.material.tangentSpeed = self.tangent_speed
 
         # Handle material - either an int or SurfaceMaterial object
         if self.material is not None:
             if isinstance(self.material, SurfaceMaterial):
-                shape_def.material = self.material.material
+                shape_def.material.userMaterialId = self.material.material
                 # Apply any material properties if the corresponding ShapeDef property is None
                 if self.friction is None and self.material.friction is not None:
-                    shape_def.friction = self.material.friction
+                    shape_def.material.friction = self.material.friction
                 if self.restitution is None and self.material.restitution is not None:
-                    shape_def.restitution = self.material.restitution
+                    shape_def.material.restitution = self.material.restitution
                 if (
                     self.rolling_resistance is None
                     and self.material.rolling_resistance is not None
                 ):
-                    shape_def.rollingResistance = self.material.rolling_resistance
+                    shape_def.material.rollingResistance = (
+                        self.material.rolling_resistance
+                    )
                 if (
                     self.tangent_speed is None
                     and self.material.tangent_speed is not None
                 ):
-                    shape_def.tangentSpeed = self.material.tangent_speed
+                    shape_def.material.tangentSpeed = self.material.tangent_speed
                 if self.custom_color is None and self.material.custom_color is not None:
                     if isinstance(self.material.custom_color, int):
-                        shape_def.customColor = self.material.custom_color
+                        shape_def.material.customColor = self.material.custom_color
             else:
-                shape_def.material = self.material
+                shape_def.material.userMaterialId = self.material
 
         shape_def.density = self.density
 
@@ -114,8 +120,9 @@ class ShapeDef:
             shape_def.filter.maskBits = filter.maskBits
             shape_def.filter.groupIndex = filter.groupIndex
 
-        shape_def.customColor = self.custom_color
+        shape_def.material.customColor = self.custom_color
         shape_def.isSensor = self.is_sensor
+        shape_def.enableSensorEvents = self.enable_sensor_events
         shape_def.enableContactEvents = self.enable_contact_events
         shape_def.enableHitEvents = self.enable_hit_events
         shape_def.enablePreSolveEvents = self.enable_pre_solve_events
@@ -391,6 +398,8 @@ class ChainDef:
         materials: Optional list of SurfaceMaterial objects for each segment
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data
+        enable_sensor_events: True if sensors may detect this chain. See ShapeDef
+            for why this defaults to True rather than Box2D's False. default=True
     """
 
     vertices: Sequence[VectorLike]
@@ -398,6 +407,7 @@ class ChainDef:
     materials: Sequence[SurfaceMaterial] = None
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
+    enable_sensor_events: bool = True
 
     def __post_init__(self):
         """Convert all vertices to Vec2 objects"""
@@ -445,6 +455,7 @@ class ChainDef:
         chain_def.points = b2_vertices
         chain_def.count = count
         chain_def.isLoop = self.is_loop
+        chain_def.enableSensorEvents = self.enable_sensor_events
 
         # Handle materials
         if self.materials is not None:
@@ -473,7 +484,7 @@ class ChainDef:
                     if mat.tangent_speed is not None
                     else lib.b2DefaultSurfaceMaterial().tangentSpeed
                 )
-                materials[i].material = mat.material
+                materials[i].userMaterialId = mat.material
 
                 if mat.custom_color is not None:
                     if isinstance(mat.custom_color, int):

@@ -16,7 +16,6 @@ from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
 from dataclasses import dataclass
-from .shapedef import CircleDef
 from dataclasses import dataclass
 from .math import Vec2
 from ._box2d import ffi, lib
@@ -144,7 +143,7 @@ class World:
         self._hit_event_threshold = world_def.hitEventThreshold
         self._contact_hertz = world_def.contactHertz
         self._contact_damping_ratio = world_def.contactDampingRatio
-        self._contact_push_velocity = world_def.contactPushMaxSpeed
+        self._contact_push_velocity = world_def.maxContactPushSpeed
 
         self._bodies = {}
 
@@ -788,14 +787,17 @@ class World:
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
 
-        circle = CircleDef(radius).b2Circle
-        transform = Transform(position=position).b2Transform
+        # Box2D 3.1 replaced b2World_OverlapCircle with the general
+        # b2World_OverlapShape. A circle is a single-point proxy with a radius.
+        proxy = ffi.new("b2ShapeProxy*")
+        proxy.points[0] = to_vec2(position).b2Vec2[0]
+        proxy.count = 1
+        proxy.radius = radius
         c_filter = filter.b2QueryFilter
 
-        lib.b2World_OverlapCircle(
+        lib.b2World_OverlapShape(
             self._world_id,
-            circle,
-            transform[0],
+            proxy,
             c_filter[0],
             overlap_callback,
             ffi.NULL,

@@ -565,12 +565,12 @@ class PrismaticJoint(Joint):
     @property
     def joint_translation(self):
         """Get the current joint translation."""
-        return lib.b2PrismaticJoint_GetJointTranslation(self._joint_id)
+        return lib.b2PrismaticJoint_GetTranslation(self._joint_id)
 
     @property
     def joint_speed(self):
         """Get the current joint linear speed."""
-        return lib.b2PrismaticJoint_GetJointSpeed(self._joint_id)
+        return lib.b2PrismaticJoint_GetSpeed(self._joint_id)
 
     @property
     def limit_enabled(self):

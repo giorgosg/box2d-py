@@ -272,6 +272,38 @@ def test_contact_and_sensor_methods(world):
     assert isinstance(sensor.sensor_overlaps, list)
 
 
+def test_sensor_actually_detects_overlap(world):
+    """A sensor must report shapes that overlap it, and emit a begin event.
+
+    The pre-existing sensor tests only assert types, so they stayed green when
+    Box2D 3.1 made shape.enable_sensor_events opt-in and sensors silently
+    stopped detecting anything.
+    """
+    sensor_body = world.new_body().static().position(0, 0).build()
+    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+
+    visitor = world.new_body().dynamic().position(0, 0).build()
+    visitor.add_circle(radius=0.5)
+
+    world.step(1 / 60, 4)
+
+    assert len(sensor.get_sensor_overlaps()) == 1
+    assert len(world.get_sensor_events().begin) == 1
+
+
+def test_sensor_events_can_be_disabled_per_shape(world):
+    """A shape opting out of sensor events must not be detected."""
+    sensor_body = world.new_body().static().position(0, 0).build()
+    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+
+    visitor = world.new_body().dynamic().position(0, 0).build()
+    visitor.add_circle(radius=0.5, enable_sensor_events=False)
+
+    world.step(1 / 60, 4)
+
+    assert sensor.get_sensor_overlaps() == []
+
+
 def test_chain_segments(static_body):
     """Test ChainSegment class and its properties"""
     vertices = [(0, 0), (3, 0), (3, 3), (0, 3)]
