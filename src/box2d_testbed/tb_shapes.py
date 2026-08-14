@@ -3,6 +3,9 @@
 from .base_test import BaseTest, UI
 from itertools import product
 from .shared import create_random_polygon
+from box2d import Vec2
+from box2d.shape import Circle, Capsule, Segment, Polygon
+from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
@@ -89,3 +92,114 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
         for body in self.world.bodies:
             body.destroy()
         self.setup()
+
+
+class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
+    """Reshape a live shape in place.
+
+    The kinematic platform's shape is swapped between geometry types and
+    rescaled without recreating the body, using the shape's geometry
+    properties. The body's mass has to be recomputed afterwards.
+    """
+
+    shape = UI.select("circle", ["circle", "capsule", "segment", "polygon"])
+    scale = UI.float(1.0, min=0.1, max=4.0)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 5)
+        self.app_state.zoom = 25.0 * 0.25
+
+        self.world.new_body().static().box(20, 2, offset=(0, -1)).build()
+        self.world.new_body().dynamic().position(0, 4).box(2, 2).build()
+
+        self.platform = self.world.new_body().kinematic().position(0, 1).build()
+        self.shape_obj = self.platform.add_circle(radius=0.5)
+
+    def update_shape(self):
+        """Replace the platform's geometry with the currently selected shape."""
+        body = self.shape_obj.body
+        scale = self.scale
+
+        # A shape cannot change type in place, so swap the object when needed
+        # and only touch the geometry when the type already matches.
+        if self.shape == "circle" and isinstance(self.shape_obj, Circle):
+            self.shape_obj.radius = 0.5 * scale
+        elif self.shape == "capsule" and isinstance(self.shape_obj, Capsule):
+            self.shape_obj.geometry = CapsuleDef(
+                (-0.5 * scale, 0), (0, 0.5 * scale), 0.5 * scale
+            )
+        elif self.shape == "segment" and isinstance(self.shape_obj, Segment):
+            self.shape_obj.geometry = SegmentDef((-0.5 * scale, 0), (0.75 * scale, 0))
+        elif self.shape == "polygon" and isinstance(self.shape_obj, Polygon):
+            self.shape_obj.geometry = PolygonDef(
+                [
+                    (-0.5 * scale, -0.75 * scale),
+                    (0.5 * scale, -0.75 * scale),
+                    (0.5 * scale, 0.75 * scale),
+                    (-0.5 * scale, 0.75 * scale),
+                ]
+            )
+        else:
+            self.shape_obj = self._recreate(body, scale)
+
+        body.apply_mass_from_shapes()
+
+    def _recreate(self, body, scale):
+        """Attach a fresh shape of the selected type, dropping the old one."""
+        self.shape_obj.destroy()
+        if self.shape == "circle":
+            return body.add_circle(radius=0.5 * scale)
+        if self.shape == "capsule":
+            return body.add_capsule(
+                point1=(-0.5 * scale, 0), point2=(0, 0.5 * scale), radius=0.5 * scale
+            )
+        if self.shape == "segment":
+            return body.add_segment(point1=(-0.5 * scale, 0), point2=(0.75 * scale, 0))
+        half_w, half_h = 0.5 * scale, 0.75 * scale
+        return body.add_polygon(
+            vertices=[
+                (-half_w, -half_h),
+                (half_w, -half_h),
+                (half_w, half_h),
+                (-half_w, half_h),
+            ]
+        )
+
+    @shape.callback
+    @scale.callback
+    def on_change(self, key, value):
+        self.update_shape()
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            (-5, 8), f"{type(self.shape_obj).__name__.lower()}, scale {self.scale:.2f}"
+        )
+
+
+class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
+    """A surface whose tangent speed drags whatever rests on it sideways."""
+
+    tangent_speed = UI.float(2.0, min=-10.0, max=10.0)
+
+    def setup(self):
+        self.app_state.center = Vec2(2, 7.5)
+        self.app_state.zoom = 12.0
+
+        self.world.new_body().static().segment((-20, 0), (20, 0)).build()
+
+        self.belt = (
+            self.world.new_body()
+            .static()
+            .position(-5, 5)
+            .box(20, 0.5, radius=0.25, friction=0.8, tangent_speed=self.tangent_speed)
+            .build()
+        )
+
+        boxes = self.world.new_body().dynamic().box(1, 1)
+        for i in range(5):
+            boxes.position(-10 + 2 * i, 7).build()
+
+    @tangent_speed.callback
+    def on_speed_change(self, key, value):
+        for shape in self.belt.shapes:
+            shape.tangent_speed = value

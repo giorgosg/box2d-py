@@ -308,6 +308,50 @@ def _compute_hull(vertices: Sequence[VectorLike]):
 
 
 @dataclass
+class BoxDef:
+    """
+    Definition for a box, the most common polygon.
+
+    Box2D builds boxes directly rather than through a convex hull, which is both
+    cheaper and, more importantly, has no minimum feature size. Routing a box
+    through PolygonDef would reject anything thinner than Box2D's linear slop --
+    a house of cards made from 1mm cards would fail to build at all.
+
+    Attributes:
+        width: Full width of the box
+        height: Full height of the box
+        radius: Radius of the rounded corners
+        offset: Position of the box relative to the body origin
+        rotation: Rotation of the box, in radians or as a Rot
+    """
+
+    width: float
+    height: float
+    radius: float = 0.0
+    offset: VectorLike = Vec2(0, 0)
+    rotation: Optional[float | Rot] = None
+
+    @property
+    def b2Polygon(self):
+        """
+        Creates and returns the C structure for this box.
+
+        Returns:
+            A b2Polygon C structure representing this box
+        """
+        rotation = self.rotation if self.rotation is not None else Rot(0.0)
+        if not isinstance(rotation, Rot):
+            rotation = Rot(rotation)
+        return lib.b2MakeOffsetRoundedBox(
+            self.width / 2,
+            self.height / 2,
+            Vec2(self.offset).b2Vec2[0],
+            rotation.b2Rot[0],
+            self.radius or 0.0,
+        )
+
+
+@dataclass
 class PolygonDef:
     """
     Definition for a polygon shape.

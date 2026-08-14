@@ -697,3 +697,107 @@ class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
             f"drive = {velocity.x:.1f} m/s, "
             f"force = ({force.x:.1f}, {force.y:.1f}), torque = {torque:.1f}",
         )
+
+
+class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
+    """Box2D 3.2 replaced the single fixed-rotation flag with three independent
+    locks. Each box below hangs from a different joint type, and all of them
+    share one set of locks, so you can watch how each joint reacts as you
+    forbid movement along x, along y, or about z.
+    """
+
+    lock_x = UI.bool(False, label="Lock Linear X")
+    lock_y = UI.bool(False, label="Lock Linear Y")
+    lock_rotation = UI.bool(True, label="Lock Angular Z")
+    shove = UI.button("Shove first box")
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 8)
+        self.app_state.zoom = 25.0 * 0.7
+
+        ground = self.world.new_body().static().build()
+
+        locks = dict(
+            lock_x=self.lock_x, lock_y=self.lock_y, lock_rotation=self.lock_rotation
+        )
+        self.bodies = []
+        for index, attach in enumerate(
+            (
+                self._distance,
+                self._motor,
+                self._prismatic,
+                self._revolute,
+                self._weld,
+                self._wheel,
+            )
+        ):
+            position = Vec2(-12.5 + 5.0 * index, 10.0)
+            body = self.world.add_body(body_type="dynamic", position=position, **locks)
+            body.add_box(2, 2)
+            attach(ground, body, position)
+            self.bodies.append(body)
+
+    def _distance(self, ground, body, position):
+        length = 2.0
+        self.world.add_distance_joint(
+            ground,
+            body,
+            local_anchor_a=position + (0, 1.0 + length),
+            local_anchor_b=(0, 1.0),
+            length=length,
+        )
+
+    def _motor(self, ground, body, position):
+        self.world.add_motor_joint(
+            ground,
+            body,
+            max_velocity_force=200.0,
+            max_velocity_torque=200.0,
+        )
+
+    def _prismatic(self, ground, body, position):
+        self.world.add_prismatic_joint(ground, body, anchor=position - (1.0, 0))
+
+    def _revolute(self, ground, body, position):
+        self.world.add_revolute_joint(ground, body, anchor=position - (1.0, 0))
+
+    def _weld(self, ground, body, position):
+        self.world.add_weld_joint(
+            ground,
+            body,
+            anchor=position - (1.0, 0),
+            linear_hertz=1.0,
+            linear_damping_ratio=0.5,
+            angular_hertz=1.0,
+            angular_damping_ratio=0.5,
+        )
+
+    def _wheel(self, ground, body, position):
+        self.world.add_wheel_joint(
+            ground,
+            body,
+            anchor=position - (1.0, 0),
+            axis=(0, 1),
+            enable_spring=True,
+            spring_hertz=1.0,
+            spring_damping_ratio=0.7,
+            lower_translation=-1.0,
+            upper_translation=1.0,
+            enable_limit=True,
+            enable_motor=True,
+            max_motor_torque=10.0,
+            motor_speed=1.0,
+        )
+
+    @lock_x.callback
+    @lock_y.callback
+    @lock_rotation.callback
+    def on_lock_change(self, key, value):
+        """Apply the locks live. Bodies must be woken to notice."""
+        for body in self.bodies:
+            setattr(body, key, value)
+            body.awake = True
+
+    @shove.callback
+    def on_shove(self, key, value):
+        self.bodies[0].apply_linear_impulse((100, 0))

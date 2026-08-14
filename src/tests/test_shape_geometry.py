@@ -9,7 +9,7 @@ properties for the individual components.
 
 import pytest
 
-from box2d import World, Vec2
+from box2d import World, Vec2, DestroyedError
 from box2d.shapedef import CircleDef, CapsuleDef, SegmentDef, PolygonDef
 
 
@@ -180,3 +180,76 @@ def test_collections_are_properties(body):
     assert shape.sensor_overlaps == []
     assert body.contact_data == []
     assert body.joints == []
+
+
+# --- gaps found while porting testbed scenarios -----------------------------
+
+
+def test_thin_box_is_allowed(body):
+    """Boxes are built directly, not via a convex hull with a minimum size.
+
+    Routing boxes through PolygonDef rejected anything thinner than Box2D's
+    linear slop, which made a house of cards impossible to build.
+    """
+    shape = body.add_box(0.002, 0.4)
+    assert shape in body.shapes
+    assert len(shape.vertices) == 4
+
+
+def test_box_offset_and_angle_survive_the_direct_path(body):
+    import math
+
+    shape = body.add_box(2.0, 1.0, offset=(3, 4), angle=math.pi / 2)
+    xs = [v.x for v in shape.vertices]
+    ys = [v.y for v in shape.vertices]
+    # Rotated a quarter turn, so the 2x1 box is 1 wide and 2 tall about (3, 4).
+    assert max(xs) - min(xs) == pytest.approx(1.0, abs=1e-5)
+    assert max(ys) - min(ys) == pytest.approx(2.0, abs=1e-5)
+    assert sum(xs) / 4 == pytest.approx(3.0, abs=1e-5)
+    assert sum(ys) / 4 == pytest.approx(4.0, abs=1e-5)
+
+
+def test_shape_destroy(body):
+    shape = body.add_circle(radius=1.0)
+    other = body.add_circle(radius=0.5, center=(2, 0))
+
+    shape.destroy()
+
+    assert shape.is_valid() is False
+    assert shape not in body.shapes
+    assert other.is_valid() is True
+    with pytest.raises(DestroyedError):
+        shape.density
+
+
+def test_shape_destroy_is_idempotent(body):
+    shape = body.add_circle(radius=1.0)
+    shape.destroy()
+    shape.destroy()
+
+
+def test_surface_properties_are_settable_live(body):
+    """tangent_speed and rolling_resistance were creation-only before."""
+    shape = body.add_box(2.0, 0.5, friction=0.8)
+
+    shape.tangent_speed = 3.5
+    shape.rolling_resistance = 0.25
+
+    assert shape.tangent_speed == pytest.approx(3.5)
+    assert shape.rolling_resistance == pytest.approx(0.25)
+    assert shape.friction == pytest.approx(0.8)  # untouched
+
+
+def test_surface_material_round_trips(body):
+    from box2d.material import SurfaceMaterial
+
+    shape = body.add_circle(radius=1.0)
+    shape.surface_material = SurfaceMaterial(
+        friction=0.3, restitution=0.4, rolling_resistance=0.5, tangent_speed=6.0
+    )
+
+    material = shape.surface_material
+    assert material.friction == pytest.approx(0.3)
+    assert material.restitution == pytest.approx(0.4)
+    assert material.rolling_resistance == pytest.approx(0.5)
+    assert material.tangent_speed == pytest.approx(6.0)

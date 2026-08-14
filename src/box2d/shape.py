@@ -12,6 +12,7 @@ from typing import List, Dict, Optional, Union, Any, Tuple, Iterable
 from .math import Vec2, Transform, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
+    BoxDef,
     CircleDef,
     CapsuleDef,
     SegmentDef,
@@ -21,7 +22,7 @@ from .shapedef import (
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
-from .lifetime import IdRef, is_live
+from .lifetime import IdRef, is_live, raw_id
 
 
 class Shape(ABC):
@@ -242,6 +243,69 @@ class Shape(ABC):
             True if the shape id is valid, False otherwise
         """
         return is_live(self, "_shape_id", lib.b2Shape_IsValid)
+
+    def destroy(self, update_body_mass: bool = True) -> None:
+        """Remove this shape from its body.
+
+        The shape raises :class:`DestroyedError` if used afterwards. Destroying
+        twice is a no-op.
+
+        Args:
+            update_body_mass: Recompute the body's mass from its remaining
+                shapes. Pass False when removing several shapes at once and
+                call body.apply_mass_from_shapes() when done.
+        """
+        raw = raw_id(self, "_shape_id")
+        if raw is None:
+            return
+        if lib.b2Shape_IsValid(raw):
+            lib.b2DestroyShape(raw, bool(update_body_mass))
+        body = getattr(self, "_body", None)
+        if body is not None and self in getattr(body, "_shapes", ()):
+            body._shapes.remove(self)
+        del self._shape_id
+
+    @property
+    def surface_material(self):
+        """Get or set every surface property at once, as a SurfaceMaterial."""
+        material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
+        return SurfaceMaterial(
+            material=material.userMaterialId,
+            friction=material.friction,
+            restitution=material.restitution,
+            rolling_resistance=material.rollingResistance,
+            tangent_speed=material.tangentSpeed,
+            custom_color=material.customColor,
+        )
+
+    @surface_material.setter
+    def surface_material(self, value: SurfaceMaterial) -> None:
+        material = value.b2SurfaceMaterial
+        lib.b2Shape_SetSurfaceMaterial(self._shape_id, ffi.addressof(material))
+
+    def _set_material_field(self, field: str, value: float) -> None:
+        """Change one surface property, leaving the rest of the material alone."""
+        material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
+        setattr(material, field, float(value))
+        lib.b2Shape_SetSurfaceMaterial(self._shape_id, ffi.addressof(material))
+
+    @property
+    def tangent_speed(self) -> float:
+        """Get or set the surface velocity, which drives conveyor belt effects."""
+        return lib.b2Shape_GetSurfaceMaterial(self._shape_id).tangentSpeed
+
+    @tangent_speed.setter
+    def tangent_speed(self, value: float) -> None:
+        self._set_material_field("tangentSpeed", value)
+
+    @property
+    def rolling_resistance(self) -> float:
+        """Get or set the rolling resistance, usually in the range [0,1]."""
+        return lib.b2Shape_GetSurfaceMaterial(self._shape_id).rollingResistance
+
+    @rolling_resistance.setter
+    def rolling_resistance(self, value: float) -> None:
+        self._set_material_field("rollingResistance", value)
 
     def test_point(self, point: VectorLike) -> bool:
         """
@@ -700,20 +764,11 @@ class Box(Polygon):
         Create and attach a box shape to a body.
         The parameters are the same as the previous initializer.
         """
-        vertices = [
-            (-width / 2, -height / 2),
-            (width / 2, -height / 2),
-            (width / 2, height / 2),
-            (-width / 2, height / 2),
-        ]
-        return super().create(
-            body,
-            vertices,
-            radius=radius,
-            offset=offset,
-            angle=angle,
-            **shapedef_kwargs,
-        )
+        # Built directly rather than through Polygon's hull, which has a
+        # minimum feature size that very thin boxes fall below.
+        boxdef = BoxDef(width, height, radius=radius, offset=offset, rotation=angle)
+        shapedef = ShapeDef(**shapedef_kwargs)
+        return cls(body, shapedef, boxdef)
 
 
 class ChainSegment(Shape):

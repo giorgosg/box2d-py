@@ -1,5 +1,12 @@
 from .testbed_state import state
-from . import tb_benchmark, tb_joints, tb_shapes, tb_collision, tb_events
+from . import (
+    tb_benchmark,
+    tb_joints,
+    tb_shapes,
+    tb_collision,
+    tb_events,
+    tb_stacking,
+)
 from box2d import World, Vec2
 from .base_test import BaseTest
 import time

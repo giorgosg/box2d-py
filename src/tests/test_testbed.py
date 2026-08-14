@@ -23,6 +23,7 @@ from box2d_testbed import (  # noqa: F401
     tb_events,
     tb_joints,
     tb_shapes,
+    tb_stacking,
 )
 from box2d_testbed.base_test import BaseTest
 

@@ -165,3 +165,44 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
             if x > 24.0:
                 x = -24.0
                 y += 1.0
+
+
+class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
+    """A kinematic drum that spins, tumbling the boxes fed into it."""
+
+    angular_speed = UI.float(25.0, min=-100.0, max=100.0, label="Speed (deg/s)")
+    max_bodies = UI.int(400, min=10, max=2000)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 0)
+        self.app_state.zoom = 25.0 * 0.6
+
+        self.drum = self.world.add_body(
+            body_type="kinematic",
+            position=(0, 0),
+            angular_velocity=math.radians(self.angular_speed),
+        )
+        # Four walls make the drum. Offsets place them around the centre.
+        for offset, (width, height) in (
+            ((2.0, 0.0), (0.5, 4.0)),
+            ((-2.0, 0.0), (0.5, 4.0)),
+            ((0.0, 2.0), (4.0, 0.5)),
+            ((0.0, -2.0), (4.0, 0.5)),
+        ):
+            self.drum.add_box(width, height, offset=offset, density=50.0)
+
+        self.boxes = self.world.new_body().dynamic().box(0.25, 0.25)
+        self.count = 0
+
+    def after_step(self, dt):
+        """Feed one box per step until the drum is full."""
+        if self.count < self.max_bodies:
+            self.boxes.position(0.25 * self.count % 1.0, 0).build()
+            self.count += 1
+
+    @angular_speed.callback
+    def on_speed_change(self, key, value):
+        self.drum.angular_velocity = math.radians(value)
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string((-4, 6), f"bodies: {self.count}")
