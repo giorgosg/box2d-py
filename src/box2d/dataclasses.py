@@ -259,8 +259,9 @@ class BodyDef:
             self._name_string = ffi.new("char[]", self.name.encode("utf-8"))
             body_def.name = self._name_string
 
-        if self.user_data is not None:
-            body_def.userData = self.user_data
+        # user_data is deliberately not written here. Box2D's userData holds the
+        # handle that maps a body id back to its Body, which Body.__init__ sets;
+        # the caller's own value is carried on the Body as an attribute.
 
         body_def.enableSleep = self.enable_sleep
         body_def.isAwake = self.is_awake

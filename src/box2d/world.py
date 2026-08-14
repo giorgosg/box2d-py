@@ -11,7 +11,8 @@ from .joint import (
     DistanceJoint,
     MotorJoint,
 )
-from .math import Vec2, VectorLike, AABB, Transform
+from .math import Vec2, Rot, VectorLike, AABB, Transform
+from .dataclasses import BodyDef, BodyType
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
@@ -193,6 +194,119 @@ class World:
             >>> body = builder.dynamic().position(2,3).circle(1).build()
         """
         return BodyBuilder(self)
+
+    def add_body(
+        self,
+        body_type: "BodyType | str" = None,
+        position: VectorLike = None,
+        rotation: float = None,
+        linear_velocity: VectorLike = None,
+        angular_velocity: float = None,
+        linear_damping: float = None,
+        angular_damping: float = None,
+        gravity_scale: float = None,
+        sleep_threshold: float = None,
+        name: str = None,
+        user_data=None,
+        enable_sleep: bool = None,
+        is_awake: bool = None,
+        fixed_rotation: bool = None,
+        is_bullet: bool = None,
+        is_enabled: bool = None,
+        allow_fast_rotation: bool = None,
+    ) -> Body:
+        """Create a body in this world.
+
+        This is the direct counterpart to :meth:`Body.add_box` and the
+        ``add_*_joint`` methods: it makes a body in one call. :meth:`new_body`
+        returns a builder for the same thing in fluent style, and builds through
+        here.
+
+        Every argument left as None keeps Box2D's default for that property.
+
+        Args:
+            body_type: 'static', 'kinematic' or 'dynamic', or a BodyType.
+                Defaults to static, as Box2D does.
+            position: Initial world position, as a vector-like.
+            rotation: Initial world rotation in radians.
+            linear_velocity: Initial linear velocity, as a vector-like.
+            angular_velocity: Initial angular velocity in radians per second.
+            linear_damping: Linear damping, reducing linear velocity. May exceed 1.
+            angular_damping: Angular damping, reducing angular velocity. May exceed 1.
+            gravity_scale: Scale applied to gravity for this body.
+            sleep_threshold: Sleep speed threshold in meters per second.
+            name: Optional name for debugging, up to 31 characters.
+            user_data: Any Python object to associate with the body. Readable
+                afterwards as ``body.user_data``.
+            enable_sleep: False if this body should never fall asleep.
+            is_awake: Whether the body starts awake.
+            fixed_rotation: True to prevent the body from rotating.
+            is_bullet: True to use continuous collision detection for this body.
+            is_enabled: False to create the body disabled.
+            allow_fast_rotation: True to bypass rotational speed limits.
+
+        Returns:
+            Body: The newly created body, with no shapes attached yet. Add them
+            with :meth:`Body.add_box`, :meth:`Body.add_circle` and friends.
+
+        Example:
+            >>> world = World()
+            >>> ground = world.add_body(position=(0, -5))
+            >>> _ = ground.add_box(20, 1)
+            >>> ball = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> _ = ball.add_circle(radius=0.5)
+        """
+        body_def = BodyDef()
+
+        if body_type is not None:
+            body_def.type = self._resolve_body_type(body_type)
+        if position is not None:
+            body_def.position = Vec2(position)
+        if rotation is not None:
+            body_def.rotation = Rot(rotation)
+        if linear_velocity is not None:
+            body_def.linear_velocity = Vec2(linear_velocity)
+        if angular_velocity is not None:
+            body_def.angular_velocity = angular_velocity
+        if linear_damping is not None:
+            body_def.linear_damping = linear_damping
+        if angular_damping is not None:
+            body_def.angular_damping = angular_damping
+        if gravity_scale is not None:
+            body_def.gravity_scale = gravity_scale
+        if sleep_threshold is not None:
+            body_def.sleep_threshold = sleep_threshold
+        if name is not None:
+            body_def.name = name
+        if user_data is not None:
+            body_def.user_data = user_data
+        if enable_sleep is not None:
+            body_def.enable_sleep = enable_sleep
+        if is_awake is not None:
+            body_def.is_awake = is_awake
+        if fixed_rotation is not None:
+            body_def.fixed_rotation = fixed_rotation
+        if is_bullet is not None:
+            body_def.is_bullet = is_bullet
+        if is_enabled is not None:
+            body_def.is_enabled = is_enabled
+        if allow_fast_rotation is not None:
+            body_def.allow_fast_rotation = allow_fast_rotation
+
+        return Body(self, body_def)
+
+    @staticmethod
+    def _resolve_body_type(body_type) -> int:
+        """Accept a body type as a name or a BodyType, and return the Box2D value."""
+        if isinstance(body_type, str):
+            try:
+                return Body.types[body_type]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid body type: {body_type!r}. "
+                    f"Must be one of: {', '.join(sorted(Body.types))}."
+                ) from None
+        return int(body_type)
 
     def add_mouse_joint(
         self,

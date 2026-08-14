@@ -28,7 +28,9 @@ class BodyBuilder:
             world: The World instance where the body will be created.
         """
         self.world = world
-        self._def = BodyDef()
+        # Accumulated keyword arguments for World.add_body. The builder is sugar
+        # over that call and holds no body state of its own.
+        self._body_args = {}
         self._shape_defs = []
 
     @classmethod
@@ -64,7 +66,7 @@ class BodyBuilder:
 
         Dynamic bodies are affected by forces and impulses. Returns the builder instance.
         """
-        self._def.type = lib.b2_dynamicBody
+        self._body_args["body_type"] = "dynamic"
         return self
 
     def static(self):
@@ -72,7 +74,7 @@ class BodyBuilder:
 
         Static bodies cannot move and are unaffected by forces. Returns the builder instance.
         """
-        self._def.type = lib.b2_staticBody
+        self._body_args["body_type"] = "static"
         return self
 
     def kinematic(self):
@@ -80,7 +82,7 @@ class BodyBuilder:
 
         Kinematic bodies are moved by setting their velocity. Returns the builder instance.
         """
-        self._def.type = lib.b2_kinematicBody
+        self._body_args["body_type"] = "kinematic"
         return self
 
     def fixed_rotation(self, fixed=True):
@@ -92,7 +94,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.fixed_rotation = fixed
+        self._body_args["fixed_rotation"] = fixed
         return self
 
     def bullet(self, bullet=True):
@@ -104,7 +106,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.is_bullet = bullet
+        self._body_args["is_bullet"] = bullet
         return self
 
     def gravity_scale(self, scale):
@@ -116,7 +118,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.gravity_scale = scale
+        self._body_args["gravity_scale"] = scale
         return self
 
     def position(self, x, y: float = None):
@@ -132,7 +134,7 @@ class BodyBuilder:
             >>> builder = world.new_body().position(2, 3)
             >>> builder = world.new_body().position((2, 3))
         """
-        self._def.position = Vec2(x, y)
+        self._body_args["position"] = Vec2(x, y)
         return self
 
     def rotation(self, rotation: float):
@@ -143,7 +145,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.rotation = Rot(rotation)
+        self._body_args["rotation"] = rotation
         return self
 
     def linear_velocity(self, x, y: float = None):
@@ -155,7 +157,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.linear_velocity = Vec2(x, y)
+        self._body_args["linear_velocity"] = Vec2(x, y)
         return self
 
     def angular_velocity(self, radians: float):
@@ -166,7 +168,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.angular_velocity = radians
+        self._body_args["angular_velocity"] = radians
         return self
 
     def linear_damping(self, damping: float):
@@ -178,7 +180,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.linear_damping = damping
+        self._body_args["linear_damping"] = damping
         return self
 
     def angular_damping(self, damping: float):
@@ -190,7 +192,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.angular_damping = damping
+        self._body_args["angular_damping"] = damping
         return self
 
     def enable_sleep(self, enable: bool):
@@ -202,7 +204,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.enable_sleep = enable
+        self._body_args["enable_sleep"] = enable
         return self
 
     def sleep_threshold(self, threshold: float):
@@ -214,7 +216,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.sleep_threshold = threshold
+        self._body_args["sleep_threshold"] = threshold
         return self
 
     def box(
@@ -395,11 +397,14 @@ class BodyBuilder:
     def build(self) -> "Body":
         """Finalize the body creation and attach configured shapes.
 
-        Creates and configures the body in the world using the specified properties.
+        Creates the body through :meth:`World.add_body` and attaches the shapes
+        configured on this builder. The builder may be reused to create several
+        bodies; each build produces an independent body.
+
         Returns:
             The newly created Body instance
         """
-        body = Body(self.world, self._def)
+        body = self.world.add_body(**self._body_args)
 
         # Create shapes
         for shape_def in self._shape_defs:
@@ -428,14 +433,26 @@ class Body:
         """
         Initialize a Body instance.
 
+        Prefer :meth:`World.add_body`, which is the supported way to create a
+        body. This constructor is the single point where a BodyDef becomes a
+        live body, and everything else routes through it.
+
         Args:
             world: The World instance in which this body exists.
-            body_def: The body definition used to create this body.
+            body_def: The body definition used to create this body. It is not
+                modified, so a definition may be reused to create many bodies.
         """
         self.world = world
         self._handle = ffi.new_handle(self)
-        body_def.user_data = self._handle
+
+        # Box2D's userData carries the handle that maps an id back to this
+        # object, so the caller's own user_data lives on the Body instead.
+        # Setting it on the definition would both overwrite the handle and
+        # corrupt a definition the caller may want to reuse.
+        self.user_data = body_def.user_data
+
         b2BodyDef = body_def.b2BodyDef
+        b2BodyDef.userData = self._handle
         self._body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(b2BodyDef))
         self._shapes = []
         self._chains = []
