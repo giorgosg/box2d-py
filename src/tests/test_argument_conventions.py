@@ -10,7 +10,6 @@ which is what made the README's own example raise TypeError.
 import pytest
 
 from box2d import World, Vec2
-from box2d.math import to_vec2
 
 
 VECTOR_LIKE = [
@@ -27,7 +26,7 @@ def world():
     world.destroy()
 
 
-# --- Vec2 and to_vec2 accept the same forms ---------------------------------
+# --- the Vec2 constructor is the single normaliser --------------------------
 
 
 @pytest.mark.parametrize("point", VECTOR_LIKE)
@@ -35,17 +34,8 @@ def test_vec2_accepts_vector_like(point):
     assert Vec2(point) == (1.0, 2.0)
 
 
-@pytest.mark.parametrize("point", VECTOR_LIKE)
-def test_to_vec2_accepts_vector_like(point):
-    assert to_vec2(point) == (1.0, 2.0)
-
-
 def test_vec2_accepts_two_scalars():
     assert Vec2(1.0, 2.0) == (1.0, 2.0)
-
-
-def test_to_vec2_accepts_two_scalars():
-    assert to_vec2(1.0, 2.0) == (1.0, 2.0)
 
 
 def test_vec2_from_b2vec2_round_trips():
@@ -125,8 +115,6 @@ def test_world_gravity(point):
 def test_wrong_length_is_rejected():
     with pytest.raises(ValueError, match="exactly 2 elements"):
         Vec2((1, 2, 3))
-    with pytest.raises(ValueError, match="exactly 2 elements"):
-        to_vec2((1, 2, 3))
 
 
 def test_non_vector_is_rejected():
@@ -134,7 +122,7 @@ def test_non_vector_is_rejected():
     with pytest.raises(TypeError):
         Vec2(5)
     with pytest.raises(TypeError):
-        to_vec2(None)
+        Vec2(None)
 
 
 def test_builder_rejects_bare_scalar(world):

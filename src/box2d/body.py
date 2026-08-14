@@ -1,5 +1,5 @@
 from box2d._box2d import lib, ffi
-from .math import Vec2, Rot, Transform, VectorLike, AABB, to_vec2
+from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .joint import Joint
 from .collision_filter import CollisionFilter
@@ -132,7 +132,7 @@ class BodyBuilder:
             >>> builder = world.new_body().position(2, 3)
             >>> builder = world.new_body().position((2, 3))
         """
-        self._def.position = to_vec2(x, y)
+        self._def.position = Vec2(x, y)
         return self
 
     def rotation(self, rotation: float):
@@ -155,7 +155,7 @@ class BodyBuilder:
         Returns:
             The builder instance
         """
-        self._def.linear_velocity = to_vec2(x, y)
+        self._def.linear_velocity = Vec2(x, y)
         return self
 
     def angular_velocity(self, radians: float):
@@ -456,7 +456,7 @@ class Body:
     def position(self, value: VectorLike):
         """Set the world position of the body."""
         rot = lib.b2Body_GetRotation(self._body_id)
-        value = to_vec2(value)
+        value = Vec2(value)
         lib.b2Body_SetTransform(self._body_id, value.b2Vec2[0], rot)
 
     @property
@@ -468,7 +468,7 @@ class Body:
     @linear_velocity.setter
     def linear_velocity(self, value: VectorLike):
         """Set the linear velocity of the body."""
-        value = to_vec2(value).b2Vec2[0]
+        value = Vec2(value).b2Vec2[0]
         lib.b2Body_SetLinearVelocity(self._body_id, value)
 
     @property
@@ -621,16 +621,15 @@ class Body:
         """Apply a force at a world point.
 
         Args:
-            force: Tuple representing the force vector (Fx, Fy).
-            point: Tuple representing the application point (x, y). Defaults to center.
+            force: The force vector as a vector-like.
+            point: The application point as a vector-like. Defaults to the center of mass.
             wake: Boolean indicating whether to wake the body.
         """
-        x, y = force
+        force = Vec2(force).b2Vec2[0]
         if point is None:
-            lib.b2Body_ApplyForceToCenter(self._body_id, (x, y), wake)
+            lib.b2Body_ApplyForceToCenter(self._body_id, force, wake)
         else:
-            fx, fy = point
-            lib.b2Body_ApplyForce(self._body_id, (x, y), (fx, fy), wake)
+            lib.b2Body_ApplyForce(self._body_id, force, Vec2(point).b2Vec2[0], wake)
 
     def apply_torque(self, torque, wake=True):
         """Apply a torque to the body.
@@ -645,16 +644,17 @@ class Body:
         """Apply a linear impulse at a world point.
 
         Args:
-            impulse: Tuple representing the impulse vector (Ix, Iy).
-            point: Tuple representing the application point (x, y). Defaults to center.
+            impulse: The impulse vector as a vector-like.
+            point: The application point as a vector-like. Defaults to the center of mass.
             wake: Boolean indicating whether to wake the body.
         """
-        x, y = impulse
+        impulse = Vec2(impulse).b2Vec2[0]
         if point is None:
-            lib.b2Body_ApplyLinearImpulseToCenter(self._body_id, (x, y), wake)
+            lib.b2Body_ApplyLinearImpulseToCenter(self._body_id, impulse, wake)
         else:
-            fx, fy = point
-            lib.b2Body_ApplyLinearImpulse(self._body_id, (x, y), (fx, fy), wake)
+            lib.b2Body_ApplyLinearImpulse(
+                self._body_id, impulse, Vec2(point).b2Vec2[0], wake
+            )
 
     def add_box(
         self,
@@ -866,7 +866,7 @@ class Body:
         Returns:
             The point in local body coordinates.
         """
-        point = to_vec2(world_point).b2Vec2[0]
+        point = Vec2(world_point).b2Vec2[0]
         local_point = lib.b2Body_GetLocalPoint(self._body_id, point)
         return Vec2(local_point.x, local_point.y)
 
@@ -879,7 +879,7 @@ class Body:
         Returns:
             The point in world coordinates.
         """
-        point = to_vec2(local_point).b2Vec2
+        point = Vec2(local_point).b2Vec2
         world_point = lib.b2Body_GetWorldPoint(self._body_id, point[0])
         return Vec2.from_b2Vec2(world_point)
 
@@ -892,7 +892,7 @@ class Body:
         Returns:
             The vector in local body coordinates.
         """
-        vector = to_vec2(world_vector).b2Vec2
+        vector = Vec2(world_vector).b2Vec2
         local_vector = lib.b2Body_GetLocalVector(self._body_id, vector[0])
         return Vec2.from_b2Vec2(local_vector)
 
@@ -905,7 +905,7 @@ class Body:
         Returns:
             The vector in world coordinates.
         """
-        vector = to_vec2(local_vector).b2Vec2
+        vector = Vec2(local_vector).b2Vec2
         world_vector = lib.b2Body_GetWorldVector(self._body_id, vector[0])
         return Vec2.from_b2Vec2(world_vector)
 
@@ -918,7 +918,7 @@ class Body:
         Returns:
             The velocity of the point in world coordinates.
         """
-        point = to_vec2(local_point).b2Vec2
+        point = Vec2(local_point).b2Vec2
         velocity = lib.b2Body_GetLocalPointVelocity(self._body_id, point[0])
         return Vec2.from_b2Vec2(velocity)
 
@@ -931,7 +931,7 @@ class Body:
         Returns:
             The velocity of the point in world coordinates.
         """
-        point = to_vec2(world_point).b2Vec2
+        point = Vec2(world_point).b2Vec2
         velocity = lib.b2Body_GetWorldPointVelocity(self._body_id, point[0])
         return Vec2.from_b2Vec2(velocity)
 

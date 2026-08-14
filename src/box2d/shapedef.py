@@ -8,7 +8,7 @@ from typing import Optional, Any, Iterable, Sequence
 from ._box2d import lib, ffi
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
-from .math import Vec2, to_vec2, VectorLike, AABB, Rot
+from .math import Vec2, VectorLike, AABB, Rot
 from .debug_draw import Color
 
 _default_shape_def = lib.b2DefaultShapeDef()
@@ -149,7 +149,7 @@ class CircleDef:
 
     def __post_init__(self):
         """Convert center to Vec2 if it wasn't already"""
-        self.center = to_vec2(self.center)
+        self.center = Vec2(self.center)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -199,8 +199,8 @@ class CapsuleDef:
 
     def __post_init__(self):
         """Convert vertices to Vec2 if they weren't already"""
-        self.vertex1 = to_vec2(self.vertex1)
-        self.vertex2 = to_vec2(self.vertex2)
+        self.vertex1 = Vec2(self.vertex1)
+        self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -253,8 +253,8 @@ class SegmentDef:
 
     def __post_init__(self):
         """Convert vertices to Vec2 if they weren't already"""
-        self.vertex1 = to_vec2(self.vertex1)
-        self.vertex2 = to_vec2(self.vertex2)
+        self.vertex1 = Vec2(self.vertex1)
+        self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -302,7 +302,7 @@ def _compute_hull(vertices: Sequence[VectorLike]):
         raise ValueError("Polygon must have at least 3 vertices and at most 8 vertices")
     b2_points = ffi.new("b2Vec2[]", count)
     for i, vertex in enumerate(vertices):
-        b2_points[i].x, b2_points[i].y = to_vec2(vertex)
+        b2_points[i].x, b2_points[i].y = Vec2(vertex)
     hull = lib.b2ComputeHull(b2_points, count)
     return hull
 
@@ -329,7 +329,7 @@ class PolygonDef:
 
     def __post_init__(self):
         """Convert all vertices to Vec2 objects"""
-        self.vertices = [to_vec2(v) for v in self.vertices]
+        self.vertices = [Vec2(v) for v in self.vertices]
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -352,7 +352,7 @@ class PolygonDef:
             raise ValueError("Failed to compute convex hull of polygon vertices")
 
         radius = self.radius if self.radius is not None else 0.0
-        offset = to_vec2(self.offset) if self.offset is not None else Vec2(0, 0)
+        offset = Vec2(self.offset) if self.offset is not None else Vec2(0, 0)
         rotation = self.rotation if self.rotation is not None else Rot(0.0)
         if not isinstance(rotation, Rot):
             rotation = Rot(rotation)
@@ -412,7 +412,7 @@ class ChainDef:
     def __post_init__(self):
         """Convert all vertices to Vec2 objects"""
         # Convert vertices to Vec2
-        self.vertices = [to_vec2(v) for v in self.vertices]
+        self.vertices = [Vec2(v) for v in self.vertices]
 
         # Validate vertices
         count = len(self.vertices)

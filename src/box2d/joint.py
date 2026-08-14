@@ -166,7 +166,7 @@ class MouseJoint(Joint):
             hertz: Spring stiffness in Hz
         """
 
-        self._target = Vec2(*target)
+        self._target = Vec2(target)
         self._max_force = max_force
         self._damping_ratio = damping_ratio
         self._hertz = hertz
@@ -202,8 +202,7 @@ class MouseJoint(Joint):
         Args:
             value (tuple/Vec2): New target position in world coordinates
         """
-        vec = ffi.new("b2Vec2*", {"x": value[0], "y": value[1]})
-        lib.b2MouseJoint_SetTarget(self._joint_id, vec[0])
+        lib.b2MouseJoint_SetTarget(self._joint_id, Vec2(value).b2Vec2[0])
 
     @property
     def max_force(self):
@@ -262,8 +261,8 @@ class WeldJoint(Joint):
         angular_damping_ratio=None,
         reference_angle=None,
     ):
-        self._local_anchor_a = Vec2(*local_anchor_a)
-        self._local_anchor_b = Vec2(*local_anchor_b)
+        self._local_anchor_a = Vec2(local_anchor_a)
+        self._local_anchor_b = Vec2(local_anchor_b)
         self._linear_hertz = linear_hertz
         self._linear_damping_ratio = linear_damping_ratio
         self._angular_hertz = angular_hertz
@@ -374,8 +373,8 @@ class RevoluteJoint(Joint):
             enable_motor (bool, optional): Whether to enable the joint motor.
             reference_angle (float, optional): Reference angle between the two bodies.
         """
-        self._localAnchorA = Vec2(*anchor_a)
-        self._localAnchorB = Vec2(*anchor_b)
+        self._localAnchorA = Vec2(anchor_a)
+        self._localAnchorB = Vec2(anchor_b)
         self._lower_angle = lower_angle
         self._upper_angle = upper_angle
         self._enable_limit = enable_limit
@@ -522,9 +521,9 @@ class PrismaticJoint(Joint):
             hertz (float): Spring oscillation frequency in Hz
             damping_ratio (float): Spring damping ratio
         """
-        self._local_anchor_a = Vec2(*anchor_a)
-        self._local_anchor_b = Vec2(*anchor_b)
-        self._local_axis_a = Vec2(*axis)
+        self._local_anchor_a = Vec2(anchor_a)
+        self._local_anchor_b = Vec2(anchor_b)
+        self._local_axis_a = Vec2(axis)
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_limit = enable_limit
@@ -763,9 +762,9 @@ class WheelJoint(Joint):
             spring_hertz (float): Spring frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
         """
-        self._local_anchor_a = Vec2(*anchor_a)
-        self._local_anchor_b = Vec2(*anchor_b)
-        self._local_axis_a = Vec2(*axis)
+        self._local_anchor_a = Vec2(anchor_a)
+        self._local_anchor_b = Vec2(anchor_b)
+        self._local_axis_a = Vec2(axis)
         self._enable_limit = enable_limit
         self._lower_translation = lower_translation
         self._upper_translation = upper_translation
@@ -974,8 +973,8 @@ class DistanceJoint(Joint):
             motor_speed (float): Desired motor speed in meters/second
             max_motor_force (float): Maximum motor force in Newtons
         """
-        self._local_anchor_a = Vec2(*anchor_a)
-        self._local_anchor_b = Vec2(*anchor_b)
+        self._local_anchor_a = Vec2(anchor_a)
+        self._local_anchor_b = Vec2(anchor_b)
         self._length = length
         self._min_length = min_length
         self._max_length = max_length
@@ -1236,7 +1235,7 @@ class MotorJoint(Joint):
         defn.bodyIdB = body_b._body_id
         defn.collideConnected = collide_connected
         if linear_offset is not None:
-            defn.linearOffset = Vec2(*self._linear_offset).b2Vec2[0]
+            defn.linearOffset = Vec2(self._linear_offset).b2Vec2[0]
         if angular_offset is not None:
             defn.angularOffset = self._angular_offset
         if max_force is not None:
@@ -1264,7 +1263,7 @@ class MotorJoint(Joint):
         Args:
             offset (tuple/Vec2): Target position of bodyB in bodyA frame
         """
-        vec = Vec2(*offset)
+        vec = Vec2(offset)
         lib.b2MotorJoint_SetLinearOffset(self._joint_id, vec.b2Vec2[0])
 
     @property

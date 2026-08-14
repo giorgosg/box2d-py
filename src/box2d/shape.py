@@ -9,7 +9,7 @@ Chain is implemented as a separate class.
 from ._box2d import lib, ffi
 from abc import ABC
 from typing import List, Dict, Optional, Union, Any, Tuple
-from .math import Vec2, Transform, VectorLike, AABB, to_vec2
+from .math import Vec2, Transform, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
     CircleDef,
@@ -253,7 +253,7 @@ class Shape(ABC):
         Returns:
             True if the point is inside the shape, False otherwise
         """
-        return lib.b2Shape_TestPoint(self._shape_id, to_vec2(point).b2Vec2[0])
+        return lib.b2Shape_TestPoint(self._shape_id, Vec2(point).b2Vec2[0])
 
     def ray_cast(
         self, origin: VectorLike, translation: VectorLike
@@ -269,8 +269,8 @@ class Shape(ABC):
             A RayCastResult object containing hit information
         """
         input = ffi.new("b2RayCastInput*")
-        input.origin = to_vec2(origin).b2Vec2[0]
-        input.translation = to_vec2(translation).b2Vec2[0]
+        input.origin = Vec2(origin).b2Vec2[0]
+        input.translation = Vec2(translation).b2Vec2[0]
         input.maxFraction = 1.0
 
         output = lib.b2Shape_RayCast(self._shape_id, input)
@@ -388,7 +388,7 @@ class Shape(ABC):
         Returns:
             A Vec2 representing the closest point on the shape
         """
-        result = lib.b2Shape_GetClosestPoint(self._shape_id, to_vec2(target).b2Vec2[0])
+        result = lib.b2Shape_GetClosestPoint(self._shape_id, Vec2(target).b2Vec2[0])
         return Vec2(result.x, result.y)
 
 

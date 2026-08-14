@@ -11,7 +11,7 @@ from .joint import (
     DistanceJoint,
     MotorJoint,
 )
-from .math import Vec2, VectorLike, AABB, Transform, to_vec2
+from .math import Vec2, VectorLike, AABB, Transform
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
@@ -163,7 +163,7 @@ class World:
     @gravity.setter
     def gravity(self, value: VectorLike):
         """Set world gravity vector"""
-        value = to_vec2(value)
+        value = Vec2(value)
         lib.b2World_SetGravity(self._world_id, value.b2Vec2[0])
 
     def step(self, time_step, substep_count=4):
@@ -790,7 +790,7 @@ class World:
         # Box2D 3.1 replaced b2World_OverlapCircle with the general
         # b2World_OverlapShape. A circle is a single-point proxy with a radius.
         proxy = ffi.new("b2ShapeProxy*")
-        proxy.points[0] = to_vec2(position).b2Vec2[0]
+        proxy.points[0] = Vec2(position).b2Vec2[0]
         proxy.count = 1
         proxy.radius = radius
         c_filter = filter.b2QueryFilter
@@ -837,8 +837,8 @@ class World:
 
         results = []
 
-        p1 = to_vec2(origin).b2Vec2[0]
-        p2 = to_vec2(translation).b2Vec2[0]
+        p1 = Vec2(origin).b2Vec2[0]
+        p2 = Vec2(translation).b2Vec2[0]
         c_filter = filter.b2QueryFilter
         if first_hit_only:
             result = lib.b2World_CastRayClosest(self._world_id, p1, p2, c_filter[0])
