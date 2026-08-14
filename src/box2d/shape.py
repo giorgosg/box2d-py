@@ -129,6 +129,15 @@ class Shape(ABC):
     def filter(self, value: CollisionFilter) -> None:
         lib.b2Shape_SetFilter(self._shape_id, value.b2Filter[0])
 
+    enable_sensor_events = b2_bool(
+        lib.b2Shape_AreSensorEventsEnabled,
+        lib.b2Shape_EnableSensorEvents,
+        doc="""Get or set whether sensors may detect this shape.
+
+        Box2D 3.2 made this opt-in on the visiting shape. It was previously
+        settable only when the shape was created.
+        """,
+    )
     enable_contact_events = b2_bool(
         lib.b2Shape_AreContactEventsEnabled,
         lib.b2Shape_EnableContactEvents,

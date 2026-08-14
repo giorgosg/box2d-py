@@ -647,6 +647,27 @@ class Body:
         b2transform = lib.b2Body_GetTransform(self._body_id)
         return Transform.from_b2Transform(b2transform)
 
+    def enable_contact_events(self, enable: bool = True) -> None:
+        """Turn contact events on or off for every shape on this body.
+
+        Convenience for the common case of wanting begin and end touch events
+        from a whole body rather than picking shapes individually.
+
+        Args:
+            enable: True to report contacts, False to stop.
+        """
+        lib.b2Body_EnableContactEvents(self._body_id, bool(enable))
+
+    def enable_hit_events(self, enable: bool = True) -> None:
+        """Turn hit events on or off for every shape on this body.
+
+        Hits are reported only above the world's hit_event_threshold.
+
+        Args:
+            enable: True to report hits, False to stop.
+        """
+        lib.b2Body_EnableHitEvents(self._body_id, bool(enable))
+
     def apply_force(self, force: VectorLike, point: VectorLike = None, wake=True):
         """Apply a force at a world point.
 

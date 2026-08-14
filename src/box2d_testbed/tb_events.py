@@ -1,5 +1,5 @@
-from box2d import Vec2, CollisionFilter
-from .base_test import BaseTest
+from box2d import Vec2, CollisionFilter, Color
+from .base_test import BaseTest, UI
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
@@ -48,3 +48,171 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
 
     def debug_draw(self, debug_draw):
         debug_draw.draw_string((5, 15), f"Overlap count: {self.overlap_count}")
+
+
+class ContactEvents(BaseTest, category="Events", name="Contact"):
+    """Boxes that light up while touching, and flash on a hard hit.
+
+    Shapes report nothing by default, so both kinds of event are enabled here.
+    Begin and end events maintain the touching set; hit events fire only above
+    the world's hit threshold, so a gentle rest does not count.
+    """
+
+    hit_threshold = UI.float(1.0, min=0.0, max=20.0)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 6)
+        self.app_state.zoom = 12.0
+
+        self.world.hit_event_threshold = self.hit_threshold
+
+        ground = self.world.new_body().static()
+        ground.segment((-12, 0), (12, 0), enable_contact_events=True)
+        ground.segment((-12, 0), (-12, 12), enable_contact_events=True)
+        ground.segment((12, 0), (12, 12), enable_contact_events=True)
+        self.ground = ground.build()
+        self.ground.enable_hit_events()
+
+        boxes = (
+            self.world.new_body()
+            .dynamic()
+            .box(
+                1,
+                1,
+                restitution=0.6,
+                enable_contact_events=True,
+                enable_hit_events=True,
+            )
+        )
+        for i in range(6):
+            boxes.position(-5 + 2 * i, 6 + 1.5 * i).build()
+
+        self.touching = set()
+        self.flashes = {}
+        self.hit_count = 0
+
+    def after_step(self, dt):
+        events = self.world.get_contact_events()
+
+        for touch in events.begin:
+            self.touching.add(id(touch.shape_a))
+            self.touching.add(id(touch.shape_b))
+        for touch in events.end:
+            # A shape destroyed while touching still turns up here.
+            for shape in (touch.shape_a, touch.shape_b):
+                if shape is not None:
+                    self.touching.discard(id(shape))
+
+        # Fade the flashes from previous hits.
+        self.flashes = {k: v - 1 for k, v in self.flashes.items() if v > 1}
+        for hit in events.hit:
+            self.hit_count += 1
+            self.flashes[(hit.point.x, hit.point.y)] = 20
+
+    @hit_threshold.callback
+    def on_threshold_change(self, key, value):
+        self.world.hit_event_threshold = value
+
+    def debug_draw(self, debug_draw):
+        for (x, y), life in self.flashes.items():
+            debug_draw.draw_point((x, y), 4 + life, Color(255, 200, 0))
+        debug_draw.draw_string(
+            (-11, 11), f"touching: {len(self.touching)}   hits: {self.hit_count}"
+        )
+
+
+class BodyMoveEvents(BaseTest, category="Events", name="Body Move"):
+    """Only the bodies that actually moved are reported each step.
+
+    Box2D hands back a move event per moving body, which is cheaper than
+    walking every body to refresh what you draw. As the pile settles the count
+    falls to zero, and the sleeping bodies are marked as they drop out.
+    """
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 6)
+        self.app_state.zoom = 14.0
+
+        self.world.new_body().static().segment((-15, 0), (15, 0)).build()
+
+        boxes = self.world.new_body().dynamic().box(0.8, 0.8, friction=0.6)
+        for row in range(6):
+            for column in range(6 - row):
+                boxes.position(-3 + column + 0.5 * row, 0.5 + row).build()
+
+        self.moved = 0
+        self.asleep = 0
+
+    def after_step(self, dt):
+        events = self.world.get_body_events()
+        self.moved = len(events)
+        self.asleep += sum(1 for event in events if event.fell_asleep)
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            (-13, 11),
+            f"moving this step: {self.moved} of {len(self.world.bodies)}"
+            f"   fell asleep: {self.asleep}",
+        )
+
+
+class BreakableJoint(BaseTest, category="Events", name="Joint"):
+    """A chain whose links break when pulled past their force threshold.
+
+    A joint reports nothing until a threshold is set. Here every link reports
+    above force_threshold, and the reported joints are destroyed, so the chain
+    parts under the weight hung from its end.
+    """
+
+    threshold = UI.float(2000.0, min=100.0, max=20000.0)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, -4)
+        self.app_state.zoom = 12.0
+
+        ground = self.world.new_body().static().build()
+
+        links = (
+            self.world.new_body()
+            .dynamic()
+            .capsule((-0.4, 0), (0.4, 0), radius=0.15, density=20.0)
+        )
+        previous = ground
+        self.joints = []
+        for i in range(8):
+            link = links.position(1.0 + i, 0).build()
+            joint = self.world.add_revolute_joint(previous, link, anchor=(0.5 + i, 0))
+            joint.force_threshold = self.threshold
+            self.joints.append(joint)
+            previous = link
+
+        weight = (
+            self.world.new_body()
+            .dynamic()
+            .position(9.5, 0)
+            .circle(radius=1.0, density=100.0)
+            .build()
+        )
+        joint = self.world.add_revolute_joint(previous, weight, anchor=(8.5, 0))
+        joint.force_threshold = self.threshold
+        self.joints.append(joint)
+
+        self.broken = 0
+
+    def after_step(self, dt):
+        for event in self.world.get_joint_events():
+            joint = event.joint
+            if joint in self.joints:
+                self.joints.remove(joint)
+                joint.destroy()
+                self.broken += 1
+
+    @threshold.callback
+    def on_threshold_change(self, key, value):
+        for joint in self.joints:
+            joint.force_threshold = value
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            (-10, 4), f"links intact: {len(self.joints)}   broken: {self.broken}"
+        )

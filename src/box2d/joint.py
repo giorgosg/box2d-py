@@ -134,6 +134,26 @@ class Joint(ABC):
         """,
     )
 
+    force_threshold = b2_float(
+        lib.b2Joint_GetForceThreshold,
+        lib.b2Joint_SetForceThreshold,
+        doc="""Get or set the force above which this joint reports an event.
+
+        A joint reports nothing through World.get_joint_events until one of its
+        thresholds is set, so this is how a breakable construction learns which
+        of its joints is about to give. Defaults to infinity.
+        """,
+    )
+
+    torque_threshold = b2_float(
+        lib.b2Joint_GetTorqueThreshold,
+        lib.b2Joint_SetTorqueThreshold,
+        doc="""Get or set the torque above which this joint reports an event.
+
+        The rotational counterpart of force_threshold. Defaults to infinity.
+        """,
+    )
+
     def wake_bodies(self):
         """Ensure connected bodies are active and responsive to movement.
 

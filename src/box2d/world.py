@@ -13,6 +13,14 @@ from .joint import (
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .dataclasses import BodyDef, BodyType
+from .events import (
+    BodyMoveEvent,
+    ContactBeginEvent,
+    ContactEndEvent,
+    ContactEvents,
+    ContactHitEvent,
+    JointEvent,
+)
 from .jointdef import (
     JointDef,
     WeldJointDef,
@@ -690,6 +698,113 @@ class World:
             ]
 
         return SensorEvents(begin=begin_events, end=end_events)
+
+    @staticmethod
+    def _shape_from_id(shape_id):
+        """Resolve a shape id back to its wrapper, or None if it is gone.
+
+        End-touch events can name a shape that was destroyed during the step,
+        so this has to tolerate that rather than hand back a dangling wrapper.
+        """
+        if not lib.b2Shape_IsValid(shape_id):
+            return None
+        data = lib.b2Shape_GetUserData(shape_id)
+        return ffi.from_handle(data) if data != ffi.NULL else None
+
+    def get_contact_events(self) -> ContactEvents:
+        """Contacts that began, ended, or hit during the last step.
+
+        Contacts are only reported for shapes that opted in. Begin and end need
+        ``enable_contact_events`` on both shapes; hits need ``enable_hit_events``
+        and an approach speed above :attr:`hit_event_threshold`. Box2D defaults
+        all of these off.
+
+        Returns:
+            ContactEvents: with ``begin``, ``end`` and ``hit`` lists, describing
+            only the step that just finished. Reading does not consume them, so
+            asking twice between steps gives the same answer; the next step
+            replaces them.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> _ = body.add_circle(radius=0.5, enable_contact_events=True)
+            >>> ground = world.add_body(position=(0, 0))
+            >>> _ = ground.add_box(20, 1, enable_contact_events=True)
+            >>> for _ in range(200):
+            ...     world.step(1 / 60, 4)
+            ...     for touch in world.get_contact_events().begin:
+            ...         pass  # touch.shape_a and touch.shape_b just met
+        """
+        events = lib.b2World_GetContactEvents(self._world_id)
+        resolve = self._shape_from_id
+
+        begin = [
+            ContactBeginEvent(
+                shape_a=resolve(event.shapeIdA), shape_b=resolve(event.shapeIdB)
+            )
+            for event in (events.beginEvents[i] for i in range(events.beginCount))
+        ]
+        end = [
+            ContactEndEvent(
+                shape_a=resolve(event.shapeIdA), shape_b=resolve(event.shapeIdB)
+            )
+            for event in (events.endEvents[i] for i in range(events.endCount))
+        ]
+        hit = [
+            ContactHitEvent(
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                point=Vec2(event.point.x, event.point.y),
+                normal=Vec2(event.normal.x, event.normal.y),
+                approach_speed=event.approachSpeed,
+            )
+            for event in (events.hitEvents[i] for i in range(events.hitCount))
+        ]
+        return ContactEvents(begin=begin, end=end, hit=hit)
+
+    def get_body_events(self) -> list:
+        """Bodies that moved during the last step.
+
+        Box2D reports only bodies that actually moved, so this is cheaper than
+        walking every body to refresh what you draw.
+
+        Returns:
+            list[BodyMoveEvent]: One per body that moved.
+        """
+        events = lib.b2World_GetBodyEvents(self._world_id)
+        moves = []
+        for i in range(events.moveCount):
+            event = events.moveEvents[i]
+            if event.userData == ffi.NULL:
+                continue
+            moves.append(
+                BodyMoveEvent(
+                    body=ffi.from_handle(event.userData),
+                    transform=Transform.from_b2Transform(event.transform),
+                    fell_asleep=bool(event.fellAsleep),
+                )
+            )
+        return moves
+
+    def get_joint_events(self) -> list:
+        """Joints that passed their force or torque threshold last step.
+
+        A joint reports nothing unless its definition set ``force_threshold`` or
+        ``torque_threshold``, so this is how a breakable construction learns
+        which of its joints is about to give.
+
+        Returns:
+            list[JointEvent]: One per joint that reported.
+        """
+        events = lib.b2World_GetJointEvents(self._world_id)
+        reports = []
+        for i in range(events.count):
+            event = events.jointEvents[i]
+            if event.userData == ffi.NULL:
+                continue
+            reports.append(JointEvent(joint=ffi.from_handle(event.userData)))
+        return reports
 
     @property
     def is_valid(self) -> bool:
