@@ -22,6 +22,7 @@ from .mover import (
     clip_vector,
     solve_planes,
 )
+from .query import MAX_PROXY_POINTS, ShapeProxy
 from .jointdef import (
     JointDef,
     FilterJointDef,

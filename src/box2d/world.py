@@ -17,6 +17,7 @@ from .joint import (
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
+from .query import ShapeProxy
 from .dataclasses import BodyDef, BodyType
 from .events import (
     BodyMoveEvent,
@@ -659,12 +660,7 @@ class World:
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
 
-        # Convert the CollisionFilter to a Box2D c_filter.
         c_filter = filter.b2QueryFilter
-        filter_dict = {
-            "categoryBits": c_filter.categoryBits,
-            "maskBits": c_filter.maskBits,
-        }
 
         # 3.2 added a query origin for large-world support. Coordinates in
         # this binding are absolute, so the origin is always the world origin.
@@ -706,18 +702,45 @@ class World:
             >>> len(overlaps) <= 10
             True
         """
+        # Box2D 3.1 replaced b2World_OverlapCircle with the general
+        # b2World_OverlapShape. A circle is a single-point proxy with a radius.
+        return self.query_shape(
+            ShapeProxy.circle(radius, center=position),
+            filter=filter,
+            max_results=max_results,
+        )
+
+    def query_shape(
+        self,
+        proxy: ShapeProxy,
+        filter: "CollisionFilter" = None,
+        max_results: int = None,
+    ) -> list:
+        """Find shapes overlapping an arbitrary region.
+
+        The general form of :meth:`query_circle`: any region a
+        :class:`ShapeProxy` can describe, which is any convex shape.
+
+        Args:
+            proxy: The region to test, in world coordinates.
+            filter: Optional CollisionFilter controlling which shapes are tested.
+            max_results: Stop after this many shapes.
+
+        Returns:
+            list: The overlapping shapes.
+
+        Example:
+            >>> world = World()
+            >>> box = world.new_body().dynamic().position(0, 0).box(1, 1).build()
+            >>> hits = world.query_shape(ShapeProxy.box(4, 4))
+            >>> box.shapes[0] in hits
+            True
+        """
         if filter is None:
             filter = CollisionFilter()
 
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
-
-        # Box2D 3.1 replaced b2World_OverlapCircle with the general
-        # b2World_OverlapShape. A circle is a single-point proxy with a radius.
-        proxy = ffi.new("b2ShapeProxy*")
-        proxy.points[0] = Vec2(position).b2Vec2[0]
-        proxy.count = 1
-        proxy.radius = radius
         c_filter = filter.b2QueryFilter
 
         # 3.2 added a query origin for large-world support. Coordinates in
@@ -725,12 +748,69 @@ class World:
         lib.b2World_OverlapShape(
             self._world_id,
             Vec2(0, 0).b2Vec2[0],
-            proxy,
+            proxy.b2ShapeProxy,
             c_filter[0],
             overlap_callback,
             ffi.NULL,
         )
         return results
+
+    def cast_shape(
+        self,
+        proxy: ShapeProxy,
+        translation: VectorLike,
+        filter: "CollisionFilter" = None,
+        first_hit_only: bool = False,
+    ) -> list[RayCastResult]:
+        """Sweep a shape through the world and report what it runs into.
+
+        A ray cast asks what a point would hit; this asks what a shape of real
+        size would hit, which is the question behind "can this character fit
+        through the gap" and "where would this box land if dropped straight
+        down".
+
+        A shape already overlapping the proxy at its starting position is
+        reported at fraction 0, so a cast that starts inside geometry tells
+        you so rather than silently skipping it. (Box2D's lower-level
+        ``b2ShapeCast`` treats initial overlap as a miss instead; this is the
+        world-level function, which does not.)
+
+        Args:
+            proxy: The shape to sweep, at its starting position.
+            translation: How far to sweep it, as a vector-like. Hits are
+                reported as a fraction of this.
+            filter: Optional CollisionFilter controlling which shapes are tested.
+            first_hit_only: Stop at the nearest hit rather than collecting all.
+
+        Returns:
+            list[RayCastResult]: Hits, nearest first. The point and normal are
+            in world coordinates.
+
+        Example:
+            >>> world = World()
+            >>> ground = world.new_body().position(0, 0).box(20, 1).build()
+            >>> hits = world.cast_shape(ShapeProxy.circle(0.5, (0, 10)), (0, -20))
+            >>> round(hits[0].point.y, 1)
+            0.5
+        """
+        if filter is None:
+            filter = CollisionFilter()
+
+        results = []
+        callback = make_ray_cast_callback(results)
+        c_filter = filter.b2QueryFilter
+
+        lib.b2World_CastShape(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            proxy.b2ShapeProxy,
+            Vec2(translation).b2Vec2[0],
+            c_filter[0],
+            callback,
+            ffi.NULL,
+        )
+        results.sort(key=lambda hit: hit.fraction)
+        return results[:1] if first_hit_only else results
 
     def ray_cast(
         self,
@@ -811,8 +891,6 @@ class World:
             ...      print(f"Sensor began contact with object")
 
         """
-        events = []
-
         # Get the events from Box2D
         sensor_events = lib.b2World_GetSensorEvents(self._world_id)
 
