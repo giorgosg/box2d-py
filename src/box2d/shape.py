@@ -817,8 +817,16 @@ class Chain:
         self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
         segment_count = lib.b2Chain_GetSegmentCount(self._chain_id)
         segments = ffi.new("b2ShapeId[]", segment_count)
-        lib.b2Chain_GetSegments(self._chain_id, segments, segment_count)
-        self.segments = [ChainSegment(segments[i], self) for i in range(segment_count)]
+        returned = lib.b2Chain_GetSegments(self._chain_id, segments, segment_count)
+
+        # Each id is copied into its own allocation rather than kept as a view
+        # into this array. cffi does not keep the array alive for its elements,
+        # so every segment id dangled the moment the array was collected and
+        # read as garbage once anything reused the memory.
+        self.segments = [
+            ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
+            for i in range(returned)
+        ]
 
     @classmethod
     def create(

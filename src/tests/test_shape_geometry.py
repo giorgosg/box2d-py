@@ -9,7 +9,7 @@ properties for the individual components.
 
 import pytest
 
-from box2d import World, Vec2, DestroyedError
+from box2d import AABB, World, Vec2, DestroyedError
 from box2d.shapedef import CircleDef, CapsuleDef, SegmentDef, PolygonDef
 
 
@@ -253,3 +253,53 @@ def test_surface_material_round_trips(body):
     assert material.restitution == pytest.approx(0.4)
     assert material.rolling_resistance == pytest.approx(0.5)
     assert material.tangent_speed == pytest.approx(6.0)
+
+
+# --- chain segments, whose ids used to dangle -------------------------------
+
+
+def test_chain_segments_are_valid(world):
+    """Every segment id was a view into a temporary array, so all of them
+    dangled the moment it was collected and read as garbage once anything
+    reused the memory. Chains looked fine until a segment was touched."""
+    body = world.add_body(position=(0, 0))
+    chain = body.add_chain(vertices=[(-4, 0), (-2, 0), (0, 0), (2, 0), (4, 0)])
+
+    assert chain.segments
+    assert all(segment.is_valid() for segment in chain.segments)
+
+
+def test_chain_segments_survive_later_allocation(world):
+    """The corruption only appeared once other objects reused the memory."""
+    body = world.add_body(position=(0, 0))
+    chain = body.add_chain(vertices=[(-4, 0), (-2, 0), (0, 0), (2, 0), (4, 0)])
+
+    # Churn: build a great many more shapes, as a real scene would.
+    for i in range(200):
+        other = world.add_body(body_type="dynamic", position=(i, 50))
+        other.add_circle(radius=0.1)
+
+    assert all(segment.is_valid() for segment in chain.segments)
+
+
+def test_chain_segments_are_usable(world):
+    body = world.add_body(position=(0, 0))
+    chain = body.add_chain(vertices=[(-4, 0), (-2, 0), (0, 0), (2, 0), (4, 0)])
+    for i in range(200):
+        world.add_body(body_type="dynamic", position=(i, 50)).add_circle(radius=0.1)
+
+    segment = chain.segments[0]
+    assert segment.body is body
+    assert segment.parent_chain is chain
+    assert isinstance(segment.friction, float)
+
+
+def test_chain_segments_are_found_by_queries(world):
+    """A query resolves shapes through their user data, which needs a live id."""
+    body = world.add_body(position=(0, 0))
+    body.add_chain(vertices=[(-4, 0), (-2, 0), (0, 0), (2, 0), (4, 0)])
+    for i in range(200):
+        world.add_body(body_type="dynamic", position=(i, 50)).add_circle(radius=0.1)
+
+    found = world.query_aabb(AABB((-5, -1), (5, 1)))
+    assert all(shape.is_valid() for shape in found)
