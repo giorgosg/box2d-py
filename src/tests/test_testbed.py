@@ -208,3 +208,80 @@ def test_debug_draw_settings_labels_are_readable():
     labels = {display for _, _, display in DebugDrawSettings().get_current()}
     assert "Contact normals" in labels
     assert all("_" not in label for label in labels)
+
+
+# --- the UI controls, which nothing exercised -------------------------------
+
+
+def ui_properties(scenario):
+    """The scenario's declared UI controls, as (name, UIProperty)."""
+    from box2d_testbed.ui import UIProperty
+
+    found = {}
+    for klass in reversed(scenario.__mro__):
+        for name, value in vars(klass).items():
+            if isinstance(value, UIProperty):
+                found[name] = value
+    return sorted(found.items())
+
+
+def a_different_value(prop, current):
+    """A plausible new setting for a control, different from the current one."""
+    if prop.type == "bool":
+        return not current
+    if prop.type == "button":
+        return None  # pressing a button is just assigning to it
+    if prop.type == "select":
+        options = list(prop.options or [])
+        for option in options:
+            if option != current:
+                return option
+        return current
+    if prop.type in ("float", "int"):
+        low = prop.min_value if prop.min_value is not None else 0
+        high = prop.max_value if prop.max_value is not None else low + 1
+        middle = (low + high) / 2
+        if prop.type == "int":
+            middle = int(middle)
+            return middle if middle != current else max(int(low), current - 1)
+        return middle if middle != current else (low + middle) / 2
+    return current
+
+
+@pytest.mark.parametrize("scenario", scenarios())
+def test_scenario_ui_controls_work(world, scenario):
+    """Change every control the scenario declares, as the GUI would.
+
+    Setting a UI property fires its callbacks, and those are where scenarios
+    rebuild themselves, retune joints or fire one-shot actions. The harness
+    only drove setup and stepping, so none of that was covered -- which is how
+    a shape swap, a conveyor's tangent speed and a whole drag cycle all reached
+    the GUI broken.
+    """
+    test = scenario(world)
+    test.setup()
+    world.step(1 / 60, 4)
+
+    for name, prop in ui_properties(scenario):
+        setattr(test, name, a_different_value(prop, getattr(test, name)))
+        # A control that rebuilds the scene must leave it usable.
+        world.step(1 / 60, 4)
+        test.after_step(1 / 60)
+
+
+@pytest.mark.parametrize("scenario", scenarios())
+def test_scenario_input_handlers_are_safe(world, scenario):
+    """Keys and mouse events must not raise, whether the scenario uses them or not."""
+    test = scenario(world)
+    test.setup()
+    world.step(1 / 60, 4)
+
+    for key in ("left", "right", "up", "down", "space", "a", "z"):
+        test.on_key_down(key)
+        test.on_key_up(key)
+
+    point = Vec2(0, 0)
+    test.on_mouse_down(point)
+    test.on_mouse_drag(point, Vec2(0, 0))
+    test.on_mouse_release(point)
+    world.step(1 / 60, 4)
