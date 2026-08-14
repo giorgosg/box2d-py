@@ -35,17 +35,22 @@ class Joint(ABC):
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
 
-    def destroy(self):
+    def destroy(self, wake_attached: bool = True):
         """Destroy the joint and remove it from the world.
 
         The joint raises :class:`DestroyedError` if used afterwards. Destroying
         twice is a no-op.
+
+        Args:
+            wake_attached: Wake the bodies this joint connected. Defaults to
+                True so that releasing a constraint lets the bodies react to
+                it; pass False to leave sleeping bodies asleep.
         """
         # Read past the validity check so destroy stays callable on a joint
         # Box2D has already reclaimed, e.g. one whose bodies went first.
         raw = raw_id(self, "_joint_id")
         if raw is not None and lib.b2Joint_IsValid(raw):
-            lib.b2DestroyJoint(raw)
+            lib.b2DestroyJoint(raw, bool(wake_attached))
         del self._joint_id
 
     @property

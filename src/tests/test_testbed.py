@@ -14,7 +14,7 @@ GL-backed renderer need a display, and none of those are exercised here.
 
 import pytest
 
-from box2d import World, DebugDraw
+from box2d import World, DebugDraw, Vec2
 
 # Importing the scenario modules is what registers them on BaseTest.registry.
 from box2d_testbed import (  # noqa: F401
@@ -26,6 +26,13 @@ from box2d_testbed import (  # noqa: F401
     tb_stacking,
 )
 from box2d_testbed.base_test import BaseTest
+
+
+@pytest.fixture
+def world():
+    world = World()
+    yield world
+    world.destroy()
 
 
 def scenarios():
@@ -109,3 +116,50 @@ def test_scenario_draws(scenario):
         assert draw.calls > 0, "scenario drew nothing"
     finally:
         world.destroy()
+
+
+def test_drag_cycle(world):
+    """Grab, drag and release a body, the way the testbed's mouse does.
+
+    Releasing crashed with "b2DestroyJoint expected 2 arguments, got 1": the
+    scenario harness only drives setup and stepping, so nothing reached the
+    input handlers.
+    """
+    scenario = BaseTest.registry["Shapes"]["Friction"]
+    test = scenario(world)
+    test.setup()
+    for _ in range(30):
+        world.step(1 / 60, 4)
+
+    target = next(body for body in world.bodies if body.type == "dynamic")
+    grab = target.position
+    before = len(world.bodies)
+
+    test.on_mouse_down(Vec2(grab))
+    assert test.mouse_joint is not None
+
+    for step in range(1, 21):
+        test.on_mouse_drag(Vec2(grab.x + step * 0.1, grab.y + step * 0.1), None)
+        world.step(1 / 60, 4)
+    assert target.position != grab
+
+    test.on_mouse_release(Vec2(target.position))
+    assert test.mouse_joint is None
+    assert len(world.bodies) == before, "the drag proxy body was left behind"
+
+    world.step(1 / 60, 4)
+
+
+def test_drag_can_be_repeated(world):
+    scenario = BaseTest.registry["Shapes"]["Friction"]
+    test = scenario(world)
+    test.setup()
+    world.step(1 / 60, 4)
+
+    target = next(body for body in world.bodies if body.type == "dynamic")
+    for _ in range(3):
+        test.on_mouse_down(Vec2(target.position))
+        test.on_mouse_drag(Vec2(target.position + (0.5, 0.5)), None)
+        world.step(1 / 60, 4)
+        test.on_mouse_release(Vec2(target.position))
+    assert test.mouse_joint is None
