@@ -134,6 +134,25 @@ class Joint(ABC):
         """,
     )
 
+    joint_type = b2_value(
+        lib.b2Joint_GetType,
+        doc="The Box2D constant identifying which kind of joint this is.",
+    )
+
+    linear_separation = b2_value(
+        lib.b2Joint_GetLinearSeparation,
+        doc="""How far apart the joint's two frames have drifted, in metres.
+
+        A perfectly satisfied joint reads zero; a large value means the solver
+        is losing the constraint, which is what a breakable joint watches.
+        """,
+    )
+
+    angular_separation = b2_value(
+        lib.b2Joint_GetAngularSeparation,
+        doc="The angular counterpart of linear_separation, in radians.",
+    )
+
     force_threshold = b2_float(
         lib.b2Joint_GetForceThreshold,
         lib.b2Joint_SetForceThreshold,

@@ -647,6 +647,51 @@ class Body:
         b2transform = lib.b2Body_GetTransform(self._body_id)
         return Transform.from_b2Transform(b2transform)
 
+    enable_sleep = b2_bool(
+        lib.b2Body_IsSleepEnabled,
+        lib.b2Body_EnableSleep,
+        doc="Get or set whether this body is allowed to fall asleep.",
+    )
+
+    def clear_forces(self) -> None:
+        """Discard forces and torques applied but not yet integrated.
+
+        Box2D clears these itself after every step, so this is only needed when
+        abandoning input already applied this frame.
+        """
+        lib.b2Body_ClearForces(self._body_id)
+
+    def wake_touching(self) -> None:
+        """Wake every body currently touching this one.
+
+        Useful after moving a static or kinematic body by hand, since anything
+        resting on it is otherwise left asleep and will not notice.
+        """
+        lib.b2Body_WakeTouching(self._body_id)
+
+    def set_target_transform(
+        self, position: VectorLike, rotation: float, dt: float, wake: bool = True
+    ):
+        """Drive a kinematic body toward a pose over one step.
+
+        Sets the velocities needed to arrive at the target after 'dt', which
+        keeps collision working properly. Teleporting by assigning position
+        skips the space between, so moving platforms should use this.
+
+        Args:
+            position: Where the body should end up, as a vector-like.
+            rotation: The rotation it should end up at, in radians.
+            dt: The timestep it has to get there.
+            wake: Wake the body if it is asleep. A sleeping body ignores the
+                target when the implied velocity is below its sleep threshold.
+        """
+        transform = ffi.new("b2Transform*")
+        transform.p = Vec2(position).b2Vec2[0]
+        transform.q = Rot(rotation).b2Rot[0]
+        lib.b2Body_SetTargetTransform(
+            self._body_id, transform[0], float(dt), bool(wake)
+        )
+
     def enable_contact_events(self, enable: bool = True) -> None:
         """Turn contact events on or off for every shape on this body.
 

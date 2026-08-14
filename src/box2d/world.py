@@ -160,11 +160,9 @@ class World:
 
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
-        # Store default simulation parameters
-        self._enable_sleep = world_def.enableSleep
-        self._enable_continuous = world_def.enableContinuous
-        self._restitution_threshold = world_def.restitutionThreshold
-        self._hit_event_threshold = world_def.hitEventThreshold
+        # Contact tuning is cached because Box2D has only a combined setter
+        # for the three values and no getter; everything else is read back
+        # from Box2D rather than mirrored here.
         self._contact_hertz = world_def.contactHertz
         self._contact_damping_ratio = world_def.contactDampingRatio
         self._contact_push_velocity = world_def.contactSpeed
@@ -1172,12 +1170,11 @@ class World:
             >>> world = World()
             >>> world.enable_sleep = False  # Disable sleeping entirely
         """
-        return self._enable_sleep
+        return lib.b2World_IsSleepingEnabled(self._world_id)
 
     @enable_sleep.setter
     def enable_sleep(self, value: bool):
-        self._enable_sleep = bool(value)
-        lib.b2World_EnableSleeping(self._world_id, self._enable_sleep)
+        lib.b2World_EnableSleeping(self._world_id, bool(value))
 
     @property
     def enable_continuous(self) -> bool:
@@ -1189,12 +1186,11 @@ class World:
             >>> world = World()
             >>> world.enable_continuous = False  # Disable CCD for static
         """
-        return self._enable_continuous
+        return lib.b2World_IsContinuousEnabled(self._world_id)
 
     @enable_continuous.setter
     def enable_continuous(self, value: bool):
-        self._enable_continuous = bool(value)
-        lib.b2World_EnableContinuous(self._world_id, self._enable_continuous)
+        lib.b2World_EnableContinuous(self._world_id, bool(value))
 
     @property
     def restitution_threshold(self) -> float:
@@ -1206,12 +1202,11 @@ class World:
             >>> world = World()
             >>> world.restitution_threshold = 2.0  # Only apply restitution above 2m/s
         """
-        return self._restitution_threshold
+        return lib.b2World_GetRestitutionThreshold(self._world_id)
 
     @restitution_threshold.setter
     def restitution_threshold(self, value: float):
-        self._restitution_threshold = float(value)
-        lib.b2World_SetRestitutionThreshold(self._world_id, self._restitution_threshold)
+        lib.b2World_SetRestitutionThreshold(self._world_id, float(value))
 
     @property
     def hit_event_threshold(self) -> float:
@@ -1223,12 +1218,11 @@ class World:
             >>> world = World()
             >>> world.hit_event_threshold = 0.5  # Get events for slower impacts
         """
-        return self._hit_event_threshold
+        return lib.b2World_GetHitEventThreshold(self._world_id)
 
     @hit_event_threshold.setter
     def hit_event_threshold(self, value: float):
-        self._hit_event_threshold = float(value)
-        lib.b2World_SetHitEventThreshold(self._world_id, self._hit_event_threshold)
+        lib.b2World_SetHitEventThreshold(self._world_id, float(value))
 
     @property
     def contact_hertz(self) -> float:
