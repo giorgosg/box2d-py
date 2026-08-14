@@ -283,6 +283,41 @@ class MouseJoint(Joint):
     )
 
 
+class FilterJoint(Joint):
+    """Stops two specific bodies from colliding, and nothing else.
+
+    Collision categories and masks work per shape and in groups, so they cannot
+    say "these two bodies ignore each other" without also affecting everything
+    sharing their category. A filter joint says exactly that and constrains
+    nothing else: the bodies move independently, they simply pass through.
+
+    Cheaper and simpler than a custom filter callback when the rule is a fixed
+    pair rather than a computation.
+    """
+
+    def __init__(self, world, body_a, body_b, collide_connected=False):
+        """Create a filter joint between two bodies.
+
+        Args:
+            world: The physics world where the joint exists
+            body_a: First body
+            body_b: Second body
+            collide_connected: Ignored. A filter joint exists to stop these two
+                colliding, so honouring this would defeat it.
+        """
+        self.world = world
+
+        defn = lib.b2DefaultFilterJointDef()
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        self._def = defn
+
+        self._joint_id = lib.b2CreateFilterJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        self._set_userdata()
+
+
 class WeldJoint(Joint):
     """WeldJoint connects two bodies rigidly, fully constraining their relative
     translation and rotation while allowing for softness when spring parameters

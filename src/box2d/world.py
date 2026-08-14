@@ -6,6 +6,7 @@ import traceback
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
 from .joint import (
+    FilterJoint,
     MouseJoint,
     WeldJoint,
     RevoluteJoint,
@@ -28,6 +29,7 @@ from .events import (
 )
 from .jointdef import (
     JointDef,
+    FilterJointDef,
     WeldJointDef,
     RevoluteJointDef,
     PrismaticJointDef,
@@ -377,6 +379,10 @@ class World:
         return self.add_joint(
             MouseJointDef(body, target, max_force, damping_ratio, hertz)
         )
+
+    def add_filter_joint(self, body_a, body_b) -> "FilterJoint":
+        """Stop two bodies colliding. See :class:`FilterJointDef`."""
+        return self.add_joint(FilterJointDef(body_a, body_b))
 
     def add_weld_joint(
         self,

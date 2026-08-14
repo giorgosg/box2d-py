@@ -205,3 +205,72 @@ def test_revolute_runtime_surface_matches_the_other_joints(world, bodies):
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(math.pi / 8)
     assert isinstance(joint.motor_torque, float)
+
+
+# --- the filter joint, which had no binding at all --------------------------
+
+
+def test_filter_joint_stops_two_bodies_colliding(world):
+    """Categories work per shape and in groups; this names an exact pair."""
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1)
+    lower = world.add_body(body_type="dynamic", position=(0, 3))
+    lower.add_box(1, 1)
+    upper = world.add_body(body_type="dynamic", position=(0, 5))
+    upper.add_box(1, 1)
+
+    world.add_filter_joint(lower, upper)
+    for _ in range(180):
+        world.step(1 / 60, 4)
+
+    assert abs(lower.position.y - upper.position.y) < 0.5, "they should overlap"
+
+
+def test_without_a_filter_joint_they_stack(world):
+    """The control for the test above."""
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1)
+    lower = world.add_body(body_type="dynamic", position=(0, 3))
+    lower.add_box(1, 1)
+    upper = world.add_body(body_type="dynamic", position=(0, 5))
+    upper.add_box(1, 1)
+
+    for _ in range(180):
+        world.step(1 / 60, 4)
+
+    assert abs(lower.position.y - upper.position.y) > 0.9
+
+
+def test_filter_joint_still_collides_with_everything_else(world):
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1)
+    a = world.add_body(body_type="dynamic", position=(0, 3))
+    a.add_box(1, 1)
+    b = world.add_body(body_type="dynamic", position=(0, 5))
+    b.add_box(1, 1)
+    world.add_filter_joint(a, b)
+
+    for _ in range(180):
+        world.step(1 / 60, 4)
+
+    assert a.position.y == pytest.approx(1.0, abs=0.2), "still lands on the ground"
+
+
+def test_filter_joint_via_add_joint(world):
+    from box2d import FilterJoint, FilterJointDef
+
+    a = world.add_body(body_type="dynamic", position=(0, 0))
+    b = world.add_body(body_type="dynamic", position=(1, 0))
+    joint = world.add_joint(FilterJointDef(a, b))
+
+    assert isinstance(joint, FilterJoint)
+    assert joint.is_valid is True
+
+
+def test_filter_joint_can_be_destroyed(world):
+    a = world.add_body(body_type="dynamic", position=(0, 0))
+    b = world.add_body(body_type="dynamic", position=(1, 0))
+    joint = world.add_filter_joint(a, b)
+
+    joint.destroy()
+    assert joint.is_valid is False

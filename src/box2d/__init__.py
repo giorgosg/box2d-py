@@ -3,7 +3,7 @@ from .math import Vec2, Rot, Transform, AABB, Mat22, ScaledTransform
 from .body import Body, BodyBuilder
 from .dataclasses import BodyType
 from .shape import Box, Circle, Polygon
-from .joint import MouseJoint, WeldJoint, RevoluteJoint
+from .joint import FilterJoint, MouseJoint, WeldJoint, RevoluteJoint
 from .debug_draw import DebugDraw, Color
 from .collision_filter import CollisionFilter, CollisionCategoryRegistry
 from .events import (
@@ -24,6 +24,7 @@ from .mover import (
 )
 from .jointdef import (
     JointDef,
+    FilterJointDef,
     WeldJointDef,
     RevoluteJointDef,
     PrismaticJointDef,

@@ -804,3 +804,37 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
     @shove.callback
     def on_shove(self, key, value):
         self.bodies[0].apply_linear_impulse((100, 0))
+
+
+class FilterJointTest(BaseTest, category="Joints", name="Filter Joint"):
+    """Two stacks where one pair of boxes ignores each other.
+
+    A filter joint names an exact pair, which collision categories cannot do
+    without also affecting everything sharing a category. The left stack has
+    one, so its middle boxes sink through each other; the right stack does not,
+    so it stacks normally.
+    """
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 4)
+        self.app_state.zoom = 10.0
+
+        self.world.new_body().static().position(0, -1).box(40, 2).build()
+
+        boxes = self.world.new_body().dynamic().box(1, 1, density=1.0)
+
+        # Left: the middle pair is joined, so they pass through each other.
+        left = [boxes.position(-3, 0.5 + 1.2 * i).build() for i in range(4)]
+        self.joint = self.world.add_filter_joint(left[1], left[2])
+
+        # Right: an ordinary stack, for comparison.
+        self.right = [boxes.position(3, 0.5 + 1.2 * i).build() for i in range(4)]
+        self.left = left
+
+    def debug_draw(self, debug_draw):
+        left_height = max(b.position.y for b in self.left)
+        right_height = max(b.position.y for b in self.right)
+        debug_draw.draw_string(
+            (-8, 8),
+            f"filtered stack top {left_height:.2f}   normal stack top {right_height:.2f}",
+        )

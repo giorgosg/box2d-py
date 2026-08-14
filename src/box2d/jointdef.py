@@ -85,6 +85,18 @@ class JointDef:
 
 
 @dataclass
+class FilterJointDef(JointDef):
+    """Stops two bodies colliding without constraining them otherwise.
+
+    Anchors and collide_connected are ignored: this joint has no geometry and
+    exists precisely to prevent the collision the flag would re-enable.
+    """
+
+    def joint_arguments(self):
+        return {"body_a": self.body_a, "body_b": self.body_b}
+
+
+@dataclass
 class WeldJointDef(JointDef):
     """Holds two bodies rigidly together, optionally with some give.
 
@@ -292,6 +304,7 @@ def _bind_joint_classes():
     from . import joint
 
     for definition, name in (
+        (FilterJointDef, "FilterJoint"),
         (WeldJointDef, "WeldJoint"),
         (RevoluteJointDef, "RevoluteJoint"),
         (PrismaticJointDef, "PrismaticJoint"),
