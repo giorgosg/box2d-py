@@ -3,6 +3,7 @@
 from .base_test import BaseTest, UI
 from itertools import product
 import math
+import random
 
 # imported for the side effect of extending BodyBuilder with the method
 from .shared import create_random_polygon  # noqa: F401
@@ -327,3 +328,71 @@ class Explosion(BaseTest, category="Shapes", name="Explosion"):
                     debug_draw.draw_segment(previous, point, colour)
                 previous = point
         debug_draw.draw_string((-12, 12), f"explosions: {self.blasts}")
+
+
+class Wind(BaseTest, category="Shapes", name="Wind"):
+    """A hanging chain blown about by a gusting wind.
+
+    Wind is applied per shape rather than per body, because how much a shape
+    catches depends on how much of it the wind can see. The gust is the steady
+    direction plus a slowly wandering noise, so the chain flutters instead of
+    simply leaning.
+    """
+
+    wind_x = UI.float(10.0, min=-20.0, max=20.0)
+    wind_y = UI.float(0.0, min=-20.0, max=20.0)
+    drag = UI.float(0.5, min=0.0, max=1.0)
+    lift = UI.float(0.5, min=0.0, max=4.0)
+    links = UI.int(12, min=1, max=30)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, -4)
+        self.app_state.zoom = 14.0
+
+        ground = self.world.new_body().static().build()
+
+        radius = 0.5
+        previous = ground
+        anchor = Vec2(0, 0)
+        self.shapes = []
+        planks = self.world.new_body().dynamic().box(0.2, 2 * radius, density=1.0)
+        for i in range(self.links):
+            link = planks.position(0, -radius - 2 * radius * i).build()
+            self.world.add_revolute_joint(
+                previous,
+                link,
+                local_anchor_a=(0, 0) if previous is ground else (0, -radius),
+                local_anchor_b=(0, radius),
+            )
+            self.shapes.append(link.shapes[0])
+            previous = link
+
+        self.noise = Vec2(0, 0)
+        self.gust = Vec2(0, 0)
+
+    def after_step(self, dt):
+        wind = Vec2(self.wind_x, self.wind_y)
+        speed = wind.length
+        if speed > 0:
+            direction = wind * (1.0 / speed)
+            self.gust = (direction + self.noise) * speed
+        else:
+            self.gust = Vec2(0, 0)
+
+        for shape in self.shapes:
+            if shape.is_valid():
+                shape.apply_wind(self.gust, drag=self.drag, lift=self.lift)
+
+        # Wander the noise slowly so the gust is never quite steady.
+        target = Vec2(random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3))
+        self.noise = self.noise + (target - self.noise) * 0.05
+
+    @links.callback
+    def on_links_change(self, key, value):
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_segment((0, 0), self.gust * 0.2, Color(255, 0, 255))
+        debug_draw.draw_string((-12, 4), f"wind {self.gust.x:.1f}, {self.gust.y:.1f}")

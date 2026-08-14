@@ -213,6 +213,49 @@ class Shape(ABC):
         """
         return is_live(self, "_shape_id", lib.b2Shape_IsValid)
 
+    def apply_wind(
+        self,
+        wind: VectorLike,
+        drag: float = 1.0,
+        lift: float = 0.0,
+        wake: bool = True,
+    ) -> None:
+        """Push this shape with a wind, using the density of air.
+
+        Box2D works out how much of the shape the wind can see and how fast the
+        shape is already moving through it, so a broadside plank catches far
+        more than an edge-on one, and something already moving downwind feels
+        less. Call it each step for as long as the wind blows.
+
+        Args:
+            wind: Wind velocity in world space, as a vector-like.
+            drag: How much of the shape's own motion the wind notices. Box2D
+                computes the force from ``wind - drag * shape_velocity``, so
+                this is not a force multiplier: at 1.0 the force fades to
+                nothing as the shape reaches wind speed, which is the physical
+                case, while at 0.0 the wind never sees the shape moving away
+                and pushes it past wind speed indefinitely. Values below about
+                0.5 accelerate a free body well beyond the wind.
+            lift: Coefficient for the force perpendicular to the wind, which is
+                what makes a shape flutter rather than simply blow away.
+            wake: Wake the body if it is asleep.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> shape = body.add_box(2, 0.2)
+            >>> for _ in range(60):
+            ...     shape.apply_wind((10, 0), drag=0.5)
+            ...     world.step(1 / 60, 4)
+        """
+        lib.b2Shape_ApplyWind(
+            self._shape_id,
+            Vec2(wind).b2Vec2[0],
+            float(drag),
+            float(lift),
+            bool(wake),
+        )
+
     def destroy(self, update_body_mass: bool = True) -> None:
         """Remove this shape from its body.
 
