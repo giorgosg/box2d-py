@@ -8,7 +8,7 @@ Chain is implemented as a separate class.
 
 from ._box2d import lib, ffi
 from abc import ABC
-from typing import List, Dict, Optional, Union, Any, Tuple
+from typing import List, Dict, Optional, Union, Any, Tuple, Iterable
 from .math import Vec2, Transform, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
@@ -276,13 +276,14 @@ class Shape(ABC):
         output = lib.b2Shape_RayCast(self._shape_id, input)
         return CastResult.from_b2CastOutput(output)
 
-    def get_contact_capacity(self) -> int:
+    @property
+    def contact_capacity(self) -> int:
         """
         Get the maximum capacity required for retrieving all the touching
         contacts on this shape.
 
         Returns:
-            The required capacity for get_contact_data
+            The required capacity for reading contact_data
         """
         return lib.b2Shape_GetContactCapacity(self._shape_id)
 
@@ -294,9 +295,9 @@ class Shape(ABC):
         Convenience property that automatically determines the capacity
         and returns all contact data as ContactData objects.
         """
-        return self.get_contact_data()
+        return self._read_contact_data()
 
-    def get_contact_data(self, capacity: Optional[int] = None) -> List[ContactData]:
+    def _read_contact_data(self, capacity=None) -> List[ContactData]:
         """
         Get the touching contact data for this shape. The provided shape ID
         will be either shapeIdA or shapeIdB on the contact data.
@@ -305,13 +306,13 @@ class Shape(ABC):
 
         Args:
             capacity: Optional capacity for the contact data array.
-                     If None, will use get_contact_capacity().
+                     If None, uses contact_capacity.
 
         Returns:
             A list of ContactData objects
         """
         if capacity is None:
-            capacity = self.get_contact_capacity()
+            capacity = self.contact_capacity
 
         if capacity == 0:
             return []
@@ -323,13 +324,14 @@ class Shape(ABC):
 
         return result
 
-    def get_sensor_capacity(self) -> int:
+    @property
+    def sensor_capacity(self) -> int:
         """
         Get the maximum capacity required for retrieving all the overlapped
         shapes on a sensor shape. Returns 0 if this shape is not a sensor.
 
         Returns:
-            The required capacity for get_sensor_overlaps
+            The required capacity for reading sensor_overlaps
         """
         return lib.b2Shape_GetSensorCapacity(self._shape_id)
 
@@ -343,22 +345,22 @@ class Shape(ABC):
 
         Returns an empty list if this shape is not a sensor.
         """
-        return self.get_sensor_overlaps()
+        return self._read_sensor_overlaps()
 
-    def get_sensor_overlaps(self, capacity: Optional[int] = None) -> List["Shape"]:
+    def _read_sensor_overlaps(self, capacity=None) -> List["Shape"]:
         """
         Get the overlapped shapes for a sensor shape.
 
         Args:
             capacity: Optional capacity for the overlaps array.
-                     If None, will use get_sensor_capacity().
+                     If None, uses sensor_capacity.
 
         Returns:
             A list of Shape objects that overlap with this sensor.
             Returns an empty list if this shape is not a sensor.
         """
         if capacity is None:
-            capacity = self.get_sensor_capacity()
+            capacity = self.sensor_capacity
 
         if capacity == 0:
             return []
@@ -408,28 +410,37 @@ class Circle(Shape):
         )
         self._set_handle()
 
-    def get_circle(self) -> CircleDef:
+    @property
+    def geometry(self) -> CircleDef:
         """
-        Get the circle geometry of this shape.
+        Get or set this shape's geometry as a CircleDef.
 
-        Returns:
-            CircleDef: A circle definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        circle = lib.b2Shape_GetCircle(self._shape_id)
-        return CircleDef.from_b2Circle(circle)
+        return CircleDef.from_b2Circle(lib.b2Shape_GetCircle(self._shape_id))
 
-    def set_circle(self, circle_def: CircleDef) -> None:
-        """
-        Update this circle shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            circle_def: A CircleDef object defining the new circle geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, circle_def: CircleDef) -> None:
         lib.b2Shape_SetCircle(self._shape_id, circle_def.b2Circle)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the circle."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        self.geometry = CircleDef(radius=float(value), center=self.geometry.center)
+
+    @property
+    def center(self) -> Vec2:
+        """Get or set the circle's center, relative to the body origin."""
+        return self.geometry.center
+
+    @center.setter
+    def center(self, value: VectorLike) -> None:
+        self.geometry = CircleDef(radius=self.geometry.radius, center=Vec2(value))
 
     @classmethod
     def create(
@@ -464,28 +475,49 @@ class Capsule(Shape):
         )
         self._set_handle()
 
-    def get_capsule(self) -> CapsuleDef:
+    @property
+    def geometry(self) -> CapsuleDef:
         """
-        Get the capsule geometry of this shape.
+        Get or set this shape's geometry as a CapsuleDef.
 
-        Returns:
-            CapsuleDef: A capsule definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        capsule = lib.b2Shape_GetCapsule(self._shape_id)
-        return CapsuleDef.from_b2Capsule(capsule)
+        return CapsuleDef.from_b2Capsule(lib.b2Shape_GetCapsule(self._shape_id))
 
-    def set_capsule(self, capsule_def: CapsuleDef) -> None:
-        """
-        Update this capsule shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            capsule_def: A CapsuleDef object defining the new capsule geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, capsule_def: CapsuleDef) -> None:
         lib.b2Shape_SetCapsule(self._shape_id, capsule_def.b2Capsule)
+
+    @property
+    def point1(self) -> Vec2:
+        """Get or set the first endpoint of the capsule's axis."""
+        return self.geometry.vertex1
+
+    @point1.setter
+    def point1(self, value: VectorLike) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(Vec2(value), current.vertex2, current.radius)
+
+    @property
+    def point2(self) -> Vec2:
+        """Get or set the second endpoint of the capsule's axis."""
+        return self.geometry.vertex2
+
+    @point2.setter
+    def point2(self, value: VectorLike) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(current.vertex1, Vec2(value), current.radius)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the capsule's half-circles."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(current.vertex1, current.vertex2, float(value))
 
     @classmethod
     def create(
@@ -521,28 +553,37 @@ class Segment(Shape):
         )
         self._set_handle()
 
-    def get_segment(self) -> SegmentDef:
+    @property
+    def geometry(self) -> SegmentDef:
         """
-        Get the segment geometry of this shape.
+        Get or set this shape's geometry as a SegmentDef.
 
-        Returns:
-            SegmentDef: A segment definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        segment = lib.b2Shape_GetSegment(self._shape_id)
-        return SegmentDef.from_b2Segment(segment)
+        return SegmentDef.from_b2Segment(lib.b2Shape_GetSegment(self._shape_id))
 
-    def set_segment(self, segment_def: SegmentDef) -> None:
-        """
-        Update this segment shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            segment_def: A SegmentDef object defining the new segment geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, segment_def: SegmentDef) -> None:
         lib.b2Shape_SetSegment(self._shape_id, segment_def.b2Segment)
+
+    @property
+    def point1(self) -> Vec2:
+        """Get or set the first endpoint of the segment."""
+        return self.geometry.vertex1
+
+    @point1.setter
+    def point1(self, value: VectorLike) -> None:
+        self.geometry = SegmentDef(Vec2(value), self.geometry.vertex2)
+
+    @property
+    def point2(self) -> Vec2:
+        """Get or set the second endpoint of the segment."""
+        return self.geometry.vertex2
+
+    @point2.setter
+    def point2(self, value: VectorLike) -> None:
+        self.geometry = SegmentDef(self.geometry.vertex1, Vec2(value))
 
     @classmethod
     def create(
@@ -580,28 +621,37 @@ class Polygon(Shape):
         )
         self._set_handle()
 
-    def get_polygon(self) -> PolygonDef:
+    @property
+    def geometry(self) -> PolygonDef:
         """
-        Get the polygon geometry of this shape.
+        Get or set this shape's geometry as a PolygonDef.
 
-        Returns:
-            PolygonDef: A polygon definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        polygon = lib.b2Shape_GetPolygon(self._shape_id)
-        return PolygonDef.from_b2Polygon(polygon)
+        return PolygonDef.from_b2Polygon(lib.b2Shape_GetPolygon(self._shape_id))
 
-    def set_polygon(self, polygon_def: PolygonDef) -> None:
-        """
-        Update this polygon shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            polygon_def: A PolygonDef object defining the new polygon geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, polygon_def: PolygonDef) -> None:
         lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon_def.b2Polygon))
+
+    @property
+    def vertices(self) -> List[Vec2]:
+        """Get or set the polygon's vertices, in body-local coordinates."""
+        return self.geometry.vertices
+
+    @vertices.setter
+    def vertices(self, value: Iterable[VectorLike]) -> None:
+        self.geometry = PolygonDef(list(value), self.geometry.radius)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the polygon's rounded corners."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        self.geometry = PolygonDef(self.geometry.vertices, float(value))
 
     @classmethod
     def create(

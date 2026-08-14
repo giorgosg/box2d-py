@@ -1022,7 +1022,8 @@ class Body:
             Vec2.from_b2Vec2(b2_aabb.upperBound),
         )
 
-    def get_joint_count(self) -> int:
+    @property
+    def joint_count(self) -> int:
         """Get the number of joints attached to this body.
 
         Returns:
@@ -1030,13 +1031,13 @@ class Body:
         """
         return lib.b2Body_GetJointCount(self._body_id)
 
-    def get_joints(self) -> List[Joint]:
+    def _read_joints(self) -> List[Joint]:
         """Get the joints attached to this body.
 
         Returns:
             List of Joint objects attached to this body.
         """
-        count = self.get_joint_count()
+        count = self.joint_count
         if count == 0:
             return []
 
@@ -1059,9 +1060,10 @@ class Body:
         Returns:
             List of Joint objects attached to this body.
         """
-        return self.get_joints()
+        return self._read_joints()
 
-    def get_contact_capacity(self) -> int:
+    @property
+    def contact_capacity(self) -> int:
         """Get the maximum capacity for contacts on this body.
 
         Returns:
@@ -1069,13 +1071,13 @@ class Body:
         """
         return lib.b2Body_GetContactCapacity(self._body_id)
 
-    def get_contact_data(self) -> List[ContactData]:
+    def _read_contact_data(self) -> List[ContactData]:
         """Get contact data for all active contacts involving this body.
 
         Returns:
             List of ContactData objects for touching contacts.
         """
-        capacity = self.get_contact_capacity()
+        capacity = self.contact_capacity
         if capacity == 0:
             return []
 
@@ -1095,7 +1097,7 @@ class Body:
         Returns:
             List of ContactData objects.
         """
-        return self.get_contact_data()
+        return self._read_contact_data()
 
     @property
     def name(self) -> str:
