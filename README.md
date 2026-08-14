@@ -36,17 +36,19 @@ box2d-testbed
 
 
 ```python
-from box2d import World, Vec2
+from box2d import World
 # Create physics world
 world = World(gravity=(0, -9.81))
-# Create static ground body
-ground = world.new_body().static().position((0, -5)).box(1, 10).build()
+# Create static ground body (box takes full width and height)
+ground = world.new_body().static().position(0, -5).box(20, 1).build()
 # Create dynamic bodies
 bodybuilder = world.new_body().dynamic().box(0.5, 0.5)
-bodies = [bodybuilder.position((x, 5)).build() for x in range(-5, 5)]
+bodies = [bodybuilder.position(x, 5).build() for x in range(-5, 5)]
 # Simulation loop
-for _ in range(60):
+for _ in range(180):
     world.step(1/60, 4)
+# Bodies have come to rest on the ground
+print(bodies[0].position)  # Vec2(-5.0, -4.25)
 ```
 
 ## Development Status
