@@ -117,7 +117,7 @@ ENTRY_POINTS = {
     "World.gravity": lambda w, bs, p: setattr(w, "gravity", p),
     "World.query_circle.position": lambda w, bs, p: w.query_circle(p, 1.0),
     "World.ray_cast.origin": lambda w, bs, p: w.ray_cast(p, (5.0, 5.0)),
-    "World.ray_cast.target": lambda w, bs, p: w.ray_cast((0.0, 0.0), p),
+    "World.ray_cast.translation": lambda w, bs, p: w.ray_cast((0.0, 0.0), p),
     # Joints -- the module that drifted
     "World.add_revolute_joint.local_anchor_a": lambda w, bs, p: w.add_revolute_joint(
         *bs, local_anchor_a=p, local_anchor_b=(0.0, 0.0)
@@ -248,4 +248,83 @@ def test_every_point_parameter_is_covered():
     }
     assert not uncovered, "point parameters with no conformance test: " + ", ".join(
         sorted(uncovered)
+    )
+
+
+# --- and they say so in their signatures ------------------------------------
+
+
+def test_point_parameters_are_annotated_vector_like():
+    """Every parameter tested above should advertise what it accepts.
+
+    These were split between VectorLike, tuple, Iterable[VectorLike] and no
+    annotation at all, so the signature said 'tuple' where a list, a Vec2 or a
+    b2Vec2 was equally welcome.
+    """
+    from typing import Sequence
+
+    import box2d.body, box2d.shape, box2d.world
+    from box2d.math import VectorLike
+
+    modules = {
+        "BodyBuilder": box2d.body,
+        "Body": box2d.body,
+        "Shape": box2d.shape,
+        "World": box2d.world,
+    }
+    # Annotations resolve through the alias, so compare against the objects.
+    accepted = {VectorLike, Sequence[VectorLike]}
+
+    wrong = []
+    for entry in ENTRY_POINTS:
+        parts = entry.split(".")
+        if len(parts) != 3:
+            continue  # property setters have no annotatable parameter here
+        class_name, method_name, param = parts
+        cls = getattr(modules[class_name], class_name)
+        method = inspect.getattr_static(cls, method_name, None)
+        if not inspect.isfunction(method):
+            continue
+        parameters = inspect.signature(method).parameters
+        if param not in parameters:
+            # Joint arguments reach their definition through **kwargs, and are
+            # annotated there instead; checked by test_joint_definition_fields.
+            assert any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+            ), f"{entry} names a parameter {method_name} does not have"
+            continue
+        annotation = parameters[param].annotation
+        if annotation is inspect.Parameter.empty:
+            wrong.append(f"{entry}: not annotated")
+        elif annotation not in accepted:
+            wrong.append(f"{entry}: annotated {annotation}")
+    assert not wrong, "point parameters with the wrong annotation:\n  " + "\n  ".join(
+        wrong
+    )
+
+
+def test_joint_definition_point_fields_are_annotated():
+    """Joint points live on the definitions now, so they are annotated there."""
+    import dataclasses
+    from typing import Optional
+
+    import box2d.jointdef as jointdef
+    from box2d.math import VectorLike
+
+    # VectorLike is an alias, so annotations resolve to what it aliases; compare
+    # against the alias object rather than the text.
+    accepted = {VectorLike, Optional[VectorLike]}
+    hints = ("anchor", "axis", "target", "linear_velocity")
+    wrong = []
+    for name in dir(jointdef):
+        definition = getattr(jointdef, name)
+        if not (dataclasses.is_dataclass(definition) and name.endswith("Def")):
+            continue
+        for field in dataclasses.fields(definition):
+            if not any(hint in field.name for hint in hints):
+                continue
+            if field.type not in accepted:
+                wrong.append(f"{name}.{field.name}: {field.type}")
+    assert not wrong, "joint definition point fields not VectorLike:\n  " + "\n  ".join(
+        wrong
     )

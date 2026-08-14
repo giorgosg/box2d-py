@@ -248,7 +248,7 @@ class BodyBuilder:
         width: float,
         height: float,
         radius=0.0,
-        offset=(0, 0),
+        offset: VectorLike = (0, 0),
         angle=0.0,
         **shapedef_args,
     ):
@@ -281,7 +281,7 @@ class BodyBuilder:
     def circle(
         self,
         radius: float,
-        center: tuple = (0, 0),
+        center: VectorLike = (0, 0),
         **shapedef_args,
     ):
         """Add a circle shape to the body during construction.
@@ -306,8 +306,8 @@ class BodyBuilder:
 
     def capsule(
         self,
-        point1: tuple,
-        point2: tuple,
+        point1: VectorLike,
+        point2: VectorLike,
         radius: float,
         **shapedef_args,
     ):
@@ -334,7 +334,7 @@ class BodyBuilder:
 
     def polygon(
         self,
-        vertices: list[tuple],
+        vertices: Sequence[VectorLike],
         radius: float = 0.0,
         **shapedef_args,
     ):
@@ -367,15 +367,15 @@ class BodyBuilder:
 
     def segment(
         self,
-        start: tuple,
-        end: tuple,
+        point1: VectorLike,
+        point2: VectorLike,
         **shapedef_args,
     ):
         """Add a line segment shape with optional edge radius.
 
         Args:
-            start: Starting point (x, y) in local coordinates.
-            end: Ending point (x, y) in local coordinates.
+            point1: The first endpoint, in local coordinates.
+            point2: The second endpoint, in local coordinates.
             **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
@@ -383,7 +383,7 @@ class BodyBuilder:
         self._shape_defs.append(
             {
                 "type": "segment",
-                "params": (start, end),
+                "params": (point1, point2),
                 "kwargs": {
                     **shapedef_args,
                 },
@@ -393,7 +393,7 @@ class BodyBuilder:
 
     def chain(
         self,
-        vertices: list[tuple],
+        vertices: Sequence[VectorLike],
         loop: bool = False,
         **chaindef_args,
     ):
@@ -647,7 +647,7 @@ class Body:
         b2transform = lib.b2Body_GetTransform(self._body_id)
         return Transform.from_b2Transform(b2transform)
 
-    def apply_force(self, force, point=None, wake=True):
+    def apply_force(self, force: VectorLike, point: VectorLike = None, wake=True):
         """Apply a force at a world point.
 
         Args:
@@ -670,7 +670,9 @@ class Body:
         """
         lib.b2Body_ApplyTorque(self._body_id, torque, wake)
 
-    def apply_linear_impulse(self, impulse, point=None, wake=True):
+    def apply_linear_impulse(
+        self, impulse: VectorLike, point: VectorLike = None, wake=True
+    ):
         """Apply a linear impulse at a world point.
 
         Args:
@@ -691,7 +693,7 @@ class Body:
         width: float,
         height: float,
         radius: float = 0.0,
-        offset: tuple = (0, 0),
+        offset: VectorLike = (0, 0),
         angle: float = 0.0,
         **shapedef_args,
     ):
@@ -724,7 +726,7 @@ class Body:
     def add_circle(
         self,
         radius: float,
-        center: tuple = (0, 0),
+        center: VectorLike = (0, 0),
         **shapedef_args,
     ):
         """Add a circle shape to the body.
@@ -749,8 +751,8 @@ class Body:
 
     def add_capsule(
         self,
-        point1: tuple,
-        point2: tuple,
+        point1: VectorLike,
+        point2: VectorLike,
         radius: float,
         **shapedef_args,
     ):
@@ -778,7 +780,7 @@ class Body:
 
     def add_polygon(
         self,
-        vertices: list[tuple],
+        vertices: Sequence[VectorLike],
         radius: float = 0.0,
         **shapedef_args,
     ):
@@ -804,8 +806,8 @@ class Body:
 
     def add_segment(
         self,
-        point1: tuple,
-        point2: tuple,
+        point1: VectorLike,
+        point2: VectorLike,
         **shapedef_args,
     ):
         """Add a line segment shape to the body.
@@ -830,7 +832,7 @@ class Body:
 
     def add_chain(
         self,
-        vertices: list[tuple],
+        vertices: Sequence[VectorLike],
         loop: bool = False,
         **chaindef_args,
     ):

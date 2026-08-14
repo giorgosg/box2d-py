@@ -77,7 +77,7 @@ class Color:
 
 # Define callback wrappers with cffi.callback and conversion logic
 @ffi.callback("void(b2Transform, b2Vec2*, int, b2HexColor, void*)")
-def draw_polygon(transform, vertices, count, color, context):
+def draw_polygon(transform, vertices: list[Vec2], count, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
@@ -85,7 +85,7 @@ def draw_polygon(transform, vertices, count, color, context):
 
 
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
-def draw_solid_polygon(transform, vertices, count, radius, color, context):
+def draw_solid_polygon(transform, vertices: list[Vec2], count, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
@@ -95,7 +95,7 @@ def draw_solid_polygon(transform, vertices, count, radius, color, context):
 
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
-def draw_circle(center, radius, color, context):
+def draw_circle(center: Vec2, radius, color, context):
     instance = ffi.from_handle(context)
     py_center = Vec2.from_b2Vec2(center)
     instance.draw_circle(py_center, radius, Color.from_b2HexColor(color))
@@ -133,7 +133,7 @@ def draw_solid_capsule(p1, p2, radius, color, context):
 
 
 @ffi.callback("void(b2Transform, b2Vec2, float, b2HexColor, void*)")
-def draw_solid_circle(transform, center, radius, color, context):
+def draw_solid_circle(transform, center: Vec2, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_center = Vec2.from_b2Vec2(center)

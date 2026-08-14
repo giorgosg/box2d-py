@@ -8,7 +8,7 @@ Chain is implemented as a separate class.
 
 from ._box2d import lib, ffi
 from abc import ABC
-from typing import List, Dict, Optional, Union, Any, Tuple, Iterable
+from typing import List, Dict, Optional, Union, Any, Tuple, Iterable, Sequence
 from .math import Vec2, Transform, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
@@ -468,7 +468,7 @@ class Circle(Shape):
         cls,
         body,
         radius,
-        center=(0, 0),
+        center: VectorLike = (0, 0),
         **shapedef_kwargs,
     ):
         """
@@ -544,8 +544,8 @@ class Capsule(Shape):
     def create(
         cls,
         body,
-        point1,
-        point2,
+        point1: VectorLike,
+        point2: VectorLike,
         radius,
         **shapedef_kwargs,
     ):
@@ -610,8 +610,8 @@ class Segment(Shape):
     def create(
         cls,
         body,
-        point1,
-        point2,
+        point1: VectorLike,
+        point2: VectorLike,
         **shapedef_kwargs,
     ):
         """
@@ -678,9 +678,9 @@ class Polygon(Shape):
     def create(
         cls,
         body,
-        vertices,
+        vertices: Sequence[VectorLike],
         radius=0.0,
-        offset=(0, 0),
+        offset: VectorLike = (0, 0),
         angle=0.0,
         **shapedef_kwargs,
     ):
@@ -714,7 +714,7 @@ class Box(Polygon):
         width,
         height,
         radius=0.0,
-        offset=(0, 0),
+        offset: VectorLike = (0, 0),
         angle=0.0,
         **shapedef_kwargs,
     ):
@@ -772,7 +772,7 @@ class Chain:
     def create(
         cls,
         body,
-        vertices,
+        vertices: Sequence[VectorLike],
         loop=False,
         filter=None,
         materials=None,

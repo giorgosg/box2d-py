@@ -354,7 +354,7 @@ class World:
                 raise ValueError("Every body of a joint must belong to this world")
 
     def add_mouse_joint(
-        self, body, target, max_force=1000.0, damping_ratio=0.7, hertz=5.0
+        self, body, target: VectorLike, max_force=1000.0, damping_ratio=0.7, hertz=5.0
     ) -> "MouseJoint":
         """Drag a body toward a world-space target. See :class:`MouseJointDef`."""
         return self.add_joint(
@@ -362,7 +362,12 @@ class World:
         )
 
     def add_weld_joint(
-        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+        self,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "WeldJoint":
         """Hold two bodies rigidly together. See :class:`WeldJointDef`."""
         return self.add_joint(
@@ -370,7 +375,12 @@ class World:
         )
 
     def add_revolute_joint(
-        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+        self,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "RevoluteJoint":
         """Pin two bodies at a point they rotate about. See :class:`RevoluteJointDef`."""
         return self.add_joint(
@@ -378,7 +388,12 @@ class World:
         )
 
     def add_prismatic_joint(
-        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+        self,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "PrismaticJoint":
         """Let two bodies slide along one axis. See :class:`PrismaticJointDef`."""
         return self.add_joint(
@@ -386,7 +401,12 @@ class World:
         )
 
     def add_wheel_joint(
-        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+        self,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "WheelJoint":
         """A sliding axis with a spring, as for suspension. See :class:`WheelJointDef`."""
         return self.add_joint(
@@ -394,7 +414,12 @@ class World:
         )
 
     def add_distance_joint(
-        self, body_a, body_b, local_anchor_a=None, local_anchor_b=None, **kwargs
+        self,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "DistanceJoint":
         """Keep two points a fixed distance apart. See :class:`DistanceJointDef`."""
         return self.add_joint(

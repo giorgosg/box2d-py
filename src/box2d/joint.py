@@ -2,7 +2,7 @@
 
 from box2d._box2d import lib, ffi
 from abc import ABC, abstractmethod
-from .math import Vec2, Rot
+from .math import Vec2, Rot, VectorLike
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
 
@@ -156,7 +156,13 @@ class MouseJoint(Joint):
     """
 
     def __init__(
-        self, world, body, target, max_force=1000.0, damping_ratio=0.7, hertz=5.0
+        self,
+        world,
+        body,
+        target: VectorLike,
+        max_force=1000.0,
+        damping_ratio=0.7,
+        hertz=5.0,
     ):
         """Create a drag-and-move joint for interactive manipulation.
 
@@ -265,8 +271,8 @@ class WeldJoint(Joint):
         world,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
+        local_anchor_a: VectorLike,
+        local_anchor_b: VectorLike,
         collide_connected=False,
         linear_hertz=None,
         linear_damping_ratio=None,
@@ -344,8 +350,8 @@ class RevoluteJoint(Joint):
         world,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
+        local_anchor_a: VectorLike,
+        local_anchor_b: VectorLike,
         collide_connected=False,
         lower_angle=None,
         upper_angle=None,
@@ -516,9 +522,9 @@ class PrismaticJoint(Joint):
         world,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
-        axis,
+        local_anchor_a: VectorLike,
+        local_anchor_b: VectorLike,
+        axis: VectorLike,
         collide_connected=False,
         lower_limit=None,
         upper_limit=None,
@@ -701,9 +707,9 @@ class WheelJoint(Joint):
         world,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
-        axis,
+        local_anchor_a: VectorLike,
+        local_anchor_b: VectorLike,
+        axis: VectorLike,
         collide_connected=False,
         enable_limit=False,
         lower_translation=0.0,
@@ -852,8 +858,8 @@ class DistanceJoint(Joint):
         world,
         body_a,
         body_b,
-        local_anchor_a,
-        local_anchor_b,
+        local_anchor_a: VectorLike,
+        local_anchor_b: VectorLike,
         collide_connected=False,
         length=None,
         min_length=None,
@@ -1042,7 +1048,7 @@ class MotorJoint(Joint):
         world,
         body_a,
         body_b,
-        linear_velocity=None,
+        linear_velocity: VectorLike = None,
         angular_velocity=None,
         max_velocity_force=None,
         max_velocity_torque=None,
