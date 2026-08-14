@@ -211,3 +211,54 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
         for body in self.world.bodies:
             body.destroy()
         self.setup()
+
+
+class Cliff(BaseTest, category="Stacking", name="Cliff"):
+    """Bodies teetering on the edges of three different ledges.
+
+    Whether a body topples depends on where its centre of mass falls relative
+    to the edge it is on, so this is a compact test of mass properties: a
+    capsule, a rounded box and a plain box each hanging off a flat ledge, a
+    segment and a rounded one.
+    """
+
+    flip = UI.bool(False, label="Mirror")
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 5)
+        self.app_state.zoom = 25.0 * 0.5
+
+        ground = self.world.new_body().static()
+        ground.box(200, 2, offset=(0, -1))
+        ground.segment((-14, 4), (-8, 4))
+        ground.box(6, 1, offset=(0, 4))
+        ground.capsule((8.5, 4), (13.5, 4), radius=0.5)
+        ground.build()
+
+        sign = -1.0 if self.flip else 1.0
+        offset = 0.0 if self.flip else 0.0
+
+        # Three bodies per ledge, each hanging further over the edge.
+        for base_x, ledge in ((-11.0, "segment"), (0.0, "box"), (11.0, "capsule")):
+            for i, overhang in enumerate((0.0, 0.6, 1.2)):
+                x = base_x + sign * (overhang - 1.0 + i * 0.1)
+                body = self.world.new_body().dynamic().position(x, 4.9)
+                if i == 0:
+                    body.capsule((-0.25, 0), (0.25, 0), radius=0.25)
+                elif i == 1:
+                    body.box(1.0, 0.5, radius=0.1)
+                else:
+                    body.box(1.0, 0.5)
+                body.build()
+
+    @flip.callback
+    def on_flip(self, key, value):
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
+    def debug_draw(self, debug_draw):
+        fallen = sum(
+            1 for b in self.world.bodies if b.type == "dynamic" and b.position.y < 2
+        )
+        debug_draw.draw_string((-14, 10), f"toppled off: {fallen}")

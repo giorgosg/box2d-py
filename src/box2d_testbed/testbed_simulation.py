@@ -10,6 +10,7 @@ from . import (  # noqa: F401
     tb_events,
     tb_stacking,
     tb_character,
+    tb_bodies,
 )
 from box2d import World, Vec2
 from .base_test import BaseTest

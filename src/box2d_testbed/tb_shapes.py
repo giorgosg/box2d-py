@@ -395,3 +395,79 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
     def debug_draw(self, debug_draw):
         debug_draw.draw_segment((0, 0), self.gust * 0.2, Color(255, 0, 255))
         debug_draw.draw_string((-12, 4), f"wind {self.gust.x:.1f}, {self.gust.y:.1f}")
+
+
+class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
+    """Twenty wheels rolling down twenty lanes, each with more resistance.
+
+    Rolling resistance opposes spin rather than sliding, so the wheels lower
+    down the screen stop sooner. Tilt the lanes to see resistance compete with
+    gravity instead of simply damping.
+    """
+
+    resistance_scale = UI.float(0.02, min=0.0, max=0.2)
+    lift = UI.float(0.0, min=-10.0, max=10.0, label="Lane tilt")
+
+    def setup(self):
+        self.app_state.center = Vec2(5, 20)
+        self.app_state.zoom = 27.5
+
+        self.wheels = []
+        for i in range(20):
+            y = 2.0 * i
+            lane = self.world.new_body().static()
+            lane.segment((-40, y), (40, y + self.lift))
+            lane.build()
+
+            wheel = (
+                self.world.new_body()
+                .dynamic()
+                .position(-39.5, y + 0.75)
+                .angular_velocity(-10.0)
+                .linear_velocity(5.0, 0.0)
+                .circle(radius=0.5, rolling_resistance=self.resistance_scale * i)
+                .build()
+            )
+            self.wheels.append(wheel)
+
+    @resistance_scale.callback
+    @lift.callback
+    def on_change(self, key, value):
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
+    def debug_draw(self, debug_draw):
+        stopped = sum(1 for w in self.wheels if abs(w.linear_velocity.x) < 0.1)
+        debug_draw.draw_string(
+            (-38, 42), f"wheels stopped: {stopped} of {len(self.wheels)}"
+        )
+
+
+class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
+    """Shapes placed far from their body's origin.
+
+    A shape's geometry is in body-local coordinates, so it need not sit on the
+    origin. Getting the mass and rotation right for a shape that does not is
+    easy to break, which is what this exercises.
+    """
+
+    def setup(self):
+        self.app_state.center = Vec2(2, 8)
+        self.app_state.zoom = 25.0 * 0.55
+
+        self.world.new_body().static().position(-1, 1).box(
+            2, 2, offset=(10, -2), angle=0.5 * math.pi
+        ).build()
+
+        self.world.new_body().dynamic().position(13.5, -0.75).capsule(
+            (-5, 1), (-4, 1), radius=0.25
+        ).build()
+
+        self.world.new_body().dynamic().position(0, 0).box(
+            1.5, 1.0, offset=(9, 2), angle=0.5 * math.pi
+        ).build()
+
+    def debug_draw(self, debug_draw):
+        for body in self.world.bodies:
+            debug_draw.draw_transform(body.transform)
