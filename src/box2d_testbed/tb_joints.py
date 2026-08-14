@@ -457,7 +457,6 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             lower_angle=math.radians(-18),
             upper_angle=math.radians(18),
         )
-        print(teeter_j.collide_connected)
         # Create bridge
         bridge_count = 20
         bridge_start = Vec2(161.0, -0.125)

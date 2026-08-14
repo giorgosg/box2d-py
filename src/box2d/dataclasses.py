@@ -246,7 +246,7 @@ class BodyDef:
         # Override with any explicitly set values
         body_def.type = self.type
         body_def.position = self.position.b2Vec2[0]
-        body_def.rotation = self.rotation.b2Rot
+        body_def.rotation = self.rotation.b2Rot[0]
         body_def.linearVelocity = self.linear_velocity.b2Vec2[0]
         body_def.angularVelocity = self.angular_velocity
         body_def.linearDamping = self.linear_damping

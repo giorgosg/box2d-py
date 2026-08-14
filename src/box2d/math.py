@@ -603,7 +603,10 @@ class Rot:
                 angle = angle[0]
             self._s = angle.s
             self._c = angle.c
-            self._b2rot = angle
+            # Deliberately not cached: b2Rot must always hand back a b2Rot*, and
+            # the value we were handed here is a bare struct. Caching it would
+            # make the property's return type depend on how Rot was built.
+            self._b2rot = None
         else:
             self._c = math.cos(angle)
             self._s = math.sin(angle)
@@ -646,6 +649,9 @@ class Rot:
     @property
     def b2Rot(self):
         """Box2D b2Rot equivalent (managed by FFI).
+
+        Always a ``b2Rot*``, mirroring :attr:`Vec2.b2Vec2`, so call sites can
+        rely on indexing it with ``[0]`` to get the struct.
 
         Example:
             >>> rot = Rot(math.pi/4)
