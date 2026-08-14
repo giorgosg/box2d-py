@@ -26,6 +26,7 @@ from box2d_testbed import (  # noqa: F401
     tb_stacking,
     tb_character,
     tb_bodies,
+    tb_continuous,
 )
 from box2d_testbed.base_test import BaseTest
 

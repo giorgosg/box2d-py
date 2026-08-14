@@ -11,6 +11,7 @@ from . import (  # noqa: F401
     tb_stacking,
     tb_character,
     tb_bodies,
+    tb_continuous,
 )
 from box2d import World, Vec2
 from .base_test import BaseTest
