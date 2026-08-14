@@ -219,3 +219,30 @@ def test_add_body_and_type_setter_share_one_resolver(world):
     assert Body.resolve_type("dynamic") == Body.resolve_type(BodyType.DYNAMIC)
     with pytest.raises(ValueError, match="Invalid body type"):
         Body.resolve_type("bouncy")
+
+
+def test_builder_accumulates_shapes_across_builds(world):
+    """A builder keeps the shapes configured on it, so reuse stacks them.
+
+    This is easy to walk into when building many differently-shaped bodies from
+    one builder: the second body silently gets the first body's shape too. Use a
+    fresh builder, or world.add_body plus body.add_*, when the shapes differ.
+    """
+    builder = world.new_body().dynamic()
+
+    first = builder.polygon([(0, 0), (1, 0), (1, 1)]).build()
+    second = builder.polygon([(2, 0), (3, 0), (3, 1)]).build()
+
+    assert len(first.shapes) == 1
+    assert len(second.shapes) == 2, "documented behaviour: the builder accumulates"
+
+
+def test_add_body_does_not_accumulate(world):
+    """The direct API has no such trap, since the body owns its shapes."""
+    first = world.add_body(body_type="dynamic")
+    first.add_polygon(vertices=[(0, 0), (1, 0), (1, 1)])
+    second = world.add_body(body_type="dynamic")
+    second.add_polygon(vertices=[(2, 0), (3, 0), (3, 1)])
+
+    assert len(first.shapes) == 1
+    assert len(second.shapes) == 1
