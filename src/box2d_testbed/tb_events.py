@@ -216,3 +216,97 @@ class BreakableJoint(BaseTest, category="Events", name="Joint"):
         debug_draw.draw_string(
             (-10, 4), f"links intact: {len(self.joints)}   broken: {self.broken}"
         )
+
+
+class Platformer(BaseTest, category="Events", name="Platformer"):
+    """One-way platforms, the classic use for a pre-solve callback.
+
+    The player passes up through a platform but lands on top of it. Deciding
+    that needs the contact normal, which only pre-solve has: it runs after the
+    contact is found but before it is solved, and returning False drops it for
+    this step.
+
+    Move with the arrow keys, jump with space.
+    """
+
+    force = UI.float(25.0, min=0.0, max=50.0)
+    jump_impulse = UI.float(25.0, min=0.0, max=50.0)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 6)
+        self.app_state.zoom = 12.0
+
+        self.world.new_body().static().segment((-20, 0), (20, 0)).build()
+
+        # Both platforms let contacts through from below.
+        self.world.new_body().static().position(-6, 6).box(
+            4, 1, enable_pre_solve_events=True
+        ).build()
+        self.moving_platform = (
+            self.world.new_body()
+            .kinematic()
+            .position(0, 6)
+            .linear_velocity(2, 0)
+            .box(6, 1, enable_pre_solve_events=True)
+            .build()
+        )
+
+        self.player = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, 1)
+            .lock_rotation()
+            .linear_damping(0.5)
+            .capsule((0, 0), (0, 1), radius=0.5, friction=0.1)
+            .build()
+        )
+        self.player_shape = self.player.shapes[0]
+
+        self.world.pre_solve = self.on_pre_solve
+        self.held = set()
+        self.dropped = 0
+
+    def on_pre_solve(self, shape_a, shape_b, point, normal):
+        """Keep the contact only when the player is above the platform.
+
+        The normal points from shape_a to shape_b, so its sign tells us which
+        side of the contact the player is on.
+        """
+        if shape_a is self.player_shape:
+            sign = -1.0
+        elif shape_b is self.player_shape:
+            sign = 1.0
+        else:
+            return True
+
+        if sign * normal.y > 0.95:
+            return True
+        self.dropped += 1
+        return False
+
+    def after_step(self, dt):
+        # Bounce the moving platform between two walls.
+        if self.moving_platform.position.x > 8:
+            self.moving_platform.linear_velocity = (-2, 0)
+        elif self.moving_platform.position.x < -8:
+            self.moving_platform.linear_velocity = (2, 0)
+
+        if "left" in self.held:
+            self.player.apply_force((-self.force, 0))
+        if "right" in self.held:
+            self.player.apply_force((self.force, 0))
+
+    def on_key_down(self, key):
+        if key in ("left", "right"):
+            self.held.add(key)
+        elif key == "space":
+            self.player.apply_linear_impulse((0, self.jump_impulse))
+
+    def on_key_up(self, key):
+        self.held.discard(key)
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            (-11, 11),
+            f"arrows to move, space to jump   contacts dropped: {self.dropped}",
+        )

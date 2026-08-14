@@ -33,6 +33,9 @@ class ShapeDef:
         density: The density in kg/m^2. default=1.0
         filter: Collision filtering data as a CollisionFilter object
         custom_color: Custom debug draw color (optional hex color value)
+        enable_custom_filtering: True to consult World.custom_filter for this shape's
+            contacts. The callback runs only if at least one of the two shapes
+            asks for it. default=False
         is_sensor: True if this shape is a sensor (generates events but no collision response). default=False
         enable_sensor_events: True if sensors may detect this shape. Box2D 3.1 made this
             opt-in and defaults it to False; box2d-py keeps it True so that sensors
@@ -53,6 +56,7 @@ class ShapeDef:
     density: float = _default_shape_def.density
     filter: Optional[CollisionFilter] = None
     custom_color: int = _default_shape_def.material.customColor
+    enable_custom_filtering: bool = _default_shape_def.enableCustomFiltering
     is_sensor: bool = _default_shape_def.isSensor
     enable_sensor_events: bool = True
     enable_contact_events: bool = _default_shape_def.enableContactEvents
@@ -121,6 +125,7 @@ class ShapeDef:
             shape_def.filter.groupIndex = filter.groupIndex
 
         shape_def.material.customColor = self.custom_color
+        shape_def.enableCustomFiltering = self.enable_custom_filtering
         shape_def.isSensor = self.is_sensor
         shape_def.enableSensorEvents = self.enable_sensor_events
         shape_def.enableContactEvents = self.enable_contact_events

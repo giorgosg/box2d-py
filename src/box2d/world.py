@@ -1,5 +1,8 @@
 # src/box2d/world.py
 
+import math
+import traceback
+
 from ._box2d import lib, ffi
 from .body import BodyBuilder, Body
 from .joint import (
@@ -165,6 +168,12 @@ class World:
         self._contact_push_velocity = world_def.contactSpeed
 
         self._bodies = {}
+
+        # Callbacks, with the cffi trampolines that must outlive them.
+        self._custom_filter = self._custom_filter_trampoline = None
+        self._pre_solve = self._pre_solve_trampoline = None
+        self._friction_mixer = self._friction_trampoline = None
+        self._restitution_mixer = self._restitution_trampoline = None
 
     @property
     def gravity(self):
@@ -710,6 +719,173 @@ class World:
             return None
         data = lib.b2Shape_GetUserData(shape_id)
         return ffi.from_handle(data) if data != ffi.NULL else None
+
+    # --- callbacks Box2D invokes during a step ------------------------------
+    #
+    # Each one keeps both the user's function and the cffi trampoline wrapping
+    # it on the World. Dropping the trampoline would let it be collected while
+    # Box2D still holds the pointer, which crashes on the next step.
+    #
+    # None of these may touch the world: Box2D calls them mid-solve, and
+    # creating or destroying anything from inside one corrupts the step.
+
+    @property
+    def custom_filter(self):
+        """Get or set a callback deciding whether two shapes may collide.
+
+        Called as ``fn(shape_a, shape_b)`` returning False to cancel the
+        contact. Consulted only when at least one of the shapes was created
+        with ``enable_custom_filtering=True``, so it is cheap to leave set.
+
+        Assign None to remove it. Use this for rules that categories and masks
+        cannot express, such as "these two specific bodies never collide".
+
+        Example:
+            >>> world = World()
+            >>> world.custom_filter = lambda a, b: a.body is not b.body
+        """
+        return self._custom_filter
+
+    @custom_filter.setter
+    def custom_filter(self, function):
+        if function is None:
+            lib.b2World_SetCustomFilterCallback(self._world_id, ffi.NULL, ffi.NULL)
+            self._custom_filter = self._custom_filter_trampoline = None
+            return
+
+        resolve = self._shape_from_id
+
+        # Exceptions are caught here rather than left to cffi's error= path,
+        # which reports them as unraisable. Allowing the collision is the
+        # harmless answer when the callback cannot decide.
+        @ffi.callback("bool(b2ShapeId, b2ShapeId, void*)")
+        def trampoline(shape_id_a, shape_id_b, _context):
+            try:
+                return bool(function(resolve(shape_id_a), resolve(shape_id_b)))
+            except Exception:
+                traceback.print_exc()
+                return True
+
+        self._custom_filter = function
+        self._custom_filter_trampoline = trampoline
+        lib.b2World_SetCustomFilterCallback(self._world_id, trampoline, ffi.NULL)
+
+    @property
+    def pre_solve(self):
+        """Get or set a callback run just before each contact is solved.
+
+        Called as ``fn(shape_a, shape_b, point, normal)`` returning False to
+        disable that contact for this step. Only for shapes created with
+        ``enable_pre_solve_events=True``, and never for sensors.
+
+        Assign None to remove it. This is how one-way platforms are built: let
+        a body through when it is moving upward, block it otherwise.
+
+        Note:
+            Box2D may call this from worker threads when the world has more
+            than one, so the callback must not touch shared state unguarded.
+        """
+        return self._pre_solve
+
+    @pre_solve.setter
+    def pre_solve(self, function):
+        if function is None:
+            lib.b2World_SetPreSolveCallback(self._world_id, ffi.NULL, ffi.NULL)
+            self._pre_solve = self._pre_solve_trampoline = None
+            return
+
+        resolve = self._shape_from_id
+
+        # As above: a callback that raises keeps the contact rather than
+        # silently dropping it, which would look like objects falling through.
+        @ffi.callback("bool(b2ShapeId, b2ShapeId, b2Vec2, b2Vec2, void*)")
+        def trampoline(shape_id_a, shape_id_b, point, normal, _context):
+            try:
+                return bool(
+                    function(
+                        resolve(shape_id_a),
+                        resolve(shape_id_b),
+                        Vec2(point.x, point.y),
+                        Vec2(normal.x, normal.y),
+                    )
+                )
+            except Exception:
+                traceback.print_exc()
+                return True
+
+        self._pre_solve = function
+        self._pre_solve_trampoline = trampoline
+        lib.b2World_SetPreSolveCallback(self._world_id, trampoline, ffi.NULL)
+
+    @property
+    def friction_mixer(self):
+        """Get or set how two shapes' frictions combine into a contact friction.
+
+        Called as ``fn(friction_a, material_a, friction_b, material_b)``
+        returning the friction to use. The material arguments are the shapes'
+        user material ids, which is what makes rules like "rubber on ice"
+        possible. Assign None to restore Box2D's default, the geometric mean.
+
+        Note:
+            Box2D calls this from worker threads and gives it no context, so it
+            must not touch Box2D or application state. If it raises, the
+            default mixing is used for that contact.
+        """
+        return self._friction_mixer
+
+    @friction_mixer.setter
+    def friction_mixer(self, function):
+        if function is None:
+            lib.b2World_SetFrictionCallback(self._world_id, ffi.NULL)
+            self._friction_mixer = self._friction_trampoline = None
+            return
+
+        @ffi.callback("float(float, uint64_t, float, uint64_t)")
+        def trampoline(friction_a, material_a, friction_b, material_b):
+            try:
+                return float(function(friction_a, material_a, friction_b, material_b))
+            except Exception:
+                traceback.print_exc()
+                return math.sqrt(friction_a * friction_b)
+
+        self._friction_mixer = function
+        self._friction_trampoline = trampoline
+        lib.b2World_SetFrictionCallback(self._world_id, trampoline)
+
+    @property
+    def restitution_mixer(self):
+        """Get or set how two shapes' restitutions combine.
+
+        Called as ``fn(restitution_a, material_a, restitution_b, material_b)``
+        returning the restitution to use. Assign None to restore Box2D's
+        default, the larger of the two.
+
+        Note:
+            The same worker-thread restriction as :attr:`friction_mixer`. If it
+            raises, the default mixing is used for that contact.
+        """
+        return self._restitution_mixer
+
+    @restitution_mixer.setter
+    def restitution_mixer(self, function):
+        if function is None:
+            lib.b2World_SetRestitutionCallback(self._world_id, ffi.NULL)
+            self._restitution_mixer = self._restitution_trampoline = None
+            return
+
+        @ffi.callback("float(float, uint64_t, float, uint64_t)")
+        def trampoline(restitution_a, material_a, restitution_b, material_b):
+            try:
+                return float(
+                    function(restitution_a, material_a, restitution_b, material_b)
+                )
+            except Exception:
+                traceback.print_exc()
+                return max(restitution_a, restitution_b)
+
+        self._restitution_mixer = function
+        self._restitution_trampoline = trampoline
+        lib.b2World_SetRestitutionCallback(self._world_id, trampoline)
 
     def get_contact_events(self) -> ContactEvents:
         """Contacts that began, ended, or hit during the last step.

@@ -205,3 +205,53 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
     def on_speed_change(self, key, value):
         for shape in self.belt.shapes:
             shape.tangent_speed = value
+
+
+class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
+    """Odd and even boxes pass through each other.
+
+    Collision categories cannot express "these two particular shapes ignore
+    each other", so the world's custom filter decides per pair instead. It is
+    consulted only for shapes created with enable_custom_filtering.
+    """
+
+    count = UI.int(10, min=2, max=20)
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 5)
+        self.app_state.zoom = 10.0
+
+        self.world.new_body().static().segment((-40, 0), (40, 0)).build()
+
+        self.index_of = {}
+        boxes = self.world.new_body().dynamic().box(2, 2, enable_custom_filtering=True)
+        for i in range(self.count):
+            body = boxes.position(-self.count + 2.0 * i, 5).build()
+            self.index_of[body.shapes[0]] = i
+
+        self.world.custom_filter = self.should_collide
+        self.rejected = 0
+
+    def should_collide(self, shape_a, shape_b):
+        """Let a pair through when their indices differ in parity."""
+        a = self.index_of.get(shape_a)
+        b = self.index_of.get(shape_b)
+        if a is None or b is None:
+            return True  # anything against the ground still collides
+        if (a & 1) != (b & 1):
+            self.rejected += 1
+            return False
+        return True
+
+    @count.callback
+    def on_count_change(self, key, value):
+        self.world.custom_filter = None
+        for body in self.world.bodies:
+            body.destroy()
+        self.setup()
+
+    def debug_draw(self, debug_draw):
+        for shape, index in self.index_of.items():
+            if shape.is_valid():
+                debug_draw.draw_string(shape.body.position, str(index))
+        debug_draw.draw_string((-9, 9), f"odd/even pairs rejected: {self.rejected}")
