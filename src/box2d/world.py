@@ -470,6 +470,47 @@ class World:
         """
         return list(self._bodies.values())
 
+    def explode(
+        self,
+        position: VectorLike,
+        radius: float,
+        impulse_per_length: float,
+        falloff: float = None,
+        mask: int = None,
+    ) -> None:
+        """Apply a radial impulse to everything within a radius.
+
+        Box2D pushes each dynamic shape whose surface falls inside the circle,
+        scaled by how much of it is exposed, so a wide body is thrown harder
+        than a narrow one at the same distance.
+
+        Args:
+            position: Centre of the explosion, in world coordinates.
+            radius: How far the blast reaches, in metres.
+            impulse_per_length: Impulse applied per metre of exposed surface.
+                Negative values pull inward, making an implosion.
+            falloff: Distance over which the impulse fades to nothing past the
+                radius. Defaults to Box2D's own value.
+            mask: Collision mask deciding which shapes are affected. Defaults
+                to everything.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(1, 0))
+            >>> _ = body.add_circle(radius=0.5)
+            >>> world.explode((0, 0), radius=5.0, impulse_per_length=10.0)
+            >>> world.step(1 / 60, 4)
+        """
+        explosion = lib.b2DefaultExplosionDef()
+        explosion.position = Vec2(position).b2Vec2[0]
+        explosion.radius = float(radius)
+        explosion.impulsePerLength = float(impulse_per_length)
+        if falloff is not None:
+            explosion.falloff = float(falloff)
+        if mask is not None:
+            explosion.maskBits = int(mask)
+        lib.b2World_Explode(self._world_id, ffi.addressof(explosion))
+
     def draw(self, debug_draw: DebugDraw):
         """Render world state using debug drawing interface.
 

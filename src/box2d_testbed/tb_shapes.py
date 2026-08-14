@@ -2,10 +2,11 @@
 
 from .base_test import BaseTest, UI
 from itertools import product
+import math
 
 # imported for the side effect of extending BodyBuilder with the method
 from .shared import create_random_polygon  # noqa: F401
-from box2d import Vec2
+from box2d import Vec2, Color
 from box2d.shape import Circle, Capsule, Segment, Polygon
 from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
 
@@ -255,3 +256,74 @@ class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
             if shape.is_valid():
                 debug_draw.draw_string(shape.body.position, str(index))
         debug_draw.draw_string((-9, 9), f"odd/even pairs rejected: {self.rejected}")
+
+
+class Explosion(BaseTest, category="Shapes", name="Explosion"):
+    """A ring of soft-welded planks blown outward by a radial impulse.
+
+    Each plank is held to the ground by a springy weld joint, so the blast
+    scatters them and the springs pull them back, which makes the falloff
+    easy to see: planks near the edge barely move.
+    """
+
+    radius = UI.float(7.0, min=0.0, max=20.0)
+    falloff = UI.float(3.0, min=0.0, max=20.0)
+    impulse = UI.float(10.0, min=-20.0, max=50.0)
+    detonate = UI.button("Explode")
+
+    def setup(self):
+        self.app_state.center = Vec2(0, 0)
+        self.app_state.zoom = 14.0
+
+        ground = self.world.new_body().static().build()
+
+        ring_radius = 8.0
+        planks = self.world.new_body().dynamic().gravity_scale(0).box(2, 0.2)
+        for degrees in range(0, 360, 30):
+            angle = math.radians(degrees)
+            position = Vec2(
+                ring_radius * math.cos(angle), ring_radius * math.sin(angle)
+            )
+            plank = planks.position(position).build()
+            # A soft weld, so the plank springs back after being thrown.
+            self.world.add_weld_joint(
+                ground,
+                plank,
+                local_anchor_a=position,
+                local_anchor_b=(0, 0),
+                linear_hertz=0.5,
+                linear_damping_ratio=0.7,
+                angular_hertz=0.5,
+                angular_damping_ratio=0.7,
+            )
+
+        self.blasts = 0
+
+    @detonate.callback
+    def on_detonate(self, key, value):
+        self.world.explode(
+            (0, 0),
+            radius=self.radius,
+            falloff=self.falloff,
+            impulse_per_length=self.impulse,
+        )
+        self.blasts += 1
+
+    def debug_draw(self, debug_draw):
+        # Show where the blast reaches, and where it fades out.
+        steps = 48
+        for name, r in (
+            ("radius", self.radius),
+            ("falloff", self.radius + self.falloff),
+        ):
+            if r <= 0:
+                continue
+            colour = Color(255, 160, 0) if name == "radius" else Color(120, 90, 0)
+            previous = None
+            for i in range(steps + 1):
+                angle = 2 * math.pi * i / steps
+                point = Vec2(r * math.cos(angle), r * math.sin(angle))
+                if previous is not None:
+                    debug_draw.draw_segment(previous, point, colour)
+                previous = point
+        debug_draw.draw_string((-12, 12), f"explosions: {self.blasts}")
