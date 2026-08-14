@@ -73,25 +73,32 @@ class ManifoldPoint:
     A contact point belonging to a contact manifold.
 
     Attributes:
-        point: Location of the contact point in world space.
-        anchor_a: Location of the contact point relative to shape A's origin.
-        anchor_b: Location of the contact point relative to shape B's origin.
+        anchor_a: Contact point relative to body A's centre of mass.
+        anchor_b: Contact point relative to body B's centre of mass.
         separation: Separation of the contact point, negative if penetrating.
+        base_separation: Separation at the start of the step, before the solver
+            moved anything.
         normal_impulse: Impulse along the manifold normal vector.
         tangent_impulse: Friction impulse.
-        max_normal_impulse: Maximum normal impulse applied during sub-stepping.
+        total_normal_impulse: Normal impulse accumulated over the sub-steps.
         normal_velocity: Relative normal velocity pre-solve. Negative means shapes approaching.
         id: Uniquely identifies a contact point between two shapes.
         persisted: True if the contact point existed in the previous step.
+
+    Note:
+        Box2D 3.2 removed the world-space ``point`` this used to carry, and
+        renamed ``maxNormalImpulse`` to ``totalNormalImpulse``. The conversion
+        here still read both, so building one raised AttributeError -- unnoticed
+        because nothing had ever produced a manifold with points in it.
     """
 
-    point: Vec2
     anchor_a: Vec2
     anchor_b: Vec2
     separation: float
+    base_separation: float
     normal_impulse: float
     tangent_impulse: float
-    max_normal_impulse: float
+    total_normal_impulse: float
     normal_velocity: float
     id: int
     persisted: bool
@@ -99,16 +106,16 @@ class ManifoldPoint:
     @classmethod
     def from_b2ManifoldPoint(cls, manifold_point):
         return cls(
-            point=Vec2.from_b2Vec2(manifold_point.point),
             anchor_a=Vec2.from_b2Vec2(manifold_point.anchorA),
             anchor_b=Vec2.from_b2Vec2(manifold_point.anchorB),
             separation=manifold_point.separation,
+            base_separation=manifold_point.baseSeparation,
             normal_impulse=manifold_point.normalImpulse,
             tangent_impulse=manifold_point.tangentImpulse,
-            max_normal_impulse=manifold_point.maxNormalImpulse,
+            total_normal_impulse=manifold_point.totalNormalImpulse,
             normal_velocity=manifold_point.normalVelocity,
             id=manifold_point.id,
-            persisted=manifold_point.persisted,
+            persisted=bool(manifold_point.persisted),
         )
 
 
@@ -129,7 +136,7 @@ class Manifold:
 
     @classmethod
     def from_b2Manifold(cls, manifold):
-        normal = (Vec2.from_b2Vec2(manifold.normal),)
+        normal = Vec2.from_b2Vec2(manifold.normal)
         rolling_impulse = manifold.rollingImpulse
         points = [
             ManifoldPoint.from_b2ManifoldPoint(manifold.points[i])

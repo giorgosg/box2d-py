@@ -8,6 +8,7 @@ from .debug_draw import DebugDraw, Color
 from .collision_filter import CollisionFilter, CollisionCategoryRegistry
 from .events import (
     BodyMoveEvent,
+    Contact,
     ContactBeginEvent,
     ContactEndEvent,
     ContactEvents,

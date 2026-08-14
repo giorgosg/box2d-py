@@ -20,7 +20,59 @@ Events are opt-in per shape, and Box2D defaults them off:
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from ._box2d import ffi, lib
+from .dataclasses import ContactData
 from .math import Transform, Vec2
+
+
+class Contact:
+    """A handle on one contact between two shapes, stable across steps.
+
+    Contact events carry one of these, so a contact seen beginning can be
+    followed until the matching end event: the identity is Box2D's own contact
+    id rather than the pair of shapes, which is what makes it usable as a
+    dictionary key.
+
+    The contact may be reclaimed by Box2D at any step, so check
+    :attr:`is_valid` before reading :attr:`data`.
+    """
+
+    __slots__ = ("_contact_id", "_key")
+
+    def __init__(self, contact_id):
+        self._contact_id = contact_id
+        # cdata structs are not hashable, so identity travels as a plain tuple.
+        self._key = (
+            contact_id.index1,
+            contact_id.world0,
+            contact_id.generation,
+        )
+
+    @property
+    def is_valid(self) -> bool:
+        """Whether Box2D still recognises this contact."""
+        return bool(lib.b2Contact_IsValid(self._contact_id))
+
+    @property
+    def data(self) -> Optional[ContactData]:
+        """The contact's shapes and manifold, or None once it is gone.
+
+        The manifold has no points while the shapes are near but not yet
+        touching, which is normal rather than an error.
+        """
+        if not self.is_valid:
+            return None
+        return ContactData.from_b2ContactData(lib.b2Contact_GetData(self._contact_id))
+
+    def __eq__(self, other):
+        return isinstance(other, Contact) and self._key == other._key
+
+    def __hash__(self):
+        return hash(self._key)
+
+    def __repr__(self):
+        state = "valid" if self.is_valid else "stale"
+        return f"<Contact {self._key} {state}>"
 
 
 @dataclass
@@ -30,10 +82,12 @@ class ContactBeginEvent:
     Attributes:
         shape_a: One of the shapes now touching.
         shape_b: The other shape.
+        contact: A handle on this contact, stable until the matching end event.
     """
 
     shape_a: "Shape"
     shape_b: "Shape"
+    contact: Optional[Contact] = None
 
 
 @dataclass
@@ -46,10 +100,12 @@ class ContactEndEvent:
     Attributes:
         shape_a: One of the shapes that were touching, possibly destroyed.
         shape_b: The other shape, possibly destroyed.
+        contact: The contact that ended, matching an earlier begin event.
     """
 
     shape_a: Optional["Shape"]
     shape_b: Optional["Shape"]
+    contact: Optional[Contact] = None
 
 
 @dataclass
@@ -65,6 +121,7 @@ class ContactHitEvent:
         point: Where they hit, in world coordinates.
         normal: The contact normal, pointing from shape_a to shape_b.
         approach_speed: How fast they were closing, in metres per second.
+        contact: A handle on the contact this hit belongs to.
     """
 
     shape_a: "Shape"
@@ -72,6 +129,7 @@ class ContactHitEvent:
     point: Vec2
     normal: Vec2
     approach_speed: float
+    contact: Optional[Contact] = None
 
 
 @dataclass

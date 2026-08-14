@@ -18,6 +18,7 @@ from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .dataclasses import BodyDef, BodyType
 from .events import (
     BodyMoveEvent,
+    Contact,
     ContactBeginEvent,
     ContactEndEvent,
     ContactEvents,
@@ -958,13 +959,17 @@ class World:
 
         begin = [
             ContactBeginEvent(
-                shape_a=resolve(event.shapeIdA), shape_b=resolve(event.shapeIdB)
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                contact=Contact(event.contactId),
             )
             for event in (events.beginEvents[i] for i in range(events.beginCount))
         ]
         end = [
             ContactEndEvent(
-                shape_a=resolve(event.shapeIdA), shape_b=resolve(event.shapeIdB)
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                contact=Contact(event.contactId),
             )
             for event in (events.endEvents[i] for i in range(events.endCount))
         ]
@@ -975,6 +980,7 @@ class World:
                 point=Vec2(event.point.x, event.point.y),
                 normal=Vec2(event.normal.x, event.normal.y),
                 approach_speed=event.approachSpeed,
+                contact=Contact(event.contactId),
             )
             for event in (events.hitEvents[i] for i in range(events.hitCount))
         ]
