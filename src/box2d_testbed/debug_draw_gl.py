@@ -1,4 +1,3 @@
-from OpenGL.GL import *
 from box2d import DebugDraw, Vec2, Transform, Color
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines

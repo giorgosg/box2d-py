@@ -1,11 +1,51 @@
 import numpy as np
-from OpenGL.GL import *
+from OpenGL.GL import (
+    GL_ARRAY_BUFFER,
+    GL_BLEND,
+    GL_DYNAMIC_DRAW,
+    GL_FALSE,
+    GL_FLOAT,
+    GL_INT,
+    GL_LINES,
+    GL_ONE_MINUS_SRC_ALPHA,
+    GL_POINTS,
+    GL_PROGRAM_POINT_SIZE,
+    GL_SRC_ALPHA,
+    GL_STATIC_DRAW,
+    GL_TRIANGLES,
+    GL_TRIANGLE_STRIP,
+    GL_TRUE,
+    GL_UNSIGNED_BYTE,
+    __file__,
+    ctypes,
+    glBindBuffer,
+    glBindVertexArray,
+    glBlendFunc,
+    glBufferData,
+    glBufferSubData,
+    glDeleteBuffers,
+    glDeleteProgram,
+    glDeleteVertexArrays,
+    glDisable,
+    glDrawArrays,
+    glDrawArraysInstanced,
+    glEnable,
+    glEnableVertexAttribArray,
+    glGenBuffers,
+    glGenVertexArrays,
+    glGetUniformLocation,
+    glUniform1f,
+    glUniform2f,
+    glUniform3f,
+    glUniformMatrix4fv,
+    glUseProgram,
+    glVertexAttribDivisor,
+    glVertexAttribIPointer,
+    glVertexAttribPointer,
+)
 import os
 from box2d.math import Vec2
 from .shader import create_program_from_files, create_program_from_strings
-import OpenGL
-
-OpenGL.ERROR_CHECKING = False
 
 
 def make_rgba8(hex_color, alpha=255):

@@ -1,4 +1,25 @@
-from OpenGL.GL import *
+from OpenGL.GL import (
+    GL_COMPILE_STATUS,
+    GL_FALSE,
+    GL_FRAGMENT_SHADER,
+    GL_INFO_LOG_LENGTH,
+    GL_LINK_STATUS,
+    GL_VERTEX_SHADER,
+    GLint,
+    glAttachShader,
+    glCompileShader,
+    glCreateProgram,
+    glCreateShader,
+    glDeleteShader,
+    glGetProgramInfoLog,
+    glGetProgramiv,
+    glGetShaderInfoLog,
+    glGetShaderiv,
+    glIsProgram,
+    glIsShader,
+    glLinkProgram,
+    glShaderSource,
+)
 
 
 def print_gl_log(obj):

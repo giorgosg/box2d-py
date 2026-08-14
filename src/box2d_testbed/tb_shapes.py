@@ -353,7 +353,6 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
 
         radius = 0.5
         previous = ground
-        anchor = Vec2(0, 0)
         self.shapes = []
         planks = self.world.new_body().dynamic().box(0.2, 2 * radius, density=1.0)
         for i in range(self.links):

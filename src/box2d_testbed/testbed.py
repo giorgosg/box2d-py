@@ -9,11 +9,6 @@ if __name__ == "__main__" and __package__ is None:
     # Set the package name so relative imports work.
     __package__ = "box2d_testbed"
 
-import os
-
-if os.getenv("XDG_SESSION_TYPE") == "wayland" and not os.getenv("PYOPENGL_PLATFORM"):
-    os.environ["PYOPENGL_PLATFORM"] = "x11"
-
 from imgui_bundle import hello_imgui, imgui, icons_fontawesome_6
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
@@ -21,9 +16,6 @@ from .base_test import BaseTest
 import time
 from .debug_draw_gl import GLDebugDraw
 from OpenGL import GL as gl
-import OpenGL
-
-OpenGL.ERROR_CHECKING = False
 from box2d import Vec2
 
 
