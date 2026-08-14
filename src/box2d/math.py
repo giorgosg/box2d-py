@@ -11,11 +11,29 @@ b2Vec2_type = type(lib.b2Vec2_zero)
 b2Rot_type = type(lib.b2Rot_identity)
 
 
-def to_vec2(vec: Union[VectorLike, b2Vec2_type]) -> "Vec2":
+def to_vec2(vec: Union[VectorLike, b2Vec2_type, float], y: float = None) -> "Vec2":
     """
-    Convert a VectorLike object into a Vec2 instance, checking that it has exactly 2 elements.
-    If 'vec' is already a Vec2, it is returned as is.
+    Convert a point into a Vec2 instance.
+
+    This is the one place points are normalised, so everywhere in box2d-py that
+    takes a point accepts the same forms: any *vector-like* (tuple, list, Vec2,
+    b2Vec2, numpy array), or the two components as separate scalars.
+
+    Args:
+        vec: A vector-like, or the x component when 'y' is also given.
+        y: The y component, when passing the components separately.
+
+    Returns:
+        A Vec2. If 'vec' is already a Vec2 and no 'y' is given, it is returned as is.
+
+    Example:
+        >>> to_vec2((1, 2))
+        Vec2(1.0, 2.0)
+        >>> to_vec2(1, 2)
+        Vec2(1.0, 2.0)
     """
+    if y is not None:
+        return Vec2(vec, y)
     if isinstance(vec, Vec2):
         return vec
     if isinstance(vec, b2Vec2_type):
@@ -23,13 +41,17 @@ def to_vec2(vec: Union[VectorLike, b2Vec2_type]) -> "Vec2":
             return Vec2.from_b2Vec2(vec)
         elif ffi.typeof(vec).cname == b2Vec2_ctype + " *":
             return Vec2.from_b2Vec2(vec[0])
-    else:
-        if len(vec) != 2:
-            raise ValueError(
-                f"VectorLike must have exactly 2 elements, got {len(vec)}."
-            )
-        else:
-            return Vec2(vec[0], vec[1])
+        raise TypeError(f"Unsupported cdata type: {ffi.typeof(vec).cname}")
+    try:
+        length = len(vec)
+    except TypeError:
+        raise TypeError(
+            f"Expected a vector-like (tuple, list, Vec2) or two scalars, "
+            f"got {type(vec).__name__}."
+        ) from None
+    if length != 2:
+        raise ValueError(f"VectorLike must have exactly 2 elements, got {length}.")
+    return Vec2(vec[0], vec[1])
 
 
 def format_num(n: float) -> str:
@@ -71,32 +93,53 @@ class Vec2:
     __slots__ = ("_x", "_y", "_b2vec2")
 
     def __init__(self, x, y=None):
-        """Initialize a 2D vector with the given components.
+        """Initialize a 2D vector.
+
+        Accepts the same forms as the rest of box2d-py: two scalars, or a single
+        vector-like (tuple, list, Vec2, b2Vec2, numpy array).
 
         Args:
-            x (float or b2Vec2 struct): The x-component of the vector.
-            y (float): The y-component of the vector.
+            x: The x component, or a vector-like holding both components.
+            y: The y component, when passing the components separately.
 
-        Returns:
-            Vec2: A new instance of Vec2 with the specified components.
+        Example:
+            >>> Vec2(1, 2)
+            Vec2(1.0, 2.0)
+            >>> Vec2((1, 2))
+            Vec2(1.0, 2.0)
         """
-        if y is None:
-            # Check if x is a b2Vec2
-            if isinstance(x, b2Vec2_type):
-                if ffi.typeof(x).cname == b2Vec2_ctype:
-                    b2vec = ffi.addressof(x)
-                elif ffi.typeof(x).cname == b2Vec2_ctype + " *":
-                    b2vec = x
-                else:
-                    raise ValueError("Invalid CData type")
-                self._x = float(x.x)
-                self._y = float(x.y)
-                self._b2vec2 = None  # FIXME: perhaps keeping the b2vec2 for cases where it will be converted back again.
-                return
-        else:
+        self._b2vec2 = None
+
+        if y is not None:
             self._x = float(x)
             self._y = float(y)
-            self._b2vec2 = None
+            return
+
+        if isinstance(x, b2Vec2_type):
+            cname = ffi.typeof(x).cname
+            if cname == b2Vec2_ctype + " *":
+                x = x[0]
+            elif cname != b2Vec2_ctype:
+                raise TypeError(f"Unsupported cdata type: {cname}")
+            self._x = float(x.x)
+            self._y = float(x.y)
+            return
+
+        # Any other vector-like. Previously this fell through both branches and
+        # left the instance without _x/_y, so the failure surfaced later as a
+        # confusing AttributeError on first use.
+        try:
+            components = tuple(x)
+        except TypeError:
+            raise TypeError(
+                f"Expected two scalars or a vector-like, got {type(x).__name__}."
+            ) from None
+        if len(components) != 2:
+            raise ValueError(
+                f"VectorLike must have exactly 2 elements, got {len(components)}."
+            )
+        self._x = float(components[0])
+        self._y = float(components[1])
 
     @property
     def x(self):

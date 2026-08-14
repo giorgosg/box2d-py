@@ -119,16 +119,20 @@ class BodyBuilder:
         self._def.gravity_scale = scale
         return self
 
-    def position(self, x: float, y: float):
+    def position(self, x, y: float = None):
         """Set the initial position of the body.
 
         Args:
-            x: The x-coordinate of the body's position
-            y: The y-coordinate of the body's position
+            x: The position as a vector-like, or its x-coordinate when 'y' is given.
+            y: The y-coordinate, when passing the coordinates separately.
         Returns:
             The builder instance
+
+        Example:
+            >>> builder = world.new_body().position(2, 3)
+            >>> builder = world.new_body().position((2, 3))
         """
-        self._def.position = Vec2(x, y)
+        self._def.position = to_vec2(x, y)
         return self
 
     def rotation(self, rotation: float):
@@ -142,16 +146,16 @@ class BodyBuilder:
         self._def.rotation = Rot(rotation)
         return self
 
-    def linear_velocity(self, x: float, y: float):
+    def linear_velocity(self, x, y: float = None):
         """Set the initial linear velocity of the body.
 
         Args:
-            x: The x-component of the velocity
-            y: The y-component of the velocity
+            x: The velocity as a vector-like, or its x-component when 'y' is given.
+            y: The y-component, when passing the components separately.
         Returns:
             The builder instance
         """
-        self._def.linear_velocity = Vec2(x, y)
+        self._def.linear_velocity = to_vec2(x, y)
         return self
 
     def angular_velocity(self, radians: float):
