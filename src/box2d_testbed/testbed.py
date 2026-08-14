@@ -14,8 +14,7 @@ import os
 if os.getenv("XDG_SESSION_TYPE") == "wayland" and not os.getenv("PYOPENGL_PLATFORM"):
     os.environ["PYOPENGL_PLATFORM"] = "x11"
 
-from imgui_bundle import hello_imgui, imgui, immapp, icons_fontawesome_6
-from imgui_bundle.demos_python import demo_utils
+from imgui_bundle import hello_imgui, imgui, icons_fontawesome_6
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
 from .base_test import BaseTest
@@ -25,9 +24,7 @@ from OpenGL import GL as gl
 import OpenGL
 
 OpenGL.ERROR_CHECKING = False
-import numpy as np
-from .draw import GLBackground, GLCircles
-from box2d import Color, Vec2
+from box2d import Vec2
 
 
 class TestbedApp:
@@ -127,7 +124,6 @@ class TestbedApp:
         gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
 
     def key_press_events(self):
-        io = imgui.get_io()
 
         # Map of ImGui key codes to string identifiers
         key_map = {
@@ -182,32 +178,63 @@ class TestbedApp:
                 if state.step_number > 0:
                     state.step_number -= 1
 
+    @staticmethod
+    def _docking_split(initial_dock, new_dock, direction, ratio):
+        """One pane of the docking layout."""
+        split = hello_imgui.DockingSplit()
+        split.initial_dock = initial_dock
+        split.new_dock = new_dock
+        split.direction = direction
+        split.ratio = ratio
+        return split
+
+    @staticmethod
+    def _dockable_window(label, dock_space_name, gui_function, **attributes):
+        """One docked window, drawn by gui_function."""
+        window = hello_imgui.DockableWindow()
+        window.label = label
+        window.dock_space_name = dock_space_name
+        window.gui_function = gui_function
+        for name, value in attributes.items():
+            setattr(window, name, value)
+        return window
+
     def create_layout(self):
         docking_params = hello_imgui.DockingParams()
+
+        # A right-hand panel split top to bottom into Tests, the current test's
+        # own UI, Controls, and Performance.
         docking_params.docking_splits = [
-            self.create_right_panel_split(),
-            self.create_right_panel_split1(),
-            self.create_right_panel_split2(),
-            self.create_right_panel_split3(),
+            self._docking_split("MainDockSpace", "RightPanel", imgui.Dir_.right, 0.2),
+            self._docking_split("RightPanel", "RightPanel1", imgui.Dir_.down, 0.73),
+            self._docking_split("RightPanel1", "RightPanel2", imgui.Dir_.down, 0.5),
+            self._docking_split("RightPanel2", "RightPanel3", imgui.Dir_.down, 0.4),
         ]
         docking_params.dockable_windows = [
-            self.create_simulation_window(),  # Add back the simulation window
-            self.create_test_list_window(),
-            self.create_stats_window(),
-            self.create_controls_window(),
+            self._dockable_window(
+                "Simulation",
+                "MainDockSpace",
+                self.render_simulation,
+                imgui_window_flags=imgui.WindowFlags_.no_background,
+            ),
+            self._dockable_window("Tests", "RightPanel1", self.show_test_list),
+            self._dockable_window("Performance", "RightPanel3", self.show_stats),
+            self._dockable_window("Controls", "RightPanel", self.show_controls),
             self.create_test_ui_window(),
         ]
         return docking_params
 
     def create_test_ui_window(self):
-        window = hello_imgui.DockableWindow()
-        if state.current_test_cls is not None:
-            window.label = state.current_test_cls.name
-        else:
-            window.label = "Test UI"
-        window.dock_space_name = "RightPanel2"  # adjust as needed
-        window.gui_function = self.render_test_ui
-        return window
+        """The panel a scenario fills with its own UI properties.
+
+        Built separately because its title follows the selected scenario.
+        """
+        label = (
+            state.current_test_cls.name
+            if state.current_test_cls is not None
+            else "Test UI"
+        )
+        return self._dockable_window(label, "RightPanel2", self.render_test_ui)
 
     def render_test_ui(self):
         # Only render if a test object exists.
@@ -258,67 +285,6 @@ class TestbedApp:
                     setattr(state.current_test_obj, elem.name, new_val)
             else:
                 print(f"Unknown control type: {elem.control_type}")
-
-    def create_simulation_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Simulation"
-        window.dock_space_name = "MainDockSpace"
-        window.gui_function = self.render_simulation
-        window.imgui_window_flags = imgui.WindowFlags_.no_background
-        return window
-
-    def create_right_panel_split(self):
-        split = hello_imgui.DockingSplit()
-        split.initial_dock = "MainDockSpace"
-        split.new_dock = "RightPanel"
-        split.direction = imgui.Dir_.right
-        split.ratio = 0.2
-        return split
-
-    def create_right_panel_split1(self):
-        split_right1 = hello_imgui.DockingSplit()
-        split_right1.initial_dock = "RightPanel"
-        split_right1.new_dock = "RightPanel1"
-        split_right1.direction = imgui.Dir_.down
-        split_right1.ratio = 0.73
-        return split_right1
-
-    def create_right_panel_split2(self):
-        split_right2 = hello_imgui.DockingSplit()
-        split_right2.initial_dock = "RightPanel1"
-        split_right2.new_dock = "RightPanel2"
-        split_right2.direction = imgui.Dir_.down
-        split_right2.ratio = 0.5
-        return split_right2
-
-    def create_right_panel_split3(self):
-        split_right3 = hello_imgui.DockingSplit()
-        split_right3.initial_dock = "RightPanel2"
-        split_right3.new_dock = "RightPanel3"
-        split_right3.direction = imgui.Dir_.down
-        split_right3.ratio = 0.4
-        return split_right3
-
-    def create_test_list_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Tests"
-        window.dock_space_name = "RightPanel1"
-        window.gui_function = self.show_test_list
-        return window
-
-    def create_stats_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Performance"
-        window.dock_space_name = "RightPanel3"
-        window.gui_function = self.show_stats
-        return window
-
-    def create_controls_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Controls"
-        window.dock_space_name = "RightPanel"
-        window.gui_function = self.show_controls
-        return window
 
     def show_controls(self):
         # Play/Pause button
@@ -378,7 +344,7 @@ class TestbedApp:
                 imgui.tree_pop()
 
     def show_stats(self):
-        imgui.text(f"current (avg) [max] ms")
+        imgui.text("current (avg) [max] ms")
         imgui.separator()
         imgui.text(
             f"Physics: {state.perf.physics_ms:.2f} ({state.perf.physics_ms_avg:.2f}) [{state.perf.physics_ms_max:.2f}]"

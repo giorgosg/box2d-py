@@ -1,8 +1,7 @@
-from box2d import World, Vec2, Color
+from box2d import Vec2, Color
 from .base_test import BaseTest, UI
 import random
 import math
-import itertools
 
 
 class RayCast(BaseTest, category="Collision", name="Ray Cast"):

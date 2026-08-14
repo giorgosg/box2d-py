@@ -1,7 +1,9 @@
 # tb_joints.py
 
 from .base_test import BaseTest, UI
-from .shared import donut, create_random_polygon, Car
+
+# create_random_polygon is imported for the side effect of extending BodyBuilder
+from .shared import donut, create_random_polygon, Car  # noqa: F401
 import math
 from box2d import Vec2, World, Body, Transform, Color
 
@@ -80,7 +82,7 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
             joint.angular_hertz = self.hertz
 
     def setup(self):
-        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        self.world.new_body().position(0, -5).box(100, 1).build()
         self.bodies, self.joints = donut(
             self.world, (0, 50), 5, self.segments, self.hertz, self.damping
         )
@@ -88,9 +90,10 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
 
 class Arrow(BaseTest, category="Joints", name="Arrow"):
     def setup(self):
-        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        self.world.new_body().position(0, -5).box(100, 1).build()
         boxbuilder = self.world.new_body().dynamic().box(0.5, 0.5)
-        boxstack = [boxbuilder.position(20, -4.25 + 0.5 * i).build() for i in range(30)]
+        for i in range(30):
+            boxbuilder.position(20, -4.25 + 0.5 * i).build()
 
         def create_arrow(position, rotation, velocity):
             vel_v = Vec2(velocity, 0).rotate(rotation)
@@ -448,7 +451,7 @@ class Driving(BaseTest, category="Joints", name="Driving"):
         )
 
         # Add revolute joint to teeter with angle limits
-        teeter_j = self.world.add_revolute_joint(
+        self.world.add_revolute_joint(
             ground,
             teeter,
             anchor=teeter_pos,

@@ -2,7 +2,9 @@
 
 from .base_test import BaseTest, UI
 from itertools import product
-from .shared import create_random_polygon
+
+# imported for the side effect of extending BodyBuilder with the method
+from .shared import create_random_polygon  # noqa: F401
 from box2d import Vec2
 from box2d.shape import Circle, Capsule, Segment, Polygon
 from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
@@ -10,7 +12,7 @@ from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
     def setup(self):
-        body = (
+        (
             self.world.new_body()
             .static()
             .box(20, 2, offset=(0, -1))
@@ -23,7 +25,7 @@ class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
         xstart, ystart = -5, 2
 
         for x, y in product(range(xcount), range(ycount)):
-            bb = (
+            (
                 self.world.new_body()
                 .dynamic()
                 .position(xstart + x, ystart + y)

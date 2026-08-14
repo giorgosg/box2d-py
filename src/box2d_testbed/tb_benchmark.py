@@ -96,7 +96,7 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
             ground.segment(s[0], s[1])
         ground = ground.build()
         xstart = -self.gridcount / 2 * (pyramid_base + 1) + pyramid_base / 2
-        pyramids = [
+        [
             pyramid(
                 self.world,
                 pyramid_base,
@@ -134,7 +134,7 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
         )
         self.spinner = spinner
 
-        spinner_j = self.world.add_revolute_joint(
+        self.world.add_revolute_joint(
             ground,
             spinner,
             anchor=spinner.position,

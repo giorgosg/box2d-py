@@ -163,3 +163,47 @@ def test_drag_can_be_repeated(world):
         world.step(1 / 60, 4)
         test.on_mouse_release(Vec2(target.position))
     assert test.mouse_joint is None
+
+
+# --- app wiring that needs no GL context ------------------------------------
+
+
+def test_layout_is_well_formed():
+    """The docking layout is pure data, so it can be built without a window."""
+    from box2d_testbed.testbed import TestbedApp
+
+    app = TestbedApp.__new__(TestbedApp)
+    params = app.create_layout()
+
+    assert len(params.docking_splits) == 4
+    labels = [w.label for w in params.dockable_windows]
+    assert labels == ["Simulation", "Tests", "Performance", "Controls", "Test UI"]
+
+    # Every window must dock into a space some split actually creates.
+    created = {"MainDockSpace"} | {s.new_dock for s in params.docking_splits}
+    for window in params.dockable_windows:
+        assert window.dock_space_name in created, window.label
+        assert window.gui_function is not None, window.label
+
+
+def test_every_debug_draw_toggle_maps_to_a_real_property():
+    """The settings loop sets draw_<key>; a rename would silently do nothing."""
+    from box2d_testbed.testbed_state import DebugDrawSettings
+
+    settings = DebugDrawSettings()
+    keys = [key for key, _, _ in settings.get_current()]
+    assert keys, "no debug draw settings found"
+
+    for key in keys:
+        name = "draw_" + key
+        assert isinstance(
+            getattr(DebugDraw, name, None), property
+        ), f"DebugDraw.{name} is missing, so the {key!r} toggle would do nothing"
+
+
+def test_debug_draw_settings_labels_are_readable():
+    from box2d_testbed.testbed_state import DebugDrawSettings
+
+    labels = {display for _, _, display in DebugDrawSettings().get_current()}
+    assert "Contact normals" in labels
+    assert all("_" not in label for label in labels)

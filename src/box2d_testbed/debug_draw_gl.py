@@ -1,11 +1,10 @@
 from OpenGL.GL import *
-from box2d import DebugDraw, Vec2, Transform, AABB, Color
+from box2d import DebugDraw, Vec2, Transform, Color
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines
 from .draw import GLSolidPolygons, GLSolidCircles, GLSolidCapsules
 from imgui_bundle import imgui
 import numpy as np
-import math
 import time
 
 
@@ -97,12 +96,6 @@ class Camera:
         self._matrix = matrix
         return matrix
 
-    def get_view_bounds(self):
-        """Get AABB in world coordinates of current view"""
-        lower = self.convert_screen_to_world(Vec2(0.0, float(self.height)))
-        upper = self.convert_screen_to_world(Vec2(float(self.width), 0.0))
-        return AABB(lower, upper)
-
 
 class GLDebugDraw(DebugDraw):
     def __init__(self):
@@ -122,7 +115,15 @@ class GLDebugDraw(DebugDraw):
 
     def update_settings(self):
         for key, value, _ in state.show_dd.get_current():
-            self.__setattr__("draw_" + key, value)
+            name = "draw_" + key
+            # Plain setattr would quietly create an instance attribute if the
+            # property were renamed, leaving the toggle dead in the UI.
+            if not hasattr(type(self), name):
+                raise AttributeError(
+                    f"DebugDraw has no {name!r}; "
+                    f"the {key!r} toggle would have no effect."
+                )
+            setattr(self, name, value)
 
     def start_frame(self):
         self._draw_start_time = time.perf_counter()  # start timing
@@ -187,10 +188,6 @@ class GLDebugDraw(DebugDraw):
         """Store debug string for rendering during end_frame"""
         self.debug_strings.append((p, s, color))
 
-    def draw_capsule(self, p1, p2, radius: float, color):
-        # Draw capsule outline by adding a capsule (the same as solid capsule here)
-        self.solid_capsules.add_capsule(p1, p2, radius, color.hex)
-
     def draw_solid_capsule(self, p1, p2, radius: float, color):
         # Draw a filled capsule
         self.solid_capsules.add_capsule(p1, p2, radius, color.hex)
@@ -208,24 +205,3 @@ class GLDebugDraw(DebugDraw):
         y_axis = transform((0, scale))
         self.lines.add_line(p, x_axis, 0xFF0000)  # red for x-axis
         self.lines.add_line(p, y_axis, 0x00FF00)  # green for y-axis
-
-    def draw_debug_shapes(self):
-        self.circles.add_circle(Vec2(0, 0), 0.5, 0x0000FF)
-        self.circles.add_circle(Vec2(-0.5, 0), 0.1, 0x00FF00)
-        self.circles.add_circle(Vec2(0.5, 0), 0.2, 0xFF0000)
-        self.solid_circles.add_circle(
-            Transform((0, 1), math.radians(45)).b2Transform[0], 0.4, 0x0000FF
-        )
-        self.solid_capsules.add_capsule(Vec2(-2, -2), Vec2(-1, -1), 0.2, 0x00FF00)
-
-        # Test with CCW square (vertices ordered counter-clockwise)
-        points = [
-            Vec2(-0.5, -0.5),  # Bottom left
-            Vec2(0.5, -0.5),  # Bottom right
-            Vec2(0.5, 0.5),  # Top right
-            Vec2(-0.5, 0.5),  # Top left
-        ]
-        transform = Transform((0, 2), math.radians(30))  # At origin, no rotation
-        self.solid_polygons.add_polygon(transform.b2Transform[0], points, 0.1, 0xFF0000)
-        self.points.add_point(Vec2(0, 0), 5, 0x0000FF)
-        self.lines.add_line(Vec2(0.2, 0.3), Vec2(1, 1), 0x00FF00)

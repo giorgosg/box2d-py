@@ -1,4 +1,3 @@
-from box2d import World, Vec2
 from .testbed_state import state
 from .ui import UI, UIProperty
 

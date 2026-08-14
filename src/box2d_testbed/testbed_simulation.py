@@ -1,5 +1,8 @@
 from .testbed_state import state
-from . import (
+
+# Imported for their side effect: each module registers its scenarios on
+# BaseTest.registry when it loads.
+from . import (  # noqa: F401
     tb_benchmark,
     tb_joints,
     tb_shapes,

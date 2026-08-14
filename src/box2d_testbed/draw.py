@@ -1,8 +1,7 @@
 import numpy as np
 from OpenGL.GL import *
-import math
 import os
-from box2d.math import Vec2, AABB, Transform, Rot
+from box2d.math import Vec2
 from .shader import create_program_from_files, create_program_from_strings
 import OpenGL
 

@@ -1,29 +1,4 @@
 from OpenGL.GL import *
-from OpenGL.GL import shaders
-import ctypes
-
-
-def dump_gl_info():
-    """Print OpenGL driver information."""
-    print("-------------------------------------------------------------")
-    print(f"GL Vendor    : {glGetString(GL_VENDOR).decode()}")
-    print(f"GL Renderer  : {glGetString(GL_RENDERER).decode()}")
-    print(f"GL Version   : {glGetString(GL_VERSION).decode()}")
-    major = GLint()
-    minor = GLint()
-    glGetIntegerv(GL_MAJOR_VERSION, major)
-    glGetIntegerv(GL_MINOR_VERSION, minor)
-    print(f"GL Version   : {major.value}.{minor.value}")
-    print(f"GLSL Version : {glGetString(GL_SHADING_LANGUAGE_VERSION).decode()}")
-    print("-------------------------------------------------------------")
-
-
-def check_gl_error():
-    """Check for OpenGL errors."""
-    err = glGetError()
-    if err != GL_NO_ERROR:
-        print(f"OpenGL error = {err}")
-        assert False
 
 
 def print_gl_log(obj):

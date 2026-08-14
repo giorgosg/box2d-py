@@ -1,5 +1,5 @@
-from box2d import World, Vec2, CollisionFilter
-from .base_test import BaseTest, UI
+from box2d import Vec2, CollisionFilter
+from .base_test import BaseTest
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
