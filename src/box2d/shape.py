@@ -22,7 +22,9 @@ from .shapedef import (
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
+from .accessors import b2_value
 from .lifetime import IdRef, is_live, raw_id
+from .accessors import b2_bool, b2_float, b2_value
 
 
 class Shape(ABC):
@@ -41,54 +43,38 @@ class Shape(ABC):
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
 
-    @property
-    def density(self) -> float:
-        """
-        Get or set the mass density of the shape.
+    density = b2_float(
+        lib.b2Shape_GetDensity,
+        lib.b2Shape_SetDensity,
+        extra_set_args=(True,),
+        doc="""Get or set the mass density of the shape.
 
-        When setting, the body mass properties are automatically updated if update_body_mass is True.
-        Default density is 1.0.
-        """
-        return lib.b2Shape_GetDensity(self._shape_id)
+        Setting this updates the body's mass properties. Default is 1.0.
+        """,
+    )
 
-    @density.setter
-    def density(self, value: float) -> None:
-        lib.b2Shape_SetDensity(self._shape_id, float(value), True)
+    friction = b2_float(
+        lib.b2Shape_GetFriction,
+        lib.b2Shape_SetFriction,
+        doc="""Get or set the Coulomb friction coefficient.
 
-    @property
-    def friction(self) -> float:
-        """
-        Get or set the friction coefficient of the shape.
+        Usually in the range [0,1], where 0 slides freely. Default is 0.6.
+        """,
+    )
 
-        Friction is used to make objects slide realistically along surfaces.
-        Usually in the range [0,1] where 0 is frictionless and 1 is high friction.
-        Default friction is 0.6.
-        """
-        return lib.b2Shape_GetFriction(self._shape_id)
+    restitution = b2_float(
+        lib.b2Shape_GetRestitution,
+        lib.b2Shape_SetRestitution,
+        doc="""Get or set the restitution, or bounciness.
 
-    @friction.setter
-    def friction(self, value: float) -> None:
-        lib.b2Shape_SetFriction(self._shape_id, float(value))
+        Usually in the range [0,1], where 0 does not bounce. Default is 0.0.
+        """,
+    )
 
-    @property
-    def restitution(self) -> float:
-        """
-        Get or set the restitution (bounciness) of the shape.
-
-        Restitution determines how bouncy a shape is during collisions.
-        Usually in the range [0,1] where 0 means no bounce and 1 is perfect bounce.
-        Default restitution is 0.0.
-        """
-        return lib.b2Shape_GetRestitution(self._shape_id)
-
-    @restitution.setter
-    def restitution(self, value: float) -> None:
-        lib.b2Shape_SetRestitution(self._shape_id, float(value))
-
-    @property
-    def is_sensor(self) -> bool:
-        """Check if this shape is a sensor."""
-        return lib.b2Shape_IsSensor(self._shape_id)
+    is_sensor = b2_bool(
+        lib.b2Shape_IsSensor,
+        doc="Whether this shape is a sensor, detecting overlap without colliding.",
+    )
 
     @property
     def body(self) -> "Body":
@@ -143,60 +129,34 @@ class Shape(ABC):
     def filter(self, value: CollisionFilter) -> None:
         lib.b2Shape_SetFilter(self._shape_id, value.b2Filter[0])
 
-    @property
-    def enable_contact_events(self) -> bool:
-        """
-        Get or set whether contact events are enabled for this shape.
+    enable_contact_events = b2_bool(
+        lib.b2Shape_AreContactEventsEnabled,
+        lib.b2Shape_EnableContactEvents,
+        doc="""Get or set whether this shape reports begin and end touch events.\n\n        Ignored for sensors. Changing it at run time may lose events.
+        """,
+    )
 
-        Contact events notify when shapes begin or end touching.
-        Only applies to kinematic and dynamic bodies and is ignored for sensors.
+    enable_pre_solve_events = b2_bool(
+        lib.b2Shape_ArePreSolveEventsEnabled,
+        lib.b2Shape_EnablePreSolveEvents,
+        doc="""Get or set whether this shape reports pre-solve events.\n\n        Expensive, and called from worker threads. Dynamic bodies only.
+        """,
+    )
 
-        Warning: Changing this at run-time may lead to lost begin/end events.
-        """
-        return lib.b2Shape_AreContactEventsEnabled(self._shape_id)
+    enable_hit_events = b2_bool(
+        lib.b2Shape_AreHitEventsEnabled,
+        lib.b2Shape_EnableHitEvents,
+        doc="""Get or set whether this shape reports hit events above the world's\n        hit threshold. Ignored for sensors.
+        """,
+    )
 
-    @enable_contact_events.setter
-    def enable_contact_events(self, flag: bool) -> None:
-        lib.b2Shape_EnableContactEvents(self._shape_id, bool(flag))
+    shape_type = b2_value(
+        lib.b2Shape_GetType,
+        doc="""The kind of shape this is.
 
-    @property
-    def enable_pre_solve_events(self) -> bool:
-        """
-        Get or set whether pre-solve events are enabled for this shape.
-
-        Pre-solve events allow modifying contact properties before collision response.
-        These are expensive and must be carefully handled due to multithreading.
-        Only applies to dynamic bodies and is ignored for sensors.
-        """
-        return lib.b2Shape_ArePreSolveEventsEnabled(self._shape_id)
-
-    @enable_pre_solve_events.setter
-    def enable_pre_solve_events(self, flag: bool) -> None:
-        lib.b2Shape_EnablePreSolveEvents(self._shape_id, bool(flag))
-
-    @property
-    def enable_hit_events(self) -> bool:
-        """
-        Get or set whether hit events are enabled for this shape.
-
-        Hit events notify when shapes collide with sufficient velocity.
-        This setting is ignored for sensors.
-        """
-        return lib.b2Shape_AreHitEventsEnabled(self._shape_id)
-
-    @enable_hit_events.setter
-    def enable_hit_events(self, flag: bool) -> None:
-        lib.b2Shape_EnableHitEvents(self._shape_id, bool(flag))
-
-    @property
-    def shape_type(self) -> int:
-        """
-        Get the type of this shape.
-
-        Returns an integer constant indicating whether this is a circle,
-        polygon, capsule, segment, or other shape type.
-        """
-        return lib.b2Shape_GetType(self._shape_id)
+        One of Box2D's shape type constants: circle, capsule, segment or polygon.
+        """,
+    )
 
     @property
     def world(self) -> "World":
@@ -339,16 +299,15 @@ class Shape(ABC):
         )
         return CastResult.from_b2CastOutput(output)
 
-    @property
-    def contact_capacity(self) -> int:
-        """
-        Get the maximum capacity required for retrieving all the touching
+    contact_capacity = b2_value(
+        lib.b2Shape_GetContactCapacity,
+        doc="""Get the maximum capacity required for retrieving all the touching
         contacts on this shape.
-
+        
         Returns:
             The required capacity for reading contact_data
-        """
-        return lib.b2Shape_GetContactCapacity(self._shape_id)
+        """,
+    )
 
     @property
     def contact_data(self) -> List[ContactData]:
@@ -387,16 +346,15 @@ class Shape(ABC):
 
         return result
 
-    @property
-    def sensor_capacity(self) -> int:
-        """
-        Get the maximum capacity required for retrieving all the overlapped
+    sensor_capacity = b2_value(
+        lib.b2Shape_GetSensorCapacity,
+        doc="""Get the maximum capacity required for retrieving all the overlapped
         shapes on a sensor shape. Returns 0 if this shape is not a sensor.
-
+        
         Returns:
             The required capacity for reading sensor_overlaps
-        """
-        return lib.b2Shape_GetSensorCapacity(self._shape_id)
+        """,
+    )
 
     @property
     def sensor_overlaps(self) -> List["Shape"]:

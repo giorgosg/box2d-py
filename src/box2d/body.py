@@ -6,6 +6,7 @@ from .collision_filter import CollisionFilter
 from typing import Sequence, List
 from .material import SurfaceMaterial
 from .dataclasses import MassData, ContactData, BodyDef
+from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
 
 
@@ -511,45 +512,26 @@ class Body:
         value = Vec2(value).b2Vec2[0]
         lib.b2Body_SetLinearVelocity(self._body_id, value)
 
-    @property
-    def angular_velocity(self):
-        """Get angular velocity in radians/sec."""
-        return lib.b2Body_GetAngularVelocity(self._body_id)
-
-    @angular_velocity.setter
-    def angular_velocity(self, value):
-        """Set angular velocity in radians/sec."""
-        lib.b2Body_SetAngularVelocity(self._body_id, float(value))
-
-    @property
-    def linear_damping(self):
-        """Get the current linear damping value."""
-        return lib.b2Body_GetLinearDamping(self._body_id)
-
-    @linear_damping.setter
-    def linear_damping(self, value: float):
-        """Set the linear damping value."""
-        lib.b2Body_SetLinearDamping(self._body_id, float(value))
-
-    @property
-    def angular_damping(self):
-        """Get the current angular damping value."""
-        return lib.b2Body_GetAngularDamping(self._body_id)
-
-    @angular_damping.setter
-    def angular_damping(self, value: float):
-        """Set the angular damping value."""
-        lib.b2Body_SetAngularDamping(self._body_id, float(value))
-
-    @property
-    def sleep_threshold(self):
-        """Get the sleep threshold value."""
-        return lib.b2Body_GetSleepThreshold(self._body_id)
-
-    @sleep_threshold.setter
-    def sleep_threshold(self, value: float):
-        """Set the sleep threshold value."""
-        lib.b2Body_SetSleepThreshold(self._body_id, float(value))
+    angular_velocity = b2_float(
+        lib.b2Body_GetAngularVelocity,
+        lib.b2Body_SetAngularVelocity,
+        doc="Get angular velocity in radians/sec.",
+    )
+    linear_damping = b2_float(
+        lib.b2Body_GetLinearDamping,
+        lib.b2Body_SetLinearDamping,
+        doc="Get the current linear damping value.",
+    )
+    angular_damping = b2_float(
+        lib.b2Body_GetAngularDamping,
+        lib.b2Body_SetAngularDamping,
+        doc="Get the current angular damping value.",
+    )
+    sleep_threshold = b2_float(
+        lib.b2Body_GetSleepThreshold,
+        lib.b2Body_SetSleepThreshold,
+        doc="Get the sleep threshold value.",
+    )
 
     def _set_motion_lock(self, axis: str, value: bool) -> None:
         """Set one of the three motion locks, leaving the others alone."""
@@ -588,43 +570,25 @@ class Body:
     def lock_rotation(self, value: bool) -> None:
         self._set_motion_lock("angularZ", value)
 
-    @property
-    def is_bullet(self):
-        """Check if the body is treated as a bullet."""
-        return lib.b2Body_IsBullet(self._body_id)
-
-    @is_bullet.setter
-    def is_bullet(self, value):
-        """Set whether the body is treated as a bullet."""
-        lib.b2Body_SetBullet(self._body_id, value)
-
-    @property
-    def gravity_scale(self):
-        """Get the gravity scale factor for this body."""
-        return lib.b2Body_GetGravityScale(self._body_id)
-
-    @gravity_scale.setter
-    def gravity_scale(self, value):
-        """Set the gravity scale factor for this body."""
-        lib.b2Body_SetGravityScale(self._body_id, value)
-
-    @property
-    def awake(self):
-        """Get the awake state of the body.
-
+    is_bullet = b2_bool(
+        lib.b2Body_IsBullet,
+        lib.b2Body_SetBullet,
+        doc="Check if the body is treated as a bullet.",
+    )
+    gravity_scale = b2_value(
+        lib.b2Body_GetGravityScale,
+        lib.b2Body_SetGravityScale,
+        doc="Get the gravity scale factor for this body.",
+    )
+    awake = b2_bool(
+        lib.b2Body_IsAwake,
+        lib.b2Body_SetAwake,
+        doc="""Get the awake state of the body.
+        
         Returns:
             bool: True if the body is awake, False otherwise.
-        """
-        return lib.b2Body_IsAwake(self._body_id)
-
-    @awake.setter
-    def awake(self, value: bool):
-        """Set the awake state of the body.
-
-        Args:
-            value (bool): True to wake the body, False to put the body to sleep.
-        """
-        lib.b2Body_SetAwake(self._body_id, value)
+        """,
+    )
 
     @property
     def enabled(self):
@@ -668,15 +632,14 @@ class Body:
         rot = Rot(angle).b2Rot
         lib.b2Body_SetTransform(self._body_id, pos, rot[0])
 
-    @property
-    def mass(self):
-        """Get the mass of the body in kilograms"""
-        return lib.b2Body_GetMass(self._body_id)
-
-    @property
-    def rotational_inertia(self):
-        """Get the rotational inertia of the body."""
-        return lib.b2Body_GetRotationalInertia(self._body_id)
+    mass = b2_value(
+        lib.b2Body_GetMass,
+        doc="Get the mass of the body in kilograms",
+    )
+    rotational_inertia = b2_value(
+        lib.b2Body_GetRotationalInertia,
+        doc="Get the rotational inertia of the body.",
+    )
 
     @property
     def transform(self) -> Transform:
@@ -1072,14 +1035,14 @@ class Body:
             Vec2.from_b2Vec2(b2_aabb.upperBound),
         )
 
-    @property
-    def joint_count(self) -> int:
-        """Get the number of joints attached to this body.
-
+    joint_count = b2_value(
+        lib.b2Body_GetJointCount,
+        doc="""Get the number of joints attached to this body.
+        
         Returns:
             The number of attached joints.
-        """
-        return lib.b2Body_GetJointCount(self._body_id)
+        """,
+    )
 
     def _read_joints(self) -> List[Joint]:
         """Get the joints attached to this body.
@@ -1112,14 +1075,14 @@ class Body:
         """
         return self._read_joints()
 
-    @property
-    def contact_capacity(self) -> int:
-        """Get the maximum capacity for contacts on this body.
-
+    contact_capacity = b2_value(
+        lib.b2Body_GetContactCapacity,
+        doc="""Get the maximum capacity for contacts on this body.
+        
         Returns:
             The maximum capacity for contacts.
-        """
-        return lib.b2Body_GetContactCapacity(self._body_id)
+        """,
+    )
 
     def _read_contact_data(self) -> List[ContactData]:
         """Get contact data for all active contacts involving this body.

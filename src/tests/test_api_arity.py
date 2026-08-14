@@ -54,6 +54,42 @@ def declared_arities():
     return arities
 
 
+def accessor_declarations():
+    """Every b2_* accessor declaration, as (file, line, name, implied argcount).
+
+    A declaration like ``b2_float(lib.b2Body_GetX, lib.b2Body_SetX)`` never
+    calls those functions, so they are invisible to call_sites(). The getter is
+    invoked with the object's id alone, and the setter with the id, the value,
+    and whatever extra_set_args says -- so their arities are implied and can be
+    checked the same way.
+    """
+    package = PROJECT_ROOT / "src" / "box2d"
+    factories = {"b2_float", "b2_bool", "b2_int", "b2_vector", "b2_value", "B2Accessor"}
+    for path in sorted(package.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name not in factories:
+                continue
+            extra = 0
+            for keyword in node.keywords:
+                if keyword.arg == "extra_set_args" and isinstance(
+                    keyword.value, (ast.Tuple, ast.List)
+                ):
+                    extra = len(keyword.value.elts)
+            for index, argument in enumerate(node.args[:2]):
+                if not (
+                    isinstance(argument, ast.Attribute)
+                    and isinstance(argument.value, ast.Name)
+                    and argument.value.id == "lib"
+                ):
+                    continue
+                implied = 1 if index == 0 else 2 + extra
+                yield path.name, node.lineno, argument.attr, implied
+
+
 def call_sites():
     """Every lib.b2*(...) call in the binding, as (file, line, name, argcount)."""
     package = PROJECT_ROOT / "src" / "box2d"
@@ -78,7 +114,12 @@ def test_headers_are_readable():
 
 
 def test_call_sites_are_found():
-    assert len(list(call_sites())) > 200
+    assert len(list(call_sites())) > 100
+
+
+def test_accessor_declarations_are_found():
+    """Most accessors are declarative now, so this must not silently find none."""
+    assert len(list(accessor_declarations())) > 100
 
 
 def test_every_call_matches_its_declared_arity():
@@ -91,13 +132,26 @@ def test_every_call_matches_its_declared_arity():
     assert not mismatches, "argument count mismatches:\n  " + "\n  ".join(mismatches)
 
 
+def test_every_accessor_matches_its_declared_arity():
+    """The same check for accessors, which reference functions without calling them."""
+    arities = declared_arities()
+    mismatches = [
+        f"{name} at {filename}:{line} is used with {argc} arguments, "
+        f"header declares {arities[name]}"
+        for filename, line, name, argc in accessor_declarations()
+        if name in arities and argc != arities[name]
+    ]
+    assert not mismatches, "accessor arity mismatches:\n  " + "\n  ".join(mismatches)
+
+
 def test_no_call_site_targets_a_missing_function():
     """A renamed or removed function must not survive as a dead call."""
     from box2d._box2d import lib
 
+    referenced = list(call_sites()) + list(accessor_declarations())
     missing = [
         f"{name} at {filename}:{line}"
-        for filename, line, name, _ in call_sites()
+        for filename, line, name, _ in referenced
         if not hasattr(lib, name)
     ]
     assert not missing, "calls to functions absent from the build:\n  " + "\n  ".join(

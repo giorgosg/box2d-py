@@ -3,6 +3,7 @@
 from box2d._box2d import lib, ffi
 from abc import ABC, abstractmethod
 from .math import Vec2, Rot
+from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
 
 
@@ -115,32 +116,23 @@ class Joint(ABC):
         vec = lib.b2Joint_GetConstraintForce(self._joint_id)
         return Vec2(vec.x, vec.y)
 
-    @property
-    def constraint_torque(self):
-        """Current torque exerted by the joint to maintain rotation constraints.
-
+    constraint_torque = b2_value(
+        lib.b2Joint_GetConstraintTorque,
+        doc="""Current torque exerted by the joint to maintain rotation constraints.
+        
         Returns:
             float: Constraint torque value
-        """
-        return lib.b2Joint_GetConstraintTorque(self._joint_id)
-
-    @property
-    def collide_connected(self) -> bool:
-        """Check if connected bodies can collide with each other.
-
+        """,
+    )
+    collide_connected = b2_value(
+        lib.b2Joint_GetCollideConnected,
+        lib.b2Joint_SetCollideConnected,
+        doc="""Check if connected bodies can collide with each other.
+        
         Returns:
             bool: True if connected bodies can collide, False otherwise
-        """
-        return lib.b2Joint_GetCollideConnected(self._joint_id)
-
-    @collide_connected.setter
-    def collide_connected(self, collide: bool):
-        """Control whether connected bodies can collide with each other.
-
-        Args:
-            collide: True to enable collisions between bodies, False to disable
-        """
-        lib.b2Joint_SetCollideConnected(self._joint_id, collide)
+        """,
+    )
 
     def wake_bodies(self):
         """Ensure connected bodies are active and responsive to movement.
@@ -229,34 +221,21 @@ class MouseJoint(Joint):
         self._proxy.position = Vec2(value)
         self.wake_bodies()
 
-    @property
-    def max_force(self):
-        """Maximum pulling force available to move the body."""
-        return lib.b2MotorJoint_GetMaxSpringForce(self._joint_id)
-
-    @max_force.setter
-    def max_force(self, value):
-        """Adjust maximum pulling force."""
-        lib.b2MotorJoint_SetMaxSpringForce(self._joint_id, float(value))
-
-    @property
-    def damping_ratio(self):
-        """Spring damping controlling movement smoothness."""
-        return lib.b2MotorJoint_GetLinearDampingRatio(self._joint_id)
-
-    @damping_ratio.setter
-    def damping_ratio(self, value):
-        """Set how quickly movement stabilizes at target."""
-        lib.b2MotorJoint_SetLinearDampingRatio(self._joint_id, float(value))
-
-    @property
-    def hertz(self):
-        """Spring stiffness in Hz."""
-        return lib.b2MotorJoint_GetLinearHertz(self._joint_id)
-
-    @hertz.setter
-    def hertz(self, value):
-        lib.b2MotorJoint_SetLinearHertz(self._joint_id, float(value))
+    max_force = b2_float(
+        lib.b2MotorJoint_GetMaxSpringForce,
+        lib.b2MotorJoint_SetMaxSpringForce,
+        doc="Maximum pulling force available to move the body.",
+    )
+    damping_ratio = b2_float(
+        lib.b2MotorJoint_GetLinearDampingRatio,
+        lib.b2MotorJoint_SetLinearDampingRatio,
+        doc="Spring damping controlling movement smoothness.",
+    )
+    hertz = b2_float(
+        lib.b2MotorJoint_GetLinearHertz,
+        lib.b2MotorJoint_SetLinearHertz,
+        doc="Spring stiffness in Hz.",
+    )
 
 
 class WeldJoint(Joint):
@@ -331,41 +310,26 @@ class WeldJoint(Joint):
         )
         self._set_userdata()
 
-    @property
-    def linear_hertz(self):
-        """The linear stiffness (in Hertz) of the weld joint spring."""
-        return lib.b2WeldJoint_GetLinearHertz(self._joint_id)
-
-    @linear_hertz.setter
-    def linear_hertz(self, value):
-        lib.b2WeldJoint_SetLinearHertz(self._joint_id, float(value))
-
-    @property
-    def linear_damping_ratio(self):
-        """The linear damping ratio (non-dimensional) of the weld joint spring."""
-        return lib.b2WeldJoint_GetLinearDampingRatio(self._joint_id)
-
-    @linear_damping_ratio.setter
-    def linear_damping_ratio(self, value):
-        lib.b2WeldJoint_SetLinearDampingRatio(self._joint_id, float(value))
-
-    @property
-    def angular_hertz(self):
-        """The angular stiffness (in Hertz) of the weld joint."""
-        return lib.b2WeldJoint_GetAngularHertz(self._joint_id)
-
-    @angular_hertz.setter
-    def angular_hertz(self, value):
-        lib.b2WeldJoint_SetAngularHertz(self._joint_id, float(value))
-
-    @property
-    def angular_damping_ratio(self):
-        """The angular damping ratio (non-dimensional) of the weld joint."""
-        return lib.b2WeldJoint_GetAngularDampingRatio(self._joint_id)
-
-    @angular_damping_ratio.setter
-    def angular_damping_ratio(self, value):
-        lib.b2WeldJoint_SetAngularDampingRatio(self._joint_id, float(value))
+    linear_hertz = b2_float(
+        lib.b2WeldJoint_GetLinearHertz,
+        lib.b2WeldJoint_SetLinearHertz,
+        doc="The linear stiffness (in Hertz) of the weld joint spring.",
+    )
+    linear_damping_ratio = b2_float(
+        lib.b2WeldJoint_GetLinearDampingRatio,
+        lib.b2WeldJoint_SetLinearDampingRatio,
+        doc="The linear damping ratio (non-dimensional) of the weld joint spring.",
+    )
+    angular_hertz = b2_float(
+        lib.b2WeldJoint_GetAngularHertz,
+        lib.b2WeldJoint_SetAngularHertz,
+        doc="The angular stiffness (in Hertz) of the weld joint.",
+    )
+    angular_damping_ratio = b2_float(
+        lib.b2WeldJoint_GetAngularDampingRatio,
+        lib.b2WeldJoint_SetAngularDampingRatio,
+        doc="The angular damping ratio (non-dimensional) of the weld joint.",
+    )
 
 
 class RevoluteJoint(Joint):
@@ -457,38 +421,28 @@ class RevoluteJoint(Joint):
         )
         self._set_userdata()
 
-    @property
-    def angle(self):
-        """Current joint angle in radians relative to the reference angle."""
-        return lib.b2RevoluteJoint_GetAngle(self._joint_id)
-
-    @property
-    def motor_speed(self):
-        """Desired motor speed in radians per second."""
-        return lib.b2RevoluteJoint_GetMotorSpeed(self._joint_id)
-
-    @motor_speed.setter
-    def motor_speed(self, value):
-        lib.b2RevoluteJoint_SetMotorSpeed(self._joint_id, float(value))
-
-    @property
-    def max_motor_torque(self):
-        """Maximum motor torque in newton-meters."""
-        return lib.b2RevoluteJoint_GetMaxMotorTorque(self._joint_id)
-
-    @max_motor_torque.setter
-    def max_motor_torque(self, value):
-        lib.b2RevoluteJoint_SetMaxMotorTorque(self._joint_id, float(value))
-
-    @property
-    def lower_limit(self):
-        """The lower joint limit in radians."""
-        return lib.b2RevoluteJoint_GetLowerLimit(self._joint_id)
-
-    @property
-    def upper_limit(self):
-        """The upper joint limit in radians."""
-        return lib.b2RevoluteJoint_GetUpperLimit(self._joint_id)
+    angle = b2_value(
+        lib.b2RevoluteJoint_GetAngle,
+        doc="Current joint angle in radians relative to the reference angle.",
+    )
+    motor_speed = b2_float(
+        lib.b2RevoluteJoint_GetMotorSpeed,
+        lib.b2RevoluteJoint_SetMotorSpeed,
+        doc="Desired motor speed in radians per second.",
+    )
+    max_motor_torque = b2_float(
+        lib.b2RevoluteJoint_GetMaxMotorTorque,
+        lib.b2RevoluteJoint_SetMaxMotorTorque,
+        doc="Maximum motor torque in newton-meters.",
+    )
+    lower_limit = b2_value(
+        lib.b2RevoluteJoint_GetLowerLimit,
+        doc="The lower joint limit in radians.",
+    )
+    upper_limit = b2_value(
+        lib.b2RevoluteJoint_GetUpperLimit,
+        doc="The upper joint limit in radians.",
+    )
 
     def set_limits(self, lower, upper):
         """
@@ -500,68 +454,44 @@ class RevoluteJoint(Joint):
         """
         lib.b2RevoluteJoint_SetLimits(self._joint_id, float(lower), float(upper))
 
-    @property
-    def limit_enabled(self):
-        """Get or set whether the joint limit is enforced."""
-        return lib.b2RevoluteJoint_IsLimitEnabled(self._joint_id)
-
-    @limit_enabled.setter
-    def limit_enabled(self, enable):
-        lib.b2RevoluteJoint_EnableLimit(self._joint_id, bool(enable))
-
-    @property
-    def motor_enabled(self):
-        """Get or set whether the motor drives the joint."""
-        return lib.b2RevoluteJoint_IsMotorEnabled(self._joint_id)
-
-    @motor_enabled.setter
-    def motor_enabled(self, enable):
-        lib.b2RevoluteJoint_EnableMotor(self._joint_id, bool(enable))
-
-    @property
-    def motor_torque(self):
-        """The torque the motor applied in the last step, in newton-metres."""
-        return lib.b2RevoluteJoint_GetMotorTorque(self._joint_id)
-
-    @property
-    def spring_enabled(self):
-        """Get or set whether the joint's angular spring is active."""
-        return lib.b2RevoluteJoint_IsSpringEnabled(self._joint_id)
-
-    @spring_enabled.setter
-    def spring_enabled(self, enable):
-        lib.b2RevoluteJoint_EnableSpring(self._joint_id, bool(enable))
-
-    @property
-    def spring_hertz(self):
-        """Get or set the angular spring frequency in Hz."""
-        return lib.b2RevoluteJoint_GetSpringHertz(self._joint_id)
-
-    @spring_hertz.setter
-    def spring_hertz(self, value):
-        lib.b2RevoluteJoint_SetSpringHertz(self._joint_id, float(value))
-
-    @property
-    def spring_damping_ratio(self):
-        """Get or set the angular spring damping ratio."""
-        return lib.b2RevoluteJoint_GetSpringDampingRatio(self._joint_id)
-
-    @spring_damping_ratio.setter
-    def spring_damping_ratio(self, value):
-        lib.b2RevoluteJoint_SetSpringDampingRatio(self._joint_id, float(value))
-
-    @property
-    def target_angle(self):
-        """Get or set the angle the spring pulls towards, in radians.
-
+    limit_enabled = b2_bool(
+        lib.b2RevoluteJoint_IsLimitEnabled,
+        lib.b2RevoluteJoint_EnableLimit,
+        doc="Get or set whether the joint limit is enforced.",
+    )
+    motor_enabled = b2_bool(
+        lib.b2RevoluteJoint_IsMotorEnabled,
+        lib.b2RevoluteJoint_EnableMotor,
+        doc="Get or set whether the motor drives the joint.",
+    )
+    motor_torque = b2_value(
+        lib.b2RevoluteJoint_GetMotorTorque,
+        doc="The torque the motor applied in the last step, in newton-metres.",
+    )
+    spring_enabled = b2_bool(
+        lib.b2RevoluteJoint_IsSpringEnabled,
+        lib.b2RevoluteJoint_EnableSpring,
+        doc="Get or set whether the joint's angular spring is active.",
+    )
+    spring_hertz = b2_float(
+        lib.b2RevoluteJoint_GetSpringHertz,
+        lib.b2RevoluteJoint_SetSpringHertz,
+        doc="Get or set the angular spring frequency in Hz.",
+    )
+    spring_damping_ratio = b2_float(
+        lib.b2RevoluteJoint_GetSpringDampingRatio,
+        lib.b2RevoluteJoint_SetSpringDampingRatio,
+        doc="Get or set the angular spring damping ratio.",
+    )
+    target_angle = b2_float(
+        lib.b2RevoluteJoint_GetTargetAngle,
+        lib.b2RevoluteJoint_SetTargetAngle,
+        doc="""Get or set the angle the spring pulls towards, in radians.
+        
         New in Box2D 3.2, replacing the old reference angle as the way to say
         where the joint wants to rest.
-        """
-        return lib.b2RevoluteJoint_GetTargetAngle(self._joint_id)
-
-    @target_angle.setter
-    def target_angle(self, value):
-        lib.b2RevoluteJoint_SetTargetAngle(self._joint_id, float(value))
+        """,
+    )
 
 
 class PrismaticJoint(Joint):
@@ -678,29 +608,19 @@ class PrismaticJoint(Joint):
         )
         self._set_userdata()
 
-    @property
-    def joint_translation(self):
-        """Get the current joint translation."""
-        return lib.b2PrismaticJoint_GetTranslation(self._joint_id)
-
-    @property
-    def joint_speed(self):
-        """Get the current joint linear speed."""
-        return lib.b2PrismaticJoint_GetSpeed(self._joint_id)
-
-    @property
-    def limit_enabled(self):
-        """Check if the joint limit is enabled."""
-        return lib.b2PrismaticJoint_IsLimitEnabled(self._joint_id)
-
-    @limit_enabled.setter
-    def limit_enabled(self, enable):
-        """Enable/disable the joint limit.
-
-        Args:
-            enable (bool): True to enable limits, False to disable
-        """
-        lib.b2PrismaticJoint_EnableLimit(self._joint_id, enable)
+    joint_translation = b2_value(
+        lib.b2PrismaticJoint_GetTranslation,
+        doc="Get the current joint translation.",
+    )
+    joint_speed = b2_value(
+        lib.b2PrismaticJoint_GetSpeed,
+        doc="Get the current joint linear speed.",
+    )
+    limit_enabled = b2_bool(
+        lib.b2PrismaticJoint_IsLimitEnabled,
+        lib.b2PrismaticJoint_EnableLimit,
+        doc="Check if the joint limit is enabled.",
+    )
 
     @property
     def lower_limit(self):
@@ -733,94 +653,40 @@ class PrismaticJoint(Joint):
         """
         lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower), float(upper))
 
-    @property
-    def motor_enabled(self):
-        """Check if the joint motor is enabled."""
-        return lib.b2PrismaticJoint_IsMotorEnabled(self._joint_id)
-
-    @motor_enabled.setter
-    def motor_enabled(self, enable):
-        """Enable/disable the joint motor.
-
-        Args:
-            enable (bool): True to enable motor, False to disable
-        """
-        lib.b2PrismaticJoint_EnableMotor(self._joint_id, enable)
-
-    @property
-    def motor_speed(self):
-        """Get the motor speed in meters per second."""
-        return lib.b2PrismaticJoint_GetMotorSpeed(self._joint_id)
-
-    @motor_speed.setter
-    def motor_speed(self, speed):
-        """Set the motor speed.
-
-        Args:
-            speed (float): Desired speed in meters per second
-        """
-        lib.b2PrismaticJoint_SetMotorSpeed(self._joint_id, float(speed))
-
-    @property
-    def max_motor_force(self):
-        """Get maximum motor force in Newtons."""
-        return lib.b2PrismaticJoint_GetMaxMotorForce(self._joint_id)
-
-    @max_motor_force.setter
-    def max_motor_force(self, force):
-        """Set the maximum motor force.
-
-        Args:
-            force (float): Maximum force in Newtons
-        """
-        lib.b2PrismaticJoint_SetMaxMotorForce(self._joint_id, float(force))
-
-    @property
-    def motor_force(self):
-        """Get the current motor force in Newtons."""
-        return lib.b2PrismaticJoint_GetMotorForce(self._joint_id)
-
-    @property
-    def spring_enabled(self):
-        """Check if spring behavior is enabled."""
-        return lib.b2PrismaticJoint_IsSpringEnabled(self._joint_id)
-
-    @spring_enabled.setter
-    def spring_enabled(self, enable):
-        """Enable/disable spring behavior.
-
-        Args:
-            enable (bool): True to enable spring, False to disable
-        """
-        lib.b2PrismaticJoint_EnableSpring(self._joint_id, enable)
-
-    @property
-    def spring_hertz(self):
-        """Get spring frequency in Hertz."""
-        return lib.b2PrismaticJoint_GetSpringHertz(self._joint_id)
-
-    @spring_hertz.setter
-    def spring_hertz(self, hertz):
-        """Set spring oscillation frequency.
-
-        Args:
-            hertz (float): Frequency in Hertz (cycles/sec)
-        """
-        lib.b2PrismaticJoint_SetSpringHertz(self._joint_id, float(hertz))
-
-    @property
-    def spring_damping_ratio(self):
-        """Get spring damping ratio."""
-        return lib.b2PrismaticJoint_GetSpringDampingRatio(self._joint_id)
-
-    @spring_damping_ratio.setter
-    def spring_damping_ratio(self, damping):
-        """Set spring damping ratio.
-
-        Args:
-            damping (float): Damping ratio.
-        """
-        lib.b2PrismaticJoint_SetSpringDampingRatio(self._joint_id, float(damping))
+    motor_enabled = b2_bool(
+        lib.b2PrismaticJoint_IsMotorEnabled,
+        lib.b2PrismaticJoint_EnableMotor,
+        doc="Check if the joint motor is enabled.",
+    )
+    motor_speed = b2_float(
+        lib.b2PrismaticJoint_GetMotorSpeed,
+        lib.b2PrismaticJoint_SetMotorSpeed,
+        doc="Get the motor speed in meters per second.",
+    )
+    max_motor_force = b2_float(
+        lib.b2PrismaticJoint_GetMaxMotorForce,
+        lib.b2PrismaticJoint_SetMaxMotorForce,
+        doc="Get maximum motor force in Newtons.",
+    )
+    motor_force = b2_value(
+        lib.b2PrismaticJoint_GetMotorForce,
+        doc="Get the current motor force in Newtons.",
+    )
+    spring_enabled = b2_bool(
+        lib.b2PrismaticJoint_IsSpringEnabled,
+        lib.b2PrismaticJoint_EnableSpring,
+        doc="Check if spring behavior is enabled.",
+    )
+    spring_hertz = b2_float(
+        lib.b2PrismaticJoint_GetSpringHertz,
+        lib.b2PrismaticJoint_SetSpringHertz,
+        doc="Get spring frequency in Hertz.",
+    )
+    spring_damping_ratio = b2_float(
+        lib.b2PrismaticJoint_GetSpringDampingRatio,
+        lib.b2PrismaticJoint_SetSpringDampingRatio,
+        doc="Get spring damping ratio.",
+    )
 
 
 class WheelJoint(Joint):
@@ -909,71 +775,34 @@ class WheelJoint(Joint):
         )
         self._set_userdata()
 
-    @property
-    def spring_enabled(self):
-        """Check if spring behavior is enabled."""
-        return lib.b2WheelJoint_IsSpringEnabled(self._joint_id)
-
-    @spring_enabled.setter
-    def spring_enabled(self, enable):
-        """Enable/disable spring behavior.
-
-        Args:
-            enable (bool): True to enable spring, False to disable
-        """
-        lib.b2WheelJoint_EnableSpring(self._joint_id, enable)
-
-    @property
-    def spring_hertz(self):
-        """Get spring frequency in Hertz."""
-        return lib.b2WheelJoint_GetSpringHertz(self._joint_id)
-
-    @spring_hertz.setter
-    def spring_hertz(self, hertz):
-        """Set spring frequency.
-
-        Args:
-            hertz (float): Frequency in Hz
-        """
-        lib.b2WheelJoint_SetSpringHertz(self._joint_id, float(hertz))
-
-    @property
-    def spring_damping_ratio(self):
-        """Get spring damping ratio (non-dimensional)."""
-        return lib.b2WheelJoint_GetSpringDampingRatio(self._joint_id)
-
-    @spring_damping_ratio.setter
-    def spring_damping_ratio(self, damping):
-        """Set spring damping ratio.
-
-        Args:
-            damping (float): Damping ratio (non-dimensional)
-        """
-        lib.b2WheelJoint_SetSpringDampingRatio(self._joint_id, float(damping))
-
-    @property
-    def limit_enabled(self):
-        """Check if translation limits are enabled."""
-        return lib.b2WheelJoint_IsLimitEnabled(self._joint_id)
-
-    @limit_enabled.setter
-    def limit_enabled(self, enable):
-        """Enable/disable translation limits.
-
-        Args:
-            enable (bool): True to enable limits, False to disable
-        """
-        lib.b2WheelJoint_EnableLimit(self._joint_id, enable)
-
-    @property
-    def lower_limit(self):
-        """Get lower translation limit."""
-        return lib.b2WheelJoint_GetLowerLimit(self._joint_id)
-
-    @property
-    def upper_limit(self):
-        """Get upper translation limit."""
-        return lib.b2WheelJoint_GetUpperLimit(self._joint_id)
+    spring_enabled = b2_bool(
+        lib.b2WheelJoint_IsSpringEnabled,
+        lib.b2WheelJoint_EnableSpring,
+        doc="Check if spring behavior is enabled.",
+    )
+    spring_hertz = b2_float(
+        lib.b2WheelJoint_GetSpringHertz,
+        lib.b2WheelJoint_SetSpringHertz,
+        doc="Get spring frequency in Hertz.",
+    )
+    spring_damping_ratio = b2_float(
+        lib.b2WheelJoint_GetSpringDampingRatio,
+        lib.b2WheelJoint_SetSpringDampingRatio,
+        doc="Get spring damping ratio (non-dimensional).",
+    )
+    limit_enabled = b2_bool(
+        lib.b2WheelJoint_IsLimitEnabled,
+        lib.b2WheelJoint_EnableLimit,
+        doc="Check if translation limits are enabled.",
+    )
+    lower_limit = b2_value(
+        lib.b2WheelJoint_GetLowerLimit,
+        doc="Get lower translation limit.",
+    )
+    upper_limit = b2_value(
+        lib.b2WheelJoint_GetUpperLimit,
+        doc="Get upper translation limit.",
+    )
 
     def set_limits(self, lower, upper):
         """Set the translation limits.
@@ -984,52 +813,25 @@ class WheelJoint(Joint):
         """
         lib.b2WheelJoint_SetLimits(self._joint_id, float(lower), float(upper))
 
-    @property
-    def motor_enabled(self):
-        """Check if joint motor is enabled."""
-        return lib.b2WheelJoint_IsMotorEnabled(self._joint_id)
-
-    @motor_enabled.setter
-    def motor_enabled(self, enable):
-        """Enable/disable the joint motor.
-
-        Args:
-            enable (bool): True to enable motor, False to disable
-        """
-        lib.b2WheelJoint_EnableMotor(self._joint_id, enable)
-
-    @property
-    def motor_speed(self):
-        """Get motor speed in radians per second."""
-        return lib.b2WheelJoint_GetMotorSpeed(self._joint_id)
-
-    @motor_speed.setter
-    def motor_speed(self, speed):
-        """Set motor speed.
-
-        Args:
-            speed (float): Speed in radians per second
-        """
-        lib.b2WheelJoint_SetMotorSpeed(self._joint_id, float(speed))
-
-    @property
-    def max_motor_torque(self):
-        """Get maximum motor torque in N-m."""
-        return lib.b2WheelJoint_GetMaxMotorTorque(self._joint_id)
-
-    @max_motor_torque.setter
-    def max_motor_torque(self, torque):
-        """Set maximum motor torque.
-
-        Args:
-            torque (float): Maximum torque in N-m
-        """
-        lib.b2WheelJoint_SetMaxMotorTorque(self._joint_id, float(torque))
-
-    @property
-    def motor_torque(self):
-        """Get current motor torque in N-m."""
-        return lib.b2WheelJoint_GetMotorTorque(self._joint_id)
+    motor_enabled = b2_bool(
+        lib.b2WheelJoint_IsMotorEnabled,
+        lib.b2WheelJoint_EnableMotor,
+        doc="Check if joint motor is enabled.",
+    )
+    motor_speed = b2_float(
+        lib.b2WheelJoint_GetMotorSpeed,
+        lib.b2WheelJoint_SetMotorSpeed,
+        doc="Get motor speed in radians per second.",
+    )
+    max_motor_torque = b2_float(
+        lib.b2WheelJoint_GetMaxMotorTorque,
+        lib.b2WheelJoint_SetMaxMotorTorque,
+        doc="Get maximum motor torque in N-m.",
+    )
+    motor_torque = b2_value(
+        lib.b2WheelJoint_GetMotorTorque,
+        doc="Get current motor torque in N-m.",
+    )
 
 
 class DistanceJoint(Joint):
@@ -1130,80 +932,35 @@ class DistanceJoint(Joint):
         )
         self._set_userdata()
 
-    @property
-    def length(self):
-        """Get the rest length of the joint."""
-        return lib.b2DistanceJoint_GetLength(self._joint_id)
-
-    @length.setter
-    def length(self, value):
-        """Set the rest length of the joint.
-
-        Args:
-            value (float): New rest length
-        """
-        lib.b2DistanceJoint_SetLength(self._joint_id, float(value))
-
-    @property
-    def current_length(self):
-        """Get the current distance between anchor points."""
-        return lib.b2DistanceJoint_GetCurrentLength(self._joint_id)
-
-    @property
-    def spring_enabled(self):
-        """Check if spring behavior is enabled."""
-        return lib.b2DistanceJoint_IsSpringEnabled(self._joint_id)
-
-    @spring_enabled.setter
-    def spring_enabled(self, enable):
-        """Enable/disable spring behavior.
-
-        Args:
-            enable (bool): True to enable spring, False for rigid behavior
-        """
-        lib.b2DistanceJoint_EnableSpring(self._joint_id, enable)
-
-    @property
-    def spring_hertz(self):
-        """Get spring frequency in Hertz."""
-        return lib.b2DistanceJoint_GetSpringHertz(self._joint_id)
-
-    @spring_hertz.setter
-    def spring_hertz(self, hertz):
-        """Set spring frequency in Hertz.
-
-        Args:
-            hertz (float): Oscillation frequency in Hz
-        """
-        lib.b2DistanceJoint_SetSpringHertz(self._joint_id, float(hertz))
-
-    @property
-    def spring_damping_ratio(self):
-        """Get spring damping ratio."""
-        return lib.b2DistanceJoint_GetSpringDampingRatio(self._joint_id)
-
-    @spring_damping_ratio.setter
-    def spring_damping_ratio(self, damping):
-        """Set spring damping ratio.
-
-        Args:
-            damping (float): Damping ratio [0,1]
-        """
-        lib.b2DistanceJoint_SetSpringDampingRatio(self._joint_id, float(damping))
-
-    @property
-    def limit_enabled(self):
-        """Check if length limits are enabled."""
-        return lib.b2DistanceJoint_IsLimitEnabled(self._joint_id)
-
-    @limit_enabled.setter
-    def limit_enabled(self, enable):
-        """Enable/disable length limits.
-
-        Args:
-            enable (bool): True to enable limits, False to disable
-        """
-        lib.b2DistanceJoint_EnableLimit(self._joint_id, enable)
+    length = b2_float(
+        lib.b2DistanceJoint_GetLength,
+        lib.b2DistanceJoint_SetLength,
+        doc="Get the rest length of the joint.",
+    )
+    current_length = b2_value(
+        lib.b2DistanceJoint_GetCurrentLength,
+        doc="Get the current distance between anchor points.",
+    )
+    spring_enabled = b2_bool(
+        lib.b2DistanceJoint_IsSpringEnabled,
+        lib.b2DistanceJoint_EnableSpring,
+        doc="Check if spring behavior is enabled.",
+    )
+    spring_hertz = b2_float(
+        lib.b2DistanceJoint_GetSpringHertz,
+        lib.b2DistanceJoint_SetSpringHertz,
+        doc="Get spring frequency in Hertz.",
+    )
+    spring_damping_ratio = b2_float(
+        lib.b2DistanceJoint_GetSpringDampingRatio,
+        lib.b2DistanceJoint_SetSpringDampingRatio,
+        doc="Get spring damping ratio.",
+    )
+    limit_enabled = b2_bool(
+        lib.b2DistanceJoint_IsLimitEnabled,
+        lib.b2DistanceJoint_EnableLimit,
+        doc="Check if length limits are enabled.",
+    )
 
     @property
     def min_length(self):
@@ -1244,52 +1001,25 @@ class DistanceJoint(Joint):
             self._joint_id, float(min_length), float(max_length)
         )
 
-    @property
-    def motor_enabled(self):
-        """Check if the joint motor is enabled."""
-        return lib.b2DistanceJoint_IsMotorEnabled(self._joint_id)
-
-    @motor_enabled.setter
-    def motor_enabled(self, enable):
-        """Enable/disable the joint motor.
-
-        Args:
-            enable (bool): True to enable motor, False to disable
-        """
-        lib.b2DistanceJoint_EnableMotor(self._joint_id, enable)
-
-    @property
-    def motor_speed(self):
-        """Get motor speed in meters per second."""
-        return lib.b2DistanceJoint_GetMotorSpeed(self._joint_id)
-
-    @motor_speed.setter
-    def motor_speed(self, speed):
-        """Set motor speed.
-
-        Args:
-            speed (float): Desired speed in meters per second
-        """
-        lib.b2DistanceJoint_SetMotorSpeed(self._joint_id, float(speed))
-
-    @property
-    def max_motor_force(self):
-        """Get maximum motor force in Newtons."""
-        return lib.b2DistanceJoint_GetMaxMotorForce(self._joint_id)
-
-    @max_motor_force.setter
-    def max_motor_force(self, force):
-        """Set maximum motor force.
-
-        Args:
-            force (float): Maximum force in Newtons
-        """
-        lib.b2DistanceJoint_SetMaxMotorForce(self._joint_id, float(force))
-
-    @property
-    def motor_force(self):
-        """Get current motor force in Newtons."""
-        return lib.b2DistanceJoint_GetMotorForce(self._joint_id)
+    motor_enabled = b2_bool(
+        lib.b2DistanceJoint_IsMotorEnabled,
+        lib.b2DistanceJoint_EnableMotor,
+        doc="Check if the joint motor is enabled.",
+    )
+    motor_speed = b2_float(
+        lib.b2DistanceJoint_GetMotorSpeed,
+        lib.b2DistanceJoint_SetMotorSpeed,
+        doc="Get motor speed in meters per second.",
+    )
+    max_motor_force = b2_float(
+        lib.b2DistanceJoint_GetMaxMotorForce,
+        lib.b2DistanceJoint_SetMaxMotorForce,
+        doc="Get maximum motor force in Newtons.",
+    )
+    motor_force = b2_value(
+        lib.b2DistanceJoint_GetMotorForce,
+        doc="Get current motor force in Newtons.",
+    )
 
 
 class MotorJoint(Joint):
@@ -1384,83 +1114,48 @@ class MotorJoint(Joint):
     def linear_velocity(self, value):
         lib.b2MotorJoint_SetLinearVelocity(self._joint_id, Vec2(value).b2Vec2[0])
 
-    @property
-    def angular_velocity(self):
-        """Get or set the desired relative angular velocity in radians per second."""
-        return lib.b2MotorJoint_GetAngularVelocity(self._joint_id)
-
-    @angular_velocity.setter
-    def angular_velocity(self, value):
-        lib.b2MotorJoint_SetAngularVelocity(self._joint_id, float(value))
-
-    @property
-    def max_velocity_force(self):
-        """Get or set the force cap for the linear velocity drive."""
-        return lib.b2MotorJoint_GetMaxVelocityForce(self._joint_id)
-
-    @max_velocity_force.setter
-    def max_velocity_force(self, value):
-        lib.b2MotorJoint_SetMaxVelocityForce(self._joint_id, float(value))
-
-    @property
-    def max_velocity_torque(self):
-        """Get or set the torque cap for the angular velocity drive."""
-        return lib.b2MotorJoint_GetMaxVelocityTorque(self._joint_id)
-
-    @max_velocity_torque.setter
-    def max_velocity_torque(self, value):
-        lib.b2MotorJoint_SetMaxVelocityTorque(self._joint_id, float(value))
-
-    @property
-    def linear_hertz(self):
-        """Get or set the linear spring frequency. Zero disables the spring."""
-        return lib.b2MotorJoint_GetLinearHertz(self._joint_id)
-
-    @linear_hertz.setter
-    def linear_hertz(self, value):
-        lib.b2MotorJoint_SetLinearHertz(self._joint_id, float(value))
-
-    @property
-    def linear_damping_ratio(self):
-        """Get or set the linear spring damping ratio."""
-        return lib.b2MotorJoint_GetLinearDampingRatio(self._joint_id)
-
-    @linear_damping_ratio.setter
-    def linear_damping_ratio(self, value):
-        lib.b2MotorJoint_SetLinearDampingRatio(self._joint_id, float(value))
-
-    @property
-    def max_spring_force(self):
-        """Get or set the force cap for the linear spring."""
-        return lib.b2MotorJoint_GetMaxSpringForce(self._joint_id)
-
-    @max_spring_force.setter
-    def max_spring_force(self, value):
-        lib.b2MotorJoint_SetMaxSpringForce(self._joint_id, float(value))
-
-    @property
-    def angular_hertz(self):
-        """Get or set the angular spring frequency. Zero disables the spring."""
-        return lib.b2MotorJoint_GetAngularHertz(self._joint_id)
-
-    @angular_hertz.setter
-    def angular_hertz(self, value):
-        lib.b2MotorJoint_SetAngularHertz(self._joint_id, float(value))
-
-    @property
-    def angular_damping_ratio(self):
-        """Get or set the angular spring damping ratio."""
-        return lib.b2MotorJoint_GetAngularDampingRatio(self._joint_id)
-
-    @angular_damping_ratio.setter
-    def angular_damping_ratio(self, value):
-        lib.b2MotorJoint_SetAngularDampingRatio(self._joint_id, float(value))
-
-    @property
-    def max_spring_torque(self):
-        """Get or set the torque cap for the angular spring."""
-        return lib.b2MotorJoint_GetMaxSpringTorque(self._joint_id)
-
-    @max_spring_torque.setter
-    def max_spring_torque(self, value):
-        lib.b2MotorJoint_SetMaxSpringTorque(self._joint_id, float(value))
+    angular_velocity = b2_float(
+        lib.b2MotorJoint_GetAngularVelocity,
+        lib.b2MotorJoint_SetAngularVelocity,
+        doc="Get or set the desired relative angular velocity in radians per second.",
+    )
+    max_velocity_force = b2_float(
+        lib.b2MotorJoint_GetMaxVelocityForce,
+        lib.b2MotorJoint_SetMaxVelocityForce,
+        doc="Get or set the force cap for the linear velocity drive.",
+    )
+    max_velocity_torque = b2_float(
+        lib.b2MotorJoint_GetMaxVelocityTorque,
+        lib.b2MotorJoint_SetMaxVelocityTorque,
+        doc="Get or set the torque cap for the angular velocity drive.",
+    )
+    linear_hertz = b2_float(
+        lib.b2MotorJoint_GetLinearHertz,
+        lib.b2MotorJoint_SetLinearHertz,
+        doc="Get or set the linear spring frequency. Zero disables the spring.",
+    )
+    linear_damping_ratio = b2_float(
+        lib.b2MotorJoint_GetLinearDampingRatio,
+        lib.b2MotorJoint_SetLinearDampingRatio,
+        doc="Get or set the linear spring damping ratio.",
+    )
+    max_spring_force = b2_float(
+        lib.b2MotorJoint_GetMaxSpringForce,
+        lib.b2MotorJoint_SetMaxSpringForce,
+        doc="Get or set the force cap for the linear spring.",
+    )
+    angular_hertz = b2_float(
+        lib.b2MotorJoint_GetAngularHertz,
+        lib.b2MotorJoint_SetAngularHertz,
+        doc="Get or set the angular spring frequency. Zero disables the spring.",
+    )
+    angular_damping_ratio = b2_float(
+        lib.b2MotorJoint_GetAngularDampingRatio,
+        lib.b2MotorJoint_SetAngularDampingRatio,
+        doc="Get or set the angular spring damping ratio.",
+    )
+    max_spring_torque = b2_float(
+        lib.b2MotorJoint_GetMaxSpringTorque,
+        lib.b2MotorJoint_SetMaxSpringTorque,
+        doc="Get or set the torque cap for the angular spring.",
+    )
