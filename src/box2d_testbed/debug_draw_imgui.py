@@ -120,9 +120,21 @@ class ImGuiDebugDraw(DebugDraw):
     #: translucent to keep a pile readable, matching the GL renderer.
     FILL_ALPHA = 0x99
 
-    #: Whether to let imgui anti-alias the world. Smoother, but it multiplies
-    #: the geometry for every shape drawn.
-    antialias = False
+    #: Whether to let imgui anti-alias the world's lines.
+    #:
+    #: On, because turning it off loses the shape outlines entirely in a
+    #: browser: without it imgui emits thin untextured quads for a 1px line,
+    #: which the canvas renderer drops where desktop OpenGL happened to draw
+    #: them. Filled shapes are unaffected either way, being real triangles.
+    #:
+    #: Off is worth about 18% of the frame's tail, so it stays available for
+    #: benchmarking -- but a renderer that does not draw outlines is not a
+    #: faster renderer, it is a different picture.
+    antialias_lines = True
+
+    #: Anti-aliasing the fills costs the most geometry and buys the least:
+    #: the shapes are large, and their edges are drawn by the outline anyway.
+    antialias_fill = False
 
     def __init__(self):
         super().__init__()
@@ -148,16 +160,22 @@ class ImGuiDebugDraw(DebugDraw):
         # that window: the draw list clips to it, and its position is the
         # origin the camera's screen coordinates are relative to.
         self._draw_list = imgui.get_window_draw_list()
-        if not self.antialias:
-            # imgui anti-aliases fills and lines by default, which for a
-            # scene of hundreds of shapes is a lot of extra geometry per
-            # frame. The UI keeps its own draw list, so this only affects
-            # the world.
-            self._draw_list.flags &= ~(
-                imgui.ImDrawListFlags_.anti_aliased_fill
-                | imgui.ImDrawListFlags_.anti_aliased_lines
+        # imgui anti-aliases everything by default, which for a scene of
+        # hundreds of shapes is a lot of extra geometry. The UI keeps its own
+        # draw list, so this only affects the world.
+        flags = self._draw_list.flags
+        if self.antialias_lines:
+            flags |= imgui.ImDrawListFlags_.anti_aliased_lines
+        else:
+            flags &= ~(
+                imgui.ImDrawListFlags_.anti_aliased_lines
                 | imgui.ImDrawListFlags_.anti_aliased_lines_use_tex
             )
+        if self.antialias_fill:
+            flags |= imgui.ImDrawListFlags_.anti_aliased_fill
+        else:
+            flags &= ~imgui.ImDrawListFlags_.anti_aliased_fill
+        self._draw_list.flags = flags
         position = imgui.get_window_pos()
         self._origin_x, self._origin_y = position.x, position.y
 
