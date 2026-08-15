@@ -14,16 +14,46 @@ BOX2D_BUILD_DIR = os.path.join(BOX2D_DIR, "build")
 ENKITS_BUILD_DIR = os.path.join(ENKITS_DIR, "build")
 TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
 
+
+def _targeting_emscripten():
+    """Whether this build is cross-compiling to WebAssembly.
+
+    pyodide build sets PYODIDE=1 and points the compiler at emcc; either is
+    enough to tell, and BOX2D_PY_EMSCRIPTEN forces it for testing the path
+    by hand.
+    """
+    if os.environ.get("BOX2D_PY_EMSCRIPTEN"):
+        return True
+    if os.environ.get("PYODIDE") == "1":
+        return True
+    return "emcc" in os.environ.get("CC", "")
+
+
+EMSCRIPTEN = _targeting_emscripten()
+
 # Threads are optional at build time. enkiTS needs a real thread pool, which
 # rules it out on targets that have none -- WebAssembly without
 # SharedArrayBuffer being the one that prompted this. Box2D itself is happy
 # single threaded; only World(threads=N>1) needs the scheduler.
-WITH_THREADS = os.environ.get("BOX2D_PY_NO_THREADS", "") == ""
+WITH_THREADS = os.environ.get("BOX2D_PY_NO_THREADS", "") == "" and not EMSCRIPTEN
 
 
 def ensure_temp_dir():
     """Ensure the temporary directory exists."""
     os.makedirs(TEMP_DIR, exist_ok=True)
+
+
+def _emscripten_toolchain_file():
+    """The Emscripten CMake toolchain from the installed pyodide build env."""
+    from pyodide_build import build_env
+
+    toolchain = build_env.get_build_flag("CMAKE_TOOLCHAIN_FILE")
+    if not toolchain or not os.path.exists(toolchain):
+        raise RuntimeError(
+            "no Emscripten CMake toolchain found; install the pyodide "
+            "cross-build environment first: pyodide xbuildenv install"
+        )
+    return toolchain
 
 
 def build_dependencies():
@@ -58,7 +88,19 @@ def build_dependencies():
         "-DCMAKE_BUILD_TYPE=Release",
     ]
 
-    if platform.system() == "Windows":
+    if EMSCRIPTEN:
+        # Cross-compile with the toolchain pyodide ships, rather than relying
+        # on emcmake being on PATH. Box2D's own CMake has an Emscripten branch
+        # that turns on SIMD128; its pthread block only applies to the samples
+        # and tests, which are off here, so the library itself needs no
+        # threads.
+        box2d_cmake_args.extend(
+            [
+                f"-DCMAKE_TOOLCHAIN_FILE={_emscripten_toolchain_file()}",
+                "-DBOX2D_BENCHMARKS=OFF",
+            ]
+        )
+    elif platform.system() == "Windows":
         box2d_cmake_args.extend(
             [
                 "-G",
