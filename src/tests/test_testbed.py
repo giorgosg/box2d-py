@@ -763,7 +763,8 @@ def test_our_menus_do_not_collide_with_hello_imgui_s():
 
     A "View" menu holding only Reset view appeared next to hello_imgui's own
     View menu, which holds the docking layout and themes. Neither knows about
-    the other, so both render.
+    the other, so both render. That item is a button in the scenario panel
+    now, but the check stays: the next menu added could collide too.
     """
     from imgui_bundle import hello_imgui
 
@@ -787,3 +788,54 @@ def test_our_menus_do_not_collide_with_hello_imgui_s():
     assert (
         ours & reserved == set()
     ), f"menu name(s) {sorted(ours & reserved)} clash with hello_imgui's own"
+
+
+def test_reset_view_button_reframes_the_scenario():
+    """The Reset View button is how you recover after panning away."""
+    from box2d import World
+    from box2d_testbed.testbed_state import state
+
+    world = World()
+    test = BaseTest.registry["Shapes"]["Chain Materials"](world)
+    test.setup()
+    test.apply_view()
+    framed = (state.center, state.scale)
+
+    state.center, state.scale = (500.0, -400.0), 3.0
+    # Pressing a button in the UI bumps its value, which fires the callback.
+    test.reset_view = (test.reset_view or 0) + 1
+
+    assert (state.center, state.scale) == framed
+    world.destroy()
+
+
+def test_reset_does_not_move_the_camera():
+    """Restarting a scenario keeps the view you set up, as in the C++ testbed."""
+    from box2d import World
+    from box2d_testbed.testbed_state import state
+
+    world = World()
+    test = BaseTest.registry["Stacking"]["Card House"](world)
+    test.setup()
+
+    state.center, state.scale = (500.0, -400.0), 3.0
+    test.reset = (test.reset or 0) + 1
+
+    assert (state.center, state.scale) == ((500.0, -400.0), 3.0)
+    world.destroy()
+
+
+def test_reset_and_reset_view_are_the_first_two_controls():
+    """They are declared on BaseTest, so every scenario gets them in order."""
+    from box2d import World
+
+    world = World()
+    test = BaseTest.registry["Shapes"]["Wind"](world)
+    test.setup()
+
+    names = [name for name, _ in test.ui_elements]
+    assert names[:2] == ["reset", "reset_view"]
+    assert all(
+        element.type == "button" for _, element in test.ui_elements[:2]
+    ), "they share a row only while both are buttons"
+    world.destroy()

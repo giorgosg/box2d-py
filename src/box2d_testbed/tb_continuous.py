@@ -2,7 +2,6 @@
 
 import random
 
-from box2d import Vec2
 
 from .base_test import BaseTest, UI
 
@@ -16,9 +15,8 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     the body against static geometry regardless.
     """
 
-    # Framed by hand: the drop, the post and the floor together.
-    camera_center = (0.0, 4.0)
-    camera_zoom = 8.0
+    camera_center = (1, 5)
+    camera_zoom = 25.0 * 0.25
 
     continuous = UI.bool(True, label="World continuous")
     bullet = UI.bool(False)
@@ -28,8 +26,6 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     launch = UI.button("Launch")
 
     def setup(self):
-        self.app_state.center = Vec2(1, 5)
-        self.app_state.zoom = 25.0 * 0.25
 
         # A thin floor is the case discrete collision misses: at 300 m/s a body
         # moves 5 units per step and can start above it and end below it.
@@ -104,13 +100,14 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
     are what stop something small and fast escaping the table between steps.
     """
 
+    camera_center = (0, 9)
+    camera_zoom = 25.0 * 0.5
+
     flipper_torque = UI.float(1000.0, min=100.0, max=5000.0)
     ball_speed = UI.float(20.0, min=5.0, max=60.0)
     serve = UI.button("Serve ball")
 
     def setup(self):
-        self.app_state.center = Vec2(0, 9)
-        self.app_state.zoom = 25.0 * 0.5
 
         ground = self.world.new_body().static()
         ground.chain(

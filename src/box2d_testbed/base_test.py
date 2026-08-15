@@ -11,6 +11,7 @@ class BaseTest:
 
     registry = {}
     reset = UI.button("Reset")
+    reset_view = UI.button("Reset View")
 
     #: Where the camera sits when this scenario is opened, as (x, y). Leave
     #: None to frame the scenario's moving parts automatically.
@@ -184,6 +185,22 @@ class BaseTest:
         Called when the test is finished.
         """
         pass
+
+    def apply_view(self):
+        """Point the testbed camera at this scenario.
+
+        Called when the scenario is opened, by the Reset View button and by
+        the Home key. Reset does not call it, so restarting a scenario keeps
+        whatever view you had set up.
+        """
+        center, zoom = self.view()
+        self.app_state.center = (center.x, center.y)
+        self.app_state.scale = zoom
+
+    @reset_view.callback
+    def on_reset_view(self, key, value):
+        """Callback for the Reset View button."""
+        self.apply_view()
 
     @reset.callback
     def on_reset(self, key, value):

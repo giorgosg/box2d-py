@@ -107,12 +107,13 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
     properties. The body's mass has to be recomputed afterwards.
     """
 
+    camera_center = (0, 5)
+    camera_zoom = 25.0 * 0.25
+
     shape = UI.select("circle", ["circle", "capsule", "segment", "polygon"])
     scale = UI.float(1.0, min=0.1, max=4.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 5)
-        self.app_state.zoom = 25.0 * 0.25
 
         self.world.new_body().static().box(20, 2, offset=(0, -1)).build()
         self.world.new_body().dynamic().position(0, 4).box(2, 2).build()
@@ -184,11 +185,12 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
 class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
     """A surface whose tangent speed drags whatever rests on it sideways."""
 
+    camera_center = (2, 7.5)
+    camera_zoom = 12.0
+
     tangent_speed = UI.float(2.0, min=-10.0, max=10.0)
 
     def setup(self):
-        self.app_state.center = Vec2(2, 7.5)
-        self.app_state.zoom = 12.0
 
         self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 
@@ -218,11 +220,12 @@ class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
     consulted only for shapes created with enable_custom_filtering.
     """
 
+    camera_center = (0, 5)
+    camera_zoom = 10.0
+
     count = UI.int(10, min=2, max=20)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 5)
-        self.app_state.zoom = 10.0
 
         self.world.new_body().static().segment((-40, 0), (40, 0)).build()
 
@@ -268,14 +271,15 @@ class Explosion(BaseTest, category="Shapes", name="Explosion"):
     easy to see: planks near the edge barely move.
     """
 
+    camera_center = (0, 0)
+    camera_zoom = 14.0
+
     radius = UI.float(7.0, min=0.0, max=20.0)
     falloff = UI.float(3.0, min=0.0, max=20.0)
     impulse = UI.float(10.0, min=-20.0, max=50.0)
     detonate = UI.button("Explode")
 
     def setup(self):
-        self.app_state.center = Vec2(0, 0)
-        self.app_state.zoom = 14.0
 
         ground = self.world.new_body().static().build()
 
@@ -340,6 +344,9 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
     simply leaning.
     """
 
+    camera_center = (0, -4)
+    camera_zoom = 14.0
+
     wind_x = UI.float(10.0, min=-20.0, max=20.0)
     wind_y = UI.float(0.0, min=-20.0, max=20.0)
     drag = UI.float(0.5, min=0.0, max=1.0)
@@ -347,8 +354,6 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
     links = UI.int(12, min=1, max=30)
 
     def setup(self):
-        self.app_state.center = Vec2(0, -4)
-        self.app_state.zoom = 14.0
 
         ground = self.world.new_body().static().build()
 
@@ -406,12 +411,13 @@ class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
     gravity instead of simply damping.
     """
 
+    camera_center = (5, 20)
+    camera_zoom = 27.5
+
     resistance_scale = UI.float(0.02, min=0.0, max=0.2)
     lift = UI.float(0.0, min=-10.0, max=10.0, label="Lane tilt")
 
     def setup(self):
-        self.app_state.center = Vec2(5, 20)
-        self.app_state.zoom = 27.5
 
         self.wheels = []
         for i in range(20):
@@ -453,13 +459,10 @@ class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
     easy to break, which is what this exercises.
     """
 
-    # Framed by hand: the shapes sit off to one side of the origin.
-    camera_center = (9.0, 0.5)
-    camera_zoom = 3.5
+    camera_center = (2, 8)
+    camera_zoom = 25.0 * 0.55
 
     def setup(self):
-        self.app_state.center = Vec2(2, 8)
-        self.app_state.zoom = 25.0 * 0.55
 
         self.world.new_body().static().position(-1, 1).box(
             2, 2, offset=(10, -2), angle=0.5 * math.pi

@@ -170,12 +170,13 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
 class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
     """A kinematic drum that spins, tumbling the boxes fed into it."""
 
+    camera_center = (0, 0)
+    camera_zoom = 25.0 * 0.6
+
     angular_speed = UI.float(25.0, min=-100.0, max=100.0, label="Speed (deg/s)")
     max_bodies = UI.int(400, min=10, max=2000)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 0)
-        self.app_state.zoom = 25.0 * 0.6
 
         self.drum = self.world.add_body(
             body_type="kinematic",

@@ -19,13 +19,14 @@ class Mover(BaseTest, category="Character", name="Mover"):
     Move with the arrow keys, jump with space.
     """
 
+    camera_center = (0, 5)
+    camera_zoom = 16.0
+
     speed = UI.float(8.0, min=1.0, max=20.0)
     jump_speed = UI.float(10.0, min=1.0, max=30.0)
     gravity = UI.float(30.0, min=0.0, max=60.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 5)
-        self.app_state.zoom = 16.0
 
         terrain = self.world.new_body().static()
         terrain.segment((-20, 0), (8, 0))  # ground

@@ -1,6 +1,5 @@
 # tb_bodies.py
 
-from box2d import BodyType, Vec2
 
 from .base_test import BaseTest, UI
 
@@ -13,12 +12,13 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
     everything, including the boxes riding it.
     """
 
+    camera_center = (0, 8)
+    camera_zoom = 14.0
+
     body_type = UI.select("kinematic", ["static", "kinematic", "dynamic"])
     enable_sleep = UI.bool(True)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 8)
-        self.app_state.zoom = 14.0
 
         ground = self.world.new_body().static()
         ground.segment((-20, 0), (20, 0))
@@ -77,12 +77,13 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
     whenever they fall out of view.
     """
 
+    camera_center = (0, 8)
+    camera_zoom = 20.0
+
     speed = UI.float(12.0, min=1.0, max=40.0)
     spin = UI.float(8.0, min=-30.0, max=30.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 8)
-        self.app_state.zoom = 20.0
 
         self.world.new_body().static().segment((-40, 0), (40, 0)).build()
 

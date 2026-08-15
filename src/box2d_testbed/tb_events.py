@@ -58,11 +58,12 @@ class ContactEvents(BaseTest, category="Events", name="Contact"):
     the world's hit threshold, so a gentle rest does not count.
     """
 
+    camera_center = (0, 6)
+    camera_zoom = 12.0
+
     hit_threshold = UI.float(1.0, min=0.0, max=20.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 6)
-        self.app_state.zoom = 12.0
 
         self.world.hit_event_threshold = self.hit_threshold
 
@@ -129,9 +130,10 @@ class BodyMoveEvents(BaseTest, category="Events", name="Body Move"):
     falls to zero, and the sleeping bodies are marked as they drop out.
     """
 
+    camera_center = (0, 6)
+    camera_zoom = 14.0
+
     def setup(self):
-        self.app_state.center = Vec2(0, 6)
-        self.app_state.zoom = 14.0
 
         self.world.new_body().static().segment((-15, 0), (15, 0)).build()
 
@@ -164,11 +166,12 @@ class BreakableJoint(BaseTest, category="Events", name="Joint"):
     parts under the weight hung from its end.
     """
 
+    camera_center = (0, -4)
+    camera_zoom = 12.0
+
     threshold = UI.float(2000.0, min=100.0, max=20000.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, -4)
-        self.app_state.zoom = 12.0
 
         ground = self.world.new_body().static().build()
 
@@ -229,12 +232,13 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
     Move with the arrow keys, jump with space.
     """
 
+    camera_center = (0, 6)
+    camera_zoom = 12.0
+
     force = UI.float(25.0, min=0.0, max=50.0)
     jump_impulse = UI.float(25.0, min=0.0, max=50.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 6)
-        self.app_state.zoom = 12.0
 
         self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 

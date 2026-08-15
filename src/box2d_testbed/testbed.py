@@ -238,7 +238,15 @@ class TestbedApp:
         imgui.text(f"Test: {state.current_test_cls.name}")
         imgui.separator()
         # Iterate through UI elements defined in the current test.
+        previous_was_button = False
         for name, elem in state.current_test_obj.ui_elements:
+            # Buttons declared next to each other share a row, so Reset and
+            # Reset View sit side by side rather than stacked.
+            is_button = elem.type == "button"
+            if is_button and previous_was_button:
+                imgui.same_line()
+            previous_was_button = is_button
+
             if elem.type == "button":
                 if imgui.button(elem.label):
                     v = getattr(state.current_test_obj, elem.name)
@@ -315,12 +323,6 @@ class TestbedApp:
         _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
 
     def show_menus(self):
-        # Not "View": hello_imgui owns a menu by that name (docking layout and
-        # themes), and adding a second one puts two View menus side by side.
-        if imgui.begin_menu("Camera"):
-            if imgui.menu_item("Reset view", "Home", False)[0] and self.simulation:
-                self.simulation.reset_view()
-            imgui.end_menu()
         if imgui.begin_menu("Draw"):
             for key, value, display in state.show_dd.get_current():
                 _, newvalue = imgui.menu_item(display, "", value)

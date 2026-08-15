@@ -13,15 +13,12 @@ class CardHouse(BaseTest, category="Stacking", name="Card House"):
     contact handling collapses the structure.
     """
 
-    # Framed by hand: the house, not the 80m of ground under it.
-    camera_center = (0.0, 1.0)
-    camera_zoom = 4.0
+    camera_center = (0.75, 0.9)
+    camera_zoom = 25.0 * 0.05
 
     rows = UI.int(5, min=1, max=8)
 
     def setup(self):
-        self.app_state.center = Vec2(0.75, 0.9)
-        self.app_state.zoom = 25.0 * 0.05
 
         self.world.new_body().static().position(0, -2).box(80, 4, friction=0.7).build()
 
@@ -67,9 +64,10 @@ class Arch(BaseTest, category="Stacking", name="Arch"):
     solver handles a long chain of contacts.
     """
 
+    camera_center = (0, 8)
+    camera_zoom = 25.0 * 0.35
+
     def setup(self):
-        self.app_state.center = Vec2(0, 8)
-        self.app_state.zoom = 25.0 * 0.35
 
         scale = 0.25
         # The two curves the voussoirs span between, inner and outer.
@@ -137,12 +135,13 @@ class Arch(BaseTest, category="Stacking", name="Arch"):
 class DoubleDomino(BaseTest, category="Stacking", name="Double Domino"):
     """A row of dominoes toppled by a nudge to the first one."""
 
+    camera_center = (0, 4)
+    camera_zoom = 25.0 * 0.25
+
     count = UI.int(15, min=2, max=60)
     nudge = UI.float(0.2, min=0.0, max=2.0)
 
     def setup(self):
-        self.app_state.center = Vec2(0, 4)
-        self.app_state.zoom = 25.0 * 0.25
 
         self.world.new_body().static().position(0, -1).box(200, 2).build()
 
@@ -170,13 +169,14 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
     whether it passes through the stack or hits it.
     """
 
+    camera_center = (-7, 9)
+    camera_zoom = 14.0
+
     columns = UI.int(5, min=1, max=10)
     rows = UI.int(12, min=1, max=30)
     fire = UI.button("Fire bullet")
 
     def setup(self):
-        self.app_state.center = Vec2(-7, 9)
-        self.app_state.zoom = 14.0
 
         ground = self.world.new_body().static()
         ground.segment((-30, 0), (30, 0))
@@ -226,11 +226,12 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
     segment and a rounded one.
     """
 
+    camera_center = (0, 5)
+    camera_zoom = 25.0 * 0.5
+
     flip = UI.bool(False, label="Mirror")
 
     def setup(self):
-        self.app_state.center = Vec2(0, 5)
-        self.app_state.zoom = 25.0 * 0.5
 
         ground = self.world.new_body().static()
         ground.box(200, 2, offset=(0, -1))

@@ -60,9 +60,7 @@ class TestbedSimulation:
 
     def reset_view(self):
         """Point the camera at the current scenario."""
-        center, zoom = self.current_test_obj.view()
-        state.center = (center.x, center.y)
-        state.scale = zoom
+        self.current_test_obj.apply_view()
 
     def update_physics(self):
         if (

@@ -640,6 +640,9 @@ class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
     whether it can push past whatever it runs into.
     """
 
+    camera_center = (0, 7)
+    camera_zoom = 25.0 * 0.4
+
     # UI Properties
     enable_motion = UI.bool(True, label="Go")
     max_velocity_force = UI.float(500.0, min=0, max=1000)
@@ -648,8 +651,6 @@ class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
 
     def setup(self):
         """Initialize the test."""
-        self.app_state.center = Vec2(0, 7)
-        self.app_state.zoom = 25.0 * 0.4
 
         ground = self.world.new_body().segment((-20, 0), (20, 0)).build()
 
@@ -713,14 +714,15 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
     forbid movement along x, along y, or about z.
     """
 
+    camera_center = (0, 8)
+    camera_zoom = 25.0 * 0.7
+
     lock_x = UI.bool(False, label="Lock Linear X")
     lock_y = UI.bool(False, label="Lock Linear Y")
     lock_rotation = UI.bool(True, label="Lock Angular Z")
     shove = UI.button("Shove first box")
 
     def setup(self):
-        self.app_state.center = Vec2(0, 8)
-        self.app_state.zoom = 25.0 * 0.7
 
         ground = self.world.new_body().static().build()
 
@@ -819,9 +821,10 @@ class FilterJointTest(BaseTest, category="Joints", name="Filter Joint"):
     so it stacks normally.
     """
 
+    camera_center = (0, 4)
+    camera_zoom = 10.0
+
     def setup(self):
-        self.app_state.center = Vec2(0, 4)
-        self.app_state.zoom = 10.0
 
         self.world.new_body().static().position(0, -1).box(40, 2).build()
 
