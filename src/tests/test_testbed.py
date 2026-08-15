@@ -908,3 +908,7 @@ def test_status_bar_reports_the_view_it_would_copy():
     assert "state.center" in status and "state.scale" in status
     assert "format_view_declaration(state.center, state.scale)" in status
     assert "set_clipboard_text" in status
+
+    # Right-justified, so it holds its place as the toggles change width.
+    assert "get_window_width()" in status, "the readout is not positioned from the right"
+    assert "calc_text_size(label)" in status, "its width must be measured to justify it"

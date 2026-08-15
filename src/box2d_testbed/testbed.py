@@ -338,8 +338,17 @@ class TestbedApp:
 
         # Live, so it is readable while panning, and next to a button that
         # copies it as source: frame a scenario by hand, paste, keep it.
+        # Right-justified, so it holds its place as the toggles change width.
         center = Vec2(state.center)
-        imgui.text_disabled(f"view ({center.x:.2f}, {center.y:.2f}) z{state.scale:.2f}")
+        label = f"view ({center.x:.2f}, {center.y:.2f}) z{state.scale:.2f}"
+
+        style = imgui.get_style()
+        # SmallButton keeps the horizontal frame padding and drops the vertical.
+        copy_width = imgui.calc_text_size("Copy").x + 2.0 * style.frame_padding.x
+        needed = imgui.calc_text_size(label).x + style.item_spacing.x + copy_width
+        imgui.same_line(imgui.get_window_width() - needed - style.window_padding.x)
+
+        imgui.text_disabled(label)
         imgui.same_line()
         if imgui.small_button("Copy"):
             imgui.set_clipboard_text(format_view_declaration(state.center, state.scale))

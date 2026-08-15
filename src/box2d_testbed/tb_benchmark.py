@@ -5,6 +5,9 @@ from box2d import World, Vec2, Rot
 
 
 class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
+    camera_center = (-1.84, 23.29)
+    camera_zoom = 23.94
+
     count = UI.int(3, max=10, min=2)
 
     def __init__(self, *args, **kwargs):
