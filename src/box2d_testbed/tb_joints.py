@@ -6,6 +6,7 @@ from .base_test import BaseTest, UI
 from .shared import donut, create_random_polygon, Car  # noqa: F401
 import math
 from box2d import Vec2, World, Body, Transform, Color
+from box2d import DistanceJointDef, RevoluteJointDef, WheelJointDef
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -848,3 +849,189 @@ class FilterJointTest(BaseTest, category="Joints", name="Filter Joint"):
             (-8, 8),
             f"filtered stack top {left_height:.2f}   normal stack top {right_height:.2f}",
         )
+
+
+class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
+    """A scissor lift raised by a single motor, with a car parked on top.
+
+    Every crossing pair is pinned at its middle and at both ends, so the whole
+    stack is one loop of constraints. That makes it a stiff thing to solve:
+    the joints are given a high constraint stiffness, and it wants at least
+    eight sub-steps to stay steady under the car's weight. The testbed
+    default is comfortably above that.
+
+    The lift itself is one distance joint with a motor, pulling the bottom
+    scissor closed.
+    """
+
+    camera_center = (0, 9)
+    camera_zoom = 25.0 * 0.4
+
+    motor = UI.bool(False)
+    motor_force = UI.float(2000.0, min=0.0, max=3000.0, label="Max force")
+    motor_speed = UI.float(0.25, min=-0.3, max=0.3, label="Speed")
+
+    # Stiff enough that the linkage does not visibly sag under the car.
+    CONSTRAINT_HERTZ = 240.0
+    CONSTRAINT_DAMPING = 20.0
+    LEVELS = 3
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.segment((-20, 0), (20, 0))
+        ground = ground.build()
+
+        def tune(joint):
+            joint.constraint_tuning = (self.CONSTRAINT_HERTZ, self.CONSTRAINT_DAMPING)
+            return joint
+
+        base_a, base_b = ground, ground
+        anchor_a, anchor_b = (-2.5, 0.2), (2.5, 0.2)
+        y = 0.5
+        lift_link = None
+
+        for level in range(self.LEVELS):
+            # The two arms of one scissor, crossed and pinned in the middle.
+            arms = []
+            for tilt in (0.15, -0.15):
+                arm = (
+                    self.world.new_body()
+                    .dynamic()
+                    .position(0, y)
+                    .rotation(tilt)
+                    .sleep_threshold(0.01)
+                    .capsule((-2.5, 0), (2.5, 0), radius=0.15)
+                    .build()
+                )
+                arms.append(arm)
+            left_arm, right_arm = arms
+
+            if level == 1:
+                lift_link = right_arm
+
+            tune(
+                self.world.add_joint(
+                    RevoluteJointDef(
+                        base_a,
+                        left_arm,
+                        local_anchor_a=anchor_a,
+                        local_anchor_b=(-2.5, 0),
+                        # Only the bottom pair may touch the ground.
+                        collide_connected=(level == 0),
+                    )
+                )
+            )
+
+            if level == 0:
+                # The bottom right corner rolls along the ground instead of
+                # being pinned, which is what lets the scissor open at all.
+                tune(
+                    self.world.add_joint(
+                        WheelJointDef(
+                            base_b,
+                            right_arm,
+                            local_anchor_a=anchor_b,
+                            local_anchor_b=(2.5, 0),
+                            enable_spring=False,
+                            collide_connected=True,
+                        )
+                    )
+                )
+            else:
+                tune(
+                    self.world.add_joint(
+                        RevoluteJointDef(
+                            base_b,
+                            right_arm,
+                            local_anchor_a=anchor_b,
+                            local_anchor_b=(2.5, 0),
+                        )
+                    )
+                )
+
+            tune(
+                self.world.add_joint(
+                    RevoluteJointDef(
+                        left_arm,
+                        right_arm,
+                        local_anchor_a=(0, 0),
+                        local_anchor_b=(0, 0),
+                    )
+                )
+            )
+
+            # The next scissor stands on this one, crossed over.
+            base_a, base_b = right_arm, left_arm
+            anchor_a, anchor_b = (-2.5, 0), (2.5, 0)
+            y += 1.0
+
+        platform = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, y)
+            .sleep_threshold(0.01)
+            .box(6, 0.4)
+            .build()
+        )
+        tune(
+            self.world.add_joint(
+                RevoluteJointDef(
+                    platform,
+                    base_a,
+                    local_anchor_a=(-2.5, -0.4),
+                    local_anchor_b=anchor_a,
+                    collide_connected=True,
+                )
+            )
+        )
+        tune(
+            self.world.add_joint(
+                WheelJointDef(
+                    platform,
+                    base_b,
+                    local_anchor_a=(2.5, -0.4),
+                    local_anchor_b=anchor_b,
+                    enable_spring=False,
+                    collide_connected=True,
+                )
+            )
+        )
+
+        # One motor raises the whole lift by closing the bottom scissor.
+        self.lift_joint = self.world.add_joint(
+            DistanceJointDef(
+                ground,
+                lift_link,
+                local_anchor_a=(-2.5, 0.2),
+                local_anchor_b=(0.5, 0),
+                enable_spring=True,
+                min_length=0.2,
+                max_length=5.5,
+                enable_limit=True,
+                enable_motor=self.motor,
+                motor_speed=self.motor_speed,
+                max_motor_force=self.motor_force,
+            )
+        )
+
+        self.car = Car(
+            self.world, (0, y + 2.0), scale=1.0, hertz=3.0, damping_ratio=0.7
+        )
+
+    @motor.callback
+    def on_motor_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.enable_motor = value
+            self.lift_joint.wake_bodies()
+
+    @motor_force.callback
+    def on_force_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.max_motor_force = value
+            self.lift_joint.wake_bodies()
+
+    @motor_speed.callback
+    def on_speed_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.motor_speed = value
+            self.lift_joint.wake_bodies()
