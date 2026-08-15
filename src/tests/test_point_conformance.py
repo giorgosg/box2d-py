@@ -327,14 +327,24 @@ def test_joint_definition_point_fields_are_annotated():
     # VectorLike is an alias, so annotations resolve to what it aliases; compare
     # against the alias object rather than the text.
     accepted = {VectorLike, Optional[VectorLike]}
-    hints = ("anchor", "axis", "target", "linear_velocity")
+    # Matched whole, not as substrings: target_angle is radians and
+    # target_translation is metres, both scalars, and a substring rule on
+    # "target" wrongly demands they be points.
+    point_fields = {
+        "anchor",
+        "axis",
+        "target",
+        "linear_velocity",
+        "local_anchor_a",
+        "local_anchor_b",
+    }
     wrong = []
     for name in dir(jointdef):
         definition = getattr(jointdef, name)
         if not (dataclasses.is_dataclass(definition) and name.endswith("Def")):
             continue
         for field in dataclasses.fields(definition):
-            if not any(hint in field.name for hint in hints):
+            if field.name not in point_fields:
                 continue
             if field.type not in accepted:
                 wrong.append(f"{name}.{field.name}: {field.type}")

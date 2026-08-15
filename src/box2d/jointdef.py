@@ -127,6 +127,10 @@ class RevoluteJointDef(JointDef):
         max_motor_torque: Torque the motor may apply, in newton-metres.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Angle between the bodies at which the joint rests.
+        enable_spring: Whether a spring pulls the joint towards target_angle.
+        hertz: Spring frequency.
+        damping_ratio: Spring damping ratio.
+        target_angle: The angle the spring pulls towards, in radians.
     """
 
     lower_angle: Optional[float] = None
@@ -136,6 +140,10 @@ class RevoluteJointDef(JointDef):
     max_motor_torque: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
+    enable_spring: Optional[bool] = None
+    hertz: Optional[float] = None
+    damping_ratio: Optional[float] = None
+    target_angle: Optional[float] = None
 
 
 @dataclass
@@ -155,6 +163,7 @@ class PrismaticJointDef(JointDef):
         enable_spring: Whether a spring pulls the joint toward its rest length.
         hertz: Spring frequency.
         damping_ratio: Spring damping ratio.
+        target_translation: Where along the axis the spring pulls towards.
     """
 
     axis: VectorLike = (1, 0)
@@ -168,6 +177,7 @@ class PrismaticJointDef(JointDef):
     enable_spring: Optional[bool] = None
     hertz: Optional[float] = None
     damping_ratio: Optional[float] = None
+    target_translation: Optional[float] = None
 
 
 @dataclass
@@ -214,6 +224,9 @@ class DistanceJointDef(JointDef):
         enable_motor: Whether the motor drives the length.
         motor_speed: Desired motor speed.
         max_motor_force: Force the motor may apply, in newtons.
+        lower_spring_force: Most the spring may push, in newtons.
+        upper_spring_force: Most the spring may pull. Clamping either at zero
+            turns the spring into a rope or a strut.
     """
 
     length: Optional[float] = None
@@ -226,6 +239,8 @@ class DistanceJointDef(JointDef):
     enable_motor: Optional[bool] = None
     motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
+    lower_spring_force: Optional[float] = None
+    upper_spring_force: Optional[float] = None
 
 
 @dataclass

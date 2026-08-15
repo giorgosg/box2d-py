@@ -499,6 +499,10 @@ class RevoluteJoint(Joint):
         max_motor_torque=None,
         enable_motor=None,
         reference_angle=None,
+        enable_spring=None,
+        hertz=None,
+        damping_ratio=None,
+        target_angle=None,
     ):
         """
         Initialize a revolute joint with separate local anchor points for each body.
@@ -517,6 +521,11 @@ class RevoluteJoint(Joint):
             max_motor_torque (float, optional): Maximum motor torque in newton-meters.
             enable_motor (bool, optional): Whether to enable the joint motor.
             reference_angle (float, optional): Reference angle between the two bodies.
+            enable_spring (bool, optional): Whether a spring pulls the joint
+                towards target_angle.
+            hertz (float, optional): Spring frequency.
+            damping_ratio (float, optional): Spring damping ratio.
+            target_angle (float, optional): The angle the spring pulls towards.
         """
         self._localAnchorA = Vec2(local_anchor_a)
         self._localAnchorB = Vec2(local_anchor_b)
@@ -558,6 +567,16 @@ class RevoluteJoint(Joint):
             defn.maxMotorTorque = self._max_motor_torque
         if self._enable_motor is not None:
             defn.enableMotor = self._enable_motor
+
+        # Spring parameters, which pull the joint back towards target_angle.
+        if enable_spring is not None:
+            defn.enableSpring = enable_spring
+        if hertz is not None:
+            defn.hertz = hertz
+        if damping_ratio is not None:
+            defn.dampingRatio = damping_ratio
+        if target_angle is not None:
+            defn.targetAngle = target_angle
 
         self._def = defn
         self.world = world
@@ -675,6 +694,7 @@ class PrismaticJoint(Joint):
         enable_spring=None,
         hertz=None,
         damping_ratio=None,
+        target_translation=None,
     ):
         """Initialize a prismatic joint between two bodies.
 
@@ -745,6 +765,8 @@ class PrismaticJoint(Joint):
             defn.hertz = self._hertz
         if self._damping_ratio is not None:
             defn.dampingRatio = self._damping_ratio
+        if target_translation is not None:
+            defn.targetTranslation = target_translation
 
         self._def = defn
 
@@ -1021,6 +1043,8 @@ class DistanceJoint(Joint):
         enable_motor=False,
         motor_speed=None,
         max_motor_force=None,
+        lower_spring_force=None,
+        upper_spring_force=None,
     ):
         """Initialize a distance joint between two bodies.
 
@@ -1083,6 +1107,13 @@ class DistanceJoint(Joint):
             defn.maxMotorForce = self._max_motor_force
 
         self._def = defn
+        # Clamping the spring's force range is what turns it into a rope or a
+        # strut; unbounded in both directions by default.
+        if lower_spring_force is not None:
+            defn.lowerSpringForce = lower_spring_force
+        if upper_spring_force is not None:
+            defn.upperSpringForce = upper_spring_force
+
         self._joint_id = lib.b2CreateDistanceJoint(
             self.world._world_id, ffi.addressof(self._def)
         )

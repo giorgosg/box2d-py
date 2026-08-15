@@ -274,3 +274,141 @@ def test_filter_joint_can_be_destroyed(world):
 
     joint.destroy()
     assert joint.is_valid is False
+
+
+# --- conformance with Box2D's own definitions -------------------------------
+
+#: Where our field name differs from the C one by choice rather than omission.
+_DEF_ALIASES = {
+    "PrismaticJointDef": {
+        "lowerTranslation": "lower_limit",
+        "upperTranslation": "upper_limit",
+    },
+    "WheelJointDef": {
+        "hertz": "spring_hertz",
+        "dampingRatio": "spring_damping_ratio",
+        "lowerTranslation": "lower_translation",
+        "upperTranslation": "upper_translation",
+    },
+}
+
+
+def _camel(name):
+    head, *rest = name.split("_")
+    return head + "".join(part.title() for part in rest)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "RevoluteJointDef",
+        "PrismaticJointDef",
+        "WheelJointDef",
+        "DistanceJointDef",
+        "WeldJointDef",
+        "MotorJointDef",
+    ],
+)
+def test_joint_def_covers_box2d_s_own(name):
+    """A field missing from a def cannot be set at creation time.
+
+    RevoluteJointDef had no spring fields at all, so a jointed figure could
+    not be given springy limbs without reaching past the definition. The same
+    check found PrismaticJointDef missing target_translation and
+    DistanceJointDef missing its spring force range.
+    """
+    from dataclasses import fields
+
+    import box2d.jointdef as jointdef
+    from box2d._box2d import ffi
+
+    definition = getattr(jointdef, name)
+    base_fields = {
+        "body_a",
+        "body_b",
+        "local_anchor_a",
+        "local_anchor_b",
+        "anchor",
+        "collide_connected",
+    }
+    ours = {field.name for field in fields(definition)} - base_fields
+    ours_camel = {_camel(field) for field in ours}
+
+    struct = ffi.new(f"b2{name}*")
+    aliases = _DEF_ALIASES.get(name, {})
+    missing = [
+        c_name
+        for c_name in dir(struct)
+        if c_name not in ("base", "internalValue")
+        and c_name not in ours_camel
+        and aliases.get(c_name) not in ours
+    ]
+    assert missing == [], f"{name} cannot set: {missing}"
+
+
+def test_revolute_spring_reaches_the_joint():
+    """Set at creation, not just accepted."""
+    import math
+
+    from box2d import RevoluteJointDef, World
+
+    world = World()
+    ground = world.add_body(position=(0, 0))
+    arm = world.add_body(body_type="dynamic", position=(1, 0))
+    arm.add_box(2, 0.2)
+
+    joint = world.add_joint(
+        RevoluteJointDef(
+            ground,
+            arm,
+            anchor=(0, 0),
+            enable_spring=True,
+            hertz=4.0,
+            damping_ratio=0.5,
+            target_angle=0.25 * math.pi,
+        )
+    )
+
+    assert joint.spring_enabled is True
+    assert joint.spring_hertz == pytest.approx(4.0)
+    assert joint.spring_damping_ratio == pytest.approx(0.5)
+    assert joint.target_angle == pytest.approx(0.25 * math.pi)
+    world.destroy()
+
+
+def test_revolute_spring_pulls_towards_its_target():
+    """The reason the field matters: it holds a limb up against gravity."""
+    from box2d import RevoluteJointDef, World
+
+    def lowest_point(enable_spring):
+        """The deepest the arm ever dips.
+
+        Comparing final positions would not do: without the spring the arm is
+        an undamped pendulum, so where it ends up depends entirely on which
+        step you stop at, and it passes back through horizontal every swing.
+        """
+        world = World()
+        ground = world.add_body(position=(0, 0))
+        arm = world.add_body(body_type="dynamic", position=(1, 0))
+        arm.add_box(2, 0.2)
+        world.add_joint(
+            RevoluteJointDef(
+                ground,
+                arm,
+                anchor=(0, 0),
+                enable_spring=enable_spring,
+                hertz=3.0,
+                damping_ratio=0.8,
+                target_angle=0.0,
+            )
+        )
+        lowest = 0.0
+        for _ in range(240):
+            world.step(1 / 60, 4)
+            lowest = min(lowest, arm.position.y)
+        world.destroy()
+        return lowest
+
+    sprung, free = lowest_point(True), lowest_point(False)
+    assert sprung > -0.3, f"the sprung arm should barely dip, got {sprung:.2f}"
+    assert free < -0.9, f"the free arm should swing right down, got {free:.2f}"
