@@ -468,11 +468,15 @@ class ChainDef:
         if count < 4:
             raise ValueError("Chain must have at least 4 vertices")
 
-        # Validate materials if provided
+        # Validate materials if provided. Box2D wants 1 or exactly one per
+        # point, for loops and open chains alike -- on an open chain the two
+        # ghost segments get placeholder materials. This previously demanded
+        # count + 1 for loops, which Box2D rejects.
         if self.materials is not None and len(self.materials) > 1:
-            if len(self.materials) != (count if not self.is_loop else count + 1):
+            if len(self.materials) != count:
                 raise ValueError(
-                    "Number of materials must match the number of segments"
+                    f"a chain takes 1 material or one per point ({count}), "
+                    f"got {len(self.materials)}"
                 )
 
         super().__post_init__() if hasattr(super(), "__post_init__") else None

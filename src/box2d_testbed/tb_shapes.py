@@ -10,6 +10,7 @@ from .shared import create_random_polygon  # noqa: F401
 from box2d import Vec2, Color
 from box2d.shape import Circle, Capsule, Segment, Polygon
 from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
+from box2d.material import SurfaceMaterial
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
@@ -471,3 +472,68 @@ class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
     def debug_draw(self, debug_draw):
         for body in self.world.bodies:
             debug_draw.draw_transform(body.transform)
+
+
+class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
+    """One chain, three surfaces.
+
+    A chain's material can be changed per segment after it is built, so the
+    same ground can be grippy in one stretch and slippery in the next. Drop
+    boxes onto the ramp and watch where they stop.
+    """
+
+    icy_friction = UI.float(0.0, min=0.0, max=1.0)
+    grippy_friction = UI.float(0.9, min=0.0, max=1.0)
+    drop = UI.button("Drop a box")
+
+    # A downhill run in three stretches, with a ghost point at each end.
+    # Wound right-to-left: a chain collides on one side only, and this is the
+    # order that puts the solid side up.
+    POINTS = [(30, 4), (22, 0), (8, 0), (-6, 2), (-20, 16), (-30, 24)]
+
+    def setup(self):
+        self.ground_body = self.world.new_body().static().build()
+        self.chain = self.ground_body.add_chain(
+            self.POINTS,
+            materials=[SurfaceMaterial(friction=0.9) for _ in self.POINTS],
+        )
+        self.boxes = []
+        self.apply_materials()
+        self.drop_box()
+
+    def apply_materials(self):
+        """The middle stretch is the icy one."""
+        for index in range(len(self.chain.segments)):
+            friction = self.icy_friction if index == 1 else self.grippy_friction
+            self.chain.set_surface_material(SurfaceMaterial(friction=friction), index)
+
+    @icy_friction.callback
+    @grippy_friction.callback
+    def on_friction_change(self, key, value):
+        if hasattr(self, "chain"):
+            self.apply_materials()
+
+    @drop.callback
+    def on_drop(self, key, value):
+        if hasattr(self, "chain"):
+            self.drop_box()
+
+    def drop_box(self):
+        # Above the first *real* segment: the chain's end points are ghosts,
+        # so anything dropped beyond them falls straight past the ground.
+        box = self.world.add_body(body_type="dynamic", position=(-16, 18))
+        box.add_box(1.2, 1.2, friction=0.3)
+        self.boxes.append(box)
+        # Keep the scene from growing without bound as the button is pressed.
+        while len(self.boxes) > 12:
+            self.boxes.pop(0).destroy()
+
+    def debug_draw(self, debug_draw):
+        for index, segment in enumerate(self.chain.segments):
+            label = "icy" if index == 1 else "grippy"
+            midpoint = (Vec2(self.POINTS[index + 1]) + Vec2(self.POINTS[index + 2])) / 2
+            debug_draw.draw_string(
+                midpoint + Vec2(0, 1),
+                f"{label} {segment.friction:.2f}",
+                color=Color.from_b2HexColor(0xFFFFFF),
+            )

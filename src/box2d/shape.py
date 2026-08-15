@@ -181,6 +181,23 @@ class Shape(ABC):
         return ffi.from_handle(world_data)
 
     @property
+    def parent_chain(self) -> "Chain":
+        """The chain this shape is a segment of, or None.
+
+        Only a chain segment has one. A segment created directly on a body
+        rather than through a chain also returns None, because it belongs to
+        no chain even though it is the same shape type.
+        """
+        # A ChainSegment keeps a direct reference to the Chain that built it,
+        # since Box2D has no user data on chains to map an id back. Box2D is
+        # still asked, because it is the authority on whether a parent exists:
+        # a segment attached straight to a body belongs to no chain, and must
+        # not report one.
+        if not lib.b2Chain_IsValid(lib.b2Shape_GetParentChain(self._shape_id)):
+            return None
+        return getattr(self, "_parent_chain", None)
+
+    @property
     def aabb(self) -> AABB:
         """
         Get the current world AABB of this shape.
@@ -797,7 +814,7 @@ class ChainSegment(Shape):
         - chain: The parent Chain object
         """
         self._shape_id = b2chainsegment
-        self.parent_chain = chain
+        self._parent_chain = chain
         super().__init__(chain.body)
         self._set_handle()
 
@@ -813,6 +830,7 @@ class Chain:
 
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
+        self._is_loop = chaindef.is_loop
         cd = chaindef.b2ChainDef
         self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
         segment_count = lib.b2Chain_GetSegmentCount(self._chain_id)
@@ -885,3 +903,76 @@ class Chain:
         if world_data == ffi.NULL:
             raise ValueError("World data is NULL")
         return ffi.from_handle(world_data)
+
+    @property
+    def surface_material_count(self) -> int:
+        """Whether this chain has one shared material or one per segment.
+
+        Reads 1 when a single material covers every segment, otherwise the
+        number of points the chain was built from. Which of the two a chain
+        has is fixed when it is created.
+
+        This is Box2D's raw count and is *not* the number of segments: an open
+        chain of n points has n - 3 segments, because its first and last points
+        are ghost vertices. Index materials by segment through
+        :meth:`get_surface_material` and :meth:`set_surface_material` rather
+        than against this number.
+        """
+        return lib.b2Chain_GetSurfaceMaterialCount(self._chain_id)
+
+    @property
+    def has_per_segment_materials(self) -> bool:
+        """True if each segment carries its own material rather than sharing one."""
+        return self.surface_material_count > 1
+
+    def get_surface_material(self, segment_index: int = 0) -> SurfaceMaterial:
+        """Read the material a segment is actually using.
+
+        Args:
+            segment_index: Index into :attr:`segments`.
+
+        Returns:
+            SurfaceMaterial: A copy, so changing it does not affect the chain.
+
+        Note:
+            This reads the segment rather than the chain's material array.
+            The two disagree on an open chain: Box2D offsets by one when it
+            builds the chain, so ``b2Chain_GetSurfaceMaterial(i)`` returns the
+            material belonging to segment ``i - 1``.
+        """
+        self._check_segment_index(segment_index)
+        return self.segments[segment_index].surface_material
+
+    def set_surface_material(self, material: SurfaceMaterial, segment_index: int = 0):
+        """Change the material on one segment, or on all of them.
+
+        This is how a chain's friction is varied along its length -- an icy
+        patch on otherwise grippy ground -- without rebuilding it.
+
+        Args:
+            material: The material to apply.
+            segment_index: Which segment to change. Ignored on a chain with a
+                single shared material, where every segment changes at once.
+        """
+        self._check_segment_index(segment_index)
+        c_material = material.b2SurfaceMaterial
+        lib.b2Chain_SetSurfaceMaterial(
+            self._chain_id,
+            ffi.addressof(c_material),
+            0 if self.surface_material_count == 1 else segment_index,
+        )
+
+    def _check_segment_index(self, index):
+        """Bound by segments, not by surface_material_count.
+
+        Box2D asserts the setter's index against its material count but then
+        uses it to index the shorter segment array, so on an open chain any
+        index at or past the segment count reads out of bounds -- a segfault
+        in a release build, where the assert is compiled out.
+        """
+        count = len(self.segments)
+        if not 0 <= index < count:
+            raise IndexError(
+                f"segment index {index} out of range; this chain has {count} "
+                f"segment{'s' if count != 1 else ''}"
+            )

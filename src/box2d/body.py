@@ -488,6 +488,15 @@ class Body:
         return self._shapes
 
     @property
+    def chains(self):
+        """Get the chains attached to this body.
+
+        Chains are tracked separately from shapes: a chain is not a Shape, and
+        its segments appear here only through the chain that owns them.
+        """
+        return self._chains
+
+    @property
     def position(self):
         """Get the world position of the body."""
         pos = lib.b2Body_GetPosition(self._body_id)

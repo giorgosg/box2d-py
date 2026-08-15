@@ -336,10 +336,12 @@ def test_shape_multiple_materials(static_body):
     mat1 = SurfaceMaterial(friction=0.1, restitution=0.9)
     mat2 = SurfaceMaterial(friction=0.9, restitution=0.1)
 
+    # One material per point, which for a loop is also one per segment. This
+    # used to pass five for a four-point loop, which Box2D asserts against.
     chain = static_body.add_chain(
         vertices=vertices,
         loop=True,
-        materials=[mat1, mat2, mat1, mat2, mat1],  # One material per segment
+        materials=[mat1, mat2, mat1, mat2],
     )
 
     # Test that segments have different materials
