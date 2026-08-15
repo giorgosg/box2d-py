@@ -116,6 +116,16 @@ def draw_point(p, size, color, context):
     instance.draw_point(py_p, size, Color.from_b2HexColor(color))
 
 
+@ffi.callback("void(b2AABB, b2HexColor, void*)")
+def draw_bounds(aabb, color, context):
+    instance = ffi.from_handle(context)
+    py_aabb = AABB(
+        lower=Vec2(aabb.lowerBound.x, aabb.lowerBound.y),
+        upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
+    )
+    instance.draw_bounds(py_aabb, Color.from_b2HexColor(color))
+
+
 @ffi.callback("void(b2Vec2, const char*, b2HexColor, void*)")
 def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
@@ -204,6 +214,7 @@ class DebugDraw:
         self._debug_draw.DrawSolidCapsuleFcn = draw_solid_capsule
         self._debug_draw.DrawSolidCircleFcn = draw_solid_circle
         self._debug_draw.DrawTransformFcn = draw_transform
+        self._debug_draw.DrawBoundsFcn = draw_bounds
 
         # Store a handle to this Python object for context
         self._context_handle = ffi.new_handle(self)
@@ -296,6 +307,20 @@ class DebugDraw:
             vertices: Polygon vertices in CCW order
             radius: Radius for rounded corners (0 for sharp edges)
             color: Fill color with transparency
+        """
+        pass
+
+    def draw_bounds(self, aabb: "AABB", color: Color):
+        """Callback for drawing a shape's bounding box, enabled by draw_aabbs.
+
+        Box2D 3.2 gave bounds their own callback rather than routing them
+        through draw_polygon. Leaving it unset is silent rather than fatal,
+        because b2DefaultDebugDraw installs a stub -- so the AABB toggle did
+        nothing at all until this was bound.
+
+        Args:
+            aabb: The box, in world coordinates
+            color: Line color
         """
         pass
 

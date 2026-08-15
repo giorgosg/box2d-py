@@ -171,6 +171,18 @@ class GLDebugDraw(DebugDraw):
             transform, vertices, len(vertices), radius, color.hex
         )
 
+    def draw_bounds(self, aabb, color):
+        # Box2D 3.2 routes AABBs here rather than through draw_polygon.
+        lower, upper = aabb.lower, aabb.upper
+        corners = (
+            Vec2(lower.x, lower.y),
+            Vec2(upper.x, lower.y),
+            Vec2(upper.x, upper.y),
+            Vec2(lower.x, upper.y),
+        )
+        for i in range(4):
+            self.lines.add_line(corners[i], corners[(i + 1) % 4], color.hex)
+
     def draw_circle(self, center, radius: float, color):
         # Queue border circle drawing
         self.circles.add_circle(center, radius, color.hex)

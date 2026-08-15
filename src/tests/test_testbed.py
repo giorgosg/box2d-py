@@ -459,3 +459,109 @@ def test_every_scenario_frames_its_moving_parts():
                     lower_y <= view_upper_y and upper_y >= view_lower_y
                 ), f"{category}/{name} opens with its contents off screen"
             world.destroy()
+
+
+# --- debug draw callbacks ---------------------------------------------------
+
+
+def test_every_box2d_draw_callback_is_bound():
+    """An unbound callback is silent, not fatal, so it goes unnoticed.
+
+    b2DefaultDebugDraw installs a stub for each function pointer. Leaving one
+    unassigned therefore does nothing at all rather than crashing, which is
+    how the AABB toggle stayed dead after 3.2 moved bounds off draw_polygon
+    onto their own DrawBoundsFcn.
+    """
+    from box2d._box2d import ffi, lib
+    from box2d import DebugDraw
+
+    draw = DebugDraw()
+    struct_callbacks = {
+        name for name in dir(ffi.new("b2DebugDraw*")) if name.endswith("Fcn")
+    }
+
+    unbound = []
+    for name in struct_callbacks:
+        # A bound callback points at one of this module's trampolines; an
+        # unbound one still points at Box2D's stub, so compare against a
+        # freshly defaulted struct.
+        default = lib.b2DefaultDebugDraw()
+        if getattr(draw._debug_draw, name) == getattr(default, name):
+            unbound.append(name)
+
+    assert unbound == [], f"callbacks still pointing at Box2D's stub: {unbound}"
+
+
+def test_aabb_toggle_actually_produces_bounds():
+    """The toggle was wired to a callback Box2D no longer calls for bounds."""
+    from box2d import DebugDraw, World
+
+    class Recorder(DebugDraw):
+        def __init__(self):
+            super().__init__()
+            self.bounds = []
+
+        def draw_bounds(self, aabb, color):
+            self.bounds.append(aabb)
+
+    world = World()
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1)
+    ball = world.add_body(body_type="dynamic", position=(0, 5))
+    ball.add_circle(radius=0.5)
+    world.step(1 / 60, 4)
+
+    recorder = Recorder()
+    recorder.draw_aabbs = False
+    world.draw(recorder)
+    assert recorder.bounds == [], "bounds should be off by default"
+
+    recorder.draw_aabbs = True
+    world.draw(recorder)
+    assert len(recorder.bounds) == 2, "one box per shape, static and dynamic alike"
+
+    # The dynamic ball's box should surround it, with Box2D's fattening.
+    ball_box = max(recorder.bounds, key=lambda aabb: aabb.lower.y)
+    assert ball_box.lower.x < -0.5 and ball_box.upper.x > 0.5
+    assert ball_box.lower.y < 4.5 and ball_box.upper.y > 5.5
+    world.destroy()
+
+
+def test_dynamic_shapes_reach_the_draw_callbacks():
+    """Every scenario should hand over each of its moving shapes to be drawn."""
+    from box2d import DebugDraw, World
+    from box2d_testbed.base_test import BaseTest
+
+    class Counter(DebugDraw):
+        def __init__(self):
+            super().__init__()
+            self.solids = 0
+
+        def draw_solid_polygon(self, *args):
+            self.solids += 1
+
+        def draw_solid_circle(self, *args):
+            self.solids += 1
+
+        def draw_solid_capsule(self, *args):
+            self.solids += 1
+
+    for category, tests in BaseTest.registry.items():
+        for name, test_cls in tests.items():
+            world = World()
+            test = test_cls(world)
+            test.setup()
+            for _ in range(10):
+                world.step(1 / 60, 4)
+                test.after_step(1 / 60)
+
+            moving_shapes = sum(
+                len(body.shapes) for body in world.bodies if body.type != "static"
+            )
+            counter = Counter()
+            world.draw(counter)
+            assert counter.solids >= moving_shapes, (
+                f"{category}/{name} drew {counter.solids} solid shapes "
+                f"but has {moving_shapes} moving ones"
+            )
+            world.destroy()
