@@ -6,7 +6,7 @@ from .base_test import BaseTest, UI
 from .shared import donut, create_random_polygon, Car  # noqa: F401
 import math
 from box2d import Vec2, World, Body, Transform, Color
-from box2d import DistanceJointDef, RevoluteJointDef, WheelJointDef
+from box2d import DistanceJointDef, RevoluteJointDef, WeldJointDef, WheelJointDef
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
@@ -1035,3 +1035,94 @@ class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
         if hasattr(self, "lift_joint"):
             self.lift_joint.motor_speed = value
             self.lift_joint.wake_bodies()
+
+
+class Cantilever(BaseTest, category="Joints", name="Cantilever"):
+    """Eight capsules welded end to end, anchored at the wall and free at the tip.
+
+    A weld joint is rigid at zero hertz and springy below that, so the sliders
+    turn a solid beam into one that sags and wobbles under its own weight.
+    Linear softness lets the segments pull apart along the beam; angular
+    softness lets them hinge, which is what actually droops the tip.
+
+    The tip height is drawn each frame, since the interesting thing is how far
+    it settles rather than what it looks like mid-swing.
+    """
+
+    camera_center = (0, 0)
+    camera_zoom = 25.0 * 0.35
+
+    linear_hertz = UI.float(15.0, min=0.0, max=20.0, label="Linear hertz")
+    linear_damping = UI.float(0.5, min=0.0, max=10.0, label="Linear damping")
+    angular_hertz = UI.float(5.0, min=0.0, max=20.0, label="Angular hertz")
+    angular_damping = UI.float(0.5, min=0.0, max=4.0, label="Angular damping")
+    collide_connected = UI.bool(False, label="Collide connected")
+
+    COUNT = 8
+
+    def setup(self):
+        ground = self.world.new_body().static().build()
+
+        half_length = 0.5
+        self.joints = []
+        previous = ground
+
+        for i in range(self.COUNT):
+            segment = (
+                self.world.new_body()
+                .dynamic()
+                .position((1.0 + 2.0 * i) * half_length, 0.0)
+                .capsule(
+                    (-half_length, 0), (half_length, 0), radius=0.125, density=20.0
+                )
+                .build()
+            )
+
+            # The pivot sits where the two capsules meet, expressed in each
+            # body's own frame.
+            pivot = ((2.0 * i) * half_length, 0.0)
+            joint = self.world.add_joint(
+                WeldJointDef(
+                    previous,
+                    segment,
+                    local_anchor_a=previous.get_local_point(pivot),
+                    local_anchor_b=segment.get_local_point(pivot),
+                    linear_hertz=self.linear_hertz,
+                    linear_damping_ratio=self.linear_damping,
+                    angular_hertz=self.angular_hertz,
+                    angular_damping_ratio=self.angular_damping,
+                    collide_connected=self.collide_connected,
+                )
+            )
+            joint.constraint_tuning = (120.0, 10.0)
+            self.joints.append(joint)
+            previous = segment
+
+        self.tip = previous
+
+    @linear_hertz.callback
+    @linear_damping.callback
+    @angular_hertz.callback
+    @angular_damping.callback
+    def on_softness_change(self, key, value):
+        for joint in getattr(self, "joints", []):
+            joint.linear_hertz = self.linear_hertz
+            joint.linear_damping_ratio = self.linear_damping
+            joint.angular_hertz = self.angular_hertz
+            joint.angular_damping_ratio = self.angular_damping
+            joint.wake_bodies()
+
+    @collide_connected.callback
+    def on_collide_change(self, key, value):
+        # Not settable after creation in a useful way, so rebuild.
+        if hasattr(self, "joints"):
+            for body in list(self.world.bodies):
+                body.destroy()
+            self.setup()
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            self.tip.position + (1, 1),
+            f"tip y = {self.tip.position.y:.2f}",
+            color=Color(255, 255, 255, 255),
+        )
