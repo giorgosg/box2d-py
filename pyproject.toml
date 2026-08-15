@@ -33,6 +33,7 @@ testbed = [
 ]
 dev = [
     "black",
+    "setuptools>=75.8.0",
     "pre-commit",
     "pytest",
     "sphinx",

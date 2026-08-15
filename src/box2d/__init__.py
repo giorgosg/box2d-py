@@ -1,4 +1,4 @@
-from .world import World
+from .world import World, HAS_THREADS
 from .math import Vec2, Rot, Transform, AABB, Mat22, ScaledTransform
 from .body import Body, BodyBuilder
 from .dataclasses import BodyType

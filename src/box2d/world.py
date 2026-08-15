@@ -4,6 +4,10 @@ import math
 import traceback
 
 from ._box2d import lib, ffi
+
+#: Whether this build carries the enkiTS task scheduler. A build made without
+#: it runs Box2D single threaded, which is every target that has no threads.
+HAS_THREADS = hasattr(lib, "setup_threadpool")
 from .body import BodyBuilder, Body
 from .joint import (
     FilterJoint,
@@ -148,6 +152,13 @@ class World:
         world_def.gravity.x, world_def.gravity.y = gravity
         self._threads = threads
         if threads > 1:
+            if not HAS_THREADS:
+                raise RuntimeError(
+                    f"this build has no task scheduler, so threads={threads} "
+                    f"cannot be honoured; use threads=1. Builds without "
+                    f"threads are made for targets that have none, such as "
+                    f"WebAssembly."
+                )
             # Use the C-level task scheduler
             lib.setup_threadpool(threads)
             self._use_c_scheduler = True

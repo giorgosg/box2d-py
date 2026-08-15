@@ -4,7 +4,7 @@ import faulthandler
 faulthandler.enable()
 import pytest
 import box2d
-from box2d import World, AABB
+from box2d import World, AABB, HAS_THREADS
 import box2d.world as world
 import doctest
 from box2d._box2d import lib
@@ -443,6 +443,7 @@ def test_query_circle_combined_filter():
     w.destroy()
 
 
+@pytest.mark.skipif(not HAS_THREADS, reason="built without the task scheduler")
 def test_world_threads():
     w = World(gravity=(0, -10), threads=4)
     bb = w.new_body().box(0.2, 0.2)
@@ -450,3 +451,26 @@ def test_world_threads():
 
     for _ in range(60):
         w.step(1 / 60)
+
+
+def test_threads_are_refused_when_the_build_has_none():
+    """A build without enkiTS cannot honour threads, and says so.
+
+    WebAssembly has no thread pool to give, so the extension is built without
+    the scheduler there. Asking for threads anyway used to reach a
+    lib.setup_threadpool that is simply absent, which is an AttributeError
+    from inside the constructor rather than an explanation.
+    """
+    if HAS_THREADS:
+        world = World(threads=4)
+        assert world.worker_count == 4
+        world.destroy()
+        return
+
+    with pytest.raises(RuntimeError, match="no task scheduler"):
+        World(threads=4)
+
+    # One thread is always fine, whatever the build.
+    world = World(threads=1)
+    assert world.worker_count == 1
+    world.destroy()

@@ -14,6 +14,12 @@ BOX2D_BUILD_DIR = os.path.join(BOX2D_DIR, "build")
 ENKITS_BUILD_DIR = os.path.join(ENKITS_DIR, "build")
 TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
 
+# Threads are optional at build time. enkiTS needs a real thread pool, which
+# rules it out on targets that have none -- WebAssembly without
+# SharedArrayBuffer being the one that prompted this. Box2D itself is happy
+# single threaded; only World(threads=N>1) needs the scheduler.
+WITH_THREADS = os.environ.get("BOX2D_PY_NO_THREADS", "") == ""
+
 
 def ensure_temp_dir():
     """Ensure the temporary directory exists."""
@@ -30,10 +36,11 @@ def build_dependencies():
         shutil.rmtree(BOX2D_BUILD_DIR)
     os.makedirs(BOX2D_BUILD_DIR, exist_ok=True)
 
-    if os.path.exists(ENKITS_BUILD_DIR):
-        print(f"Removing existing build directory: {ENKITS_BUILD_DIR}")
-        shutil.rmtree(ENKITS_BUILD_DIR)
-    os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
+    if WITH_THREADS:
+        if os.path.exists(ENKITS_BUILD_DIR):
+            print(f"Removing existing build directory: {ENKITS_BUILD_DIR}")
+            shutil.rmtree(ENKITS_BUILD_DIR)
+        os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
 
     # Build Box2D
     print("Building Box2D...")
@@ -66,6 +73,10 @@ def build_dependencies():
     subprocess.run(
         ["cmake", "--build", BOX2D_BUILD_DIR, "--config", "Release"], check=True
     )
+
+    if not WITH_THREADS:
+        print("Skipping enkiTS: building without thread support")
+        return
 
     # Build enkiTS
     print("Building enkiTS...")
@@ -179,9 +190,10 @@ def process_headers():
 
         combined_header += filetext + "\n"
 
-    # Add task scheduler definitions
-    with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as f:
-        combined_header += f.read()
+    # Add task scheduler definitions, when there is a scheduler to declare.
+    if WITH_THREADS:
+        with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as f:
+            combined_header += f.read()
 
     return combined_header
 
@@ -214,6 +226,16 @@ def compile_task_scheduler():
 def get_platform_specific_config():
     """Get platform-specific build configuration."""
     import platform
+
+    if not WITH_THREADS:
+        # Box2D alone. No enkiTS, and no C++ runtime, since enkiTS was the
+        # only C++ in the build.
+        return {
+            "libraries": ["box2d"],
+            "extra_compile_args": [],
+            "extra_link_args": [],
+            "library_dirs": [os.path.join(BOX2D_BUILD_DIR, "src")],
+        }
 
     if platform.system() == "Windows":
         return {
@@ -248,17 +270,19 @@ def create_ffibuilder():
     ffibuilder.cdef(process_headers())
 
     # Compile the task_scheduler.c and get the object file
-    task_scheduler_obj = compile_task_scheduler()
+    task_scheduler_obj = compile_task_scheduler() if WITH_THREADS else None
 
     # Configure CFFI builder
     platform_config = get_platform_specific_config()
-    ffibuilder.set_source(
-        "box2d._box2d",
-        """
-        #include "box2d/box2d.h"
+    source = '#include "box2d/box2d.h"'
+    if WITH_THREADS:
+        source += """
         #include "TaskScheduler_c.h"
         #include "tasks/task_scheduler.h"
-        """,
+        """
+    ffibuilder.set_source(
+        "box2d._box2d",
+        source,
         include_dirs=[
             os.path.join(BOX2D_DIR, "include"),
             os.path.join(BOX2D_DIR, "src"),
@@ -268,7 +292,7 @@ def create_ffibuilder():
         ],
         library_dirs=platform_config["library_dirs"],  # Use platform-specific paths
         libraries=platform_config["libraries"],
-        extra_objects=[task_scheduler_obj],
+        extra_objects=[task_scheduler_obj] if task_scheduler_obj else [],
         extra_compile_args=platform_config["extra_compile_args"],
         extra_link_args=platform_config["extra_link_args"],
     )
