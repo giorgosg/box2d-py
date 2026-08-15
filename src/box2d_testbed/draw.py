@@ -43,6 +43,7 @@ from OpenGL.GL import (
 )
 import ctypes
 import os
+import time
 
 from box2d.math import Vec2
 from .shader import create_program_from_files, create_program_from_strings
@@ -129,12 +130,12 @@ class GLBackground:
         """Draw the background"""
         glUseProgram(self.program_id)
 
-        # Update uniforms
-        import glfw
+        # Update uniforms. The clock only feeds an animated background, so
+        # the standard library does; glfw was the only thing pulling that
+        # dependency in, and it tied the renderer to one platform backend.
+        elapsed = time.perf_counter() % 100.0
 
-        time = glfw.get_time() % 100.0
-
-        glUniform1f(self.time_uniform, time)
+        glUniform1f(self.time_uniform, elapsed)
         # Use camera instance for resolution
         glUniform2f(
             self.resolution_uniform, float(self.camera.width), float(self.camera.height)
