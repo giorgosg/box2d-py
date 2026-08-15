@@ -294,3 +294,100 @@ def test_a_stiff_figure_folds_less_than_a_limp_one(world):
     # A stiff figure keeps its head further from its feet: it stays extended
     # rather than crumpling into a pile.
     assert spread_after_landing(1.0) > spread_after_landing(0.0)
+
+
+# --- resizing ----------------------------------------------------------------
+
+
+def test_set_scale_resizes_every_measurement(world):
+    human = Human(world, (0, 5), scale=1.0)
+    head_radius = human.head.shapes[0].geometry.radius
+
+    human.set_scale(3.0)
+
+    assert human.scale == 3.0
+    assert human.head.shapes[0].geometry.radius == pytest.approx(head_radius * 3.0)
+    for definition, bone in zip(BONES, human.bones):
+        offset = bone.body.position.y - human.hip.position.y
+        expected = (definition.y - BONES[0].y) * 3.0
+        assert offset == pytest.approx(expected, abs=1e-3)
+
+
+def test_set_scale_keeps_the_hip_where_it_was(world):
+    human = Human(world, (0, 5), scale=1.0)
+    hip_before = human.hip.position
+
+    human.set_scale(4.0)
+
+    assert human.hip.position.x == pytest.approx(hip_before.x)
+    assert human.hip.position.y == pytest.approx(hip_before.y)
+
+
+def test_set_scale_updates_mass(world):
+    """Shapes changed size, so the mass has to be recomputed from them."""
+    human = Human(world, (0, 5), scale=1.0)
+    mass = human.head.mass
+
+    human.set_scale(2.0)
+
+    # Mass goes with area in two dimensions, so doubling the size quadruples it.
+    assert human.head.mass == pytest.approx(4.0 * mass, rel=0.05)
+
+
+def test_set_scale_grows_friction_by_the_cube(world):
+    human = Human(world, (0, 5), scale=1.0, friction_torque=1.0)
+    torque = human.bone("head").joint.max_motor_torque
+
+    human.set_scale(3.0)
+
+    assert human.bone("head").joint.max_motor_torque == pytest.approx(27.0 * torque)
+
+
+def test_set_scale_is_measured_from_the_original(world):
+    """Scaling twice must not compound: 2 then 4 is 4, not 8."""
+    human = Human(world, (0, 5), scale=1.0, friction_torque=1.0)
+    human.set_scale(2.0)
+    human.set_scale(4.0)
+
+    assert human.scale == 4.0
+    assert human.bone("head").joint.max_motor_torque == pytest.approx(
+        64.0 * 0.25, rel=1e-3
+    )
+
+
+def test_a_too_small_scale_is_refused(world):
+    """The feet are a hull, and below about half size Box2D cannot build one."""
+    human = Human(world, (0, 5), scale=1.0)
+
+    with pytest.raises(ValueError, match="minimum polygon size"):
+        human.set_scale(0.2)
+
+
+def test_a_refused_scale_changes_nothing(world):
+    """It is checked up front, so a figure is never left half resized."""
+    human = Human(world, (0, 5), scale=1.0)
+    before = [bone.body.position.y for bone in human.bones]
+
+    with pytest.raises(ValueError):
+        human.set_scale(0.2)
+
+    assert [bone.body.position.y for bone in human.bones] == before
+    assert human.scale == 1.0
+
+
+def test_a_negative_scale_is_refused(world):
+    human = Human(world, (0, 5))
+    with pytest.raises(ValueError, match="must be positive"):
+        human.set_scale(-1.0)
+
+
+def test_a_resized_figure_still_simulates(world):
+    """The joints must survive being rebuilt underneath the figure."""
+    human = Human(world, (0, 8), scale=1.0)
+    human.set_scale(5.0)
+
+    for _ in range(300):
+        world.step(1 / 60, 4)
+
+    assert all(joint.is_valid for joint in human.joints)
+    assert all(abs(bone.body.position.x) < 50 for bone in human.bones)

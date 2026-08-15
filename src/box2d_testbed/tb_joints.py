@@ -1196,3 +1196,44 @@ class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
     def on_damping_change(self, key, value):
         if getattr(self, "human", None) is not None:
             self.human.set_joint_damping_ratio(value)
+
+
+class ScaleRagdoll(BaseTest, category="Joints", name="Scale Ragdoll"):
+    """One ragdoll, resized live.
+
+    Dragging the slider rewrites every bone's shape and every joint frame in
+    place, keeping the pose. It is a test of whether a jointed thing survives
+    being rebuilt underneath itself, which is why the figure is left lying on
+    the ground rather than dropped: you want to watch the joints hold.
+
+    Joint friction grows with the cube of the size, not in step with it, so a
+    larger figure is proportionally as floppy rather than turning rigid.
+    """
+
+    camera_center = (0, 4.5)
+    camera_zoom = 6.0
+
+    # The lower bound is not the C++ sample's 0.1: below about half size the
+    # feet fall under Box2D's minimum polygon feature size and cannot be built.
+    scale = UI.float(1.0, min=0.5, max=10.0)
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.box(40, 2, offset=(0, -1))
+        ground.build()
+
+        self.human = Human(
+            self.world,
+            (0, 5),
+            scale=self.scale,
+            friction_torque=0.03,
+            hertz=1.0,
+            damping_ratio=0.5,
+            colorize=False,
+        )
+        self.human.apply_random_angular_impulse(0.1)
+
+    @scale.callback
+    def on_scale_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_scale(value)

@@ -4,6 +4,9 @@ import random
 
 
 from .base_test import BaseTest, UI
+from .human import Human
+import math
+from box2d import Vec2, Color
 
 
 class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
@@ -196,3 +199,67 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
 
     def debug_draw(self, debug_draw):
         debug_draw.draw_string((-7, 19), "left and right arrows work the flippers")
+
+
+class BounceHumans(BaseTest, category="Continuous", name="Bounce Humans"):
+    """Ragdolls in a bouncy box, under gravity that swings around.
+
+    Every wall has a restitution above one and the middle post has two, so
+    nothing loses energy -- figures gain it on each bounce until the box is
+    chaos. Continuous collision is what keeps them inside it at those speeds.
+
+    Gravity rotates rather than pointing down, tracing the white line from the
+    centre, so the pile never settles.
+    """
+
+    camera_center = (0, 0)
+    camera_zoom = 12.0
+
+    SPAWN_INTERVAL = 2.0
+    MAX_HUMANS = 5
+
+    def setup(self):
+        walls = self.world.new_body().static()
+        corners = [(-10, -10), (10, -10), (10, 10), (-10, 10)]
+        for start, end in zip(corners, corners[1:] + corners[:1]):
+            walls.segment(start, end, restitution=1.3, friction=0.1)
+        # The post is livelier than the walls, so a figure that finds it is
+        # thrown back harder than it arrived.
+        walls.circle(2.0, center=(0, 0), restitution=2.0, friction=0.1)
+        self.walls = walls.build()
+
+        self.humans = []
+        self.time = 0.0
+        self.countdown = 0.0
+
+    def after_step(self, dt):
+        if len(self.humans) < self.MAX_HUMANS and self.countdown <= 0.0:
+            self.humans.append(
+                Human(
+                    self.world,
+                    (0, 5),
+                    scale=1.0,
+                    # Limp, with a weak spring: they should flail rather than
+                    # hold a shape as they are thrown about.
+                    friction_torque=0.0,
+                    hertz=1.0,
+                    damping_ratio=0.1,
+                    group_index=len(self.humans) + 1,
+                )
+            )
+            self.countdown = self.SPAWN_INTERVAL
+
+        self.time += dt
+        self.countdown -= dt
+        self.world.gravity = self.gravity_direction() * 10.0
+
+    def gravity_direction(self):
+        """A slow Lissajous figure, so the pull never repeats for a while."""
+        return Vec2(math.sin(0.5 * self.time), math.cos(self.time))
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_segment(
+            (0, 0),
+            self.gravity_direction() * 3.0,
+            color=Color(255, 255, 255, 255),
+        )

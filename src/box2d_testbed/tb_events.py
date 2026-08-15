@@ -1,5 +1,9 @@
 from box2d import Vec2, CollisionFilter, Color
 from .base_test import BaseTest, UI
+from .human import Human
+from .shared import donut
+from box2d.material import SurfaceMaterial
+from box2d import RevoluteJointDef
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
@@ -313,4 +317,165 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         debug_draw.draw_string(
             (-11, 11),
             f"arrows to move, space to jump   contacts dropped: {self.dropped}",
+        )
+
+
+class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
+    """Ragdolls dropped through a funnel of spinning paddles, deleted at the bottom.
+
+    A sensor across the outlet reports what reaches it, and each figure is
+    removed when it does -- which is the point: the sensor is what tells you
+    something arrived, without a collision response that would stop it.
+
+    Destruction is deferred to the end of the step. A figure has eleven bodies
+    and any of them can trip the sensor, so acting on the first event would
+    destroy the rest while their events are still being read.
+    """
+
+    camera_center = (0, 0)
+    camera_zoom = 25.0 * 1.333
+
+    shape = UI.select("human", ["human", "donut"])
+
+    MAX_ELEMENTS = 32
+    SPAWN_INTERVAL = 0.5
+
+    # The funnel, as a closed chain: three ledges either side above a narrow
+    # outlet, taken from the C++ sample.
+    FUNNEL = [
+        (-16.867, 31.089),
+        (16.867, 31.089),
+        (16.867, 17.198),
+        (8.268, 11.906),
+        (16.867, 11.906),
+        (16.867, -0.661),
+        (8.268, -5.953),
+        (16.867, -5.953),
+        (16.867, -13.229),
+        (3.638, -23.151),
+        (3.638, -31.089),
+        (-3.638, -31.089),
+        (-3.638, -23.151),
+        (-16.867, -13.229),
+        (-16.867, -5.953),
+        (-8.268, -5.953),
+        (-16.867, -0.661),
+        (-16.867, 11.906),
+        (-8.268, 11.906),
+        (-16.867, 17.198),
+    ]
+
+    def setup(self):
+        ground = self.world.add_body(position=(0, 0))
+        ground.add_chain(
+            self.FUNNEL, loop=True, materials=[SurfaceMaterial(friction=0.2)]
+        )
+
+        # Three paddles, turning opposite ways, to knock things about on the
+        # way down rather than letting them drop straight through.
+        sign = 1.0
+        for level in range(3):
+            y = 14.0 - level * 14.0
+            paddle = self.world.add_body(body_type="dynamic", position=(0, y))
+            paddle.add_box(12, 1, friction=0.1, restitution=1.0)
+            self.world.add_joint(
+                RevoluteJointDef(
+                    ground,
+                    paddle,
+                    local_anchor_a=(0, y),
+                    local_anchor_b=(0, 0),
+                    enable_motor=True,
+                    motor_speed=2.0 * sign,
+                    max_motor_torque=200.0,
+                )
+            )
+            sign = -sign
+
+        self.sensor = ground.add_box(
+            8, 2, offset=(0, -30.5), is_sensor=True, enable_sensor_events=True
+        )
+
+        self.elements = []
+        self.side = -15.0
+        self.wait = 0.0
+        self.delivered = 0
+        self.spawn()
+
+    def spawn(self):
+        if len(self.elements) >= self.MAX_ELEMENTS:
+            return
+        position = (self.side, 29.5)
+
+        if self.shape == "human":
+            element = Human(
+                self.world,
+                position,
+                scale=2.0,
+                friction_torque=0.05,
+                hertz=6.0,
+                damping_ratio=0.5,
+                group_index=len(self.elements) + 1,
+            )
+            element.enable_sensor_events(True)
+            bodies = [bone.body for bone in element.bones]
+        else:
+            bodies, _ = donut(self.world, position, radius=0.75)
+            for body in bodies:
+                for shape in body.shapes:
+                    shape.enable_sensor_events = True
+            element = bodies
+
+        # Every body points back at what it belongs to, so a sensor event on
+        # any one of them identifies the whole thing.
+        for body in bodies:
+            body.user_data = element
+
+        self.elements.append(element)
+        self.side = -self.side
+
+    def clear(self):
+        for element in self.elements:
+            self.remove(element)
+        self.elements = []
+
+    def remove(self, element):
+        if isinstance(element, Human):
+            element.destroy()
+        else:
+            for body in element:
+                if body.is_valid:
+                    body.destroy()
+
+    @shape.callback
+    def on_shape_change(self, key, value):
+        if hasattr(self, "elements"):
+            self.clear()
+            self.spawn()
+
+    def after_step(self, dt):
+        self.wait -= dt
+        if self.wait <= 0.0:
+            self.spawn()
+            self.wait = self.SPAWN_INTERVAL
+
+        # Collect first, destroy after: one figure trips the sensor with
+        # several bodies, and destroying it mid-loop would invalidate the
+        # shapes the remaining events still refer to.
+        arrived = []
+        for event in self.world.get_sensor_events().begin:
+            element = event.visitor.body.user_data
+            if element is not None and element not in arrived:
+                arrived.append(element)
+
+        for element in arrived:
+            if element in self.elements:
+                self.elements.remove(element)
+                self.remove(element)
+                self.delivered += 1
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            (-15, 33),
+            f"in the funnel: {len(self.elements)}   delivered: {self.delivered}",
+            color=Color(255, 255, 255, 255),
         )

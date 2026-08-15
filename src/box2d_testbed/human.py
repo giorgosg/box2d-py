@@ -11,9 +11,8 @@ Ported from Box2D's ``shared/human.c``. The C version writes each bone out in
 full, eleven times over; here the measurements are a table and one loop builds
 them, since the bones differ only in their numbers.
 
-Not ported: ``Human_SetScale``, which resizes a spawned figure by rewriting
-every shape and joint frame. Nothing needs it yet, and it is a fair amount of
-machinery to leave untested.
+``set_scale`` resizes a figure in place, rewriting every shape and joint
+frame, which is what the Scale Ragdoll scenario drags its slider on.
 """
 
 import math
@@ -22,6 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from box2d import CollisionFilter, RevoluteJointDef, Vec2
+from box2d.shapedef import CapsuleDef, PolygonDef
 
 if TYPE_CHECKING:  # only for the annotations below
     from box2d import Body, RevoluteJoint
@@ -265,6 +265,8 @@ class Human:
         """
         self.world = world
         self.scale = scale
+        #: The size the figure was built at, which set_scale measures from.
+        self.original_scale = scale
         self.friction_torque = friction_torque
         self.bones: List[Bone] = []
         self._by_name = {}
@@ -422,6 +424,88 @@ class Human:
         for bone in self.bones:
             if bone.joint is not None:
                 bone.joint.spring_damping_ratio = damping_ratio
+
+    def set_scale(self, scale: float):
+        """Resize the figure in place, keeping its pose.
+
+        Everything moves relative to the hip: the other bones' positions, the
+        joint frames between them, and the shapes themselves. The hip stays
+        put, so a figure grows about its middle rather than drifting.
+
+        Joint friction is scaled by the cube of the size change rather than
+        matching it. Torque would go with the fourth power of length from mass
+        and leverage alone, but gravity pulls harder on the heavier figure
+        too, and the cube is what Box2D's own helper settles on.
+
+        Args:
+            scale: The new size. Must be positive.
+
+        Raises:
+            ValueError: If the scale is not positive.
+        """
+        if scale <= 0.0:
+            raise ValueError(f"scale must be positive, got {scale}")
+
+        # Checked before anything moves. The foot is a hull, and below roughly
+        # half size its features fall under Box2D's minimum and the hull
+        # cannot be built -- which would otherwise leave the figure partly
+        # resized, with the bones that were reached the new size and the rest
+        # the old one.
+        self._check_scale_is_buildable(scale)
+
+        ratio = scale / self.scale
+        original_ratio = scale / self.original_scale
+        friction_torque = (original_ratio**3) * self.friction_torque
+        origin = self.hip.position
+
+        for index, bone in enumerate(self.bones):
+            if index > 0:
+                # Setting position keeps the body's rotation, which is what
+                # preserves the pose while the figure resizes around the hip.
+                offset = (bone.body.position - origin) * ratio
+                bone.body.position = origin + offset
+
+                bone.joint.local_anchor_a = bone.joint.local_anchor_a * ratio
+                bone.joint.local_anchor_b = bone.joint.local_anchor_b * ratio
+                bone.joint.max_motor_torque = bone.friction_scale * friction_torque
+
+            for shape in bone.body.shapes:
+                geometry = shape.geometry
+                if isinstance(geometry, CapsuleDef):
+                    shape.geometry = CapsuleDef(
+                        vertex1=Vec2(geometry.vertex1) * ratio,
+                        vertex2=Vec2(geometry.vertex2) * ratio,
+                        radius=geometry.radius * ratio,
+                    )
+                elif isinstance(geometry, PolygonDef):
+                    shape.geometry = PolygonDef(
+                        vertices=[Vec2(point) * ratio for point in geometry.vertices],
+                        radius=geometry.radius * ratio,
+                    )
+
+            # The shapes changed size, so the body's mass has to be recomputed
+            # from them or it keeps the old figure's inertia.
+            bone.body.apply_mass_from_shapes()
+
+        self.scale = scale
+
+    def _check_scale_is_buildable(self, scale: float):
+        """Raise if the foot would be too small to form a hull at this scale.
+
+        Tried rather than calculated: the limit is Box2D's, and asking it is
+        more honest than hard-coding a number that its next version changes.
+        """
+        try:
+            PolygonDef(
+                vertices=[Vec2(point) * scale for point in FOOT_POINTS],
+                radius=FOOT_RADIUS * scale,
+            ).b2Polygon
+        except ValueError as error:
+            raise ValueError(
+                f"a figure cannot be built at scale {scale}: its feet fall below "
+                f"Box2D's minimum polygon size. Roughly 0.5 is the smallest that "
+                f"works."
+            ) from error
 
     def enable_sensor_events(self, enable: bool = True):
         """Let sensors detect this figure's bones."""

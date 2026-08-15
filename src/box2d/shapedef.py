@@ -124,7 +124,14 @@ class ShapeDef:
             shape_def.filter.maskBits = filter.maskBits
             shape_def.filter.groupIndex = filter.groupIndex
 
-        shape_def.material.customColor = self.custom_color
+        # None means "no custom colour", which is what the material branch
+        # above already assumes; assigning it straight through raised instead.
+        if self.custom_color is not None:
+            shape_def.material.customColor = (
+                self.custom_color.b2HexColor
+                if isinstance(self.custom_color, Color)
+                else self.custom_color
+            )
         shape_def.enableCustomFiltering = self.enable_custom_filtering
         shape_def.isSensor = self.is_sensor
         shape_def.enableSensorEvents = self.enable_sensor_events
