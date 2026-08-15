@@ -12,6 +12,7 @@ drawing APIs, never GL, so they run headless. Only the window, input and
 GL-backed renderer need a display, and none of those are exercised here.
 """
 
+import importlib.util
 import os
 import pathlib
 import re
@@ -33,6 +34,15 @@ from box2d_testbed import (  # noqa: F401
     tb_continuous,
 )
 from box2d_testbed.base_test import BaseTest
+
+#: These few reach into imgui or PyOpenGL; the rest of this module is
+#: scenarios, which need neither. Skipped rather than failed when the testbed
+#: extra is not installed, which is how CI and a plain dev install arrive.
+needs_gui_stack = pytest.mark.skipif(
+    importlib.util.find_spec("imgui_bundle") is None
+    or importlib.util.find_spec("OpenGL") is None,
+    reason="needs the testbed extra",
+)
 
 
 @pytest.fixture
@@ -175,6 +185,7 @@ def test_drag_can_be_repeated(world):
 # --- app wiring that needs no GL context ------------------------------------
 
 
+@needs_gui_stack
 def test_layout_is_well_formed():
     """The docking layout is pure data, so it can be built without a window."""
     from box2d_testbed.testbed import TestbedApp
@@ -574,6 +585,7 @@ def test_dynamic_shapes_reach_the_draw_callbacks():
 # --- shader loading ---------------------------------------------------------
 
 
+@needs_gui_stack
 def test_draw_module_keeps_its_own_file_attribute():
     """A module's __file__ must be its own.
 
@@ -590,6 +602,7 @@ def test_draw_module_keeps_its_own_file_attribute():
     ), f"draw.__file__ is {draw.__file__}, not its own path"
 
 
+@needs_gui_stack
 def test_every_shader_the_testbed_loads_exists():
     """The paths are built at runtime, so a missing file fails only on launch."""
     from box2d_testbed import draw
@@ -705,6 +718,7 @@ def test_scenario_survives_being_drawn(category, name):
     assert renderer.calls > 0, "nothing was drawn at all"
 
 
+@needs_gui_stack
 def test_the_gl_renderer_accepts_plain_tuples():
     """Scenario code writes (x, y); the GL batchers read .x and .y.
 
@@ -758,6 +772,7 @@ def test_the_gl_renderer_accepts_plain_tuples():
     assert renderer.lines.received[-1] == [(1.0, 1.0), (2.0, 2.0)]
 
 
+@needs_gui_stack
 def test_our_menus_do_not_collide_with_hello_imgui_s():
     """hello_imgui adds its own menus, and a repeated name shows up twice.
 

@@ -14,6 +14,11 @@ import os
 
 import pytest
 
+# These run the app itself, on hello_imgui's null backends. Without the GUI
+# stack there is nothing to run, so they skip rather than error -- CI and a
+# plain `pip install -e .[dev]` both lack it.
+pytest.importorskip("imgui_bundle", reason="needs the testbed extra")
+
 
 def run_headless(frame_count, on_frame=None, renderer="imgui"):
     """Run the testbed on null backends for a set number of frames.
@@ -367,14 +372,23 @@ def test_the_testbed_imports_without_pyopengl():
         """
         import sys
 
-        # Nothing may import PyOpenGL during this.
+        # Nothing may import PyOpenGL during this. find_spec, not find_module:
+        # the latter was removed in Python 3.12, so a finder defining only it
+        # is ignored -- this test blocked nothing at all until now.
         class Blocked:
-            def find_module(self, name, path=None):
+            def find_spec(self, name, path=None, target=None):
                 if name == "OpenGL" or name.startswith("OpenGL."):
                     raise ImportError(f"{name} is not available here")
                 return None
 
         sys.meta_path.insert(0, Blocked())
+
+        assert __import__("importlib").util.find_spec is not None
+        try:
+            import OpenGL  # noqa: F401
+            raise AssertionError("the block did not work, so this proves nothing")
+        except ImportError:
+            pass
 
         import box2d_testbed
         import box2d_testbed.testbed

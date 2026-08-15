@@ -30,5 +30,13 @@ jobs:
       - name: Install package with dev extras
         run: pip install -e ".[dev]"
 
+      # The matrix exists to check the compiled binding on each platform. The
+      # testbed is pure Python on top of imgui, so it is worth testing once
+      # rather than six times -- and its tests skip cleanly without this,
+      # which is how the other five jobs run.
+      - name: Install the testbed extra (one platform)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: pip install -e ".[dev,testbed]"
+
       - name: Run tests
         run: pytest

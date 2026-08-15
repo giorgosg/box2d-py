@@ -23,6 +23,19 @@ else:
     ):
         os.environ["PYOPENGL_PLATFORM"] = "x11"
 
-from .testbed import main  # noqa: E402
-
 __all__ = ["main"]
+
+
+def __getattr__(name):
+    """Import the app only when it is actually asked for.
+
+    Importing it here pulled in imgui_bundle, so anything under this package
+    needed the whole GUI stack installed -- including the scenarios and the
+    human figure, which need neither. CI installs only the dev extra, so
+    every testbed test failed to collect rather than running.
+    """
+    if name == "main":
+        from .testbed import main
+
+        return main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
