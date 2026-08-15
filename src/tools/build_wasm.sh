@@ -54,5 +54,11 @@ echo "==> Running the suite inside WebAssembly"
     --ignore=src/tests/test_human.py \
     --ignore=src/tests/test_build_config.py
 
+echo "==> Running the testbed's Python inside WebAssembly"
+# imgui_bundle is in Pyodide's own index but its glfw dependency is not, and
+# munch is a pure-Python dependency pip will not resolve without it.
+"$VENV/bin/pip" install --quiet --no-deps imgui_bundle munch
+"$VENV/bin/python" src/tools/wasm_testbed_check.py
+
 echo
 echo "==> $WHEEL is good"

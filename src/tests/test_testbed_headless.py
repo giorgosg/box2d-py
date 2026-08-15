@@ -349,3 +349,45 @@ def test_a_rounded_shape_is_drawn_once_not_layered():
 
     assert recorder.fills == 1, "a rounded shape should be filled exactly once"
     assert recorder.polylines == 1, "and outlined once, with no thick stroke pass"
+
+
+def test_the_testbed_imports_without_pyopengl():
+    """A browser has no PyOpenGL, and the imgui renderer does not need one.
+
+    The package used to import OpenGL at module scope, to set ERROR_CHECKING
+    before anything pulled in OpenGL.GL. Sound reasoning, but it made the
+    whole package unimportable where there is no PyOpenGL, however lazy
+    everything downstream was.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    program = textwrap.dedent(
+        """
+        import sys
+
+        # Nothing may import PyOpenGL during this.
+        class Blocked:
+            def find_module(self, name, path=None):
+                if name == "OpenGL" or name.startswith("OpenGL."):
+                    raise ImportError(f"{name} is not available here")
+                return None
+
+        sys.meta_path.insert(0, Blocked())
+
+        import box2d_testbed
+        import box2d_testbed.testbed
+        from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw
+        from box2d_testbed.camera import Camera
+
+        assert box2d_testbed.testbed.TestbedApp.debug_draw_class is not None
+        print("OK")
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True
+    )
+    assert (
+        "OK" in result.stdout
+    ), f"the testbed cannot be imported without PyOpenGL:\n{result.stderr[-1500:]}"

@@ -22,7 +22,7 @@ from imgui_bundle import imgui
 from box2d import AABB, Vec2
 from box2d.debug_draw import Color, DebugDraw
 
-from .debug_draw_gl import Camera
+from .camera import Camera
 from .testbed_state import state
 
 

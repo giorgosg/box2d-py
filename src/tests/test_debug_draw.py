@@ -202,3 +202,35 @@ def test_both_renderers_cull_to_their_camera():
         assert start_frames, f"{name} has no start_frame"
         body = "\n".join(ast.unparse(node) for node in start_frames)
         assert "drawing_bounds" in body, f"{name} does not cull to its camera"
+
+
+def test_draw_string_has_the_same_default_everywhere():
+    """Scenarios call draw_string with no colour, so the base class must
+    accept that too -- not only the two renderers that happen to default it.
+
+    A custom renderer subclassing DebugDraw would otherwise break on 26 of
+    the scenarios, which is how this was found: running them in WebAssembly
+    against a plain DebugDraw subclass.
+    """
+    import inspect
+
+    from box2d import DebugDraw
+
+    signature = inspect.signature(DebugDraw.draw_string)
+    assert signature.parameters["color"].default is not inspect.Parameter.empty
+
+    # And it works when called the way the scenarios call it.
+    class Plain(DebugDraw):
+        def __init__(self):
+            super().__init__()
+            self.strings = []
+
+        def draw_string(self, p, s, color=None):
+            self.strings.append(s)
+
+    renderer = Plain()
+    renderer.draw_string((0, 0), "no colour given")
+    assert renderer.strings == ["no colour given"]
+
+    # The base implementation itself must tolerate it too.
+    DebugDraw().draw_string((0, 0), "no colour given")

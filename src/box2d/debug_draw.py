@@ -383,8 +383,13 @@ class DebugDraw:
         """
         pass
 
-    def draw_string(self, p: Vec2, s: str, color: Color):
+    def draw_string(self, p: Vec2, s: str, color: Color = Color(255, 255, 255, 255)):
         """Render debug text for impulse values (draw_contact_impulses/draw_friction_impulses).
+
+        The colour has a default because 26 scenarios call this with just a
+        position and a string. Both renderers defaulted it themselves, so it
+        worked with either of them and broke against any other DebugDraw
+        subclass -- which is exactly what a custom renderer is.
 
         Args:
             p: World position where text should be anchored
