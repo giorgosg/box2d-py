@@ -97,8 +97,11 @@ class Joint(ABC):
         Returns:
             Vec2: Position where the joint attaches to body_a in its local coordinates
         """
-        vec = lib.b2Joint_GetLocalFrameA(self._joint_id).p
-        return Vec2(vec.x, vec.y)
+        # Reading .p off the returned frame directly would outlive it: taking a
+        # struct field does not keep the structure it came from alive, so the
+        # frame is freed while vec still points into it.
+        frame = lib.b2Joint_GetLocalFrameA(self._joint_id)
+        return Vec2(frame.p.x, frame.p.y)
 
     @local_anchor_a.setter
     def local_anchor_a(self, value: VectorLike):
@@ -114,8 +117,9 @@ class Joint(ABC):
         Returns:
             Vec2: Position where the joint attaches to body_b in its local coordinates
         """
-        vec = lib.b2Joint_GetLocalFrameB(self._joint_id).p
-        return Vec2(vec.x, vec.y)
+        # Held in a local for the same reason as local_anchor_a.
+        frame = lib.b2Joint_GetLocalFrameB(self._joint_id)
+        return Vec2(frame.p.x, frame.p.y)
 
     @local_anchor_b.setter
     def local_anchor_b(self, value: VectorLike):

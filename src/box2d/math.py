@@ -987,7 +987,7 @@ class Rot:
             Rot: New rotation with negated angle
 
         Example:
-            >>> Rot(math.pi/4).inverse.angle_degrees
+            >>> round(Rot(math.pi/4).inverse.angle_degrees, 6)
             -45.0
         """
         return Rot(-self.angle_radians)
@@ -1006,9 +1006,9 @@ class Rot:
             Rot: A new rotation interpolated between self and other.
 
         Examples:
-            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5).angle_degrees
+            >>> round(Rot(0).interpolate(Rot(math.pi/2), 0.5).angle_degrees, 6)
             45.0
-            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5, ccw=False).angle_degrees # Clockwise
+            >>> round(Rot(0).interpolate(Rot(math.pi/2), 0.5, ccw=False).angle_degrees, 6) # Clockwise
             -135.0
         """
         a0 = self.angle_radians

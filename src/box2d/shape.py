@@ -723,7 +723,12 @@ class Polygon(Shape):
 
     @geometry.setter
     def geometry(self, polygon_def: PolygonDef) -> None:
-        lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon_def.b2Polygon))
+        # The polygon has to be held in a local while Box2D reads it.
+        # b2Polygon is a property that builds a fresh structure, and
+        # ffi.addressof does not keep its argument alive, so addressing the
+        # property directly frees the polygon before the call receives it.
+        polygon = polygon_def.b2Polygon
+        lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon))
 
     @property
     def vertices(self) -> List[Vec2]:

@@ -643,7 +643,10 @@ class World:
             >>> debug_draw = DebugDraw()
             >>> world.draw(debug_draw)
         """
-        lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
+        # Bound to a local: ffi.addressof does not keep its argument alive,
+        # so every call site names something that outlives the call.
+        callbacks = debug_draw._debug_draw
+        lib.b2World_Draw(self._world_id, ffi.addressof(callbacks))
 
     def query_aabb(
         self,
