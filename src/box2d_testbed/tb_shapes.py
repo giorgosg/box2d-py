@@ -453,6 +453,10 @@ class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
     easy to break, which is what this exercises.
     """
 
+    # Framed by hand: the shapes sit off to one side of the origin.
+    camera_center = (9.0, 0.5)
+    camera_zoom = 3.5
+
     def setup(self):
         self.app_state.center = Vec2(2, 8)
         self.app_state.zoom = 25.0 * 0.55
@@ -481,6 +485,10 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     same ground can be grippy in one stretch and slippery in the next. Drop
     boxes onto the ramp and watch where they stop.
     """
+
+    # Framed by hand: the whole ramp, not just the one box on it.
+    camera_center = (0.0, 9.0)
+    camera_zoom = 14.0
 
     icy_friction = UI.float(0.0, min=0.0, max=1.0)
     grippy_friction = UI.float(0.9, min=0.0, max=1.0)

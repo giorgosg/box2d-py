@@ -149,6 +149,27 @@ def draw_transform(transform, context):
     instance.draw_transform(py_transform)
 
 
+class _DrawFlag:
+    """One of Box2D's debug-draw flags, as a property on the owning DebugDraw.
+
+    Args:
+        field: The b2DebugDraw struct field this flag lives in.
+        doc: What turning it on shows.
+    """
+
+    def __init__(self, field, doc):
+        self._field = field
+        self.__doc__ = doc
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        return bool(getattr(instance._debug_draw, self._field))
+
+    def __set__(self, instance, value):
+        setattr(instance._debug_draw, self._field, bool(value))
+
+
 class DebugDraw:
     """Abstract base class for custom debug rendering of Box2D simulations.
 
@@ -188,77 +209,69 @@ class DebugDraw:
         self._context_handle = ffi.new_handle(self)
         self._debug_draw.context = self._context_handle
 
-    @property
-    def draw_shapes(self):
-        return bool(self._debug_draw.drawShapes)
+    # Box2D's fifteen debug-draw flags. Each is a plain bool on the C struct,
+    # so a descriptor declares them rather than fifteen copies of the same
+    # property pair. Python names differ from the C ones where Box2D's own
+    # wording changed (drawBounds is the AABB flag; forces were impulses).
+    draw_shapes = _DrawFlag("drawShapes", "Shape outlines and fills.")
+    draw_aabbs = _DrawFlag("drawBounds", "Each shape's axis-aligned bounding box.")
+    draw_joints = _DrawFlag("drawJoints", "Joint connections and anchors.")
+    draw_joint_extras = _DrawFlag(
+        "drawJointExtras", "Joint limits, motors and reference angles."
+    )
+    draw_contacts = _DrawFlag("drawContacts", "Contact points between touching shapes.")
+    draw_contact_normals = _DrawFlag(
+        "drawContactNormals", "The normal at each contact point."
+    )
+    draw_contact_impulses = _DrawFlag(
+        "drawContactForces", "How hard each contact is pushing."
+    )
+    draw_friction_impulses = _DrawFlag(
+        "drawFrictionForces", "The friction impulse at each contact."
+    )
+    draw_mass = _DrawFlag("drawMass", "Each body's centre of mass and its frame.")
+    draw_contact_features = _DrawFlag(
+        "drawContactFeatures",
+        """The feature ids identifying each contact point.
 
-    @draw_shapes.setter
-    def draw_shapes(self, value: bool):
-        self._debug_draw.drawShapes = bool(value)
+        A contact point keeps its id between steps while it persists, which is
+        what lets the solver carry impulses over. Seeing the ids flicker means
+        the contact is being rebuilt rather than reused.
+        """,
+    )
+    draw_islands = _DrawFlag(
+        "drawIslands",
+        """The bounding box of each simulation island.
 
-    @property
-    def draw_aabbs(self):
-        return bool(self._debug_draw.drawBounds)
+        An island is a group of bodies solved together. Two piles that touch
+        merge into one island and are solved as a unit, which is why one heavy
+        stack can slow down a scene that looks otherwise idle.
+        """,
+    )
+    draw_graph_colors = _DrawFlag(
+        "drawGraphColors",
+        """Constraints coloured by their solver graph colour.
 
-    @draw_aabbs.setter
-    def draw_aabbs(self, value: bool):
-        self._debug_draw.drawBounds = bool(value)
+        Constraints sharing a colour touch no common body, so they are solved
+        in parallel. This is the visual form of Counters.color_counts: an even
+        spread of colours parallelises, everything in one colour does not.
+        """,
+    )
+    draw_body_names = _DrawFlag(
+        "drawBodyNames", "The name given to each body, for picking one out of a crowd."
+    )
+    draw_chain_normals = _DrawFlag(
+        "drawChainNormals",
+        """The outward normal of each chain segment.
 
-    @property
-    def draw_joints(self):
-        return bool(self._debug_draw.drawJoints)
-
-    @draw_joints.setter
-    def draw_joints(self, value: bool):
-        self._debug_draw.drawJoints = bool(value)
-
-    @property
-    def draw_contacts(self):
-        return bool(self._debug_draw.drawContacts)
-
-    @draw_contacts.setter
-    def draw_contacts(self, value: bool):
-        self._debug_draw.drawContacts = bool(value)
-
-    @property
-    def draw_contact_normals(self):
-        return bool(self._debug_draw.drawContactNormals)
-
-    @draw_contact_normals.setter
-    def draw_contact_normals(self, value: bool):
-        self._debug_draw.drawContactNormals = bool(value)
-
-    @property
-    def draw_contact_impulses(self):
-        return bool(self._debug_draw.drawContactForces)
-
-    @draw_contact_impulses.setter
-    def draw_contact_impulses(self, value: bool):
-        self._debug_draw.drawContactForces = bool(value)
-
-    @property
-    def draw_friction_impulses(self):
-        return bool(self._debug_draw.drawFrictionForces)
-
-    @draw_friction_impulses.setter
-    def draw_friction_impulses(self, value: bool):
-        self._debug_draw.drawFrictionForces = bool(value)
-
-    @property
-    def draw_mass(self):
-        return bool(self._debug_draw.drawMass)
-
-    @draw_mass.setter
-    def draw_mass(self, value: bool):
-        self._debug_draw.drawMass = bool(value)
-
-    @property
-    def draw_joint_extras(self):
-        return bool(self._debug_draw.drawJointExtras)
-
-    @draw_joint_extras.setter
-    def draw_joint_extras(self, value: bool):
-        self._debug_draw.drawJointExtras = bool(value)
+        A chain collides on one side only, decided by its winding order, and
+        this shows which side that is -- the quickest way to find a chain
+        things fall straight through.
+        """,
+    )
+    draw_anchor_a = _DrawFlag(
+        "drawAnchorA", "Each joint's anchor frame on body A rather than both."
+    )
 
     # Internal callback handlers (override these in subclasses)
     def draw_polygon(self, transform: Transform, vertices: list[Vec2], color: Color):

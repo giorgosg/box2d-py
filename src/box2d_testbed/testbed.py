@@ -141,6 +141,11 @@ class TestbedApp:
             self._prev_keys_down = set()
 
         # Check currently pressed keys
+        # Home re-frames the current scenario, matching the C++ testbed. Handled
+        # here rather than passed to the scenario, since it is a view control.
+        if imgui.is_key_pressed(imgui.Key.home, repeat=False) and self.simulation:
+            self.simulation.reset_view()
+
         for key_code, key_name in key_map.items():
             if imgui.is_key_pressed(key_code, repeat=False):
                 if state.current_test_obj:
@@ -310,6 +315,10 @@ class TestbedApp:
         _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
 
     def show_menus(self):
+        if imgui.begin_menu("View"):
+            if imgui.menu_item("Reset view", "Home", False)[0] and self.simulation:
+                self.simulation.reset_view()
+            imgui.end_menu()
         if imgui.begin_menu("Draw"):
             for key, value, display in state.show_dd.get_current():
                 _, newvalue = imgui.menu_item(display, "", value)
@@ -318,7 +327,7 @@ class TestbedApp:
 
     def show_status(self):
         imgui.push_style_var(imgui.StyleVar_.item_spacing, (10, 1))
-        for key, value, display in state.show_dd.get_current():
+        for key, value, display in state.show_dd.get_current(primary_only=True):
             _, newvalue = imgui.checkbox(display, value)
             setattr(state.show_dd, key, newvalue)
             imgui.same_line()

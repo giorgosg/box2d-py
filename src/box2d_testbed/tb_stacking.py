@@ -13,6 +13,10 @@ class CardHouse(BaseTest, category="Stacking", name="Card House"):
     contact handling collapses the structure.
     """
 
+    # Framed by hand: the house, not the 80m of ground under it.
+    camera_center = (0.0, 1.0)
+    camera_zoom = 4.0
+
     rows = UI.int(5, min=1, max=8)
 
     def setup(self):

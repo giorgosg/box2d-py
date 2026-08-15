@@ -13,7 +13,7 @@ from . import (  # noqa: F401
     tb_bodies,
     tb_continuous,
 )
-from box2d import World, Vec2
+from box2d import World
 from .base_test import BaseTest
 import time
 
@@ -29,8 +29,6 @@ class TestbedSimulation:
         self.enable_sleep = state.enable_sleep
         self.threads = state.threads
         self.debug_draw = debug_draw
-        self.debug_draw.camera.center = Vec2(0.0, 20.0)  # Set initial camera position
-        self.debug_draw.camera.zoom = 1.0  # Set initial zoom
 
         state.all_tests = BaseTest.get_all_tests()
         state.current_test_cls = BaseTest.get_first_test()
@@ -51,8 +49,20 @@ class TestbedSimulation:
         self.current_test_obj = state.current_test_cls(self.world)
         self.current_test_obj.setup()
         state.current_test_obj = self.current_test_obj
+
+        # Frame the new scenario. Without this a pan carried into whatever you
+        # opened next, which usually meant looking at empty space with no clue
+        # which way the scene was. The Reset button does not come through here,
+        # so restarting a scenario keeps the view you had set up.
+        self.reset_view()
         state.perf.physics_ms_max = 0
         state.perf.draw_ms_max = 0
+
+    def reset_view(self):
+        """Point the camera at the current scenario."""
+        center, zoom = self.current_test_obj.view()
+        state.center = (center.x, center.y)
+        state.scale = zoom
 
     def update_physics(self):
         if (

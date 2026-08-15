@@ -16,6 +16,10 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     the body against static geometry regardless.
     """
 
+    # Framed by hand: the drop, the post and the floor together.
+    camera_center = (0.0, 4.0)
+    camera_zoom = 8.0
+
     continuous = UI.bool(True, label="World continuous")
     bullet = UI.bool(False)
     capsule = UI.bool(False)

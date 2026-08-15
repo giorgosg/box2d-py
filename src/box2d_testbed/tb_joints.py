@@ -384,6 +384,10 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     Use A/S/D keys to drive left/brake/right.
     """
 
+    # Framed by hand: the car's starting point; it drives off to the right.
+    camera_center = (0.0, 0.0)
+    camera_zoom = 20.0
+
     hertz = UI.int(5, min=0, max=20)
     damping = UI.float(0.7, 0, 10)
     speed = UI.int(35, 0, 100)

@@ -189,19 +189,49 @@ def test_layout_is_well_formed():
         assert window.gui_function is not None, window.label
 
 
-def test_every_debug_draw_toggle_maps_to_a_real_property():
-    """The settings loop sets draw_<key>; a rename would silently do nothing."""
+def test_every_debug_draw_toggle_reaches_the_c_struct():
+    """The settings loop sets draw_<key>; a rename would silently do nothing.
+
+    Checks the value actually lands on b2DebugDraw rather than just that an
+    attribute exists, which is what would break: a plain instance attribute
+    would accept the write and change nothing.
+    """
     from box2d_testbed.testbed_state import DebugDrawSettings
 
     settings = DebugDrawSettings()
     keys = [key for key, _, _ in settings.get_current()]
     assert keys, "no debug draw settings found"
 
+    draw = DebugDraw()
     for key in keys:
         name = "draw_" + key
-        assert isinstance(
-            getattr(DebugDraw, name, None), property
+        assert hasattr(
+            type(draw), name
         ), f"DebugDraw.{name} is missing, so the {key!r} toggle would do nothing"
+
+        before = getattr(draw, name)
+        setattr(draw, name, not before)
+        assert getattr(draw, name) is (not before), f"{name} did not change"
+        # The struct is the thing Box2D reads, so check it directly.
+        field = type(draw).__dict__[name]._field
+        assert bool(getattr(draw._debug_draw, field)) is (not before)
+        setattr(draw, name, before)
+
+
+def test_all_fifteen_box2d_draw_flags_are_bound():
+    """Box2D has fifteen; six were unbound and so unreachable from the UI."""
+    from box2d._box2d import ffi
+    from box2d.debug_draw import _DrawFlag
+
+    struct_flags = {
+        name
+        for name in dir(ffi.new("b2DebugDraw*"))
+        if name.startswith("draw") and name != "drawingBounds"
+    }
+    bound = {
+        flag._field for flag in vars(DebugDraw).values() if isinstance(flag, _DrawFlag)
+    }
+    assert struct_flags - bound == set(), f"unbound draw flags: {struct_flags - bound}"
 
 
 def test_debug_draw_settings_labels_are_readable():
@@ -287,3 +317,145 @@ def test_scenario_input_handlers_are_safe(world, scenario):
     test.on_mouse_drag(point, Vec2(0, 0))
     test.on_mouse_release(point)
     world.step(1 / 60, 4)
+
+
+# --- camera framing ---------------------------------------------------------
+
+
+def test_view_uses_declared_values_when_a_scenario_sets_them():
+    from box2d import Vec2, World
+    from box2d_testbed.base_test import BaseTest
+
+    class Framed(BaseTest, category="_Test", name="Framed"):
+        camera_center = (3.0, 4.0)
+        camera_zoom = 7.0
+
+        def setup(self):
+            body = self.world.add_body(body_type="dynamic", position=(100, 100))
+            body.add_box(1, 1)
+
+    world = World()
+    test = Framed(world)
+    test.setup()
+
+    center, zoom = test.view()
+    assert center == Vec2(3, 4), "a declared centre should win over the contents"
+    assert zoom == 7.0
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_view_frames_the_moving_bodies_not_the_ground():
+    """The reason framing is not simply world bounds: ground dwarfs the scene."""
+    from box2d import World
+    from box2d_testbed.base_test import BaseTest
+
+    class Wide(BaseTest, category="_Test", name="Wide"):
+        def setup(self):
+            ground = self.world.add_body(position=(0, 0))
+            ground.add_box(2000, 1)  # a kilometre either way
+            box = self.world.add_body(body_type="dynamic", position=(0, 5))
+            box.add_box(2, 2)
+
+    world = World()
+    test = Wide(world)
+    test.setup()
+
+    center, zoom = test.view()
+    assert zoom < 20, "framing the ground would zoom out to a kilometre"
+    assert center.y > 3, "the box, not the ground, is what matters"
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_view_falls_back_to_the_whole_world_when_nothing_moves():
+    """Query scenarios have only static geometry, which is the whole scene."""
+    from box2d import World
+    from box2d_testbed.base_test import BaseTest
+
+    class Static(BaseTest, category="_Test", name="Static"):
+        def setup(self):
+            for x in (-8, 8):
+                body = self.world.add_body(position=(x, 0))
+                body.add_circle(radius=1)
+
+    world = World()
+    test = Static(world)
+    test.setup()
+
+    assert test.moving_bounds() is None
+    center, zoom = test.view()
+    assert zoom < 20.0, "it should frame the static shapes rather than give up"
+    assert abs(center.x) < 1.0
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_view_handles_an_empty_world():
+    from box2d import World
+    from box2d_testbed.base_test import BaseTest
+
+    class Empty(BaseTest, category="_Test", name="Empty"):
+        def setup(self):
+            pass
+
+    world = World()
+    test = Empty(world)
+    test.setup()
+
+    center, zoom = test.view()
+    assert zoom == 20.0, "an empty scenario should fall back, not divide by zero"
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_auto_zoom_stays_within_its_bounds():
+    from box2d import World
+    from box2d_testbed.base_test import BaseTest
+
+    class Huge(BaseTest, category="_Test", name="Huge"):
+        def setup(self):
+            for x in (-5000, 5000):
+                body = self.world.add_body(body_type="dynamic", position=(x, 0))
+                body.add_box(10, 10)
+
+    world = World()
+    test = Huge(world)
+    test.setup()
+    _, zoom = test.view()
+
+    assert zoom == BaseTest.MAX_AUTO_ZOOM
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_every_scenario_frames_its_moving_parts():
+    """A scenario should not open looking at empty space."""
+    from box2d import World
+    from box2d_testbed.base_test import BaseTest
+
+    for category, tests in BaseTest.registry.items():
+        for name, test_cls in tests.items():
+            world = World()
+            test = test_cls(world)
+            test.setup()
+            center, zoom = test.view()
+            bounds = test.moving_bounds()
+
+            if bounds is not None:
+                # Overlap, not centring: a scenario like Driving spreads its
+                # bodies over 200m, and the right view is the car's end of it
+                # rather than the midpoint of everything.
+                (lower_x, lower_y), (upper_x, upper_y) = bounds
+                view_lower_x, view_upper_x = (
+                    center.x - zoom * 1.6,
+                    center.x + zoom * 1.6,
+                )
+                view_lower_y, view_upper_y = center.y - zoom, center.y + zoom
+                assert (
+                    lower_x <= view_upper_x and upper_x >= view_lower_x
+                ), f"{category}/{name} opens with its contents off screen"
+                assert (
+                    lower_y <= view_upper_y and upper_y >= view_lower_y
+                ), f"{category}/{name} opens with its contents off screen"
+            world.destroy()

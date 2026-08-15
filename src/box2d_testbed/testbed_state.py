@@ -1,4 +1,30 @@
 class DebugDrawSettings:
+    """Which of Box2D's debug-draw flags are on.
+
+    Every key here must have a matching ``draw_<key>`` property on DebugDraw;
+    DebugDrawGL.update_settings raises if one goes missing rather than
+    silently leaving a dead toggle in the menu.
+    """
+
+    # Shown as checkboxes along the status bar. The rest are menu-only, since
+    # fifteen checkboxes do not fit on one row.
+    PRIMARY = (
+        "shapes",
+        "aabbs",
+        "joints",
+        "contacts",
+        "contact_normals",
+        "contact_impulses",
+        "mass",
+    )
+
+    # Where capitalising the key does not read well.
+    LABELS = {
+        "aabbs": "AABBs",
+        "anchor_a": "Anchor A",
+        "graph_colors": "Graph colours",
+    }
+
     def __init__(self):
         self.shapes = True
         self.aabbs = False
@@ -9,25 +35,45 @@ class DebugDrawSettings:
         self.friction_impulses = False
         self.mass = False
         self.joint_extras = False
+        # Added once the remaining six b2DebugDraw flags were bound.
+        self.contact_features = False
+        self.islands = False
+        self.graph_colors = False
+        self.body_names = False
+        self.chain_normals = False
+        self.anchor_a = False
         self._keys = (
             "shapes",
             "aabbs",
             "joints",
+            "joint_extras",
             "contacts",
             "contact_normals",
             "contact_impulses",
             "friction_impulses",
+            "contact_features",
             "mass",
-            "joint_extras",
+            "islands",
+            "graph_colors",
+            "body_names",
+            "chain_normals",
+            "anchor_a",
         )
 
-    def get_current(self):
+    def get_current(self, primary_only: bool = False):
+        """Returns a list of (key, value, display).
+
+        Args:
+            primary_only: Limit to the flags worth a permanent checkbox.
         """
-        returns a list of (key, value, display)
-        """
+        keys = self.PRIMARY if primary_only else self._keys
         return [
-            (key, self.__getattribute__(key), key.replace("_", " ").capitalize())
-            for key in self._keys
+            (
+                key,
+                getattr(self, key),
+                self.LABELS.get(key, key.replace("_", " ").capitalize()),
+            )
+            for key in keys
         ]
 
 
