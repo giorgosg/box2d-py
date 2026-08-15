@@ -64,6 +64,23 @@ Two things to know:
 The same switch works natively, if you want a build without the C++ thread
 pool: `BOX2D_PY_NO_THREADS=1 python src/tools/build_cffi.py`.
 
+### The testbed in a browser
+
+The testbed follows, through the imgui renderer -- it draws with imgui's draw
+list rather than OpenGL, so it needs no GL context:
+
+```bash
+python web/serve.py       # then open http://localhost:8000
+```
+
+That copies the newest wheel next to `web/index.html` and serves both. The
+page loads Pyodide from a CDN, pulls `imgui-bundle` from Pyodide's own
+package index, and starts the testbed.
+
+The Pyodide version in `web/index.html` must match the one the wheel was
+built against -- a wheel carries an ABI tag (`pyemscripten_2025_0`) and will
+not load on another.
+
 ## Example Usage
 
 

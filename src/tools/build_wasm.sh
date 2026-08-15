@@ -62,3 +62,6 @@ echo "==> Running the testbed's Python inside WebAssembly"
 
 echo
 echo "==> $WHEEL is good"
+
+echo
+echo "==> To try it in a browser:  python web/serve.py"
