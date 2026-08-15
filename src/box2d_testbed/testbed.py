@@ -140,11 +140,12 @@ class TestbedApp:
         if not hasattr(self, "_prev_keys_down"):
             self._prev_keys_down = set()
 
-        # Check currently pressed keys
-        # Home re-frames the current scenario, matching the C++ testbed. Handled
-        # here rather than passed to the scenario, since it is a view control.
-        if imgui.is_key_pressed(imgui.Key.home, repeat=False) and self.simulation:
-            self.simulation.reset_view()
+        # Global shortcuts, handled here rather than passed to the scenario:
+        # these drive the testbed itself. They deliberately avoid the keys
+        # scenarios use for their own controls (a, d, s, space and the arrows).
+        for key, action in self.global_shortcuts().items():
+            if imgui.is_key_pressed(key, repeat=False):
+                action()
 
         for key_code, key_name in key_map.items():
             if imgui.is_key_pressed(key_code, repeat=False):
@@ -291,6 +292,55 @@ class TestbedApp:
             else:
                 print(f"Unknown control type: {elem.control_type}")
 
+    def global_shortcuts(self):
+        """Keyboard shortcuts for the testbed's own controls.
+
+        Everything the control panel offers should be reachable from the
+        keyboard, so a scenario can be driven without moving the mouse off it.
+        """
+        return {
+            imgui.Key.p: self.toggle_pause,
+            imgui.Key.o: self.step_once,
+            imgui.Key.r: self.restart_test,
+            imgui.Key.home: self.reset_view,
+            imgui.Key.left_bracket: lambda: self.cycle_test(-1),
+            imgui.Key.right_bracket: lambda: self.cycle_test(1),
+        }
+
+    def toggle_pause(self):
+        state.simulation_paused = not state.simulation_paused
+
+    def step_once(self):
+        """Advance one step, pausing first so it is a single step."""
+        state.simulation_paused = True
+        state.step_number += 1
+
+    def restart_test(self):
+        """Rebuild the current scenario, as the Reset button does."""
+        if state.current_test_obj is not None:
+            state.current_test_obj.on_reset("reset", None)
+
+    def reset_view(self):
+        if self.simulation is not None:
+            self.simulation.reset_view()
+
+    def cycle_test(self, step: int):
+        """Move to the next or previous scenario, wrapping at the ends."""
+        ordered = [
+            test_cls
+            for tests in BaseTest.get_all_tests().values()
+            for test_cls in tests.values()
+        ]
+        if not ordered:
+            return
+        try:
+            index = ordered.index(state.current_test_cls)
+        except ValueError:
+            index = 0
+        state.current_test_cls = ordered[(index + step) % len(ordered)]
+        if self.simulation is not None:
+            self.simulation.init_test()
+
     def show_controls(self):
         # Play/Pause button
         if imgui.button(
@@ -314,6 +364,13 @@ class TestbedApp:
         changed, state.substeps = imgui.slider_int("Substeps", state.substeps, 1, 32)
         # Hertz slider
         _, state.hertz = imgui.slider_int("Hertz", state.hertz, 10, 240)
+
+        _, state.maximum_linear_speed = imgui.slider_float(
+            "Max speed", state.maximum_linear_speed, 10.0, 1000.0, format="%.0f"
+        )
+        _, state.contact_recycle_distance = imgui.slider_float(
+            "Recycle dist", state.contact_recycle_distance, 0.0, 0.5, format="%.3f"
+        )
         imgui.pop_item_width()
 
         # Checkboxes
@@ -321,6 +378,19 @@ class TestbedApp:
             "Continuous Collision", state.enable_continuous
         )
         _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
+        _, state.enable_warm_starting = imgui.checkbox(
+            "Warm starting", state.enable_warm_starting
+        )
+        imgui.set_item_tooltip(
+            "Start the solver from last step's impulses.\n"
+            "Turning it off costs stability and buys nothing; it is here to see that."
+        )
+        _, state.enable_speculative = imgui.checkbox(
+            "Speculative contacts", state.enable_speculative
+        )
+
+        imgui.separator()
+        imgui.text_disabled("P pause   O step   R reset   Home view   [ ] prev/next")
 
     def show_menus(self):
         if imgui.begin_menu("Draw"):

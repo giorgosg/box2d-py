@@ -25,8 +25,7 @@ class TestbedSimulation:
 
     def __init__(self, debug_draw):
         self.world = None
-        self.enable_continuous = state.enable_continuous
-        self.enable_sleep = state.enable_sleep
+        self._applied_settings = None
         self.threads = state.threads
         self.debug_draw = debug_draw
 
@@ -43,8 +42,7 @@ class TestbedSimulation:
         if self.world:
             self.world.destroy()
         self.world = World(gravity=state.gravity, threads=state.threads)
-        self.world.enable_continuous = state.enable_continuous
-        self.world.enable_sleep = state.enable_sleep
+        self.apply_world_settings()
         state.step_count = 0
         self.current_test_obj = state.current_test_cls(self.world)
         self.current_test_obj.setup()
@@ -58,6 +56,33 @@ class TestbedSimulation:
         state.perf.physics_ms_max = 0
         state.perf.draw_ms_max = 0
 
+    @staticmethod
+    def world_settings():
+        """The world settings the UI can change, as a comparable snapshot."""
+        return (
+            state.enable_continuous,
+            state.enable_sleep,
+            state.enable_warm_starting,
+            state.enable_speculative,
+            state.maximum_linear_speed,
+            state.contact_recycle_distance,
+        )
+
+    def apply_world_settings(self):
+        """Push the UI's world settings onto the world.
+
+        Kept in one place so a setting added to the panel cannot be applied on
+        a fresh world but forgotten when it is changed later, or the reverse.
+        """
+        self.world.enable_continuous = state.enable_continuous
+        self.world.enable_sleep = state.enable_sleep
+        self.world.enable_warm_starting = state.enable_warm_starting
+        self.world.maximum_linear_speed = state.maximum_linear_speed
+        self.world.contact_recycle_distance = state.contact_recycle_distance
+        # No getter for this one, so it is written rather than compared.
+        self.world.enable_speculative(state.enable_speculative)
+        self._applied_settings = self.world_settings()
+
     def reset_view(self):
         """Point the camera at the current scenario."""
         self.current_test_obj.apply_view()
@@ -68,14 +93,8 @@ class TestbedSimulation:
             or self.threads != state.threads
         ):
             self.init_test()
-        if (
-            self.enable_continuous != state.enable_continuous
-            or self.enable_sleep != state.enable_sleep
-        ):
-            self.enable_continuous = state.enable_continuous
-            self.enable_sleep = state.enable_sleep
-            self.world.enable_continuous = self.enable_continuous
-            self.world.enable_sleep = self.enable_sleep
+        if self.world_settings() != self._applied_settings:
+            self.apply_world_settings()
 
         start = time.perf_counter()
         self.world.step(1 / state.hertz, state.substeps)

@@ -111,6 +111,11 @@ class TestbedData:
         self.hertz = 60
         self.enable_continuous = True
         self.enable_sleep = True
+        # Bound on World for a while, but reachable only from code until now.
+        self.enable_warm_starting = True
+        self.enable_speculative = True
+        self.maximum_linear_speed = 400.0
+        self.contact_recycle_distance = 0.05
         self.show_dd = DebugDrawSettings()
         self.simulation_paused = False
         self.step_count = 0  # step count for current physics world
