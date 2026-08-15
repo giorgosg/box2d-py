@@ -391,3 +391,41 @@ def test_the_testbed_imports_without_pyopengl():
     assert (
         "OK" in result.stdout
     ), f"the testbed cannot be imported without PyOpenGL:\n{result.stderr[-1500:]}"
+
+
+def test_the_testbed_defaults_to_a_thread_count_the_build_supports():
+    """The testbed defaulted to four threads regardless of the build.
+
+    A WebAssembly build has no task scheduler and raises rather than
+    degrading, so the testbed could not start in a browser at all -- the
+    first thing it did was ask for four threads.
+    """
+    from box2d import HAS_THREADS, World
+    from box2d_testbed.testbed_state import state
+
+    assert state.threads >= 1
+    if not HAS_THREADS:
+        assert state.threads == 1, "a build with no scheduler must default to one"
+
+    # Whatever the default is, a world must be constructible with it.
+    world = World(threads=state.threads)
+    world.destroy()
+
+
+def test_the_thread_slider_is_hidden_when_there_is_no_scheduler():
+    """Offering a control that raises when used is worse than not offering it."""
+    import ast
+    import pathlib
+
+    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    tree = ast.parse(source)
+    controls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "show_controls"
+    ]
+    assert controls, "show_controls not found"
+    body = ast.unparse(controls[0])
+
+    assert "Threads" in body
+    assert "HAS_THREADS" in body, "the thread control is offered unconditionally"

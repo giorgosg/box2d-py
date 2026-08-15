@@ -108,4 +108,14 @@ print(f"\nrounded outline area: {area:.1f} (expected {expected:.1f})")
 print(
     f"\nrenderer choice honoured: " f"{testbed.TestbedApp.debug_draw_class().__name__}"
 )
+# The testbed used to default to four threads regardless of the build, which
+# made it unstartable here: the first thing it did was ask for a scheduler
+# this build does not carry.
+from box2d_testbed.testbed_state import state  # noqa: E402
+
+print(f"default threads         : {state.threads} (HAS_THREADS={box2d.HAS_THREADS})")
+assert state.threads == 1, "a build with no scheduler must default to one thread"
+box2d.World(threads=state.threads).destroy()
+print("a world builds with the testbed's default settings")
+
 print("\nThe testbed's Python runs in WebAssembly.")

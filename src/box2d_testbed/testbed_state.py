@@ -1,3 +1,8 @@
+"""Shared state for the testbed: the view, the settings and the timings."""
+
+from box2d import HAS_THREADS
+
+
 class DebugDrawSettings:
     """Which of Box2D's debug-draw flags are on.
 
@@ -106,7 +111,11 @@ class TestbedData:
         self.center = (0, 0)  # Center at origin
         self.scale = 20
         self.gravity = (0, -10)
-        self.threads = 4
+        # A build without the task scheduler cannot honour more than one,
+        # and asking anyway raises rather than degrading -- which is what a
+        # WebAssembly build is, so defaulting to 4 made the testbed
+        # unstartable in a browser.
+        self.threads = 4 if HAS_THREADS else 1
         self.substeps = 20
         self.hertz = 60
         self.enable_continuous = True
