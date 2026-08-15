@@ -12,6 +12,10 @@ drawing APIs, never GL, so they run headless. Only the window, input and
 GL-backed renderer need a display, and none of those are exercised here.
 """
 
+import os
+import pathlib
+import re
+
 import pytest
 
 from box2d import World, DebugDraw, Vec2
@@ -565,3 +569,48 @@ def test_dynamic_shapes_reach_the_draw_callbacks():
                 f"but has {moving_shapes} moving ones"
             )
             world.destroy()
+
+
+# --- shader loading ---------------------------------------------------------
+
+
+def test_draw_module_keeps_its_own_file_attribute():
+    """A module's __file__ must be its own.
+
+    Replacing `from OpenGL.GL import *` with an explicit list pulled in
+    __file__ along with the GL names, because it is a module attribute rather
+    than a GL one. That rebound draw.__file__ to PyOpenGL's, so every shader
+    path resolved into site-packages and no shader loaded: solid shapes
+    stopped rendering entirely while lines and points carried on.
+    """
+    from box2d_testbed import draw
+
+    assert draw.__file__.endswith(
+        os.path.join("box2d_testbed", "draw.py")
+    ), f"draw.__file__ is {draw.__file__}, not its own path"
+
+
+def test_every_shader_the_testbed_loads_exists():
+    """The paths are built at runtime, so a missing file fails only on launch."""
+    from box2d_testbed import draw
+
+    package_dir = os.path.dirname(os.path.abspath(draw.__file__))
+    source = pathlib.Path(package_dir, "draw.py").read_text()
+
+    referenced = set(re.findall(r'"(\w+\.(?:vs|fs))"', source))
+    assert referenced, "no shader files referenced; has the loading changed?"
+
+    missing = [
+        name
+        for name in sorted(referenced)
+        if not os.path.exists(os.path.join(package_dir, "shaders", name))
+    ]
+    assert missing == [], f"shaders referenced but not present: {missing}"
+
+
+def test_shaders_are_packaged():
+    """They are data files, so they must be declared to ship with the wheel."""
+    config = pathlib.Path("pyproject.toml").read_text()
+    assert (
+        "shaders" in config or "package-data" in config or "*.vs" in config
+    ), "shaders may not be included in the installed package"

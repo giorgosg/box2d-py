@@ -16,8 +16,6 @@ from OpenGL.GL import (
     GL_TRIANGLE_STRIP,
     GL_TRUE,
     GL_UNSIGNED_BYTE,
-    __file__,
-    ctypes,
     glBindBuffer,
     glBindVertexArray,
     glBlendFunc,
@@ -43,7 +41,9 @@ from OpenGL.GL import (
     glVertexAttribIPointer,
     glVertexAttribPointer,
 )
+import ctypes
 import os
+
 from box2d.math import Vec2
 from .shader import create_program_from_files, create_program_from_strings
 
