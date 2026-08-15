@@ -223,6 +223,24 @@ class BaseTest:
         """Callback for the Reset View button."""
         self.apply_view()
 
+    def rebuild(self):
+        """Throw the scene away and build it again.
+
+        For controls that change how a scene is constructed rather than
+        something adjustable in place. Does nothing before the first setup,
+        so a control changed early cannot build a scene that setup then
+        builds a second copy of.
+        """
+        if not self._is_built:
+            return
+        for body in list(self.world.bodies):
+            body.destroy()
+        self.setup()
+
+    @property
+    def _is_built(self):
+        return bool(self.world.bodies)
+
     @reset.callback
     def on_reset(self, key, value):
         """

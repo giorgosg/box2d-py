@@ -267,3 +267,128 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
             1 for b in self.world.bodies if b.type == "dynamic" and b.position.y < 2
         )
         debug_draw.draw_string((-14, 10), f"toppled off: {fallen}")
+
+
+class Confined(BaseTest, category="Stacking", name="Confined"):
+    """Hundreds of weightless circles packed into a sealed capsule box.
+
+    With gravity off there is nothing to settle towards, so the solver has to
+    resolve a dense mat of mutual overlaps with no free space to push into.
+    Overlapping circles that cannot escape is the case that makes a solver
+    jitter or explode.
+    """
+
+    camera_center = (0, 10)
+    camera_zoom = 25.0 * 0.5
+
+    grid = UI.int(25, min=5, max=30, label="Grid")
+
+    def setup(self):
+        walls = self.world.new_body().static()
+        for start, end in (
+            ((-10.5, 0), (10.5, 0)),
+            ((-10.5, 0), (-10.5, 20.5)),
+            ((10.5, 0), (10.5, 20.5)),
+            ((-10.5, 20.5), (10.5, 20.5)),
+        ):
+            walls.capsule(start, end, radius=0.5)
+        walls.build()
+
+        # Weightless, so nothing settles and the pile keeps pressing on itself.
+        for column in range(self.grid):
+            for row in range(self.grid):
+                self.world.add_body(
+                    body_type="dynamic",
+                    position=(
+                        -8.75 + column * 18.0 / self.grid,
+                        1.5 + row * 18.0 / self.grid,
+                    ),
+                    gravity_scale=0.0,
+                ).add_circle(radius=0.5)
+
+    @grid.callback
+    def on_grid_change(self, key, value):
+        self.rebuild()
+
+
+class CapsuleStack(BaseTest, category="Stacking", name="Capsule Stack"):
+    """Twenty capsules stacked flat, which is harder than it looks.
+
+    A capsule touches its neighbour along a rounded edge, so the contact
+    points shift as the stack settles rather than sitting still the way a
+    box's corners do.
+
+    As built the stack is steady: it drops 5m onto itself, settles within two
+    seconds and drifts 3cm, with or without rolling resistance. The control is
+    here because the C++ sample suggests resistance for stacking stability,
+    but this arrangement does not need it -- to see it do anything, drag a
+    capsule out and watch how the pile recovers.
+    """
+
+    camera_center = (0, 5)
+    camera_zoom = 6.0
+
+    count = UI.int(20, min=2, max=30)
+    rolling_resistance = UI.float(0.0, min=0.0, max=0.3, label="Rolling resistance")
+
+    def setup(self):
+        ground = self.world.new_body().static().position(0, -1)
+        ground.box(20, 2)
+        ground.build()
+
+        half = 0.25
+        y = 2.0 * half
+        for _ in range(self.count):
+            body = self.world.add_body(body_type="dynamic", position=(0, y))
+            body.add_capsule(
+                (-4.0 * half, 0),
+                (4.0 * half, 0),
+                radius=half,
+                rolling_resistance=self.rolling_resistance,
+            )
+            y += 3.0 * half
+
+    @count.callback
+    @rolling_resistance.callback
+    def on_change(self, key, value):
+        self.rebuild()
+
+
+class TiltedStack(BaseTest, category="Stacking", name="Tilted Stack"):
+    """Columns of rounded boxes stacked with each one nudged sideways.
+
+    The offset leans each column further out as it rises, so it starts on the
+    edge of toppling. Whether it stands or falls is a fair test of how much
+    drift the contact solver allows.
+    """
+
+    camera_center = (7.5, 7.5)
+    camera_zoom = 20.0
+
+    rows = UI.int(10, min=2, max=20)
+    columns = UI.int(4, min=1, max=8)
+    offset = UI.float(0.2, min=0.0, max=0.5, label="Lean per row")
+
+    def setup(self):
+        ground = self.world.new_body().static().position(0, -1)
+        ground.box(2000, 2)
+        ground.build()
+
+        spacing = 5.0
+        first_x = -0.5 * spacing * (self.columns - 1.0)
+        for column in range(self.columns):
+            x = first_x + column * spacing
+            for row in range(self.rows):
+                body = self.world.add_body(
+                    body_type="dynamic",
+                    position=(x + self.offset * row, 0.5 + 1.0 * row),
+                )
+                # Rounded, so the corners cannot catch on each other and hold
+                # a stack that should fall.
+                body.add_box(0.9, 0.9, radius=0.05, density=1.0, friction=0.3)
+
+    @rows.callback
+    @columns.callback
+    @offset.callback
+    def on_change(self, key, value):
+        self.rebuild()
