@@ -315,7 +315,9 @@ class TestbedApp:
         _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
 
     def show_menus(self):
-        if imgui.begin_menu("View"):
+        # Not "View": hello_imgui owns a menu by that name (docking layout and
+        # themes), and adding a second one puts two View menus side by side.
+        if imgui.begin_menu("Camera"):
             if imgui.menu_item("Reset view", "Home", False)[0] and self.simulation:
                 self.simulation.reset_view()
             imgui.end_menu()

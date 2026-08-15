@@ -756,3 +756,34 @@ def test_the_gl_renderer_accepts_plain_tuples():
     # Vec2 must still work, since Box2D's own callbacks pass them.
     renderer.draw_segment(Vec2(1, 1), Vec2(2, 2), white)
     assert renderer.lines.received[-1] == [(1.0, 1.0), (2.0, 2.0)]
+
+
+def test_our_menus_do_not_collide_with_hello_imgui_s():
+    """hello_imgui adds its own menus, and a repeated name shows up twice.
+
+    A "View" menu holding only Reset view appeared next to hello_imgui's own
+    View menu, which holds the docking layout and themes. Neither knows about
+    the other, so both render.
+    """
+    from imgui_bundle import hello_imgui
+
+    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    ours = set(re.findall(r'imgui\.begin_menu\(\s*"([^"]+)"', source))
+    assert ours, "no menus found; has the menu code moved?"
+
+    params = hello_imgui.RunnerParams().imgui_window_params
+    reserved = set()
+    if params.show_menu_view:
+        reserved.add("View")
+    if params.show_menu_app:
+        reserved.add(params.menu_app_title or "App")
+
+    # show_menu_app is turned off in TestbedApp, so only View is really taken;
+    # read it from the source rather than assuming.
+    if "show_menu_app = False" in source:
+        reserved.discard("App")
+        reserved.discard(params.menu_app_title or "App")
+
+    assert (
+        ours & reserved == set()
+    ), f"menu name(s) {sorted(ours & reserved)} clash with hello_imgui's own"
