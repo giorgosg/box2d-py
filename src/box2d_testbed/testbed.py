@@ -13,8 +13,10 @@ from imgui_bundle import hello_imgui, imgui, icons_fontawesome_6
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
 from .base_test import BaseTest, format_view_declaration
+import os
 import time
 from .debug_draw_gl import GLDebugDraw
+from .debug_draw_imgui import ImGuiDebugDraw
 from OpenGL import GL as gl
 from box2d import Vec2
 
@@ -60,9 +62,34 @@ class TestbedApp:
         self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
 
     def post_gl_init(self):
-        """Initialize OpenGL resources and simulation"""
-        self.debug_draw = GLDebugDraw()
+        """Build the renderer and the simulation, once there is a GL context."""
+        self.debug_draw = self.make_debug_draw()
         self.simulation = TestbedSimulation(self.debug_draw)
+
+    @staticmethod
+    def debug_draw_class():
+        """Which renderer class to draw with.
+
+        BOX2D_TESTBED_RENDERER=imgui swaps the OpenGL renderer for the one
+        that draws through imgui's draw list. The imgui renderer is the one
+        that can run where there is no GL -- a browser, or hello_imgui's null
+        backend -- so both exist while they are being compared.
+
+        Kept apart from building one: a GLDebugDraw compiles shaders as it is
+        constructed, so asking which renderer is wanted must not itself
+        require a GL context.
+        """
+        choice = os.environ.get("BOX2D_TESTBED_RENDERER", "opengl").lower()
+        if choice == "imgui":
+            return ImGuiDebugDraw
+        if choice in ("opengl", "gl", ""):
+            return GLDebugDraw
+        raise SystemExit(f"unknown renderer {choice!r}; expected 'opengl' or 'imgui'")
+
+    @classmethod
+    def make_debug_draw(cls):
+        """Build the chosen renderer. Needs a GL context for the GL one."""
+        return cls.debug_draw_class()()
 
     def render_simulation(self):
         """Draw the simulation in the window"""
@@ -74,11 +101,13 @@ class TestbedApp:
         if size.x <= 0 or size.y <= 0:
             return
 
-        # Convert ImGui coordinates to GL coordinates (flip Y)
-        gl_y = io.display_size.y - (pos.y + size.y)
-
-        # Set viewport to window region
-        gl.glViewport(int(pos.x), int(gl_y), int(size.x), int(size.y))
+        # The GL renderer draws into this window through a viewport; the
+        # imgui one submits to the window's draw list and needs none.
+        uses_gl = isinstance(self.debug_draw, GLDebugDraw)
+        if uses_gl:
+            # Convert ImGui coordinates to GL coordinates (flip Y)
+            gl_y = io.display_size.y - (pos.y + size.y)
+            gl.glViewport(int(pos.x), int(gl_y), int(size.x), int(size.y))
 
         # Only handle scroll when mouse is over simulation window
         mouse_scroll = io.mouse_wheel
@@ -112,8 +141,9 @@ class TestbedApp:
             # Draw simulation
             self.simulation.draw()
 
-        # Reset viewport
-        gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
+        if uses_gl:
+            # Reset viewport
+            gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
 
     def key_press_events(self):
 
