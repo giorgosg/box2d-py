@@ -4,6 +4,7 @@ from .base_test import BaseTest, UI
 
 # create_random_polygon is imported for the side effect of extending BodyBuilder
 from .shared import donut, create_random_polygon, Car  # noqa: F401
+from .human import Human
 import math
 from box2d import Vec2, World, Body, Transform, Color
 from box2d import DistanceJointDef, RevoluteJointDef, WeldJointDef, WheelJointDef
@@ -1126,3 +1127,72 @@ class Cantilever(BaseTest, category="Joints", name="Cantilever"):
             f"tip y = {self.tip.position.y:.2f}",
             color=Color(255, 255, 255, 255),
         )
+
+
+class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
+    """A jointed figure dropped from a height, to be poked and dragged.
+
+    Every joint has an angle limit, a friction motor and a spring. The limits
+    are what keep it looking like a body rather than a bag of sticks; the
+    friction decides whether it flops or holds a pose; the spring pulls it
+    back towards standing.
+
+    Turn the friction to zero for a rag, or up for something that resists
+    being folded. Drag a limb to feel the difference.
+    """
+
+    camera_center = (0, 12)
+    camera_zoom = 16.0
+
+    friction = UI.float(0.03, min=0.0, max=1.0, label="Joint friction")
+    hertz = UI.float(5.0, min=0.0, max=10.0, label="Spring hertz")
+    damping = UI.float(0.5, min=0.0, max=4.0, label="Spring damping")
+    respawn = UI.button("Respawn")
+
+    SPAWN = (0.0, 25.0)
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.segment((-20, 0), (20, 0))
+        ground.build()
+
+        # A stiff, barely-damped contact response, so a body landing on the
+        # ground does not sink into it before being pushed back out.
+        self.world.contact_hertz = 240.0
+        self.world.contact_damping_ratio = 0.0
+        self.world.contact_push_velocity = 2.0
+
+        self.human = None
+        self.spawn()
+
+    def spawn(self):
+        if self.human is not None:
+            self.human.destroy()
+        self.human = Human(
+            self.world,
+            self.SPAWN,
+            scale=1.0,
+            friction_torque=self.friction,
+            hertz=self.hertz,
+            damping_ratio=self.damping,
+        )
+
+    @respawn.callback
+    def on_respawn(self, key, value):
+        if hasattr(self, "human"):
+            self.spawn()
+
+    @friction.callback
+    def on_friction_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_friction_torque(value)
+
+    @hertz.callback
+    def on_hertz_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_spring_hertz(value)
+
+    @damping.callback
+    def on_damping_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_damping_ratio(value)
