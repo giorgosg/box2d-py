@@ -245,6 +245,7 @@ class World:
         lock_y: bool = None,
         lock_rotation: bool = None,
         is_bullet: bool = None,
+        enable_contact_recycling: bool = None,
         is_enabled: bool = None,
         allow_fast_rotation: bool = None,
     ) -> Body:
@@ -277,6 +278,8 @@ class World:
             lock_y: True to prevent translation along the world y-axis.
             lock_rotation: True to prevent the body from rotating.
             is_bullet: True to use continuous collision detection for this body.
+            enable_contact_recycling: Reuse this body's contacts between steps.
+                On by default; Box2D suggests turning it off for characters.
             is_enabled: False to create the body disabled.
             allow_fast_rotation: True to bypass rotational speed limits.
 
@@ -327,6 +330,8 @@ class World:
             body_def.lock_rotation = lock_rotation
         if is_bullet is not None:
             body_def.is_bullet = is_bullet
+        if enable_contact_recycling is not None:
+            body_def.enable_contact_recycling = enable_contact_recycling
         if is_enabled is not None:
             body_def.is_enabled = is_enabled
         if allow_fast_rotation is not None:

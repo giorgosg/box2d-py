@@ -246,3 +246,26 @@ def test_add_body_does_not_accumulate(world):
 
     assert len(first.shapes) == 1
     assert len(second.shapes) == 1
+
+
+def test_add_body_accepts_every_body_def_field():
+    """add_body is the main way bodies are made, so a field missing here is
+    effectively missing from the API.
+
+    enable_contact_recycling was defined on BodyDef but not accepted by
+    add_body, so the only way to set it was to build a BodyDef by hand.
+    """
+    import inspect
+    from dataclasses import fields
+
+    from box2d import World
+    from box2d.dataclasses import BodyDef
+
+    accepted = set(inspect.signature(World.add_body).parameters) - {"self"}
+    defined = {field.name for field in fields(BodyDef)}
+    # `type` is deliberately exposed as `body_type`, to leave the builtin alone.
+    defined = (defined - {"type"}) | {"body_type"}
+
+    assert (
+        defined - accepted == set()
+    ), f"add_body cannot set: {sorted(defined - accepted)}"

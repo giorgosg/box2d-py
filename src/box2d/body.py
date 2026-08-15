@@ -584,6 +584,19 @@ class Body:
         lib.b2Body_SetBullet,
         doc="Check if the body is treated as a bullet.",
     )
+    enable_contact_recycling = b2_bool(
+        lib.b2Body_IsContactRecyclingEnabled,
+        lib.b2Body_EnableContactRecycling,
+        doc="""Whether this body's contacts may be reused between steps.
+
+        Recycling keeps the impulses the solver had already worked out, which
+        steadies a body resting on something. Turning it off trades that for
+        less per-step work, which Box2D suggests for characters.
+
+        Existing contacts keep the setting they were created with, so a change
+        takes effect for contacts made after it.
+        """,
+    )
     gravity_scale = b2_value(
         lib.b2Body_GetGravityScale,
         lib.b2Body_SetGravityScale,
