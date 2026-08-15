@@ -12,7 +12,7 @@ if __name__ == "__main__" and __package__ is None:
 from imgui_bundle import hello_imgui, imgui, icons_fontawesome_6
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
-from .base_test import BaseTest
+from .base_test import BaseTest, format_view_declaration
 import time
 from .debug_draw_gl import GLDebugDraw
 from OpenGL import GL as gl
@@ -335,6 +335,18 @@ class TestbedApp:
             _, newvalue = imgui.checkbox(display, value)
             setattr(state.show_dd, key, newvalue)
             imgui.same_line()
+
+        # Live, so it is readable while panning, and next to a button that
+        # copies it as source: frame a scenario by hand, paste, keep it.
+        center = Vec2(state.center)
+        imgui.text_disabled(f"view ({center.x:.2f}, {center.y:.2f}) z{state.scale:.2f}")
+        imgui.same_line()
+        if imgui.small_button("Copy"):
+            imgui.set_clipboard_text(format_view_declaration(state.center, state.scale))
+        imgui.set_item_tooltip(
+            "Copy camera_center and camera_zoom for the current view,\n"
+            "ready to paste into the scenario class."
+        )
         imgui.pop_style_var()
 
     def show_test_list(self):

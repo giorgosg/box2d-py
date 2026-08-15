@@ -839,3 +839,72 @@ def test_reset_and_reset_view_are_the_first_two_controls():
         element.type == "button" for _, element in test.ui_elements[:2]
     ), "they share a row only while both are buttons"
     world.destroy()
+
+
+# --- copying the current view -----------------------------------------------
+
+
+def test_view_declaration_is_pasteable_source():
+    """The status bar's Copy button exists to move numbers into the class."""
+    from box2d_testbed.base_test import format_view_declaration
+
+    declaration = format_view_declaration(Vec2(0.75, 0.9), 4.0)
+    assert declaration == "camera_center = (0.75, 0.9)\ncamera_zoom = 4.0"
+
+
+def test_view_declaration_accepts_whatever_the_camera_holds():
+    """state.center is a tuple after framing and a Vec2 after panning."""
+    from box2d_testbed.base_test import format_view_declaration
+
+    assert format_view_declaration((1.0, 2.0), 3.0) == format_view_declaration(
+        Vec2(1.0, 2.0), 3.0
+    )
+
+
+def test_view_declaration_rounds_off_panning_noise():
+    """Dragging leaves long floats that nobody wants pasted into source."""
+    from box2d_testbed.base_test import format_view_declaration
+
+    declaration = format_view_declaration(Vec2(-39.5123456, 19.80000001), 27.500001)
+    assert declaration == "camera_center = (-39.51, 19.8)\ncamera_zoom = 27.5"
+
+
+def test_view_declaration_round_trips_into_a_scenario():
+    """Pasting the output back must actually reproduce the framing."""
+    from box2d import World
+    from box2d_testbed.base_test import format_view_declaration
+
+    declaration = format_view_declaration(Vec2(3.25, -1.5), 7.5)
+
+    namespace = {}
+    exec(declaration, {}, namespace)
+
+    class Pasted(BaseTest, category="_Test", name="Pasted"):
+        camera_center = namespace["camera_center"]
+        camera_zoom = namespace["camera_zoom"]
+
+        def setup(self):
+            body = self.world.add_body(body_type="dynamic", position=(3, -1))
+            body.add_box(1, 1)
+
+    world = World()
+    test = Pasted(world)
+    test.setup()
+    center, zoom = test.view()
+
+    assert (center.x, center.y) == (3.25, -1.5)
+    assert zoom == 7.5
+    world.destroy()
+    del BaseTest.registry["_Test"]
+
+
+def test_status_bar_reports_the_view_it_would_copy():
+    """The readout and the button must not drift apart."""
+    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    status = source[
+        source.index("def show_status") : source.index("def show_test_list")
+    ]
+
+    assert "state.center" in status and "state.scale" in status
+    assert "format_view_declaration(state.center, state.scale)" in status
+    assert "set_clipboard_text" in status

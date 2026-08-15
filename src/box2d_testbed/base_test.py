@@ -3,6 +3,27 @@ from .testbed_state import state
 from .ui import UI, UIProperty
 
 
+def format_view_declaration(center, zoom) -> str:
+    """The camera state as the two lines a scenario would declare.
+
+    The point of showing the camera in the status bar is to frame a scenario
+    by hand and then keep that framing, so this produces something to paste
+    straight into the class rather than numbers to transcribe.
+
+    Args:
+        center: The camera centre, as a Vec2 or any vector-like.
+        zoom: Half the visible height, in world units.
+
+    Returns:
+        str: e.g. ``"camera_center = (0.75, 0.9)\ncamera_zoom = 4.0"``
+    """
+    center = Vec2(center)
+    return (
+        f"camera_center = ({round(center.x, 2)!r}, {round(center.y, 2)!r})\n"
+        f"camera_zoom = {round(float(zoom), 2)!r}"
+    )
+
+
 class BaseTest:
     """
     Base class for physics tests.
