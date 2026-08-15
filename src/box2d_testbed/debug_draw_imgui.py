@@ -14,6 +14,7 @@ constant for a frame, so it is worked out once in start_frame and applied
 as two multiplies per vertex.
 """
 
+import math
 import time
 
 from imgui_bundle import imgui
@@ -33,6 +34,79 @@ def pack_color(color, alpha=None):
     """
     a = color.a if alpha is None else alpha
     return (a << 24) | (color.b << 16) | (color.g << 8) | color.r
+
+
+def expand_polygon(points, radius, segments_per_corner=None):
+    """The Minkowski sum of a convex polygon and a disc, as one outline.
+
+    Box2D's rounded polygons are the hull grown outwards by the radius, so
+    the corners are arcs rather than points. Drawing that as a fill plus a
+    thick stroke, which is the obvious approach, goes wrong twice over: the
+    stroke overlaps the fill, and with translucent colours the overlap blends
+    twice and draws a dark band inside every edge; and imgui's joins leave
+    notches on the outside of each corner where the thick segments meet.
+
+    Building the grown outline instead gives one convex polygon, filled once,
+    with no overlap and no joins to go wrong.
+
+    Args:
+        points: The polygon, as screen-space (x, y) pairs.
+        radius: How far to grow it, in pixels.
+        segments_per_corner: Arc segments per corner. Derived from the radius
+            when not given -- a 2px corner needs far fewer than a 40px one.
+
+    Returns:
+        list: The grown outline, in the same winding as the input.
+    """
+    count = len(points)
+    if count < 3 or radius <= 0.0:
+        return points
+
+    # Which way the polygon winds decides which side is outside. Screen space
+    # flips y, so this cannot be assumed from Box2D's winding.
+    area = 0.0
+    for index in range(count):
+        x0, y0 = points[index]
+        x1, y1 = points[(index + 1) % count]
+        area += x0 * y1 - x1 * y0
+    outward = 1.0 if area > 0.0 else -1.0
+
+    if segments_per_corner is None:
+        # Enough that the arc is smooth without being wasteful: a corner is
+        # at most a quarter turn for a convex polygon with many sides.
+        segments_per_corner = max(2, min(8, int(radius / 3.0) + 2))
+
+    normals = []
+    for index in range(count):
+        x0, y0 = points[index]
+        x1, y1 = points[(index + 1) % count]
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        if length < 1e-9:
+            normals.append((0.0, 0.0))
+        else:
+            normals.append((outward * dy / length, -outward * dx / length))
+
+    grown = []
+    for index in range(count):
+        x, y = points[index]
+        incoming = normals[index - 1]
+        outgoing = normals[index]
+
+        start = math.atan2(incoming[1], incoming[0])
+        end = math.atan2(outgoing[1], outgoing[0])
+        # Sweep the short way round, which for a convex corner is the
+        # exterior angle.
+        sweep = end - start
+        while sweep > math.pi:
+            sweep -= 2.0 * math.pi
+        while sweep < -math.pi:
+            sweep += 2.0 * math.pi
+
+        for step in range(segments_per_corner + 1):
+            angle = start + sweep * step / segments_per_corner
+            grown.append((x + radius * math.cos(angle), y + radius * math.sin(angle)))
+    return grown
 
 
 class ImGuiDebugDraw(DebugDraw):
@@ -188,17 +262,12 @@ class ImGuiDebugDraw(DebugDraw):
 
     def draw_solid_polygon(self, transform, vertices, radius, color):
         points = self.transform_to_screen(transform, vertices)
-        fill = pack_color(color, self.FILL_ALPHA)
-        self._draw_list.add_convex_poly_filled(points, fill)
-
-        # Box2D's radius is a Minkowski sum: the shape is the hull grown
-        # outwards by the radius, not inset. A polyline is centred on its
-        # path, so a stroke of twice the radius reproduces that growth, with
-        # the joins standing in for the true rounded corners.
         if radius > 0.0:
-            self._draw_list.add_polyline(
-                points, fill, 2.0 * self.to_pixels(radius), imgui.ImDrawFlags_.closed
-            )
+            points = expand_polygon(points, self.to_pixels(radius))
+
+        self._draw_list.add_convex_poly_filled(
+            points, pack_color(color, self.FILL_ALPHA)
+        )
         self._draw_list.add_polyline(
             points, pack_color(color), 1.0, imgui.ImDrawFlags_.closed
         )

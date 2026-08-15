@@ -213,3 +213,139 @@ def test_what_is_drawn_moves_as_the_world_does():
             f"frame {index}: drawn at {drawn_y[index]:.1f}, "
             f"but the world says {expected:.1f}"
         )
+
+
+# --- rounded shapes ----------------------------------------------------------
+
+
+def polygon_area(points):
+    total = 0.0
+    for index in range(len(points)):
+        x0, y0 = points[index]
+        x1, y1 = points[(index + 1) % len(points)]
+        total += x0 * y1 - x1 * y0
+    return abs(total) / 2.0
+
+
+def polygon_perimeter(points):
+    import math
+
+    return sum(
+        math.hypot(
+            points[(index + 1) % len(points)][0] - points[index][0],
+            points[(index + 1) % len(points)][1] - points[index][1],
+        )
+        for index in range(len(points))
+    )
+
+
+SQUARE = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+TRIANGLE = [(0.0, 0.0), (120.0, 0.0), (60.0, 90.0)]
+
+
+@pytest.mark.parametrize("radius", [1.0, 5.0, 20.0])
+@pytest.mark.parametrize(
+    "polygon,name",
+    [(SQUARE, "square"), (SQUARE[::-1], "square reversed"), (TRIANGLE, "triangle")],
+)
+def test_growing_a_polygon_has_the_area_a_minkowski_sum_should(polygon, name, radius):
+    """A convex shape grown by a disc has an area that is known exactly.
+
+    area + perimeter * radius + pi * radius^2. That makes this checkable
+    rather than a matter of looking at it, and it catches the mistake that
+    is easy to make here: growing the shape inwards. The first version had
+    the normals reversed, which shrank every rounded shape instead --
+    visibly wrong on screen, but only once you knew to look.
+    """
+    import math
+
+    from box2d_testbed.debug_draw_imgui import expand_polygon
+
+    grown = expand_polygon(polygon, radius, segments_per_corner=64)
+    expected = (
+        polygon_area(polygon)
+        + polygon_perimeter(polygon) * radius
+        + math.pi * radius * radius
+    )
+    assert polygon_area(grown) == pytest.approx(expected, rel=0.001)
+
+
+def test_growing_a_polygon_works_for_either_winding():
+    """Screen space flips y, so Box2D's winding cannot be assumed."""
+    from box2d_testbed.debug_draw_imgui import expand_polygon
+
+    clockwise = expand_polygon(SQUARE, 10.0, segments_per_corner=32)
+    anticlockwise = expand_polygon(SQUARE[::-1], 10.0, segments_per_corner=32)
+
+    assert polygon_area(clockwise) == pytest.approx(polygon_area(anticlockwise))
+
+
+def test_growing_by_nothing_changes_nothing():
+    from box2d_testbed.debug_draw_imgui import expand_polygon
+
+    assert expand_polygon(SQUARE, 0.0) == SQUARE
+    assert expand_polygon(SQUARE, -1.0) == SQUARE
+
+
+def test_a_degenerate_polygon_is_left_alone():
+    """Fewer than three points is not a polygon to grow."""
+    from box2d_testbed.debug_draw_imgui import expand_polygon
+
+    assert expand_polygon([(0.0, 0.0), (1.0, 1.0)], 5.0) == [(0.0, 0.0), (1.0, 1.0)]
+
+
+def test_the_grown_outline_stays_convex():
+    """add_convex_poly_filled will render a concave outline wrongly."""
+    import math
+
+    from box2d_testbed.debug_draw_imgui import expand_polygon
+
+    grown = expand_polygon(TRIANGLE, 15.0, segments_per_corner=8)
+    count = len(grown)
+    signs = []
+    for index in range(count):
+        ax, ay = grown[index]
+        bx, by = grown[(index + 1) % count]
+        cx, cy = grown[(index + 2) % count]
+        cross = (bx - ax) * (cy - by) - (by - ay) * (cx - bx)
+        if abs(cross) > 1e-9:
+            signs.append(cross > 0)
+    assert len(set(signs)) == 1, "the outline turns both ways, so it is not convex"
+
+
+def test_a_rounded_shape_is_drawn_once_not_layered():
+    """The fill and the stroke used to overlap.
+
+    With translucent colours that blended twice and drew a dark band inside
+    every edge, and imgui's joins left notches on the outside of the
+    corners. One grown outline, filled once, has neither problem -- so the
+    renderer should submit exactly one fill per polygon.
+    """
+    from box2d import Transform, Vec2
+    from box2d.debug_draw import Color
+    from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw
+
+    class Recorder:
+        def __init__(self):
+            self.fills = 0
+            self.polylines = 0
+
+        def add_convex_poly_filled(self, points, color):
+            self.fills += 1
+
+        def add_polyline(self, points, color, thickness, flags):
+            self.polylines += 1
+
+    renderer = ImGuiDebugDraw.__new__(ImGuiDebugDraw)
+    renderer._lower = Vec2(0.0, 0.0)
+    renderer._scale_x = renderer._scale_y = 10.0
+    renderer._origin_x = renderer._origin_y = 0.0
+    renderer._height = 500.0
+    recorder = Recorder()
+    renderer._draw_list = recorder
+
+    square = [Vec2(-1, -1), Vec2(1, -1), Vec2(1, 1), Vec2(-1, 1)]
+    renderer.draw_solid_polygon(Transform(Vec2(0, 0)), square, 0.2, Color(255, 0, 0))
+
+    assert recorder.fills == 1, "a rounded shape should be filled exactly once"
+    assert recorder.polylines == 1, "and outlined once, with no thick stroke pass"
