@@ -60,6 +60,25 @@ def _emscripten_toolchain_file():
     return toolchain
 
 
+def _windows_cmake_args():
+    """CMake arguments for a Windows build.
+
+    The generator is deliberately not pinned. It used to say "Visual Studio 17
+    2022", which stopped existing on GitHub's windows-latest image and failed
+    the build outright with "could not find any instance of Visual Studio".
+    CMake's default on Windows is the newest Visual Studio installed, which is
+    what we want and keeps working as images move on.
+
+    The architecture is left to the generator too: a Visual Studio generator
+    defaults to the host, and naming x64 explicitly only helps when
+    cross-compiling, which this does not.
+
+    /MD matters and stays: the extension links the release CRT, and mixing
+    runtimes is a link error.
+    """
+    return ["-DCMAKE_CXX_FLAGS_RELEASE=/MD"]
+
+
 def build_dependencies():
     """Build Box2D and enkiTS using CMake"""
     # Always start with clean build directories to avoid CMake cache issues
@@ -109,15 +128,7 @@ def build_dependencies():
             ]
         )
     elif platform.system() == "Windows":
-        box2d_cmake_args.extend(
-            [
-                "-G",
-                "Visual Studio 17 2022",
-                "-A",
-                "x64",
-                "-DCMAKE_CXX_FLAGS_RELEASE=/MD",
-            ]
-        )
+        box2d_cmake_args.extend(_windows_cmake_args())
 
     subprocess.run(box2d_cmake_args, check=True)
     subprocess.run(
@@ -143,15 +154,7 @@ def build_dependencies():
     ]
 
     if platform.system() == "Windows":
-        enkits_cmake_args.extend(
-            [
-                "-G",
-                "Visual Studio 17 2022",
-                "-A",
-                "x64",
-                "-DCMAKE_CXX_FLAGS_RELEASE=/MD",
-            ]
-        )
+        enkits_cmake_args.extend(_windows_cmake_args())
 
     subprocess.run(enkits_cmake_args, check=True)
     subprocess.run(
