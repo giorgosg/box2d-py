@@ -133,6 +133,81 @@ class BodyBuilder:
         self._body_args["is_bullet"] = bullet
         return self
 
+    def awake(self, awake=True):
+        """Set whether the body starts awake.
+
+        A body built asleep stays put until something touches it, which is how
+        a scene is shown at rest rather than dropping into place.
+
+        Args:
+            awake: False to build the body asleep
+        Returns:
+            The builder instance
+        """
+        self._body_args["is_awake"] = awake
+        return self
+
+    def enabled(self, enabled=True):
+        """Set whether the body is enabled.
+
+        A disabled body does not move or collide, and costs nothing to have
+        around until it is enabled again.
+
+        Args:
+            enabled: False to build the body disabled
+        Returns:
+            The builder instance
+        """
+        self._body_args["is_enabled"] = enabled
+        return self
+
+    def allow_fast_rotation(self, allow=True):
+        """Bypass the rotational speed limit for this body.
+
+        Box2D caps rotation to keep collision reliable. Round things like
+        wheels can safely spin faster than that cap.
+
+        Args:
+            allow: True to lift the limit
+        Returns:
+            The builder instance
+        """
+        self._body_args["allow_fast_rotation"] = allow
+        return self
+
+    def enable_contact_recycling(self, enable=True):
+        """Set whether this body's contacts may be reused between steps.
+
+        Args:
+            enable: False to rebuild contacts each step
+        Returns:
+            The builder instance
+        """
+        self._body_args["enable_contact_recycling"] = enable
+        return self
+
+    def name(self, name):
+        """Give the body a name, which debug draw can show.
+
+        Args:
+            name: Up to 31 characters
+        Returns:
+            The builder instance
+        """
+        self._body_args["name"] = name
+        return self
+
+    def user_data(self, data):
+        """Attach your own object to the body.
+
+        Args:
+            data: Anything; it is kept on the Body, not passed to Box2D
+        Returns:
+            The builder instance
+        """
+        self._body_args["user_data"] = data
+        return self
+
     def gravity_scale(self, scale):
         """Set the gravity scale for the body.
 

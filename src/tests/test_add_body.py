@@ -269,3 +269,59 @@ def test_add_body_accepts_every_body_def_field():
     assert (
         defined - accepted == set()
     ), f"add_body cannot set: {sorted(defined - accepted)}"
+
+
+def test_body_builder_can_set_every_body_def_field():
+    """The builder is the other main way bodies are made.
+
+    Six fields were unreachable through it -- name, user_data, is_awake,
+    is_enabled, allow_fast_rotation and enable_contact_recycling -- so a
+    scenario wanting any of them had to abandon the chain and call add_body.
+    """
+    from dataclasses import fields
+
+    from box2d.body import BodyBuilder
+    from box2d.dataclasses import BodyDef
+
+    methods = {name for name in dir(BodyBuilder) if not name.startswith("_")}
+    # The builder names a few things for how they read in a chain.
+    aliases = {
+        "type": {"dynamic", "static", "kinematic"},
+        "is_bullet": {"bullet"},
+        "is_awake": {"awake"},
+        "is_enabled": {"enabled"},
+    }
+
+    unreachable = [
+        field.name
+        for field in fields(BodyDef)
+        if not (aliases.get(field.name, {field.name}) & methods)
+    ]
+    assert unreachable == [], f"the builder cannot set: {unreachable}"
+
+
+def test_builder_fields_reach_the_body():
+    """Setting them must actually take effect, not just be accepted."""
+    from box2d import World
+
+    world = World()
+    body = (
+        world.new_body()
+        .dynamic()
+        .position(0, 5)
+        .name("crate")
+        .user_data({"kind": "crate"})
+        .awake(False)
+        .enable_contact_recycling(False)
+        .box(1, 1)
+        .build()
+    )
+
+    assert body.name == "crate"
+    assert body.user_data == {"kind": "crate"}
+    assert body.awake is False
+    assert body.enable_contact_recycling is False
+
+    disabled = world.new_body().dynamic().enabled(False).circle(1).build()
+    assert disabled.enabled is False
+    world.destroy()
