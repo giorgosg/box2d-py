@@ -9,6 +9,9 @@ from box2d import Vec2, World, Body, Transform, Color
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
+    camera_center = (2.02, -1.99)
+    camera_zoom = 21.76
+
     def setup(self):
         joint_friction = 100.0  # Maximum motor torque for the joints
         count = 30  # Number of chain links
