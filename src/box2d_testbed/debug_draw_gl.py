@@ -1,4 +1,4 @@
-from box2d import DebugDraw, Vec2, Transform, Color
+from box2d import AABB, DebugDraw, Vec2, Transform, Color
 from .testbed_state import state
 from .draw import GLBackground, GLCircles, GLPoints, GLLines
 from .draw import GLSolidPolygons, GLSolidCircles, GLSolidCapsules
@@ -127,6 +127,15 @@ class GLDebugDraw(DebugDraw):
     def start_frame(self):
         self._draw_start_time = time.perf_counter()  # start timing
         self.update_settings()
+
+        # Cull to the visible region: Box2D queries its broad-phase tree with
+        # this, so shapes off screen never reach a callback at all.
+        camera = self.camera
+        ratio = float(camera.width) / float(camera.height)
+        extents = Vec2(camera.zoom * ratio, camera.zoom)
+        self.drawing_bounds = AABB(
+            lower=camera.center - extents, upper=camera.center + extents
+        )
         self.background.draw()
 
     def end_frame(self):
