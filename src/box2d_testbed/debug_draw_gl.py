@@ -139,7 +139,7 @@ class GLDebugDraw(DebugDraw):
 
         # Draw debug strings
         for pos, text, color in self.debug_strings:
-            screen_pos = self.camera.convert_world_to_screen(Vec2(*pos))
+            screen_pos = self.camera.convert_world_to_screen(pos)
             # Convert hex color to RGB float values
             r = ((color.hex >> 16) & 0xFF) / 255.0
             g = ((color.hex >> 8) & 0xFF) / 255.0
@@ -158,9 +158,13 @@ class GLDebugDraw(DebugDraw):
         state.perf.draw_ms_avg += elapsed * (1 - smoothing)
         state.perf.draw_ms_max = max(state.perf.draw_ms_max, elapsed)
 
+    # Box2D's callbacks always hand these Vec2s, but scenario code calls the
+    # same methods and naturally writes (x, y). Every point argument is
+    # normalised here so both work, matching the rest of the API.
+
     def draw_polygon(self, transform, vertices: list, color):
         # 3.2 passes vertices in local space, so transform them before drawing.
-        points = [transform(v) for v in vertices]
+        points = [transform(Vec2(v)) for v in vertices]
         n = len(points)
         for i in range(n):
             self.lines.add_line(points[i], points[(i + 1) % n], color.hex)
@@ -185,27 +189,27 @@ class GLDebugDraw(DebugDraw):
 
     def draw_circle(self, center, radius: float, color):
         # Queue border circle drawing
-        self.circles.add_circle(center, radius, color.hex)
+        self.circles.add_circle(Vec2(center), radius, color.hex)
 
     def draw_segment(self, p1, p2, color):
         # Draw a line segment between two points
-        self.lines.add_line(p1, p2, color.hex)
+        self.lines.add_line(Vec2(p1), Vec2(p2), color.hex)
 
     def draw_point(self, p, size: float, color):
         # Draw a point as a small circle
-        self.points.add_point(p, size, color.hex)
+        self.points.add_point(Vec2(p), size, color.hex)
 
     def draw_string(self, p, s: str, color=Color(255, 255, 255, 255)):
         """Store debug string for rendering during end_frame"""
-        self.debug_strings.append((p, s, color))
+        self.debug_strings.append((Vec2(p), s, color))
 
     def draw_solid_capsule(self, p1, p2, radius: float, color):
         # Draw a filled capsule
-        self.solid_capsules.add_capsule(p1, p2, radius, color.hex)
+        self.solid_capsules.add_capsule(Vec2(p1), Vec2(p2), radius, color.hex)
 
     def draw_solid_circle(self, transform, center, radius: float, color):
         # 3.2 passes the centre separately; fold it into the transform's origin.
-        placed = Transform(position=transform(center), rotation=transform.q)
+        placed = Transform(position=transform(Vec2(center)), rotation=transform.q)
         self.solid_circles.add_circle(placed.b2Transform, radius, color.hex)
 
     def draw_transform(self, transform):

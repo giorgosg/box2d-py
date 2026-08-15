@@ -477,7 +477,7 @@ def test_every_box2d_draw_callback_is_bound():
     onto their own DrawBoundsFcn.
     """
     from box2d._box2d import ffi, lib
-    from box2d import DebugDraw
+    from box2d import DebugDraw, Vec2
 
     draw = DebugDraw()
     struct_callbacks = {
@@ -614,3 +614,145 @@ def test_shaders_are_packaged():
     assert (
         "shaders" in config or "package-data" in config or "*.vs" in config
     ), "shaders may not be included in the installed package"
+
+
+# --- scenarios must survive being drawn --------------------------------------
+
+
+class _StrictRenderer(DebugDraw):
+    """A stand-in that touches its arguments exactly as the GL layer does.
+
+    Scenario debug_draw() code was never exercised headlessly beyond being
+    called, so anything it passed was accepted by a permissive test double and
+    only failed against real OpenGL.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    def _point(self, p):
+        # Vec2 accepts any vector-like, exactly as DebugDrawGL does before
+        # handing points to the GL batchers. Reading .x/.y afterwards is what
+        # makes a None, a string or a wrong-length sequence fail here rather
+        # than only against real OpenGL.
+        self.calls += 1
+        point = Vec2(p)
+        return (point.x, point.y)
+
+    def draw_segment(self, p1, p2, color):
+        self._point(p1), self._point(p2), color.hex
+
+    def draw_point(self, p, size, color):
+        self._point(p), float(size), color.hex
+
+    def draw_circle(self, center, radius, color):
+        self._point(center), float(radius), color.hex
+
+    def draw_string(self, p, s, color=None):
+        self._point(p), str(s)
+
+    def draw_solid_capsule(self, p1, p2, radius, color):
+        self._point(p1), self._point(p2), color.hex
+
+    def draw_polygon(self, transform, vertices, color):
+        [self._point(transform(v)) for v in vertices], color.hex
+
+    def draw_solid_polygon(self, transform, vertices, radius, color):
+        transform.p.x, transform.q.c
+        [self._point(v) for v in vertices], color.hex
+
+    def draw_solid_circle(self, transform, center, radius, color):
+        transform.p.x, self._point(center)
+
+    def draw_bounds(self, aabb, color):
+        aabb.lower.x, aabb.upper.y, color.hex
+
+    def draw_transform(self, transform):
+        transform.p.x
+
+
+@pytest.mark.parametrize(
+    "category,name",
+    [
+        (category, name)
+        for category, tests in BaseTest.registry.items()
+        for name in tests
+    ],
+)
+def test_scenario_survives_being_drawn(category, name):
+    """Run a scenario through a renderer as picky as the real one."""
+    from box2d import World
+
+    world = World()
+    test = BaseTest.registry[category][name](world)
+    test.setup()
+
+    renderer = _StrictRenderer()
+    # On, so the debug overlays are exercised too rather than skipped.
+    for flag in ("draw_aabbs", "draw_joints", "draw_contacts", "draw_mass"):
+        setattr(renderer, flag, True)
+
+    try:
+        for _ in range(20):
+            world.step(1 / 60, 4)
+            test.after_step(1 / 60)
+            world.draw(renderer)
+            test.debug_draw(renderer)
+    finally:
+        world.destroy()
+
+    assert renderer.calls > 0, "nothing was drawn at all"
+
+
+def test_the_gl_renderer_accepts_plain_tuples():
+    """Scenario code writes (x, y); the GL batchers read .x and .y.
+
+    Twenty of the forty-four scenarios passed tuples, and each crashed the
+    testbed as soon as it was opened -- Wind died on
+    draw_segment((0, 0), ...). The renderer normalises now, so this pins that
+    it keeps doing so.
+
+    GLDebugDraw needs an OpenGL context to construct, so the instance is built
+    without __init__ and its batchers replaced by recorders. That exercises
+    the real methods, which is the point: a test double of the renderer could
+    normalise while the renderer itself stopped.
+    """
+    from box2d import Color
+    from box2d_testbed.debug_draw_gl import GLDebugDraw
+
+    class Batcher:
+        def __init__(self):
+            self.received = []
+
+        def _record(self, *args):
+            # Fails the same way draw.py would if a raw tuple got through.
+            self.received.append([(a.x, a.y) for a in args if hasattr(a, "x")])
+
+        add_line = add_point = add_circle = add_capsule = add_polygon = _record
+
+    renderer = GLDebugDraw.__new__(GLDebugDraw)
+    renderer.lines = Batcher()
+    renderer.points = Batcher()
+    renderer.circles = Batcher()
+    renderer.solid_capsules = Batcher()
+    renderer.debug_strings = []
+
+    white = Color(255, 255, 255, 255)
+    renderer.draw_segment((0, 0), (1, 2), white)
+    renderer.draw_point((3, 4), 5.0, white)
+    renderer.draw_circle((5, 6), 1.0, white)
+    renderer.draw_solid_capsule((0, 0), (1, 0), 0.5, white)
+    renderer.draw_string((7, 8), "hello", white)
+
+    assert renderer.lines.received == [[(0.0, 0.0), (1.0, 2.0)]]
+    assert renderer.points.received == [[(3.0, 4.0)]]
+    assert renderer.circles.received == [[(5.0, 6.0)]]
+    assert renderer.solid_capsules.received == [[(0.0, 0.0), (1.0, 0.0)]]
+
+    position = renderer.debug_strings[0][0]
+    assert (position.x, position.y) == (7.0, 8.0), "strings are placed later"
+
+    # Vec2 must still work, since Box2D's own callbacks pass them.
+    renderer.draw_segment(Vec2(1, 1), Vec2(2, 2), white)
+    assert renderer.lines.received[-1] == [(1.0, 1.0), (2.0, 2.0)]
