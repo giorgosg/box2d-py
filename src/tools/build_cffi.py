@@ -44,14 +44,18 @@ def ensure_temp_dir():
 
 
 def _emscripten_toolchain_file():
-    """The Emscripten CMake toolchain from the installed pyodide build env."""
-    from pyodide_build import build_env
+    """The Emscripten CMake toolchain, from the environment pyodide exports.
 
-    toolchain = build_env.get_build_flag("CMAKE_TOOLCHAIN_FILE")
+    Read from the environment rather than by importing pyodide_build: the
+    wheel is built in an isolated PEP 517 environment holding only what
+    build-system.requires names, and pyodide_build is not among them.
+    """
+    toolchain = os.environ.get("CMAKE_TOOLCHAIN_FILE", "")
     if not toolchain or not os.path.exists(toolchain):
         raise RuntimeError(
-            "no Emscripten CMake toolchain found; install the pyodide "
-            "cross-build environment first: pyodide xbuildenv install"
+            "cross-compiling to Emscripten but CMAKE_TOOLCHAIN_FILE is not set "
+            "to an existing file. Build through `pyodide build`, which exports "
+            "it, after `pyodide xbuildenv install`."
         )
     return toolchain
 
@@ -94,10 +98,14 @@ def build_dependencies():
         # that turns on SIMD128; its pthread block only applies to the samples
         # and tests, which are off here, so the library itself needs no
         # threads.
+        # Box2D has to be compiled with the same flags as the extension that
+        # links it -- wasm exceptions and longjmp support in particular, since
+        # mixing those is a link error rather than a warning.
         box2d_cmake_args.extend(
             [
                 f"-DCMAKE_TOOLCHAIN_FILE={_emscripten_toolchain_file()}",
                 "-DBOX2D_BENCHMARKS=OFF",
+                f"-DCMAKE_C_FLAGS={os.environ.get('CFLAGS_BASE', '')}",
             ]
         )
     elif platform.system() == "Windows":

@@ -32,6 +32,38 @@ pip install box2d-python[testbed]
 box2d-testbed
 ```
 
+## Building for the browser
+
+The bindings cross-compile to WebAssembly, so Box2D can be driven from Python
+in a browser through [Pyodide](https://pyodide.org). The testbed does not come
+along -- it needs OpenGL -- but the whole physics API does.
+
+```bash
+pip install pyodide-build
+pyodide xbuildenv install 0.29.4   # must match your Python; see note below
+./src/tools/build_wasm.sh
+```
+
+That builds a `wasm32` wheel into `dist/`, then verifies it by creating a
+Pyodide runtime, installing the wheel and running the test suite inside
+WebAssembly. 759 of the tests run there; the rest need the testbed's GUI or
+inspect the host build.
+
+Two things to know:
+
+- **The cross-build environment is tied to your Python version.** 0.29.4 is
+  Python 3.13; the 314 and 315 lines need 3.14 and 3.15. Run
+  `pyodide xbuildenv search` to see which are compatible with the interpreter
+  you have.
+- **The wasm build is single threaded.** enkiTS needs a real thread pool, and
+  Emscripten only has one with `SharedArrayBuffer` and the COOP/COEP headers
+  that go with it. `box2d.HAS_THREADS` is `False` there, and `World(threads=N)`
+  for N above one raises rather than pretending. Box2D itself is unaffected;
+  only the task scheduler is missing.
+
+The same switch works natively, if you want a build without the C++ thread
+pool: `BOX2D_PY_NO_THREADS=1 python src/tools/build_cffi.py`.
+
 ## Example Usage
 
 
