@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>box2d-py testbed</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #1e1e1e;
+    color: #d0d0d0;
+    font: 14px/1.5 system-ui, sans-serif;
+  }
+  #canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    outline: none;
+  }
+  #status {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: #1e1e1e;
+    text-align: center;
+    padding: 2rem;
+  }
+  #status.done { display: none; }
+  #detail { color: #888; font-size: 0.85em; max-width: 40rem; }
+  pre {
+    color: #ff8080;
+    text-align: left;
+    max-width: 80vw;
+    overflow: auto;
+    font-size: 0.8em;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0"></canvas>
+
+<div id="status">
+  <div id="message">Loading Python…</div>
+  <div id="detail">The first load fetches a Python runtime and the physics
+    engine, both compiled to WebAssembly. Roughly 15&nbsp;MB, cached afterwards.</div>
+  <pre id="error" hidden></pre>
+</div>
+
+<!-- Pinned to the Pyodide our wheel was built against: a wheel is tagged with
+     an ABI (pyemscripten_2025_0 here) and will not load on another. -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js"></script>
+<script>
+const message = document.getElementById("message");
+const detail = document.getElementById("detail");
+const status = document.getElementById("status");
+const errorBox = document.getElementById("error");
+
+function say(text, note) {
+  message.textContent = text;
+  if (note !== undefined) detail.textContent = note;
+}
+
+function fail(error) {
+  say("Could not start", "");
+  errorBox.hidden = false;
+  errorBox.textContent = String(error && error.stack ? error.stack : error);
+  console.error(error);
+}
+
+async function main() {
+  try {
+    const canvas = document.getElementById("canvas");
+    // Match the drawing buffer to the element, or the view is stretched.
+    canvas.width = canvas.clientWidth * window.devicePixelRatio;
+    canvas.height = canvas.clientHeight * window.devicePixelRatio;
+
+    say("Loading Python…");
+    const pyodide = await loadPyodide();
+    // hello_imgui draws through SDL, which needs to be told where to draw.
+    pyodide.canvas.setCanvas2D(canvas);
+
+    say("Loading the GUI library…", "imgui_bundle, from Pyodide's own index.");
+    // loadPackage rather than micropip: imgui_bundle is in Pyodide's
+    // distribution at the matching ABI, and its glfw dependency has no wasm
+    // build for micropip to resolve.
+    // Names come from the Pyodide lockfile, which spells it with a hyphen.
+    await pyodide.loadPackage(["micropip", "imgui-bundle", "numpy"]);
+
+    say("Loading the physics engine…", "box2d-python, built for WebAssembly.");
+    const micropip = pyodide.pyimport("micropip");
+    await micropip.install("munch");
+    await micropip.install(WHEEL_URL, { deps: false });
+
+    say("Starting…", "");
+    await pyodide.runPythonAsync(document.getElementById("app").textContent);
+
+    status.classList.add("done");
+    canvas.focus();
+  } catch (error) {
+    fail(error);
+  }
+}
+
+// Served alongside this page; see web/serve.py.
+const WHEEL_URL = new URL("box2d_python-0.1.3-cp313-cp313-pyemscripten_2025_0_wasm32.whl",
+                          window.location.href).href;
+main();
+</script>
+
+<script type="text/python" id="app">
+import os
+
+# There is no PyOpenGL here, so the renderer that draws through imgui's draw
+# list is the only one that can run.
+os.environ["BOX2D_TESTBED_RENDERER"] = "imgui"
+
+import box2d
+import box2d_testbed.testbed as testbed
+
+print(f"box2d-py in the browser: threads={box2d.HAS_THREADS}")
+
+app = testbed.TestbedApp()
+# hello_imgui.run is patched under Pyodide to drive requestAnimationFrame,
+# so this returns immediately and the app keeps running in the browser.
+app.run()
+</script>
+</body>
+</html>

@@ -73,25 +73,32 @@ class ManifoldPoint:
     A contact point belonging to a contact manifold.
 
     Attributes:
-        point: Location of the contact point in world space.
-        anchor_a: Location of the contact point relative to shape A's origin.
-        anchor_b: Location of the contact point relative to shape B's origin.
+        anchor_a: Contact point relative to body A's centre of mass.
+        anchor_b: Contact point relative to body B's centre of mass.
         separation: Separation of the contact point, negative if penetrating.
+        base_separation: Separation at the start of the step, before the solver
+            moved anything.
         normal_impulse: Impulse along the manifold normal vector.
         tangent_impulse: Friction impulse.
-        max_normal_impulse: Maximum normal impulse applied during sub-stepping.
+        total_normal_impulse: Normal impulse accumulated over the sub-steps.
         normal_velocity: Relative normal velocity pre-solve. Negative means shapes approaching.
         id: Uniquely identifies a contact point between two shapes.
         persisted: True if the contact point existed in the previous step.
+
+    Note:
+        Box2D 3.2 removed the world-space ``point`` this used to carry, and
+        renamed ``maxNormalImpulse`` to ``totalNormalImpulse``. The conversion
+        here still read both, so building one raised AttributeError -- unnoticed
+        because nothing had ever produced a manifold with points in it.
     """
 
-    point: Vec2
     anchor_a: Vec2
     anchor_b: Vec2
     separation: float
+    base_separation: float
     normal_impulse: float
     tangent_impulse: float
-    max_normal_impulse: float
+    total_normal_impulse: float
     normal_velocity: float
     id: int
     persisted: bool
@@ -99,16 +106,16 @@ class ManifoldPoint:
     @classmethod
     def from_b2ManifoldPoint(cls, manifold_point):
         return cls(
-            point=Vec2.from_b2Vec2(manifold_point.point),
             anchor_a=Vec2.from_b2Vec2(manifold_point.anchorA),
             anchor_b=Vec2.from_b2Vec2(manifold_point.anchorB),
             separation=manifold_point.separation,
+            base_separation=manifold_point.baseSeparation,
             normal_impulse=manifold_point.normalImpulse,
             tangent_impulse=manifold_point.tangentImpulse,
-            max_normal_impulse=manifold_point.maxNormalImpulse,
+            total_normal_impulse=manifold_point.totalNormalImpulse,
             normal_velocity=manifold_point.normalVelocity,
             id=manifold_point.id,
-            persisted=manifold_point.persisted,
+            persisted=bool(manifold_point.persisted),
         )
 
 
@@ -129,7 +136,7 @@ class Manifold:
 
     @classmethod
     def from_b2Manifold(cls, manifold):
-        normal = (Vec2.from_b2Vec2(manifold.normal),)
+        normal = Vec2.from_b2Vec2(manifold.normal)
         rolling_impulse = manifold.rollingImpulse
         points = [
             ManifoldPoint.from_b2ManifoldPoint(manifold.points[i])
@@ -205,7 +212,11 @@ class BodyDef:
         user_data: Application specific body data.
         enable_sleep: Set to false if this body should never fall asleep.
         is_awake: Is this body initially awake or sleeping?
-        fixed_rotation: Should this body be prevented from rotating?
+        lock_x: Prevent translation along the world x-axis.
+        lock_y: Prevent translation along the world y-axis.
+        lock_rotation: Prevent rotation. Box2D 3.2 generalised the old
+            fixed_rotation flag into these three independent locks.
+        enable_contact_recycling: Reuse contacts between steps where possible.
         is_bullet: Treat this body as high speed object for continuous collision detection.
         is_enabled: Used to disable a body. A disabled body doesn't move or collide.
         allow_fast_rotation: Bypass rotational speed limits. For circular objects like wheels.
@@ -224,7 +235,10 @@ class BodyDef:
     user_data: Optional[object] = None
     enable_sleep: bool = _default_body_def.enableSleep
     is_awake: bool = _default_body_def.isAwake
-    fixed_rotation: bool = _default_body_def.fixedRotation
+    lock_x: bool = _default_body_def.motionLocks.linearX
+    lock_y: bool = _default_body_def.motionLocks.linearY
+    lock_rotation: bool = _default_body_def.motionLocks.angularZ
+    enable_contact_recycling: bool = _default_body_def.enableContactRecycling
     is_bullet: bool = _default_body_def.isBullet
     is_enabled: bool = _default_body_def.isEnabled
     allow_fast_rotation: bool = _default_body_def.allowFastRotation
@@ -246,7 +260,7 @@ class BodyDef:
         # Override with any explicitly set values
         body_def.type = self.type
         body_def.position = self.position.b2Vec2[0]
-        body_def.rotation = self.rotation.b2Rot
+        body_def.rotation = self.rotation.b2Rot[0]
         body_def.linearVelocity = self.linear_velocity.b2Vec2[0]
         body_def.angularVelocity = self.angular_velocity
         body_def.linearDamping = self.linear_damping
@@ -259,12 +273,16 @@ class BodyDef:
             self._name_string = ffi.new("char[]", self.name.encode("utf-8"))
             body_def.name = self._name_string
 
-        if self.user_data is not None:
-            body_def.userData = self.user_data
+        # user_data is deliberately not written here. Box2D's userData holds the
+        # handle that maps a body id back to its Body, which Body.__init__ sets;
+        # the caller's own value is carried on the Body as an attribute.
 
         body_def.enableSleep = self.enable_sleep
         body_def.isAwake = self.is_awake
-        body_def.fixedRotation = self.fixed_rotation
+        body_def.motionLocks.linearX = self.lock_x
+        body_def.motionLocks.linearY = self.lock_y
+        body_def.motionLocks.angularZ = self.lock_rotation
+        body_def.enableContactRecycling = self.enable_contact_recycling
         body_def.isBullet = self.is_bullet
         body_def.isEnabled = self.is_enabled
         body_def.allowFastRotation = self.allow_fast_rotation

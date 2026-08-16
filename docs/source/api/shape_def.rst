@@ -1,6 +1,6 @@
 ShapeDef Module
 ===============
 
-.. automodule:: box2d.shape_def
+.. automodule:: box2d.shapedef
     :members:
 

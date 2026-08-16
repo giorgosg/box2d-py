@@ -11,27 +11,6 @@ b2Vec2_type = type(lib.b2Vec2_zero)
 b2Rot_type = type(lib.b2Rot_identity)
 
 
-def to_vec2(vec: Union[VectorLike, b2Vec2_type]) -> "Vec2":
-    """
-    Convert a VectorLike object into a Vec2 instance, checking that it has exactly 2 elements.
-    If 'vec' is already a Vec2, it is returned as is.
-    """
-    if isinstance(vec, Vec2):
-        return vec
-    if isinstance(vec, b2Vec2_type):
-        if ffi.typeof(vec).cname == b2Vec2_ctype:
-            return Vec2.from_b2Vec2(vec)
-        elif ffi.typeof(vec).cname == b2Vec2_ctype + " *":
-            return Vec2.from_b2Vec2(vec[0])
-    else:
-        if len(vec) != 2:
-            raise ValueError(
-                f"VectorLike must have exactly 2 elements, got {len(vec)}."
-            )
-        else:
-            return Vec2(vec[0], vec[1])
-
-
 def format_num(n: float) -> str:
     """
     Format a float with 3 decimal places but trim trailing zeros.
@@ -71,32 +50,53 @@ class Vec2:
     __slots__ = ("_x", "_y", "_b2vec2")
 
     def __init__(self, x, y=None):
-        """Initialize a 2D vector with the given components.
+        """Initialize a 2D vector.
+
+        Accepts the same forms as the rest of box2d-py: two scalars, or a single
+        vector-like (tuple, list, Vec2, b2Vec2, numpy array).
 
         Args:
-            x (float or b2Vec2 struct): The x-component of the vector.
-            y (float): The y-component of the vector.
+            x: The x component, or a vector-like holding both components.
+            y: The y component, when passing the components separately.
 
-        Returns:
-            Vec2: A new instance of Vec2 with the specified components.
+        Example:
+            >>> Vec2(1, 2)
+            Vec2(1.0, 2.0)
+            >>> Vec2((1, 2))
+            Vec2(1.0, 2.0)
         """
-        if y is None:
-            # Check if x is a b2Vec2
-            if isinstance(x, b2Vec2_type):
-                if ffi.typeof(x).cname == b2Vec2_ctype:
-                    b2vec = ffi.addressof(x)
-                elif ffi.typeof(x).cname == b2Vec2_ctype + " *":
-                    b2vec = x
-                else:
-                    raise ValueError("Invalid CData type")
-                self._x = float(x.x)
-                self._y = float(x.y)
-                self._b2vec2 = None  # FIXME: perhaps keeping the b2vec2 for cases where it will be converted back again.
-                return
-        else:
+        self._b2vec2 = None
+
+        if y is not None:
             self._x = float(x)
             self._y = float(y)
-            self._b2vec2 = None
+            return
+
+        if isinstance(x, b2Vec2_type):
+            cname = ffi.typeof(x).cname
+            if cname == b2Vec2_ctype + " *":
+                x = x[0]
+            elif cname != b2Vec2_ctype:
+                raise TypeError(f"Unsupported cdata type: {cname}")
+            self._x = float(x.x)
+            self._y = float(x.y)
+            return
+
+        # Any other vector-like. Previously this fell through both branches and
+        # left the instance without _x/_y, so the failure surfaced later as a
+        # confusing AttributeError on first use.
+        try:
+            components = tuple(x)
+        except TypeError:
+            raise TypeError(
+                f"Expected two scalars or a vector-like, got {type(x).__name__}."
+            ) from None
+        if len(components) != 2:
+            raise ValueError(
+                f"VectorLike must have exactly 2 elements, got {len(components)}."
+            )
+        self._x = float(components[0])
+        self._y = float(components[1])
 
     @property
     def x(self):
@@ -280,11 +280,11 @@ class Vec2:
         """
         Check if this vector is equal to another vector or tuple.
 
-        The parameter is first converted to a Vec2 using `to_vec2`. If conversion fails,
+        The parameter is first converted with the Vec2 constructor. If conversion fails,
         the method returns False.
         """
         try:
-            other_vec = to_vec2(other)
+            other_vec = Vec2(other)
         except (TypeError, ValueError):
             return False
         return self.x == other_vec.x and self.y == other_vec.y
@@ -293,10 +293,10 @@ class Vec2:
         """
         Check if this vector is approximately equal to another vector-like object.
 
-        The parameter is first converted via `to_vec2`.
+        The parameter is first converted with the Vec2 constructor.
         """
         try:
-            other_vec = to_vec2(other)
+            other_vec = Vec2(other)
         except (TypeError, ValueError):
             return False
         return (
@@ -306,12 +306,12 @@ class Vec2:
 
     def __add__(self, other: VectorLike) -> "Vec2":
         """Return the component-wise addition of this vector and another."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return Vec2(self.x + other.x, self.y + other.y)
 
     def __sub__(self, other: VectorLike) -> "Vec2":
         """Return the component-wise difference between this vector and another."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return Vec2(self.x - other.x, self.y - other.y)
 
     def __mul__(self, scalar: float) -> "Vec2":
@@ -347,22 +347,22 @@ class Vec2:
 
     def __lt__(self, other: VectorLike) -> bool:
         """Return True if this vector is component-wise less than the other."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x < other.x and self.y < other.y
 
     def __le__(self, other: VectorLike) -> bool:
         """Return True if this vector is component-wise less than or equal to the other."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x <= other.x and self.y <= other.y
 
     def __ge__(self, other: VectorLike) -> bool:
         """Return True if this vector is component-wise greater than or equal to the other."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x >= other.x and self.y >= other.y
 
     def __gt__(self, other: VectorLike) -> bool:
         """Return True if this vector is component-wise greater than the other."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x > other.x and self.y > other.y
 
     def __bool__(self) -> bool:
@@ -423,12 +423,12 @@ class Vec2:
 
     def dot(self, other: VectorLike) -> float:
         """Compute the dot product with another vector-like object."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x * other.x + self.y * other.y
 
     def cross(self, other: VectorLike) -> float:
         """Compute the 2D cross product (a scalar) with another vector-like object."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return self.x * other.y - self.y * other.x
 
     def normalize(self) -> "Vec2":
@@ -471,7 +471,7 @@ class Vec2:
         Raises:
             ValueError: If the other vector is the zero vector.
         """
-        other = to_vec2(other)
+        other = Vec2(other)
         dot_product = self.dot(other)
         other_dot = other.dot(other)
         if other_dot == 0:
@@ -490,7 +490,7 @@ class Vec2:
         Args:
             t (float): Interpolation factor (typically between 0 and 1).
         """
-        other = to_vec2(other)
+        other = Vec2(other)
         return self + (other - self) * t
 
     def perpendicular(self, direction="right") -> "Vec2":
@@ -512,12 +512,12 @@ class Vec2:
 
     def min(self, other: VectorLike) -> "Vec2":
         """Return the component-wise minimum comparing this vector and another."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return Vec2(min(self.x, other.x), min(self.y, other.y))
 
     def max(self, other: VectorLike) -> "Vec2":
         """Return the component-wise maximum comparing this vector and another."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return Vec2(max(self.x, other.x), max(self.y, other.y))
 
     def clamp(self, min_value: VectorLike, max_value: VectorLike) -> "Vec2":
@@ -541,7 +541,7 @@ class Vec2:
 
     def multiply_componentwise(self, other: VectorLike) -> "Vec2":
         """Multiply this vector with another vector-like object component-wise."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return Vec2(self.x * other.x, self.y * other.y)
 
     def cross_scalar(self, s: float, direction: str = "right") -> "Vec2":
@@ -558,7 +558,7 @@ class Vec2:
 
     def distance_to(self, other: VectorLike) -> float:
         """Calculate the Euclidean distance between this vector and another vector-like object."""
-        other = to_vec2(other)
+        other = Vec2(other)
         return (self - other).length
 
 
@@ -603,7 +603,10 @@ class Rot:
                 angle = angle[0]
             self._s = angle.s
             self._c = angle.c
-            self._b2rot = angle
+            # Deliberately not cached: b2Rot must always hand back a b2Rot*, and
+            # the value we were handed here is a bare struct. Caching it would
+            # make the property's return type depend on how Rot was built.
+            self._b2rot = None
         else:
             self._c = math.cos(angle)
             self._s = math.sin(angle)
@@ -646,6 +649,9 @@ class Rot:
     @property
     def b2Rot(self):
         """Box2D b2Rot equivalent (managed by FFI).
+
+        Always a ``b2Rot*``, mirroring :attr:`Vec2.b2Vec2`, so call sites can
+        rely on indexing it with ``[0]`` to get the struct.
 
         Example:
             >>> rot = Rot(math.pi/4)
@@ -981,7 +987,7 @@ class Rot:
             Rot: New rotation with negated angle
 
         Example:
-            >>> Rot(math.pi/4).inverse.angle_degrees
+            >>> round(Rot(math.pi/4).inverse.angle_degrees, 6)
             -45.0
         """
         return Rot(-self.angle_radians)
@@ -1000,9 +1006,9 @@ class Rot:
             Rot: A new rotation interpolated between self and other.
 
         Examples:
-            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5).angle_degrees
+            >>> round(Rot(0).interpolate(Rot(math.pi/2), 0.5).angle_degrees, 6)
             45.0
-            >>> Rot(0).interpolate(Rot(math.pi/2), 0.5, ccw=False).angle_degrees # Clockwise
+            >>> round(Rot(0).interpolate(Rot(math.pi/2), 0.5, ccw=False).angle_degrees, 6) # Clockwise
             -135.0
         """
         a0 = self.angle_radians
@@ -1033,7 +1039,7 @@ class Rot:
             >>> Rot(math.pi/2).rotate_vector(Vec2(1, 0))
             Vec2(0.0, 1.0)
         """
-        v = Vec2(*v)
+        v = Vec2(v)
         x = self.c * v.x - self.s * v.y
         y = self.c * v.y + self.s * v.x
         return Vec2(x, y)
@@ -1086,7 +1092,7 @@ class Transform:
             >>> Transform((1, 2), math.pi)
             Transform(p=Vec2(1.0, 2.0), q=Rot(3.141593))
         """
-        self._p = position if isinstance(position, Vec2) else Vec2(*position)
+        self._p = position if isinstance(position, Vec2) else Vec2(position)
         self._q = rotation if isinstance(rotation, Rot) else Rot(rotation)
         self._b2transform = None
 
@@ -1140,7 +1146,7 @@ class Transform:
             Vec2(3.0, 4.0)
         """
         if not isinstance(point, Vec2):
-            point = Vec2(*point)
+            point = Vec2(point)
         return self.q * point + self.p
 
     @property
@@ -1260,14 +1266,14 @@ class ScaledTransform:
             >>> t2 = ScaledTransform(scale=2)  # Uniform scaling
             >>> t3 = ScaledTransform(scale=(1.5, 0.5))  # Non-uniform scaling
         """
-        self._position = position if isinstance(position, Vec2) else Vec2(*position)
+        self._position = position if isinstance(position, Vec2) else Vec2(position)
         self._rotation = rotation if isinstance(rotation, Rot) else Rot(rotation)
 
         # Handle different scale input types
         if isinstance(scale, (int, float)):
             self._scale = Vec2(scale, scale)
         else:
-            self._scale = scale if isinstance(scale, Vec2) else Vec2(*scale)
+            self._scale = scale if isinstance(scale, Vec2) else Vec2(scale)
         self._recalc_matrix()
         self._inv_matrix = None
 
@@ -1314,14 +1320,14 @@ class ScaledTransform:
             >>> t((1, 1))  # (1*2, 1*2) → rotated 180° → + (5, 0)
             Vec2(3.0, -2.0)
         """
-        # point = Vec2(*point)
+        # point = Vec2(point)
         ## Apply scaling first
         # scaled = point.multiply_componentwise(self.scale)
         ## Then apply rotation and translation
         # return self.rotation * scaled + self.position
 
         m00, m01, m02, m10, m11, m12 = self._matrix
-        x, y = Vec2(*point)
+        x, y = Vec2(point)
         new_x = m00 * x + m01 * y + m02
         new_y = m10 * x + m11 * y + m12
         return Vec2(new_x, new_y)
@@ -1343,7 +1349,7 @@ class ScaledTransform:
 
     @position.setter
     def position(self, value: VectorLike):
-        self._position = value if isinstance(value, Vec2) else Vec2(*value)
+        self._position = value if isinstance(value, Vec2) else Vec2(value)
         self._recalc_matrix()
         self._inv_matrix = None
 
@@ -1388,7 +1394,7 @@ class ScaledTransform:
         if isinstance(value, (int, float)):
             self._scale = Vec2(value, value)
         else:
-            self._scale = value if isinstance(value, Vec2) else Vec2(*value)
+            self._scale = value if isinstance(value, Vec2) else Vec2(value)
         self._recalc_matrix()
         self._inv_matrix = None
 
@@ -1413,7 +1419,7 @@ class ScaledTransform:
         if isinstance(scale, (int, float)):
             scale_vec = Vec2(scale, scale)
         else:
-            scale_vec = Vec2(*scale)
+            scale_vec = Vec2(scale)
 
         return cls(transform.position, transform.rotation, scale_vec)
 
@@ -1578,8 +1584,8 @@ class AABB:
             >>> AABB((0, 0), (2, 2))
             AABB(lower=Vec2(0.0, 0.0), upper=Vec2(2.0, 2.0))
         """
-        self._lower = to_vec2(lower)
-        self._upper = to_vec2(upper)
+        self._lower = Vec2(lower)
+        self._upper = Vec2(upper)
 
     @property
     def lower(self) -> Vec2:
@@ -1658,7 +1664,7 @@ class AABB:
             new_lower = Vec2.min(self.lower, other.lower)
             new_upper = Vec2.max(self.upper, other.upper)
         else:  # Treat as point
-            point = Vec2(*other)
+            point = Vec2(other)
             new_lower = Vec2.min(self.lower, point)
             new_upper = Vec2.max(self.upper, point)
         return AABB(new_lower, new_upper)
@@ -1761,7 +1767,7 @@ class AABB:
         if isinstance(other, AABB):
             return (self.lower <= other.lower) and (self.upper >= other.upper)
         else:  # Treat as point
-            other = Vec2(*other)
+            other = Vec2(other)
             return (self.lower <= other) and (self.upper >= other)
 
     def __contains__(self, other: Union["AABB", VectorLike]) -> bool:
@@ -1924,7 +1930,7 @@ class AABB:
             >>> AABB((0,0), (2,2)).translated((1, -1))
             AABB(lower=Vec2(1.0, -1.0), upper=Vec2(3.0, 1.0))
         """
-        off = Vec2(*offset)
+        off = Vec2(offset)
         return AABB(self.lower + off, self.upper + off)
 
 
@@ -1969,8 +1975,8 @@ class Mat22:
             self.cx = Vec2(args[0], args[1])
             self.cy = Vec2(args[2], args[3])
         elif len(args) == 2:  # Two column vectors
-            self.cx = Vec2(*args[0])
-            self.cy = Vec2(*args[1])
+            self.cx = Vec2(args[0])
+            self.cy = Vec2(args[1])
         elif len(args) == 1 and len(args[0]) == 4:  # Flat list
             self.cx = Vec2(args[0][0], args[0][1])
             self.cy = Vec2(args[0][2], args[0][3])
@@ -2099,7 +2105,7 @@ class Mat22:
         """
         if isinstance(other, Mat22):
             return Mat22(self * other.cx, self * other.cy)
-        other_vec = Vec2(*other)
+        other_vec = Vec2(other)
         return Vec2(
             self.cx.x * other.x + self.cy.x * other.y,
             self.cx.y * other.x + self.cy.y * other.y,

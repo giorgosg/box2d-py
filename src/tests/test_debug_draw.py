@@ -30,7 +30,7 @@ class MockDebugDraw(DebugDraw):
     def draw_circle(self, center, radius, color):
         self.draw_circle_count += 1
 
-    def draw_solid_circle(self, transform, radius, color):
+    def draw_solid_circle(self, transform, center, radius, color):
         self.draw_solid_circle_count += 1
 
     def draw_segment(self, p1, p2, color):
@@ -79,11 +79,14 @@ def test_draw_circle():
 
 
 def test_draw_shapes_property():
+    """Box2D 3.2 flipped this default to True, so test the toggle, not the default."""
     debug_draw = DebugDraw()
-    assert debug_draw.draw_shapes is False
 
     debug_draw.draw_shapes = True
     assert debug_draw.draw_shapes is True
+
+    debug_draw.draw_shapes = False
+    assert debug_draw.draw_shapes is False
 
 
 def test_draw_aabbs_property():
@@ -128,3 +131,106 @@ def test_color_parsing():
     color_with_alpha = debug_draw.Color.from_b2HexColor(0x123456)
     color_with_alpha.a = 128
     assert color_with_alpha.hex == 0x123456  # Alpha not part of hex
+
+
+# --- view culling ------------------------------------------------------------
+
+
+def test_drawing_bounds_round_trips():
+    from box2d import AABB, DebugDraw, Vec2
+
+    draw = DebugDraw()
+    assert draw.drawing_bounds.upper.x > 1e30, "unset means draw everything"
+
+    draw.drawing_bounds = AABB(lower=Vec2(-5, -3), upper=Vec2(5, 3))
+    bounds = draw.drawing_bounds
+    assert (bounds.lower.x, bounds.lower.y) == (-5.0, -3.0)
+    assert (bounds.upper.x, bounds.upper.y) == (5.0, 3.0)
+
+
+def test_drawing_bounds_culls_what_is_off_screen():
+    """Box2D queries its broad-phase tree with this, so an off-screen shape
+    never reaches a callback -- it is not drawn and clipped, it is skipped.
+
+    This was left at the float range, so the testbed drew every shape in the
+    world however far outside the view it was.
+    """
+    from box2d import AABB, DebugDraw, Vec2, World
+
+    class Counter(DebugDraw):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def draw_solid_polygon(self, transform, vertices, radius, color):
+            self.count += 1
+
+    world = World()
+    for x in range(-50, 51, 5):
+        body = world.add_body(body_type="dynamic", position=(x, 0))
+        body.add_box(1, 1)
+    world.step(1 / 60, 4)
+
+    everything = Counter()
+    world.draw(everything)
+
+    narrow = Counter()
+    narrow.drawing_bounds = AABB(lower=Vec2(-6, -6), upper=Vec2(6, 6))
+    world.draw(narrow)
+
+    assert everything.count == 21, "all of them, with no bounds set"
+    assert 0 < narrow.count < everything.count, "only the ones in view"
+    world.destroy()
+
+
+def test_both_renderers_cull_to_their_camera():
+    """Whichever renderer is in use, it should not be drawing the whole world
+    when the camera is looking at a corner of it."""
+    import ast
+    import pathlib
+
+    for name in ("debug_draw_gl.py", "debug_draw_imgui.py"):
+        source = pathlib.Path("src/box2d_testbed", name).read_text()
+        tree = ast.parse(source)
+        # Find start_frame properly rather than slicing text: the two files
+        # put the call at different depths, and a fixed slice missed one.
+        start_frames = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "start_frame"
+        ]
+        assert start_frames, f"{name} has no start_frame"
+        body = "\n".join(ast.unparse(node) for node in start_frames)
+        assert "drawing_bounds" in body, f"{name} does not cull to its camera"
+
+
+def test_draw_string_has_the_same_default_everywhere():
+    """Scenarios call draw_string with no colour, so the base class must
+    accept that too -- not only the two renderers that happen to default it.
+
+    A custom renderer subclassing DebugDraw would otherwise break on 26 of
+    the scenarios, which is how this was found: running them in WebAssembly
+    against a plain DebugDraw subclass.
+    """
+    import inspect
+
+    from box2d import DebugDraw
+
+    signature = inspect.signature(DebugDraw.draw_string)
+    assert signature.parameters["color"].default is not inspect.Parameter.empty
+
+    # And it works when called the way the scenarios call it.
+    class Plain(DebugDraw):
+        def __init__(self):
+            super().__init__()
+            self.strings = []
+
+        def draw_string(self, p, s, color=None):
+            self.strings.append(s)
+
+    renderer = Plain()
+    renderer.draw_string((0, 0), "no colour given")
+    assert renderer.strings == ["no colour given"]
+
+    # The base implementation itself must tolerate it too.
+    DebugDraw().draw_string((0, 0), "no colour given")

@@ -8,7 +8,7 @@ from typing import Optional, Any, Iterable, Sequence
 from ._box2d import lib, ffi
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
-from .math import Vec2, to_vec2, VectorLike, AABB, Rot
+from .math import Vec2, VectorLike, AABB, Rot
 from .debug_draw import Color
 
 _default_shape_def = lib.b2DefaultShapeDef()
@@ -33,7 +33,13 @@ class ShapeDef:
         density: The density in kg/m^2. default=1.0
         filter: Collision filtering data as a CollisionFilter object
         custom_color: Custom debug draw color (optional hex color value)
+        enable_custom_filtering: True to consult World.custom_filter for this shape's
+            contacts. The callback runs only if at least one of the two shapes
+            asks for it. default=False
         is_sensor: True if this shape is a sensor (generates events but no collision response). default=False
+        enable_sensor_events: True if sensors may detect this shape. Box2D 3.1 made this
+            opt-in and defaults it to False; box2d-py keeps it True so that sensors
+            behave as they did before the 3.1 upgrade. default=True
         enable_contact_events: True to enable contact events for this shape. default=False
         enable_hit_events: True to enable hit events for this shape. default=False
         enable_pre_solve_events: True to enable pre-solve events (expensive). default=False
@@ -42,15 +48,17 @@ class ShapeDef:
     """
 
     user_data: Optional[Any] = None
-    friction: float = _default_shape_def.friction
-    restitution: float = _default_shape_def.restitution
-    rolling_resistance: float = _default_shape_def.rollingResistance
-    tangent_speed: float = _default_shape_def.tangentSpeed
-    material: SurfaceMaterial | int = _default_shape_def.material
+    friction: float = _default_shape_def.material.friction
+    restitution: float = _default_shape_def.material.restitution
+    rolling_resistance: float = _default_shape_def.material.rollingResistance
+    tangent_speed: float = _default_shape_def.material.tangentSpeed
+    material: SurfaceMaterial | int = _default_shape_def.material.userMaterialId
     density: float = _default_shape_def.density
     filter: Optional[CollisionFilter] = None
-    custom_color: int = _default_shape_def.customColor
+    custom_color: int = _default_shape_def.material.customColor
+    enable_custom_filtering: bool = _default_shape_def.enableCustomFiltering
     is_sensor: bool = _default_shape_def.isSensor
+    enable_sensor_events: bool = True
     enable_contact_events: bool = _default_shape_def.enableContactEvents
     enable_hit_events: bool = _default_shape_def.enableHitEvents
     enable_pre_solve_events: bool = _default_shape_def.enablePreSolveEvents
@@ -75,35 +83,37 @@ class ShapeDef:
         if self.user_data is not None:
             shape_def.userData = self.user_data
 
-        shape_def.friction = self.friction
-        shape_def.restitution = self.restitution
-        shape_def.rollingResistance = self.rolling_resistance
-        shape_def.tangentSpeed = self.tangent_speed
+        shape_def.material.friction = self.friction
+        shape_def.material.restitution = self.restitution
+        shape_def.material.rollingResistance = self.rolling_resistance
+        shape_def.material.tangentSpeed = self.tangent_speed
 
         # Handle material - either an int or SurfaceMaterial object
         if self.material is not None:
             if isinstance(self.material, SurfaceMaterial):
-                shape_def.material = self.material.material
+                shape_def.material.userMaterialId = self.material.material
                 # Apply any material properties if the corresponding ShapeDef property is None
                 if self.friction is None and self.material.friction is not None:
-                    shape_def.friction = self.material.friction
+                    shape_def.material.friction = self.material.friction
                 if self.restitution is None and self.material.restitution is not None:
-                    shape_def.restitution = self.material.restitution
+                    shape_def.material.restitution = self.material.restitution
                 if (
                     self.rolling_resistance is None
                     and self.material.rolling_resistance is not None
                 ):
-                    shape_def.rollingResistance = self.material.rolling_resistance
+                    shape_def.material.rollingResistance = (
+                        self.material.rolling_resistance
+                    )
                 if (
                     self.tangent_speed is None
                     and self.material.tangent_speed is not None
                 ):
-                    shape_def.tangentSpeed = self.material.tangent_speed
+                    shape_def.material.tangentSpeed = self.material.tangent_speed
                 if self.custom_color is None and self.material.custom_color is not None:
                     if isinstance(self.material.custom_color, int):
-                        shape_def.customColor = self.material.custom_color
+                        shape_def.material.customColor = self.material.custom_color
             else:
-                shape_def.material = self.material
+                shape_def.material.userMaterialId = self.material
 
         shape_def.density = self.density
 
@@ -114,8 +124,17 @@ class ShapeDef:
             shape_def.filter.maskBits = filter.maskBits
             shape_def.filter.groupIndex = filter.groupIndex
 
-        shape_def.customColor = self.custom_color
+        # None means "no custom colour", which is what the material branch
+        # above already assumes; assigning it straight through raised instead.
+        if self.custom_color is not None:
+            shape_def.material.customColor = (
+                self.custom_color.b2HexColor
+                if isinstance(self.custom_color, Color)
+                else self.custom_color
+            )
+        shape_def.enableCustomFiltering = self.enable_custom_filtering
         shape_def.isSensor = self.is_sensor
+        shape_def.enableSensorEvents = self.enable_sensor_events
         shape_def.enableContactEvents = self.enable_contact_events
         shape_def.enableHitEvents = self.enable_hit_events
         shape_def.enablePreSolveEvents = self.enable_pre_solve_events
@@ -142,7 +161,7 @@ class CircleDef:
 
     def __post_init__(self):
         """Convert center to Vec2 if it wasn't already"""
-        self.center = to_vec2(self.center)
+        self.center = Vec2(self.center)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -192,8 +211,8 @@ class CapsuleDef:
 
     def __post_init__(self):
         """Convert vertices to Vec2 if they weren't already"""
-        self.vertex1 = to_vec2(self.vertex1)
-        self.vertex2 = to_vec2(self.vertex2)
+        self.vertex1 = Vec2(self.vertex1)
+        self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -246,8 +265,8 @@ class SegmentDef:
 
     def __post_init__(self):
         """Convert vertices to Vec2 if they weren't already"""
-        self.vertex1 = to_vec2(self.vertex1)
-        self.vertex2 = to_vec2(self.vertex2)
+        self.vertex1 = Vec2(self.vertex1)
+        self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -295,9 +314,53 @@ def _compute_hull(vertices: Sequence[VectorLike]):
         raise ValueError("Polygon must have at least 3 vertices and at most 8 vertices")
     b2_points = ffi.new("b2Vec2[]", count)
     for i, vertex in enumerate(vertices):
-        b2_points[i].x, b2_points[i].y = to_vec2(vertex)
+        b2_points[i].x, b2_points[i].y = Vec2(vertex)
     hull = lib.b2ComputeHull(b2_points, count)
     return hull
+
+
+@dataclass
+class BoxDef:
+    """
+    Definition for a box, the most common polygon.
+
+    Box2D builds boxes directly rather than through a convex hull, which is both
+    cheaper and, more importantly, has no minimum feature size. Routing a box
+    through PolygonDef would reject anything thinner than Box2D's linear slop --
+    a house of cards made from 1mm cards would fail to build at all.
+
+    Attributes:
+        width: Full width of the box
+        height: Full height of the box
+        radius: Radius of the rounded corners
+        offset: Position of the box relative to the body origin
+        rotation: Rotation of the box, in radians or as a Rot
+    """
+
+    width: float
+    height: float
+    radius: float = 0.0
+    offset: VectorLike = Vec2(0, 0)
+    rotation: Optional[float | Rot] = None
+
+    @property
+    def b2Polygon(self):
+        """
+        Creates and returns the C structure for this box.
+
+        Returns:
+            A b2Polygon C structure representing this box
+        """
+        rotation = self.rotation if self.rotation is not None else Rot(0.0)
+        if not isinstance(rotation, Rot):
+            rotation = Rot(rotation)
+        return lib.b2MakeOffsetRoundedBox(
+            self.width / 2,
+            self.height / 2,
+            Vec2(self.offset).b2Vec2[0],
+            rotation.b2Rot[0],
+            self.radius or 0.0,
+        )
 
 
 @dataclass
@@ -322,7 +385,7 @@ class PolygonDef:
 
     def __post_init__(self):
         """Convert all vertices to Vec2 objects"""
-        self.vertices = [to_vec2(v) for v in self.vertices]
+        self.vertices = [Vec2(v) for v in self.vertices]
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
@@ -345,7 +408,7 @@ class PolygonDef:
             raise ValueError("Failed to compute convex hull of polygon vertices")
 
         radius = self.radius if self.radius is not None else 0.0
-        offset = to_vec2(self.offset) if self.offset is not None else Vec2(0, 0)
+        offset = Vec2(self.offset) if self.offset is not None else Vec2(0, 0)
         rotation = self.rotation if self.rotation is not None else Rot(0.0)
         if not isinstance(rotation, Rot):
             rotation = Rot(rotation)
@@ -391,6 +454,8 @@ class ChainDef:
         materials: Optional list of SurfaceMaterial objects for each segment
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data
+        enable_sensor_events: True if sensors may detect this chain. See ShapeDef
+            for why this defaults to True rather than Box2D's False. default=True
     """
 
     vertices: Sequence[VectorLike]
@@ -398,22 +463,27 @@ class ChainDef:
     materials: Sequence[SurfaceMaterial] = None
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
+    enable_sensor_events: bool = True
 
     def __post_init__(self):
         """Convert all vertices to Vec2 objects"""
         # Convert vertices to Vec2
-        self.vertices = [to_vec2(v) for v in self.vertices]
+        self.vertices = [Vec2(v) for v in self.vertices]
 
         # Validate vertices
         count = len(self.vertices)
         if count < 4:
             raise ValueError("Chain must have at least 4 vertices")
 
-        # Validate materials if provided
+        # Validate materials if provided. Box2D wants 1 or exactly one per
+        # point, for loops and open chains alike -- on an open chain the two
+        # ghost segments get placeholder materials. This previously demanded
+        # count + 1 for loops, which Box2D rejects.
         if self.materials is not None and len(self.materials) > 1:
-            if len(self.materials) != (count if not self.is_loop else count + 1):
+            if len(self.materials) != count:
                 raise ValueError(
-                    "Number of materials must match the number of segments"
+                    f"a chain takes 1 material or one per point ({count}), "
+                    f"got {len(self.materials)}"
                 )
 
         super().__post_init__() if hasattr(super(), "__post_init__") else None
@@ -445,6 +515,7 @@ class ChainDef:
         chain_def.points = b2_vertices
         chain_def.count = count
         chain_def.isLoop = self.is_loop
+        chain_def.enableSensorEvents = self.enable_sensor_events
 
         # Handle materials
         if self.materials is not None:
@@ -473,7 +544,7 @@ class ChainDef:
                     if mat.tangent_speed is not None
                     else lib.b2DefaultSurfaceMaterial().tangentSpeed
                 )
-                materials[i].material = mat.material
+                materials[i].userMaterialId = mat.material
 
                 if mat.custom_color is not None:
                     if isinstance(mat.custom_color, int):

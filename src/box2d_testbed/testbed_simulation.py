@@ -1,6 +1,19 @@
 from .testbed_state import state
-from . import tb_benchmark, tb_joints, tb_shapes, tb_collision, tb_events
-from box2d import World, Vec2
+
+# Imported for their side effect: each module registers its scenarios on
+# BaseTest.registry when it loads.
+from . import (  # noqa: F401
+    tb_benchmark,
+    tb_joints,
+    tb_shapes,
+    tb_collision,
+    tb_events,
+    tb_stacking,
+    tb_character,
+    tb_bodies,
+    tb_continuous,
+)
+from box2d import World
 from .base_test import BaseTest
 import time
 
@@ -12,12 +25,9 @@ class TestbedSimulation:
 
     def __init__(self, debug_draw):
         self.world = None
-        self.enable_continuous = state.enable_continuous
-        self.enable_sleep = state.enable_sleep
+        self._applied_settings = None
         self.threads = state.threads
         self.debug_draw = debug_draw
-        self.debug_draw.camera.center = Vec2(0.0, 20.0)  # Set initial camera position
-        self.debug_draw.camera.zoom = 1.0  # Set initial zoom
 
         state.all_tests = BaseTest.get_all_tests()
         state.current_test_cls = BaseTest.get_first_test()
@@ -32,14 +42,50 @@ class TestbedSimulation:
         if self.world:
             self.world.destroy()
         self.world = World(gravity=state.gravity, threads=state.threads)
-        self.world.enable_continuous = state.enable_continuous
-        self.world.enable_sleep = state.enable_sleep
+        self.apply_world_settings()
         state.step_count = 0
         self.current_test_obj = state.current_test_cls(self.world)
         self.current_test_obj.setup()
         state.current_test_obj = self.current_test_obj
+
+        # Frame the new scenario. Without this a pan carried into whatever you
+        # opened next, which usually meant looking at empty space with no clue
+        # which way the scene was. The Reset button does not come through here,
+        # so restarting a scenario keeps the view you had set up.
+        self.reset_view()
         state.perf.physics_ms_max = 0
         state.perf.draw_ms_max = 0
+
+    @staticmethod
+    def world_settings():
+        """The world settings the UI can change, as a comparable snapshot."""
+        return (
+            state.enable_continuous,
+            state.enable_sleep,
+            state.enable_warm_starting,
+            state.enable_speculative,
+            state.maximum_linear_speed,
+            state.contact_recycle_distance,
+        )
+
+    def apply_world_settings(self):
+        """Push the UI's world settings onto the world.
+
+        Kept in one place so a setting added to the panel cannot be applied on
+        a fresh world but forgotten when it is changed later, or the reverse.
+        """
+        self.world.enable_continuous = state.enable_continuous
+        self.world.enable_sleep = state.enable_sleep
+        self.world.enable_warm_starting = state.enable_warm_starting
+        self.world.maximum_linear_speed = state.maximum_linear_speed
+        self.world.contact_recycle_distance = state.contact_recycle_distance
+        # No getter for this one, so it is written rather than compared.
+        self.world.enable_speculative(state.enable_speculative)
+        self._applied_settings = self.world_settings()
+
+    def reset_view(self):
+        """Point the camera at the current scenario."""
+        self.current_test_obj.apply_view()
 
     def update_physics(self):
         if (
@@ -47,14 +93,8 @@ class TestbedSimulation:
             or self.threads != state.threads
         ):
             self.init_test()
-        if (
-            self.enable_continuous != state.enable_continuous
-            or self.enable_sleep != state.enable_sleep
-        ):
-            self.enable_continuous = state.enable_continuous
-            self.enable_sleep = state.enable_sleep
-            self.world.enable_continuous = self.enable_continuous
-            self.world.enable_sleep = self.enable_sleep
+        if self.world_settings() != self._applied_settings:
+            self.apply_world_settings()
 
         start = time.perf_counter()
         self.world.step(1 / state.hertz, state.substeps)
@@ -65,6 +105,9 @@ class TestbedSimulation:
         state.perf.physics_ms_avg *= smoothing
         state.perf.physics_ms_avg += elapsed * (1 - smoothing)
         state.perf.physics_ms_max = max(state.perf.physics_ms_max, elapsed)
+        state.perf.profile = self.world.profile
+        state.perf.counters = self.world.counters
+        state.perf.awake = self.world.awake_body_count
         state.step_count += 1
 
     def draw(self):

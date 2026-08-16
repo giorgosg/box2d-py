@@ -26,8 +26,10 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = []
 
-# Mock CFFI imports that require compiled binaries
-autodoc_mock_imports = ["box2d._box2d"]
+# The compiled extension is not mocked: readthedocs builds it (see
+# .readthedocs.yml, which installs the package with cmake and the submodules).
+# Mocking it made every module that reads a Box2D default at import time fail to
+# import, which silently left most of the API undocumented.
 
 # Napoleon settings for Google-style docstrings
 napoleon_google_docstring = True

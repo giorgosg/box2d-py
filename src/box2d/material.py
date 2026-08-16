@@ -54,6 +54,22 @@ class SurfaceMaterial:
         # Register this material in the registry
         self._materials_registry[self.material] = self
 
+    @classmethod
+    def from_b2SurfaceMaterial(cls, material) -> "SurfaceMaterial":
+        """Build one from a C struct, as read back out of Box2D.
+
+        The id comes from the struct rather than the auto-increment counter,
+        so a material read back keeps the identity it was stored under.
+        """
+        return cls(
+            material=material.userMaterialId,
+            friction=material.friction,
+            restitution=material.restitution,
+            rolling_resistance=material.rollingResistance,
+            tangent_speed=material.tangentSpeed,
+            custom_color=material.customColor,
+        )
+
     @property
     def b2SurfaceMaterial(self):
         """
@@ -69,7 +85,7 @@ class SurfaceMaterial:
         material = lib.b2DefaultSurfaceMaterial()
 
         # Always set the material ID, even if using the auto-generated one
-        material.material = self.material
+        material.userMaterialId = self.material
 
         # Override with any explicitly set values
         if self.friction is not None:

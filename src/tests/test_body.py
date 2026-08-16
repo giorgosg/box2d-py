@@ -234,9 +234,9 @@ def test_body_damping():
     assert body.angular_velocity < 4
 
 
-def test_fixed_rotation():
+def test_lock_rotation():
     world = World()
-    body = world.new_body().dynamic().fixed_rotation(True).build()
+    body = world.new_body().dynamic().lock_rotation(True).build()
 
     # Apply torque
     body.apply_torque(10.0)
@@ -350,7 +350,7 @@ def test_mixed_body_properties():
         .position(5, 10)
         .linear_velocity(2, -1)
         .angular_velocity(1.5)
-        .fixed_rotation(True)
+        .lock_rotation(True)
         .bullet(True)
         .gravity_scale(0.8)
         .build()
@@ -359,7 +359,7 @@ def test_mixed_body_properties():
     assert body.position == (5, 10)
     assert body.linear_velocity == (2, -1)
     assert body.angular_velocity == 1.5
-    assert body.fixed_rotation == True
+    assert body.lock_rotation == True
     assert body.is_bullet == True
     assert body.gravity_scale == aprx(0.8)
 
@@ -447,7 +447,7 @@ def test_body_properties_get_set():
         .position(5, 10)
         .linear_velocity(2, 3)
         .angular_velocity(1.0)
-        .fixed_rotation(False)
+        .lock_rotation(False)
         .gravity_scale(1.5)
         .bullet(False)
         .linear_damping(0.1)
@@ -464,7 +464,7 @@ def test_body_properties_get_set():
     assert body.angular_damping == pytest.approx(0.2)
     assert body.sleep_threshold == pytest.approx(0.05)
     assert body.type == "dynamic"
-    assert body.fixed_rotation == False
+    assert body.lock_rotation == False
     assert body.is_bullet == False
     assert body.gravity_scale == pytest.approx(1.5)
 
@@ -493,8 +493,8 @@ def test_body_properties_get_set():
     assert body.sleep_threshold == pytest.approx(0.1)
 
     # Modify fixed rotation and bullet flags
-    body.fixed_rotation = True
-    assert body.fixed_rotation is True
+    body.lock_rotation = True
+    assert body.lock_rotation is True
 
     body.is_bullet = True
     assert body.is_bullet is True
@@ -520,3 +520,52 @@ def test_body_properties_get_set():
     # Test rotation property: set the rotation to ~90° (1.5708 radians)
     body.rotation = 1.5708
     assert body.rotation == pytest.approx(1.5708)
+
+
+# --- contact recycling ------------------------------------------------------
+
+
+def test_contact_recycling_round_trips():
+    """The runtime counterpart of BodyDef.enable_contact_recycling.
+
+    The definition flag was bound but there was no way to read or change it
+    on a live body.
+    """
+    world = World()
+    body = world.add_body(body_type="dynamic", position=(0, 0))
+    body.add_box(1, 1)
+
+    assert body.enable_contact_recycling is True, "Box2D defaults it on"
+    body.enable_contact_recycling = False
+    assert body.enable_contact_recycling is False
+    body.enable_contact_recycling = True
+    assert body.enable_contact_recycling is True
+    world.destroy()
+
+
+def test_contact_recycling_follows_the_body_def():
+    world = World()
+    body = world.add_body(
+        body_type="dynamic", position=(0, 0), enable_contact_recycling=False
+    )
+    body.add_box(1, 1)
+
+    assert body.enable_contact_recycling is False
+    world.destroy()
+
+
+def test_recycled_contacts_are_counted():
+    """The world counters report recycling, so the two views should agree."""
+    world = World()
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1)
+    box = world.add_body(body_type="dynamic", position=(0, 1.4))
+    box.add_box(1, 1)
+
+    recycled = 0
+    for _ in range(120):
+        world.step(1 / 60, 4)
+        recycled += world.counters.recycled_contact_count
+
+    assert recycled > 0, "a box resting on the ground should reuse its contacts"
+    world.destroy()

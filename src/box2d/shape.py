@@ -8,10 +8,11 @@ Chain is implemented as a separate class.
 
 from ._box2d import lib, ffi
 from abc import ABC
-from typing import List, Dict, Optional, Union, Any, Tuple
-from .math import Vec2, Transform, VectorLike, AABB, to_vec2
+from typing import List, Dict, Optional, Union, Any, Tuple, Iterable, Sequence
+from .math import Vec2, Transform, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
+    BoxDef,
     CircleDef,
     CapsuleDef,
     SegmentDef,
@@ -21,6 +22,9 @@ from .shapedef import (
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
+from .accessors import b2_value
+from .lifetime import IdRef, is_live, raw_id
+from .accessors import b2_bool, b2_float, b2_value
 
 
 class Shape(ABC):
@@ -28,6 +32,8 @@ class Shape(ABC):
     Base class for all non-chain shapes.
     It provides common properties like density, friction, restitution
     """
+
+    _shape_id = IdRef(lib.b2Shape_IsValid, "shape")
 
     def __init__(self, body: "Body"):
         self._body = body
@@ -37,54 +43,38 @@ class Shape(ABC):
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
 
-    @property
-    def density(self) -> float:
-        """
-        Get or set the mass density of the shape.
+    density = b2_float(
+        lib.b2Shape_GetDensity,
+        lib.b2Shape_SetDensity,
+        extra_set_args=(True,),
+        doc="""Get or set the mass density of the shape.
 
-        When setting, the body mass properties are automatically updated if update_body_mass is True.
-        Default density is 1.0.
-        """
-        return lib.b2Shape_GetDensity(self._shape_id)
+        Setting this updates the body's mass properties. Default is 1.0.
+        """,
+    )
 
-    @density.setter
-    def density(self, value: float) -> None:
-        lib.b2Shape_SetDensity(self._shape_id, float(value), True)
+    friction = b2_float(
+        lib.b2Shape_GetFriction,
+        lib.b2Shape_SetFriction,
+        doc="""Get or set the Coulomb friction coefficient.
 
-    @property
-    def friction(self) -> float:
-        """
-        Get or set the friction coefficient of the shape.
+        Usually in the range [0,1], where 0 slides freely. Default is 0.6.
+        """,
+    )
 
-        Friction is used to make objects slide realistically along surfaces.
-        Usually in the range [0,1] where 0 is frictionless and 1 is high friction.
-        Default friction is 0.6.
-        """
-        return lib.b2Shape_GetFriction(self._shape_id)
+    restitution = b2_float(
+        lib.b2Shape_GetRestitution,
+        lib.b2Shape_SetRestitution,
+        doc="""Get or set the restitution, or bounciness.
 
-    @friction.setter
-    def friction(self, value: float) -> None:
-        lib.b2Shape_SetFriction(self._shape_id, float(value))
+        Usually in the range [0,1], where 0 does not bounce. Default is 0.0.
+        """,
+    )
 
-    @property
-    def restitution(self) -> float:
-        """
-        Get or set the restitution (bounciness) of the shape.
-
-        Restitution determines how bouncy a shape is during collisions.
-        Usually in the range [0,1] where 0 means no bounce and 1 is perfect bounce.
-        Default restitution is 0.0.
-        """
-        return lib.b2Shape_GetRestitution(self._shape_id)
-
-    @restitution.setter
-    def restitution(self, value: float) -> None:
-        lib.b2Shape_SetRestitution(self._shape_id, float(value))
-
-    @property
-    def is_sensor(self) -> bool:
-        """Check if this shape is a sensor."""
-        return lib.b2Shape_IsSensor(self._shape_id)
+    is_sensor = b2_bool(
+        lib.b2Shape_IsSensor,
+        doc="Whether this shape is a sensor, detecting overlap without colliding.",
+    )
 
     @property
     def body(self) -> "Body":
@@ -104,16 +94,16 @@ class Shape(ABC):
         through custom callbacks. When setting, you can use either a material ID (int)
         or a SurfaceMaterial object.
         """
-        return lib.b2Shape_GetMaterial(self._shape_id)
+        return lib.b2Shape_GetUserMaterial(self._shape_id)
 
     @material.setter
     def material(self, value: Union[int, SurfaceMaterial]) -> None:
         if hasattr(value, "material"):
             # If it's a SurfaceMaterial object
-            lib.b2Shape_SetMaterial(self._shape_id, value.material)
+            lib.b2Shape_SetUserMaterial(self._shape_id, value.material)
         else:
             # If it's a material ID
-            lib.b2Shape_SetMaterial(self._shape_id, int(value))
+            lib.b2Shape_SetUserMaterial(self._shape_id, int(value))
 
     @property
     def filter(self) -> CollisionFilter:
@@ -139,60 +129,43 @@ class Shape(ABC):
     def filter(self, value: CollisionFilter) -> None:
         lib.b2Shape_SetFilter(self._shape_id, value.b2Filter[0])
 
-    @property
-    def enable_contact_events(self) -> bool:
-        """
-        Get or set whether contact events are enabled for this shape.
+    enable_sensor_events = b2_bool(
+        lib.b2Shape_AreSensorEventsEnabled,
+        lib.b2Shape_EnableSensorEvents,
+        doc="""Get or set whether sensors may detect this shape.
 
-        Contact events notify when shapes begin or end touching.
-        Only applies to kinematic and dynamic bodies and is ignored for sensors.
+        Box2D 3.2 made this opt-in on the visiting shape. It was previously
+        settable only when the shape was created.
+        """,
+    )
+    enable_contact_events = b2_bool(
+        lib.b2Shape_AreContactEventsEnabled,
+        lib.b2Shape_EnableContactEvents,
+        doc="""Get or set whether this shape reports begin and end touch events.\n\n        Ignored for sensors. Changing it at run time may lose events.
+        """,
+    )
 
-        Warning: Changing this at run-time may lead to lost begin/end events.
-        """
-        return lib.b2Shape_AreContactEventsEnabled(self._shape_id)
+    enable_pre_solve_events = b2_bool(
+        lib.b2Shape_ArePreSolveEventsEnabled,
+        lib.b2Shape_EnablePreSolveEvents,
+        doc="""Get or set whether this shape reports pre-solve events.\n\n        Expensive, and called from worker threads. Dynamic bodies only.
+        """,
+    )
 
-    @enable_contact_events.setter
-    def enable_contact_events(self, flag: bool) -> None:
-        lib.b2Shape_EnableContactEvents(self._shape_id, bool(flag))
+    enable_hit_events = b2_bool(
+        lib.b2Shape_AreHitEventsEnabled,
+        lib.b2Shape_EnableHitEvents,
+        doc="""Get or set whether this shape reports hit events above the world's\n        hit threshold. Ignored for sensors.
+        """,
+    )
 
-    @property
-    def enable_pre_solve_events(self) -> bool:
-        """
-        Get or set whether pre-solve events are enabled for this shape.
+    shape_type = b2_value(
+        lib.b2Shape_GetType,
+        doc="""The kind of shape this is.
 
-        Pre-solve events allow modifying contact properties before collision response.
-        These are expensive and must be carefully handled due to multithreading.
-        Only applies to dynamic bodies and is ignored for sensors.
-        """
-        return lib.b2Shape_ArePreSolveEventsEnabled(self._shape_id)
-
-    @enable_pre_solve_events.setter
-    def enable_pre_solve_events(self, flag: bool) -> None:
-        lib.b2Shape_EnablePreSolveEvents(self._shape_id, bool(flag))
-
-    @property
-    def enable_hit_events(self) -> bool:
-        """
-        Get or set whether hit events are enabled for this shape.
-
-        Hit events notify when shapes collide with sufficient velocity.
-        This setting is ignored for sensors.
-        """
-        return lib.b2Shape_AreHitEventsEnabled(self._shape_id)
-
-    @enable_hit_events.setter
-    def enable_hit_events(self, flag: bool) -> None:
-        lib.b2Shape_EnableHitEvents(self._shape_id, bool(flag))
-
-    @property
-    def shape_type(self) -> int:
-        """
-        Get the type of this shape.
-
-        Returns an integer constant indicating whether this is a circle,
-        polygon, capsule, segment, or other shape type.
-        """
-        return lib.b2Shape_GetType(self._shape_id)
+        One of Box2D's shape type constants: circle, capsule, segment or polygon.
+        """,
+    )
 
     @property
     def world(self) -> "World":
@@ -206,6 +179,23 @@ class Shape(ABC):
         if world_data == ffi.NULL:
             raise ValueError("World not found for shape")
         return ffi.from_handle(world_data)
+
+    @property
+    def parent_chain(self) -> "Chain":
+        """The chain this shape is a segment of, or None.
+
+        Only a chain segment has one. A segment created directly on a body
+        rather than through a chain also returns None, because it belongs to
+        no chain even though it is the same shape type.
+        """
+        # A ChainSegment keeps a direct reference to the Chain that built it,
+        # since Box2D has no user data on chains to map an id back. Box2D is
+        # still asked, because it is the authority on whether a parent exists:
+        # a segment attached straight to a body belongs to no chain, and must
+        # not report one.
+        if not lib.b2Chain_IsValid(lib.b2Shape_GetParentChain(self._shape_id)):
+            return None
+        return getattr(self, "_parent_chain", None)
 
     @property
     def aabb(self) -> AABB:
@@ -228,7 +218,7 @@ class Shape(ABC):
         - center: Center of mass position (Vec2)
         - rotational_inertia: Moment of inertia about the center of mass
         """
-        md = lib.b2Shape_GetMassData(self._shape_id)
+        md = lib.b2Shape_ComputeMassData(self._shape_id)
         return MassData.from_b2MassData(md)
 
     def is_valid(self) -> bool:
@@ -238,7 +228,113 @@ class Shape(ABC):
         Returns:
             True if the shape id is valid, False otherwise
         """
-        return lib.b2Shape_IsValid(self._shape_id)
+        return is_live(self, "_shape_id", lib.b2Shape_IsValid)
+
+    def apply_wind(
+        self,
+        wind: VectorLike,
+        drag: float = 1.0,
+        lift: float = 0.0,
+        wake: bool = True,
+    ) -> None:
+        """Push this shape with a wind, using the density of air.
+
+        Box2D works out how much of the shape the wind can see and how fast the
+        shape is already moving through it, so a broadside plank catches far
+        more than an edge-on one, and something already moving downwind feels
+        less. Call it each step for as long as the wind blows.
+
+        Args:
+            wind: Wind velocity in world space, as a vector-like.
+            drag: How much of the shape's own motion the wind notices. Box2D
+                computes the force from ``wind - drag * shape_velocity``, so
+                this is not a force multiplier: at 1.0 the force fades to
+                nothing as the shape reaches wind speed, which is the physical
+                case, while at 0.0 the wind never sees the shape moving away
+                and pushes it past wind speed indefinitely. Values below about
+                0.5 accelerate a free body well beyond the wind.
+            lift: Coefficient for the force perpendicular to the wind, which is
+                what makes a shape flutter rather than simply blow away.
+            wake: Wake the body if it is asleep.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> shape = body.add_box(2, 0.2)
+            >>> for _ in range(60):
+            ...     shape.apply_wind((10, 0), drag=0.5)
+            ...     world.step(1 / 60, 4)
+        """
+        lib.b2Shape_ApplyWind(
+            self._shape_id,
+            Vec2(wind).b2Vec2[0],
+            float(drag),
+            float(lift),
+            bool(wake),
+        )
+
+    def destroy(self, update_body_mass: bool = True) -> None:
+        """Remove this shape from its body.
+
+        The shape raises :class:`DestroyedError` if used afterwards. Destroying
+        twice is a no-op.
+
+        Args:
+            update_body_mass: Recompute the body's mass from its remaining
+                shapes. Pass False when removing several shapes at once and
+                call body.apply_mass_from_shapes() when done.
+        """
+        raw = raw_id(self, "_shape_id")
+        if raw is None:
+            return
+        if lib.b2Shape_IsValid(raw):
+            lib.b2DestroyShape(raw, bool(update_body_mass))
+        body = getattr(self, "_body", None)
+        if body is not None and self in getattr(body, "_shapes", ()):
+            body._shapes.remove(self)
+        del self._shape_id
+
+    @property
+    def surface_material(self):
+        """Get or set every surface property at once, as a SurfaceMaterial."""
+        material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
+        return SurfaceMaterial(
+            material=material.userMaterialId,
+            friction=material.friction,
+            restitution=material.restitution,
+            rolling_resistance=material.rollingResistance,
+            tangent_speed=material.tangentSpeed,
+            custom_color=material.customColor,
+        )
+
+    @surface_material.setter
+    def surface_material(self, value: SurfaceMaterial) -> None:
+        material = value.b2SurfaceMaterial
+        lib.b2Shape_SetSurfaceMaterial(self._shape_id, ffi.addressof(material))
+
+    def _set_material_field(self, field: str, value: float) -> None:
+        """Change one surface property, leaving the rest of the material alone."""
+        material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
+        setattr(material, field, float(value))
+        lib.b2Shape_SetSurfaceMaterial(self._shape_id, ffi.addressof(material))
+
+    @property
+    def tangent_speed(self) -> float:
+        """Get or set the surface velocity, which drives conveyor belt effects."""
+        return lib.b2Shape_GetSurfaceMaterial(self._shape_id).tangentSpeed
+
+    @tangent_speed.setter
+    def tangent_speed(self, value: float) -> None:
+        self._set_material_field("tangentSpeed", value)
+
+    @property
+    def rolling_resistance(self) -> float:
+        """Get or set the rolling resistance, usually in the range [0,1]."""
+        return lib.b2Shape_GetSurfaceMaterial(self._shape_id).rollingResistance
+
+    @rolling_resistance.setter
+    def rolling_resistance(self, value: float) -> None:
+        self._set_material_field("rollingResistance", value)
 
     def test_point(self, point: VectorLike) -> bool:
         """
@@ -250,7 +346,7 @@ class Shape(ABC):
         Returns:
             True if the point is inside the shape, False otherwise
         """
-        return lib.b2Shape_TestPoint(self._shape_id, to_vec2(point).b2Vec2[0])
+        return lib.b2Shape_TestPoint(self._shape_id, Vec2(point).b2Vec2[0])
 
     def ray_cast(
         self, origin: VectorLike, translation: VectorLike
@@ -265,23 +361,22 @@ class Shape(ABC):
         Returns:
             A RayCastResult object containing hit information
         """
-        input = ffi.new("b2RayCastInput*")
-        input.origin = to_vec2(origin).b2Vec2[0]
-        input.translation = to_vec2(translation).b2Vec2[0]
-        input.maxFraction = 1.0
-
-        output = lib.b2Shape_RayCast(self._shape_id, input)
+        # 3.2 takes the origin and translation directly rather than a
+        # b2RayCastInput, and always casts the full translation.
+        output = lib.b2Shape_RayCast(
+            self._shape_id, Vec2(origin).b2Vec2[0], Vec2(translation).b2Vec2[0]
+        )
         return CastResult.from_b2CastOutput(output)
 
-    def get_contact_capacity(self) -> int:
-        """
-        Get the maximum capacity required for retrieving all the touching
+    contact_capacity = b2_value(
+        lib.b2Shape_GetContactCapacity,
+        doc="""Get the maximum capacity required for retrieving all the touching
         contacts on this shape.
-
+        
         Returns:
-            The required capacity for get_contact_data
-        """
-        return lib.b2Shape_GetContactCapacity(self._shape_id)
+            The required capacity for reading contact_data
+        """,
+    )
 
     @property
     def contact_data(self) -> List[ContactData]:
@@ -291,9 +386,9 @@ class Shape(ABC):
         Convenience property that automatically determines the capacity
         and returns all contact data as ContactData objects.
         """
-        return self.get_contact_data()
+        return self._read_contact_data()
 
-    def get_contact_data(self, capacity: Optional[int] = None) -> List[ContactData]:
+    def _read_contact_data(self, capacity=None) -> List[ContactData]:
         """
         Get the touching contact data for this shape. The provided shape ID
         will be either shapeIdA or shapeIdB on the contact data.
@@ -302,13 +397,13 @@ class Shape(ABC):
 
         Args:
             capacity: Optional capacity for the contact data array.
-                     If None, will use get_contact_capacity().
+                     If None, uses contact_capacity.
 
         Returns:
             A list of ContactData objects
         """
         if capacity is None:
-            capacity = self.get_contact_capacity()
+            capacity = self.contact_capacity
 
         if capacity == 0:
             return []
@@ -320,15 +415,15 @@ class Shape(ABC):
 
         return result
 
-    def get_sensor_capacity(self) -> int:
-        """
-        Get the maximum capacity required for retrieving all the overlapped
+    sensor_capacity = b2_value(
+        lib.b2Shape_GetSensorCapacity,
+        doc="""Get the maximum capacity required for retrieving all the overlapped
         shapes on a sensor shape. Returns 0 if this shape is not a sensor.
-
+        
         Returns:
-            The required capacity for get_sensor_overlaps
-        """
-        return lib.b2Shape_GetSensorCapacity(self._shape_id)
+            The required capacity for reading sensor_overlaps
+        """,
+    )
 
     @property
     def sensor_overlaps(self) -> List["Shape"]:
@@ -340,28 +435,28 @@ class Shape(ABC):
 
         Returns an empty list if this shape is not a sensor.
         """
-        return self.get_sensor_overlaps()
+        return self._read_sensor_overlaps()
 
-    def get_sensor_overlaps(self, capacity: Optional[int] = None) -> List["Shape"]:
+    def _read_sensor_overlaps(self, capacity=None) -> List["Shape"]:
         """
         Get the overlapped shapes for a sensor shape.
 
         Args:
             capacity: Optional capacity for the overlaps array.
-                     If None, will use get_sensor_capacity().
+                     If None, uses sensor_capacity.
 
         Returns:
             A list of Shape objects that overlap with this sensor.
             Returns an empty list if this shape is not a sensor.
         """
         if capacity is None:
-            capacity = self.get_sensor_capacity()
+            capacity = self.sensor_capacity
 
         if capacity == 0:
             return []
 
         overlaps = ffi.new("b2ShapeId[]", capacity)
-        count = lib.b2Shape_GetSensorOverlaps(self._shape_id, overlaps, capacity)
+        count = lib.b2Shape_GetSensorData(self._shape_id, overlaps, capacity)
 
         result = []
         for i in range(count):
@@ -385,7 +480,7 @@ class Shape(ABC):
         Returns:
             A Vec2 representing the closest point on the shape
         """
-        result = lib.b2Shape_GetClosestPoint(self._shape_id, to_vec2(target).b2Vec2[0])
+        result = lib.b2Shape_GetClosestPoint(self._shape_id, Vec2(target).b2Vec2[0])
         return Vec2(result.x, result.y)
 
 
@@ -405,35 +500,44 @@ class Circle(Shape):
         )
         self._set_handle()
 
-    def get_circle(self) -> CircleDef:
+    @property
+    def geometry(self) -> CircleDef:
         """
-        Get the circle geometry of this shape.
+        Get or set this shape's geometry as a CircleDef.
 
-        Returns:
-            CircleDef: A circle definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        circle = lib.b2Shape_GetCircle(self._shape_id)
-        return CircleDef.from_b2Circle(circle)
+        return CircleDef.from_b2Circle(lib.b2Shape_GetCircle(self._shape_id))
 
-    def set_circle(self, circle_def: CircleDef) -> None:
-        """
-        Update this circle shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            circle_def: A CircleDef object defining the new circle geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, circle_def: CircleDef) -> None:
         lib.b2Shape_SetCircle(self._shape_id, circle_def.b2Circle)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the circle."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        self.geometry = CircleDef(radius=float(value), center=self.geometry.center)
+
+    @property
+    def center(self) -> Vec2:
+        """Get or set the circle's center, relative to the body origin."""
+        return self.geometry.center
+
+    @center.setter
+    def center(self, value: VectorLike) -> None:
+        self.geometry = CircleDef(radius=self.geometry.radius, center=Vec2(value))
 
     @classmethod
     def create(
         cls,
         body,
         radius,
-        center=(0, 0),
+        center: VectorLike = (0, 0),
         **shapedef_kwargs,
     ):
         """
@@ -461,35 +565,56 @@ class Capsule(Shape):
         )
         self._set_handle()
 
-    def get_capsule(self) -> CapsuleDef:
+    @property
+    def geometry(self) -> CapsuleDef:
         """
-        Get the capsule geometry of this shape.
+        Get or set this shape's geometry as a CapsuleDef.
 
-        Returns:
-            CapsuleDef: A capsule definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        capsule = lib.b2Shape_GetCapsule(self._shape_id)
-        return CapsuleDef.from_b2Capsule(capsule)
+        return CapsuleDef.from_b2Capsule(lib.b2Shape_GetCapsule(self._shape_id))
 
-    def set_capsule(self, capsule_def: CapsuleDef) -> None:
-        """
-        Update this capsule shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            capsule_def: A CapsuleDef object defining the new capsule geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, capsule_def: CapsuleDef) -> None:
         lib.b2Shape_SetCapsule(self._shape_id, capsule_def.b2Capsule)
+
+    @property
+    def point1(self) -> Vec2:
+        """Get or set the first endpoint of the capsule's axis."""
+        return self.geometry.vertex1
+
+    @point1.setter
+    def point1(self, value: VectorLike) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(Vec2(value), current.vertex2, current.radius)
+
+    @property
+    def point2(self) -> Vec2:
+        """Get or set the second endpoint of the capsule's axis."""
+        return self.geometry.vertex2
+
+    @point2.setter
+    def point2(self, value: VectorLike) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(current.vertex1, Vec2(value), current.radius)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the capsule's half-circles."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        current = self.geometry
+        self.geometry = CapsuleDef(current.vertex1, current.vertex2, float(value))
 
     @classmethod
     def create(
         cls,
         body,
-        point1,
-        point2,
+        point1: VectorLike,
+        point2: VectorLike,
         radius,
         **shapedef_kwargs,
     ):
@@ -518,35 +643,44 @@ class Segment(Shape):
         )
         self._set_handle()
 
-    def get_segment(self) -> SegmentDef:
+    @property
+    def geometry(self) -> SegmentDef:
         """
-        Get the segment geometry of this shape.
+        Get or set this shape's geometry as a SegmentDef.
 
-        Returns:
-            SegmentDef: A segment definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        segment = lib.b2Shape_GetSegment(self._shape_id)
-        return SegmentDef.from_b2Segment(segment)
+        return SegmentDef.from_b2Segment(lib.b2Shape_GetSegment(self._shape_id))
 
-    def set_segment(self, segment_def: SegmentDef) -> None:
-        """
-        Update this segment shape's geometry.
-        This does not modify the mass properties of the body.
-
-        Args:
-            segment_def: A SegmentDef object defining the new segment geometry
-
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
+    @geometry.setter
+    def geometry(self, segment_def: SegmentDef) -> None:
         lib.b2Shape_SetSegment(self._shape_id, segment_def.b2Segment)
+
+    @property
+    def point1(self) -> Vec2:
+        """Get or set the first endpoint of the segment."""
+        return self.geometry.vertex1
+
+    @point1.setter
+    def point1(self, value: VectorLike) -> None:
+        self.geometry = SegmentDef(Vec2(value), self.geometry.vertex2)
+
+    @property
+    def point2(self) -> Vec2:
+        """Get or set the second endpoint of the segment."""
+        return self.geometry.vertex2
+
+    @point2.setter
+    def point2(self, value: VectorLike) -> None:
+        self.geometry = SegmentDef(self.geometry.vertex1, Vec2(value))
 
     @classmethod
     def create(
         cls,
         body,
-        point1,
-        point2,
+        point1: VectorLike,
+        point2: VectorLike,
         **shapedef_kwargs,
     ):
         """
@@ -577,36 +711,50 @@ class Polygon(Shape):
         )
         self._set_handle()
 
-    def get_polygon(self) -> PolygonDef:
+    @property
+    def geometry(self) -> PolygonDef:
         """
-        Get the polygon geometry of this shape.
+        Get or set this shape's geometry as a PolygonDef.
 
-        Returns:
-            PolygonDef: A polygon definition representing this shape's geometry
+        Setting geometry does not update the body's mass properties; call
+        body.apply_mass_from_shapes() if you need them recomputed.
         """
-        polygon = lib.b2Shape_GetPolygon(self._shape_id)
-        return PolygonDef.from_b2Polygon(polygon)
+        return PolygonDef.from_b2Polygon(lib.b2Shape_GetPolygon(self._shape_id))
 
-    def set_polygon(self, polygon_def: PolygonDef) -> None:
-        """
-        Update this polygon shape's geometry.
-        This does not modify the mass properties of the body.
+    @geometry.setter
+    def geometry(self, polygon_def: PolygonDef) -> None:
+        # The polygon has to be held in a local while Box2D reads it.
+        # b2Polygon is a property that builds a fresh structure, and
+        # ffi.addressof does not keep its argument alive, so addressing the
+        # property directly frees the polygon before the call receives it.
+        polygon = polygon_def.b2Polygon
+        lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon))
 
-        Args:
-            polygon_def: A PolygonDef object defining the new polygon geometry
+    @property
+    def vertices(self) -> List[Vec2]:
+        """Get or set the polygon's vertices, in body-local coordinates."""
+        return self.geometry.vertices
 
-        Note:
-            You may need to call body.apply_mass_from_shapes() to update mass properties.
-        """
-        lib.b2Shape_SetPolygon(self._shape_id, ffi.addressof(polygon_def.b2Polygon))
+    @vertices.setter
+    def vertices(self, value: Iterable[VectorLike]) -> None:
+        self.geometry = PolygonDef(list(value), self.geometry.radius)
+
+    @property
+    def radius(self) -> float:
+        """Get or set the radius of the polygon's rounded corners."""
+        return self.geometry.radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        self.geometry = PolygonDef(self.geometry.vertices, float(value))
 
     @classmethod
     def create(
         cls,
         body,
-        vertices,
+        vertices: Sequence[VectorLike],
         radius=0.0,
-        offset=(0, 0),
+        offset: VectorLike = (0, 0),
         angle=0.0,
         **shapedef_kwargs,
     ):
@@ -640,7 +788,7 @@ class Box(Polygon):
         width,
         height,
         radius=0.0,
-        offset=(0, 0),
+        offset: VectorLike = (0, 0),
         angle=0.0,
         **shapedef_kwargs,
     ):
@@ -648,20 +796,11 @@ class Box(Polygon):
         Create and attach a box shape to a body.
         The parameters are the same as the previous initializer.
         """
-        vertices = [
-            (-width / 2, -height / 2),
-            (width / 2, -height / 2),
-            (width / 2, height / 2),
-            (-width / 2, height / 2),
-        ]
-        return super().create(
-            body,
-            vertices,
-            radius=radius,
-            offset=offset,
-            angle=angle,
-            **shapedef_kwargs,
-        )
+        # Built directly rather than through Polygon's hull, which has a
+        # minimum feature size that very thin boxes fall below.
+        boxdef = BoxDef(width, height, radius=radius, offset=offset, rotation=angle)
+        shapedef = ShapeDef(**shapedef_kwargs)
+        return cls(body, shapedef, boxdef)
 
 
 class ChainSegment(Shape):
@@ -680,7 +819,7 @@ class ChainSegment(Shape):
         - chain: The parent Chain object
         """
         self._shape_id = b2chainsegment
-        self.parent_chain = chain
+        self._parent_chain = chain
         super().__init__(chain.body)
         self._set_handle()
 
@@ -692,20 +831,31 @@ class Chain:
     because they are typically used for static boundaries and have no density/sensor properties.
     """
 
+    _chain_id = IdRef(lib.b2Chain_IsValid, "chain")
+
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
+        self._is_loop = chaindef.is_loop
         cd = chaindef.b2ChainDef
         self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
         segment_count = lib.b2Chain_GetSegmentCount(self._chain_id)
         segments = ffi.new("b2ShapeId[]", segment_count)
-        lib.b2Chain_GetSegments(self._chain_id, segments, segment_count)
-        self.segments = [ChainSegment(segments[i], self) for i in range(segment_count)]
+        returned = lib.b2Chain_GetSegments(self._chain_id, segments, segment_count)
+
+        # Each id is copied into its own allocation rather than kept as a view
+        # into this array. cffi does not keep the array alive for its elements,
+        # so every segment id dangled the moment the array was collected and
+        # read as garbage once anything reused the memory.
+        self.segments = [
+            ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
+            for i in range(returned)
+        ]
 
     @classmethod
     def create(
         cls,
         body,
-        vertices,
+        vertices: Sequence[VectorLike],
         loop=False,
         filter=None,
         materials=None,
@@ -743,7 +893,7 @@ class Chain:
         Returns:
             True if the chain id is valid, False otherwise
         """
-        return lib.b2Chain_IsValid(self._chain_id)
+        return is_live(self, "_chain_id", lib.b2Chain_IsValid)
 
     @property
     def world(self) -> "World":
@@ -758,3 +908,76 @@ class Chain:
         if world_data == ffi.NULL:
             raise ValueError("World data is NULL")
         return ffi.from_handle(world_data)
+
+    @property
+    def surface_material_count(self) -> int:
+        """Whether this chain has one shared material or one per segment.
+
+        Reads 1 when a single material covers every segment, otherwise the
+        number of points the chain was built from. Which of the two a chain
+        has is fixed when it is created.
+
+        This is Box2D's raw count and is *not* the number of segments: an open
+        chain of n points has n - 3 segments, because its first and last points
+        are ghost vertices. Index materials by segment through
+        :meth:`get_surface_material` and :meth:`set_surface_material` rather
+        than against this number.
+        """
+        return lib.b2Chain_GetSurfaceMaterialCount(self._chain_id)
+
+    @property
+    def has_per_segment_materials(self) -> bool:
+        """True if each segment carries its own material rather than sharing one."""
+        return self.surface_material_count > 1
+
+    def get_surface_material(self, segment_index: int = 0) -> SurfaceMaterial:
+        """Read the material a segment is actually using.
+
+        Args:
+            segment_index: Index into :attr:`segments`.
+
+        Returns:
+            SurfaceMaterial: A copy, so changing it does not affect the chain.
+
+        Note:
+            This reads the segment rather than the chain's material array.
+            The two disagree on an open chain: Box2D offsets by one when it
+            builds the chain, so ``b2Chain_GetSurfaceMaterial(i)`` returns the
+            material belonging to segment ``i - 1``.
+        """
+        self._check_segment_index(segment_index)
+        return self.segments[segment_index].surface_material
+
+    def set_surface_material(self, material: SurfaceMaterial, segment_index: int = 0):
+        """Change the material on one segment, or on all of them.
+
+        This is how a chain's friction is varied along its length -- an icy
+        patch on otherwise grippy ground -- without rebuilding it.
+
+        Args:
+            material: The material to apply.
+            segment_index: Which segment to change. Ignored on a chain with a
+                single shared material, where every segment changes at once.
+        """
+        self._check_segment_index(segment_index)
+        c_material = material.b2SurfaceMaterial
+        lib.b2Chain_SetSurfaceMaterial(
+            self._chain_id,
+            ffi.addressof(c_material),
+            0 if self.surface_material_count == 1 else segment_index,
+        )
+
+    def _check_segment_index(self, index):
+        """Bound by segments, not by surface_material_count.
+
+        Box2D asserts the setter's index against its material count but then
+        uses it to index the shorter segment array, so on an open chain any
+        index at or past the segment count reads out of bounds -- a segfault
+        in a release build, where the assert is compiled out.
+        """
+        count = len(self.segments)
+        if not 0 <= index < count:
+            raise IndexError(
+                f"segment index {index} out of range; this chain has {count} "
+                f"segment{'s' if count != 1 else ''}"
+            )

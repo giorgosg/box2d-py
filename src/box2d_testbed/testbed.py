@@ -9,25 +9,15 @@ if __name__ == "__main__" and __package__ is None:
     # Set the package name so relative imports work.
     __package__ = "box2d_testbed"
 
-import os
-
-if os.getenv("XDG_SESSION_TYPE") == "wayland" and not os.getenv("PYOPENGL_PLATFORM"):
-    os.environ["PYOPENGL_PLATFORM"] = "x11"
-
-from imgui_bundle import hello_imgui, imgui, immapp, icons_fontawesome_6
-from imgui_bundle.demos_python import demo_utils
+from imgui_bundle import hello_imgui, imgui, icons_fontawesome_6
+from box2d import HAS_THREADS
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
-from .base_test import BaseTest
+from .base_test import BaseTest, format_view_declaration
+import os
 import time
-from .debug_draw_gl import GLDebugDraw
-from OpenGL import GL as gl
-import OpenGL
-
-OpenGL.ERROR_CHECKING = False
-import numpy as np
-from .draw import GLBackground, GLCircles
-from box2d import Color, Vec2
+from .debug_draw_imgui import ImGuiDebugDraw
+from box2d import Vec2
 
 
 class TestbedApp:
@@ -71,9 +61,49 @@ class TestbedApp:
         self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
 
     def post_gl_init(self):
-        """Initialize OpenGL resources and simulation"""
-        self.debug_draw = GLDebugDraw()
+        """Build the renderer and the simulation, once there is a GL context."""
+        self.debug_draw = self.make_debug_draw()
         self.simulation = TestbedSimulation(self.debug_draw)
+
+    @staticmethod
+    def gl_module():
+        """PyOpenGL, imported only when the GL renderer is in use.
+
+        There is no PyOpenGL in a browser, and importing it fails outright
+        rather than degrading, so the app must be able to load without it.
+        """
+        from OpenGL import GL
+
+        return GL
+
+    @staticmethod
+    def debug_draw_class():
+        """Which renderer class to draw with.
+
+        BOX2D_TESTBED_RENDERER=imgui swaps the OpenGL renderer for the one
+        that draws through imgui's draw list. The imgui renderer is the one
+        that can run where there is no GL -- a browser, or hello_imgui's null
+        backend -- so both exist while they are being compared.
+
+        Kept apart from building one: a GLDebugDraw compiles shaders as it is
+        constructed, so asking which renderer is wanted must not itself
+        require a GL context.
+        """
+        choice = os.environ.get("BOX2D_TESTBED_RENDERER", "opengl").lower()
+        if choice == "imgui":
+            return ImGuiDebugDraw
+        if choice in ("opengl", "gl", ""):
+            # Imported here, not at module scope: it pulls in PyOpenGL, which
+            # a browser does not have.
+            from .debug_draw_gl import GLDebugDraw
+
+            return GLDebugDraw
+        raise SystemExit(f"unknown renderer {choice!r}; expected 'opengl' or 'imgui'")
+
+    @classmethod
+    def make_debug_draw(cls):
+        """Build the chosen renderer. Needs a GL context for the GL one."""
+        return cls.debug_draw_class()()
 
     def render_simulation(self):
         """Draw the simulation in the window"""
@@ -85,11 +115,14 @@ class TestbedApp:
         if size.x <= 0 or size.y <= 0:
             return
 
-        # Convert ImGui coordinates to GL coordinates (flip Y)
-        gl_y = io.display_size.y - (pos.y + size.y)
-
-        # Set viewport to window region
-        gl.glViewport(int(pos.x), int(gl_y), int(size.x), int(size.y))
+        # The GL renderer draws into this window through a viewport; the
+        # imgui one submits to the window's draw list and needs none.
+        uses_gl = type(self.debug_draw).__name__ == "GLDebugDraw"
+        if uses_gl:
+            gl = self.gl_module()
+            # Convert ImGui coordinates to GL coordinates (flip Y)
+            gl_y = io.display_size.y - (pos.y + size.y)
+            gl.glViewport(int(pos.x), int(gl_y), int(size.x), int(size.y))
 
         # Only handle scroll when mouse is over simulation window
         mouse_scroll = io.mouse_wheel
@@ -123,11 +156,13 @@ class TestbedApp:
             # Draw simulation
             self.simulation.draw()
 
-        # Reset viewport
-        gl.glViewport(0, 0, int(io.display_size.x), int(io.display_size.y))
+        if uses_gl:
+            # Reset viewport
+            self.gl_module().glViewport(
+                0, 0, int(io.display_size.x), int(io.display_size.y)
+            )
 
     def key_press_events(self):
-        io = imgui.get_io()
 
         # Map of ImGui key codes to string identifiers
         key_map = {
@@ -152,7 +187,13 @@ class TestbedApp:
         if not hasattr(self, "_prev_keys_down"):
             self._prev_keys_down = set()
 
-        # Check currently pressed keys
+        # Global shortcuts, handled here rather than passed to the scenario:
+        # these drive the testbed itself. They deliberately avoid the keys
+        # scenarios use for their own controls (a, d, s, space and the arrows).
+        for key, action in self.global_shortcuts().items():
+            if imgui.is_key_pressed(key, repeat=False):
+                action()
+
         for key_code, key_name in key_map.items():
             if imgui.is_key_pressed(key_code, repeat=False):
                 if state.current_test_obj:
@@ -182,39 +223,78 @@ class TestbedApp:
                 if state.step_number > 0:
                     state.step_number -= 1
 
+    @staticmethod
+    def _docking_split(initial_dock, new_dock, direction, ratio):
+        """One pane of the docking layout."""
+        split = hello_imgui.DockingSplit()
+        split.initial_dock = initial_dock
+        split.new_dock = new_dock
+        split.direction = direction
+        split.ratio = ratio
+        return split
+
+    @staticmethod
+    def _dockable_window(label, dock_space_name, gui_function, **attributes):
+        """One docked window, drawn by gui_function."""
+        window = hello_imgui.DockableWindow()
+        window.label = label
+        window.dock_space_name = dock_space_name
+        window.gui_function = gui_function
+        for name, value in attributes.items():
+            setattr(window, name, value)
+        return window
+
     def create_layout(self):
         docking_params = hello_imgui.DockingParams()
+
+        # A right-hand panel split top to bottom into Tests, the current test's
+        # own UI, Controls, and Performance.
         docking_params.docking_splits = [
-            self.create_right_panel_split(),
-            self.create_right_panel_split1(),
-            self.create_right_panel_split2(),
-            self.create_right_panel_split3(),
+            self._docking_split("MainDockSpace", "RightPanel", imgui.Dir_.right, 0.2),
+            self._docking_split("RightPanel", "RightPanel1", imgui.Dir_.down, 0.73),
+            self._docking_split("RightPanel1", "RightPanel2", imgui.Dir_.down, 0.5),
+            self._docking_split("RightPanel2", "RightPanel3", imgui.Dir_.down, 0.4),
         ]
         docking_params.dockable_windows = [
-            self.create_simulation_window(),  # Add back the simulation window
-            self.create_test_list_window(),
-            self.create_stats_window(),
-            self.create_controls_window(),
+            self._dockable_window(
+                "Simulation",
+                "MainDockSpace",
+                self.render_simulation,
+                imgui_window_flags=imgui.WindowFlags_.no_background,
+            ),
+            self._dockable_window("Tests", "RightPanel1", self.show_test_list),
+            self._dockable_window("Performance", "RightPanel3", self.show_stats),
+            self._dockable_window("Controls", "RightPanel", self.show_controls),
             self.create_test_ui_window(),
         ]
         return docking_params
 
     def create_test_ui_window(self):
-        window = hello_imgui.DockableWindow()
-        if state.current_test_cls is not None:
-            window.label = state.current_test_cls.name
-        else:
-            window.label = "Test UI"
-        window.dock_space_name = "RightPanel2"  # adjust as needed
-        window.gui_function = self.render_test_ui
-        return window
+        """The panel a scenario fills with its own UI properties.
+
+        Built separately because its title follows the selected scenario.
+        """
+        label = (
+            state.current_test_cls.name
+            if state.current_test_cls is not None
+            else "Test UI"
+        )
+        return self._dockable_window(label, "RightPanel2", self.render_test_ui)
 
     def render_test_ui(self):
         # Only render if a test object exists.
         imgui.text(f"Test: {state.current_test_cls.name}")
         imgui.separator()
         # Iterate through UI elements defined in the current test.
+        previous_was_button = False
         for name, elem in state.current_test_obj.ui_elements:
+            # Buttons declared next to each other share a row, so Reset and
+            # Reset View sit side by side rather than stacked.
+            is_button = elem.type == "button"
+            if is_button and previous_was_button:
+                imgui.same_line()
+            previous_was_button = is_button
+
             if elem.type == "button":
                 if imgui.button(elem.label):
                     v = getattr(state.current_test_obj, elem.name)
@@ -259,66 +339,54 @@ class TestbedApp:
             else:
                 print(f"Unknown control type: {elem.control_type}")
 
-    def create_simulation_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Simulation"
-        window.dock_space_name = "MainDockSpace"
-        window.gui_function = self.render_simulation
-        window.imgui_window_flags = imgui.WindowFlags_.no_background
-        return window
+    def global_shortcuts(self):
+        """Keyboard shortcuts for the testbed's own controls.
 
-    def create_right_panel_split(self):
-        split = hello_imgui.DockingSplit()
-        split.initial_dock = "MainDockSpace"
-        split.new_dock = "RightPanel"
-        split.direction = imgui.Dir_.right
-        split.ratio = 0.2
-        return split
+        Everything the control panel offers should be reachable from the
+        keyboard, so a scenario can be driven without moving the mouse off it.
+        """
+        return {
+            imgui.Key.p: self.toggle_pause,
+            imgui.Key.o: self.step_once,
+            imgui.Key.r: self.restart_test,
+            imgui.Key.home: self.reset_view,
+            imgui.Key.left_bracket: lambda: self.cycle_test(-1),
+            imgui.Key.right_bracket: lambda: self.cycle_test(1),
+        }
 
-    def create_right_panel_split1(self):
-        split_right1 = hello_imgui.DockingSplit()
-        split_right1.initial_dock = "RightPanel"
-        split_right1.new_dock = "RightPanel1"
-        split_right1.direction = imgui.Dir_.down
-        split_right1.ratio = 0.73
-        return split_right1
+    def toggle_pause(self):
+        state.simulation_paused = not state.simulation_paused
 
-    def create_right_panel_split2(self):
-        split_right2 = hello_imgui.DockingSplit()
-        split_right2.initial_dock = "RightPanel1"
-        split_right2.new_dock = "RightPanel2"
-        split_right2.direction = imgui.Dir_.down
-        split_right2.ratio = 0.5
-        return split_right2
+    def step_once(self):
+        """Advance one step, pausing first so it is a single step."""
+        state.simulation_paused = True
+        state.step_number += 1
 
-    def create_right_panel_split3(self):
-        split_right3 = hello_imgui.DockingSplit()
-        split_right3.initial_dock = "RightPanel2"
-        split_right3.new_dock = "RightPanel3"
-        split_right3.direction = imgui.Dir_.down
-        split_right3.ratio = 0.4
-        return split_right3
+    def restart_test(self):
+        """Rebuild the current scenario, as the Reset button does."""
+        if state.current_test_obj is not None:
+            state.current_test_obj.on_reset("reset", None)
 
-    def create_test_list_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Tests"
-        window.dock_space_name = "RightPanel1"
-        window.gui_function = self.show_test_list
-        return window
+    def reset_view(self):
+        if self.simulation is not None:
+            self.simulation.reset_view()
 
-    def create_stats_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Performance"
-        window.dock_space_name = "RightPanel3"
-        window.gui_function = self.show_stats
-        return window
-
-    def create_controls_window(self):
-        window = hello_imgui.DockableWindow()
-        window.label = "Controls"
-        window.dock_space_name = "RightPanel"
-        window.gui_function = self.show_controls
-        return window
+    def cycle_test(self, step: int):
+        """Move to the next or previous scenario, wrapping at the ends."""
+        ordered = [
+            test_cls
+            for tests in BaseTest.get_all_tests().values()
+            for test_cls in tests.values()
+        ]
+        if not ordered:
+            return
+        try:
+            index = ordered.index(state.current_test_cls)
+        except ValueError:
+            index = 0
+        state.current_test_cls = ordered[(index + step) % len(ordered)]
+        if self.simulation is not None:
+            self.simulation.init_test()
 
     def show_controls(self):
         # Play/Pause button
@@ -337,12 +405,23 @@ class TestbedApp:
             state.step_number += 1
 
         imgui.push_item_width(100)
-        # Threads slider
-        changed, state.threads = imgui.slider_int("Threads", state.threads, 1, 32)
+        # Threads slider. A build without the task scheduler cannot go above
+        # one, and asking raises, so the control does not offer it.
+        if HAS_THREADS:
+            changed, state.threads = imgui.slider_int("Threads", state.threads, 1, 32)
+        else:
+            imgui.text_disabled("Threads: 1 (this build has no scheduler)")
         # Substeps slider
         changed, state.substeps = imgui.slider_int("Substeps", state.substeps, 1, 32)
         # Hertz slider
         _, state.hertz = imgui.slider_int("Hertz", state.hertz, 10, 240)
+
+        _, state.maximum_linear_speed = imgui.slider_float(
+            "Max speed", state.maximum_linear_speed, 10.0, 1000.0, format="%.0f"
+        )
+        _, state.contact_recycle_distance = imgui.slider_float(
+            "Recycle dist", state.contact_recycle_distance, 0.0, 0.5, format="%.3f"
+        )
         imgui.pop_item_width()
 
         # Checkboxes
@@ -350,6 +429,19 @@ class TestbedApp:
             "Continuous Collision", state.enable_continuous
         )
         _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
+        _, state.enable_warm_starting = imgui.checkbox(
+            "Warm starting", state.enable_warm_starting
+        )
+        imgui.set_item_tooltip(
+            "Start the solver from last step's impulses.\n"
+            "Turning it off costs stability and buys nothing; it is here to see that."
+        )
+        _, state.enable_speculative = imgui.checkbox(
+            "Speculative contacts", state.enable_speculative
+        )
+
+        imgui.separator()
+        imgui.text_disabled("P pause   O step   R reset   Home view   [ ] prev/next")
 
     def show_menus(self):
         if imgui.begin_menu("Draw"):
@@ -360,10 +452,31 @@ class TestbedApp:
 
     def show_status(self):
         imgui.push_style_var(imgui.StyleVar_.item_spacing, (10, 1))
-        for key, value, display in state.show_dd.get_current():
+        for key, value, display in state.show_dd.get_current(primary_only=True):
             _, newvalue = imgui.checkbox(display, value)
             setattr(state.show_dd, key, newvalue)
             imgui.same_line()
+
+        # Live, so it is readable while panning, and next to a button that
+        # copies it as source: frame a scenario by hand, paste, keep it.
+        # Right-justified, so it holds its place as the toggles change width.
+        center = Vec2(state.center)
+        label = f"view ({center.x:.2f}, {center.y:.2f}) z{state.scale:.2f}"
+
+        style = imgui.get_style()
+        # SmallButton keeps the horizontal frame padding and drops the vertical.
+        copy_width = imgui.calc_text_size("Copy").x + 2.0 * style.frame_padding.x
+        needed = imgui.calc_text_size(label).x + style.item_spacing.x + copy_width
+        imgui.same_line(imgui.get_window_width() - needed - style.window_padding.x)
+
+        imgui.text_disabled(label)
+        imgui.same_line()
+        if imgui.small_button("Copy"):
+            imgui.set_clipboard_text(format_view_declaration(state.center, state.scale))
+        imgui.set_item_tooltip(
+            "Copy camera_center and camera_zoom for the current view,\n"
+            "ready to paste into the scenario class."
+        )
         imgui.pop_style_var()
 
     def show_test_list(self):
@@ -378,7 +491,7 @@ class TestbedApp:
                 imgui.tree_pop()
 
     def show_stats(self):
-        imgui.text(f"current (avg) [max] ms")
+        imgui.text("current (avg) [max] ms")
         imgui.separator()
         imgui.text(
             f"Physics: {state.perf.physics_ms:.2f} ({state.perf.physics_ms_avg:.2f}) [{state.perf.physics_ms_max:.2f}]"
@@ -386,6 +499,26 @@ class TestbedApp:
         imgui.text(
             f"Graphics: {state.perf.draw_ms:.1f} ({state.perf.draw_ms_avg:.1f}) [{state.perf.draw_ms_max:.1f}] ms"
         )
+
+        profile, counters = state.perf.profile, state.perf.counters
+        if profile is None or counters is None:
+            return
+
+        imgui.separator()
+        # Box2D times itself, so this is the step without the binding around
+        # it. Where it diverges from Physics above, the cost is on our side.
+        imgui.text(f"Box2D step: {profile.step:.2f} ms")
+        for name, milliseconds in profile.slowest(4):
+            imgui.text(f"  {name.replace('_', ' ')}: {milliseconds:.2f}")
+
+        imgui.separator()
+        imgui.text(f"bodies {counters.body_count} ({state.perf.awake} awake)")
+        imgui.text(f"shapes {counters.shape_count}  contacts {counters.contact_count}")
+        imgui.text(f"joints {counters.joint_count}  islands {counters.island_count}")
+        imgui.text(
+            f"tree height {counters.tree_height} / static {counters.static_tree_height}"
+        )
+        imgui.text(f"memory {counters.byte_count / 1024:.0f} KiB")
 
     def on_mouse_scroll(self, ammount: float):
         """Handle mouse scroll for zooming"""

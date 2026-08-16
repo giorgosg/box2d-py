@@ -76,15 +76,16 @@ class Color:
 
 
 # Define callback wrappers with cffi.callback and conversion logic
-@ffi.callback("void(b2Vec2*, int, b2HexColor, void*)")
-def draw_polygon(vertices, count, color, context):
+@ffi.callback("void(b2Transform, b2Vec2*, int, b2HexColor, void*)")
+def draw_polygon(transform, vertices: list[Vec2], count, color, context):
     instance = ffi.from_handle(context)
+    py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
-    instance.draw_polygon(py_vertices, Color.from_b2HexColor(color))
+    instance.draw_polygon(py_transform, py_vertices, Color.from_b2HexColor(color))
 
 
 @ffi.callback("void(b2Transform, b2Vec2*, int, float, b2HexColor, void*)")
-def draw_solid_polygon(transform, vertices, count, radius, color, context):
+def draw_solid_polygon(transform, vertices: list[Vec2], count, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     py_vertices = [Vec2.from_b2Vec2(vertices[i]) for i in range(count)]
@@ -94,7 +95,7 @@ def draw_solid_polygon(transform, vertices, count, radius, color, context):
 
 
 @ffi.callback("void(b2Vec2, float, b2HexColor, void*)")
-def draw_circle(center, radius, color, context):
+def draw_circle(center: Vec2, radius, color, context):
     instance = ffi.from_handle(context)
     py_center = Vec2.from_b2Vec2(center)
     instance.draw_circle(py_center, radius, Color.from_b2HexColor(color))
@@ -115,6 +116,16 @@ def draw_point(p, size, color, context):
     instance.draw_point(py_p, size, Color.from_b2HexColor(color))
 
 
+@ffi.callback("void(b2AABB, b2HexColor, void*)")
+def draw_bounds(aabb, color, context):
+    instance = ffi.from_handle(context)
+    py_aabb = AABB(
+        lower=Vec2(aabb.lowerBound.x, aabb.lowerBound.y),
+        upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
+    )
+    instance.draw_bounds(py_aabb, Color.from_b2HexColor(color))
+
+
 @ffi.callback("void(b2Vec2, const char*, b2HexColor, void*)")
 def draw_string(p, s, color, context):
     instance = ffi.from_handle(context)
@@ -131,11 +142,14 @@ def draw_solid_capsule(p1, p2, radius, color, context):
     instance.draw_solid_capsule(py_p1, py_p2, radius, Color.from_b2HexColor(color))
 
 
-@ffi.callback("void(b2Transform, float, b2HexColor, void*)")
-def draw_solid_circle(transform, radius, color, context):
+@ffi.callback("void(b2Transform, b2Vec2, float, b2HexColor, void*)")
+def draw_solid_circle(transform, center: Vec2, radius, color, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
-    instance.draw_solid_circle(py_transform, radius, Color.from_b2HexColor(color))
+    py_center = Vec2.from_b2Vec2(center)
+    instance.draw_solid_circle(
+        py_transform, py_center, radius, Color.from_b2HexColor(color)
+    )
 
 
 @ffi.callback("void(b2Transform, void*)")
@@ -143,6 +157,27 @@ def draw_transform(transform, context):
     instance = ffi.from_handle(context)
     py_transform = Transform.from_b2Transform(transform)
     instance.draw_transform(py_transform)
+
+
+class _DrawFlag:
+    """One of Box2D's debug-draw flags, as a property on the owning DebugDraw.
+
+    Args:
+        field: The b2DebugDraw struct field this flag lives in.
+        doc: What turning it on shows.
+    """
+
+    def __init__(self, field, doc):
+        self._field = field
+        self.__doc__ = doc
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        return bool(getattr(instance._debug_draw, self._field))
+
+    def __set__(self, instance, value):
+        setattr(instance._debug_draw, self._field, bool(value))
 
 
 class DebugDraw:
@@ -170,98 +205,93 @@ class DebugDraw:
         self._debug_draw.context = ffi.new_handle(self)
 
         # Assign decorated callbacks
-        self._debug_draw.DrawPolygon = draw_polygon
-        self._debug_draw.DrawSolidPolygon = draw_solid_polygon
-        self._debug_draw.DrawCircle = draw_circle
-        self._debug_draw.DrawSegment = draw_segment
-        self._debug_draw.DrawPoint = draw_point
-        self._debug_draw.DrawString = draw_string
-        self._debug_draw.DrawSolidCapsule = draw_solid_capsule
-        self._debug_draw.DrawSolidCircle = draw_solid_circle
-        self._debug_draw.DrawTransform = draw_transform
+        self._debug_draw.DrawPolygonFcn = draw_polygon
+        self._debug_draw.DrawSolidPolygonFcn = draw_solid_polygon
+        self._debug_draw.DrawCircleFcn = draw_circle
+        self._debug_draw.DrawLineFcn = draw_segment
+        self._debug_draw.DrawPointFcn = draw_point
+        self._debug_draw.DrawStringFcn = draw_string
+        self._debug_draw.DrawSolidCapsuleFcn = draw_solid_capsule
+        self._debug_draw.DrawSolidCircleFcn = draw_solid_circle
+        self._debug_draw.DrawTransformFcn = draw_transform
+        self._debug_draw.DrawBoundsFcn = draw_bounds
 
         # Store a handle to this Python object for context
         self._context_handle = ffi.new_handle(self)
         self._debug_draw.context = self._context_handle
 
-    @property
-    def draw_shapes(self):
-        return bool(self._debug_draw.drawShapes)
+    # Box2D's fifteen debug-draw flags. Each is a plain bool on the C struct,
+    # so a descriptor declares them rather than fifteen copies of the same
+    # property pair. Python names differ from the C ones where Box2D's own
+    # wording changed (drawBounds is the AABB flag; forces were impulses).
+    draw_shapes = _DrawFlag("drawShapes", "Shape outlines and fills.")
+    draw_aabbs = _DrawFlag("drawBounds", "Each shape's axis-aligned bounding box.")
+    draw_joints = _DrawFlag("drawJoints", "Joint connections and anchors.")
+    draw_joint_extras = _DrawFlag(
+        "drawJointExtras", "Joint limits, motors and reference angles."
+    )
+    draw_contacts = _DrawFlag("drawContacts", "Contact points between touching shapes.")
+    draw_contact_normals = _DrawFlag(
+        "drawContactNormals", "The normal at each contact point."
+    )
+    draw_contact_impulses = _DrawFlag(
+        "drawContactForces", "How hard each contact is pushing."
+    )
+    draw_friction_impulses = _DrawFlag(
+        "drawFrictionForces", "The friction impulse at each contact."
+    )
+    draw_mass = _DrawFlag("drawMass", "Each body's centre of mass and its frame.")
+    draw_contact_features = _DrawFlag(
+        "drawContactFeatures",
+        """The feature ids identifying each contact point.
 
-    @draw_shapes.setter
-    def draw_shapes(self, value: bool):
-        self._debug_draw.drawShapes = bool(value)
+        A contact point keeps its id between steps while it persists, which is
+        what lets the solver carry impulses over. Seeing the ids flicker means
+        the contact is being rebuilt rather than reused.
+        """,
+    )
+    draw_islands = _DrawFlag(
+        "drawIslands",
+        """The bounding box of each simulation island.
 
-    @property
-    def draw_aabbs(self):
-        return bool(self._debug_draw.drawAABBs)
+        An island is a group of bodies solved together. Two piles that touch
+        merge into one island and are solved as a unit, which is why one heavy
+        stack can slow down a scene that looks otherwise idle.
+        """,
+    )
+    draw_graph_colors = _DrawFlag(
+        "drawGraphColors",
+        """Constraints coloured by their solver graph colour.
 
-    @draw_aabbs.setter
-    def draw_aabbs(self, value: bool):
-        self._debug_draw.drawAABBs = bool(value)
+        Constraints sharing a colour touch no common body, so they are solved
+        in parallel. This is the visual form of Counters.color_counts: an even
+        spread of colours parallelises, everything in one colour does not.
+        """,
+    )
+    draw_body_names = _DrawFlag(
+        "drawBodyNames", "The name given to each body, for picking one out of a crowd."
+    )
+    draw_chain_normals = _DrawFlag(
+        "drawChainNormals",
+        """The outward normal of each chain segment.
 
-    @property
-    def draw_joints(self):
-        return bool(self._debug_draw.drawJoints)
-
-    @draw_joints.setter
-    def draw_joints(self, value: bool):
-        self._debug_draw.drawJoints = bool(value)
-
-    @property
-    def draw_contacts(self):
-        return bool(self._debug_draw.drawContacts)
-
-    @draw_contacts.setter
-    def draw_contacts(self, value: bool):
-        self._debug_draw.drawContacts = bool(value)
-
-    @property
-    def draw_contact_normals(self):
-        return bool(self._debug_draw.drawContactNormals)
-
-    @draw_contact_normals.setter
-    def draw_contact_normals(self, value: bool):
-        self._debug_draw.drawContactNormals = bool(value)
-
-    @property
-    def draw_contact_impulses(self):
-        return bool(self._debug_draw.drawContactImpulses)
-
-    @draw_contact_impulses.setter
-    def draw_contact_impulses(self, value: bool):
-        self._debug_draw.drawContactImpulses = bool(value)
-
-    @property
-    def draw_friction_impulses(self):
-        return bool(self._debug_draw.drawFrictionImpulses)
-
-    @draw_friction_impulses.setter
-    def draw_friction_impulses(self, value: bool):
-        self._debug_draw.drawFrictionImpulses = bool(value)
-
-    @property
-    def draw_mass(self):
-        return bool(self._debug_draw.drawMass)
-
-    @draw_mass.setter
-    def draw_mass(self, value: bool):
-        self._debug_draw.drawMass = bool(value)
-
-    @property
-    def draw_joint_extras(self):
-        return bool(self._debug_draw.drawJointExtras)
-
-    @draw_joint_extras.setter
-    def draw_joint_extras(self, value: bool):
-        self._debug_draw.drawJointExtras = bool(value)
+        A chain collides on one side only, decided by its winding order, and
+        this shows which side that is -- the quickest way to find a chain
+        things fall straight through.
+        """,
+    )
+    draw_anchor_a = _DrawFlag(
+        "drawAnchorA", "Each joint's anchor frame on body A rather than both."
+    )
 
     # Internal callback handlers (override these in subclasses)
-    def draw_polygon(self, vertices: list[Vec2], color: Color):
-        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_aabbs/shapes enabled).
+    def draw_polygon(self, transform: Transform, vertices: list[Vec2], color: Color):
+        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_bounds/shapes enabled).
 
+        Box2D 3.2 added the transform argument; the vertices are in local space.
 
         Args:
+            transform: Position and rotation the vertices are relative to
             vertices: Polygon vertex coordinates in Counter-Clockwise order
             color: RGB color with alpha
         """
@@ -277,6 +307,45 @@ class DebugDraw:
             vertices: Polygon vertices in CCW order
             radius: Radius for rounded corners (0 for sharp edges)
             color: Fill color with transparency
+        """
+        pass
+
+    @property
+    def drawing_bounds(self) -> AABB:
+        """The region worth drawing, in world coordinates.
+
+        b2World_Draw queries the broad-phase tree with this rather than
+        walking every shape, so setting it to the visible region culls
+        everything off screen in C, before a single callback fires.
+
+        It defaults to the whole float range, which means no culling at all.
+        On a scene of 7000 bodies, narrowing it to a 40x40 view took a draw
+        from 57ms to 6.7ms, and a 10x10 view to 0.6ms -- the cost follows
+        what is visible instead of what exists.
+        """
+        aabb = self._debug_draw.drawingBounds
+        return AABB(
+            lower=Vec2(aabb.lowerBound.x, aabb.lowerBound.y),
+            upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
+        )
+
+    @drawing_bounds.setter
+    def drawing_bounds(self, aabb: AABB):
+        bounds = self._debug_draw.drawingBounds
+        bounds.lowerBound.x, bounds.lowerBound.y = aabb.lower.x, aabb.lower.y
+        bounds.upperBound.x, bounds.upperBound.y = aabb.upper.x, aabb.upper.y
+
+    def draw_bounds(self, aabb: "AABB", color: Color):
+        """Callback for drawing a shape's bounding box, enabled by draw_aabbs.
+
+        Box2D 3.2 gave bounds their own callback rather than routing them
+        through draw_polygon. Leaving it unset is silent rather than fatal,
+        because b2DefaultDebugDraw installs a stub -- so the AABB toggle did
+        nothing at all until this was bound.
+
+        Args:
+            aabb: The box, in world coordinates
+            color: Line color
         """
         pass
 
@@ -314,8 +383,13 @@ class DebugDraw:
         """
         pass
 
-    def draw_string(self, p: Vec2, s: str, color: Color):
+    def draw_string(self, p: Vec2, s: str, color: Color = Color(255, 255, 255, 255)):
         """Render debug text for impulse values (draw_contact_impulses/draw_friction_impulses).
+
+        The colour has a default because 26 scenarios call this with just a
+        position and a string. Both renderers defaulted it themselves, so it
+        worked with either of them and broke against any other DebugDraw
+        subclass -- which is exactly what a custom renderer is.
 
         Args:
             p: World position where text should be anchored
@@ -355,11 +429,16 @@ class DebugDraw:
         """
         pass
 
-    def draw_solid_circle(self, transform: Transform, radius: float, color: Color):
+    def draw_solid_circle(
+        self, transform: Transform, center: Vec2, radius: float, color: Color
+    ):
         """Draw filled circles with orientation marker (used for circular fixtures when draw_shapes enabled).
 
+        Box2D 3.2 added the center argument, which is relative to the transform.
+
         Args:
-            transform: Center position and rotation (rotation affects orientation line)
+            transform: Position and rotation (rotation affects orientation line)
+            center: Circle center relative to the transform
             radius: Circle radius in world units
             color: Fill color with alpha channel
         """

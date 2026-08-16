@@ -60,5 +60,4 @@ Mat22
 Utility Functions
 -----------------
 
-.. autofunction:: box2d.math.to_vec2
 .. autofunction:: box2d.math.format_num

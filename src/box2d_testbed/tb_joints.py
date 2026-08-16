@@ -1,12 +1,19 @@
 # tb_joints.py
 
 from .base_test import BaseTest, UI
-from .shared import donut, create_random_polygon, Car
+
+# create_random_polygon is imported for the side effect of extending BodyBuilder
+from .shared import donut, create_random_polygon, Car  # noqa: F401
+from .human import Human
 import math
 from box2d import Vec2, World, Body, Transform, Color
+from box2d import DistanceJointDef, RevoluteJointDef, WeldJointDef, WheelJointDef
 
 
 class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
+    camera_center = (2.02, -1.99)
+    camera_zoom = 21.76
+
     def setup(self):
         joint_friction = 100.0  # Maximum motor torque for the joints
         count = 30  # Number of chain links
@@ -80,7 +87,7 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
             joint.angular_hertz = self.hertz
 
     def setup(self):
-        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        self.world.new_body().position(0, -5).box(100, 1).build()
         self.bodies, self.joints = donut(
             self.world, (0, 50), 5, self.segments, self.hertz, self.damping
         )
@@ -88,9 +95,10 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
 
 class Arrow(BaseTest, category="Joints", name="Arrow"):
     def setup(self):
-        ground = self.world.new_body().position(0, -5).box(100, 1).build()
+        self.world.new_body().position(0, -5).box(100, 1).build()
         boxbuilder = self.world.new_body().dynamic().box(0.5, 0.5)
-        boxstack = [boxbuilder.position(20, -4.25 + 0.5 * i).build() for i in range(30)]
+        for i in range(30):
+            boxbuilder.position(20, -4.25 + 0.5 * i).build()
 
         def create_arrow(position, rotation, velocity):
             vel_v = Vec2(velocity, 0).rotate(rotation)
@@ -381,6 +389,10 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     Use A/S/D keys to drive left/brake/right.
     """
 
+    # Framed by hand: the car's starting point; it drives off to the right.
+    camera_center = (0.0, 0.0)
+    camera_zoom = 20.0
+
     hertz = UI.int(5, min=0, max=20)
     damping = UI.float(0.7, 0, 10)
     speed = UI.int(35, 0, 100)
@@ -448,7 +460,7 @@ class Driving(BaseTest, category="Joints", name="Driving"):
         )
 
         # Add revolute joint to teeter with angle limits
-        teeter_j = self.world.add_revolute_joint(
+        self.world.add_revolute_joint(
             ground,
             teeter,
             anchor=teeter_pos,
@@ -457,7 +469,6 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             lower_angle=math.radians(-18),
             upper_angle=math.radians(18),
         )
-        print(teeter_j.collide_connected)
         # Create bridge
         bridge_count = 20
         bridge_start = Vec2(161.0, -0.125)
@@ -628,28 +639,26 @@ class DistanceJoints(BaseTest, category="Joints", name="Distance Joint"):
 class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
     """Test the motor joint.
 
-    A motor joint can be used to animate a dynamic body. With finite motor forces
-    the body can be blocked by collision with other bodies.
-    By setting the correction factor to zero, the motor joint acts
-    like top-down dry friction.
+    Box2D 3.2 rewrote this joint: it drives a relative velocity capped by a
+    maximum force, rather than correcting toward a target offset. Here the box
+    is driven back and forth along the platform, and the force cap decides
+    whether it can push past whatever it runs into.
     """
+
+    camera_center = (0, 7)
+    camera_zoom = 25.0 * 0.4
 
     # UI Properties
     enable_motion = UI.bool(True, label="Go")
-    max_force = UI.float(500.0, min=0, max=1000)
-    max_torque = UI.float(500.0, min=0, max=1000)
-    correction_factor = UI.float(0.3, min=0, max=1.0)
+    max_velocity_force = UI.float(500.0, min=0, max=1000)
+    max_velocity_torque = UI.float(500.0, min=0, max=1000)
+    speed = UI.float(4.0, min=0, max=20.0)
 
     def setup(self):
         """Initialize the test."""
-        # Set up camera
-        self.app_state.center = Vec2(0, 7)
-        self.app_state.zoom = 25.0 * 0.4
 
-        # Create ground body with horizontal platform
         ground = self.world.new_body().segment((-20, 0), (20, 0)).build()
 
-        # Create box body with motor joint
         self.box = (
             self.world.new_body()
             .dynamic()
@@ -658,52 +667,573 @@ class MotorJointTest(BaseTest, category="Joints", name="Motor Joint"):
             .build()
         )
 
-        # Create motor joint
+        # Obstacles for the box to push against, so the force cap is visible.
+        for x in (-6.0, 6.0):
+            self.world.new_body().dynamic().position(x, 8).box(
+                1.0, 1.0, density=1.0
+            ).build()
+
         self.motor = self.world.add_motor_joint(
             ground,
             self.box,
-            max_force=self.max_force,
-            max_torque=self.max_torque,
-            correction_factor=self.correction_factor,
+            linear_velocity=(self.speed, 0.0),
+            max_velocity_force=self.max_velocity_force,
+            max_velocity_torque=self.max_velocity_torque,
         )
 
         self.time = 0.0
 
     @enable_motion.callback
-    @max_force.callback
-    @max_torque.callback
-    @correction_factor.callback
+    @max_velocity_force.callback
+    @max_velocity_torque.callback
+    @speed.callback
     def on_param_change(self, key, value):
         """Handle UI parameter changes."""
-        if key == "max_force":
-            self.motor.max_force = value
-        elif key == "max_torque":
-            self.motor.max_torque = value
-        elif key == "correction_factor":
-            self.motor.correction_factor = value
+        if key == "max_velocity_force":
+            self.motor.max_velocity_force = value
+        elif key == "max_velocity_torque":
+            self.motor.max_velocity_torque = value
 
     def after_step(self, dt):
-        """Update motor target position based on time."""
+        """Reverse the drive direction periodically."""
         if self.enable_motion and dt > 0:
             self.time += dt
-
-            # Calculate new target position
-            target_x = 6.0 * math.sin(2.0 * self.time)
-            target_y = 8.0 + 4.0 * math.sin(1.0 * self.time)
-            target_angle = math.pi * math.sin(-0.5 * self.time)
-
-            # Update motor joint targets
-            self.motor.linear_offset = (target_x, target_y)
-            self.motor.angular_offset = target_angle
+            self.motor.linear_velocity = (self.speed * math.sin(2.0 * self.time), 0.0)
 
     def debug_draw(self, debug_draw):
         """Draw debug info."""
         force = self.motor.constraint_force
         torque = self.motor.constraint_torque
+        velocity = self.motor.linear_velocity
         debug_draw.draw_string(
-            (5, 5), f"force = ({force.x:.1f}, {force.y:.1f}), torque = {torque:.1f}"
+            (5, 5),
+            f"drive = {velocity.x:.1f} m/s, "
+            f"force = ({force.x:.1f}, {force.y:.1f}), torque = {torque:.1f}",
         )
-        # Draw target transform for visualization
-        debug_draw.draw_transform(
-            Transform(self.motor.linear_offset, self.motor.angular_offset)
+
+
+class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
+    """Box2D 3.2 replaced the single fixed-rotation flag with three independent
+    locks. Each box below hangs from a different joint type, and all of them
+    share one set of locks, so you can watch how each joint reacts as you
+    forbid movement along x, along y, or about z.
+    """
+
+    camera_center = (0, 8)
+    camera_zoom = 25.0 * 0.7
+
+    lock_x = UI.bool(False, label="Lock Linear X")
+    lock_y = UI.bool(False, label="Lock Linear Y")
+    lock_rotation = UI.bool(True, label="Lock Angular Z")
+    shove = UI.button("Shove first box")
+
+    def setup(self):
+
+        ground = self.world.new_body().static().build()
+
+        locks = dict(
+            lock_x=self.lock_x, lock_y=self.lock_y, lock_rotation=self.lock_rotation
         )
+        self.bodies = []
+        for index, attach in enumerate(
+            (
+                self._distance,
+                self._motor,
+                self._prismatic,
+                self._revolute,
+                self._weld,
+                self._wheel,
+            )
+        ):
+            position = Vec2(-12.5 + 5.0 * index, 10.0)
+            body = self.world.add_body(body_type="dynamic", position=position, **locks)
+            body.add_box(2, 2)
+            attach(ground, body, position)
+            self.bodies.append(body)
+
+    def _distance(self, ground, body, position):
+        length = 2.0
+        self.world.add_distance_joint(
+            ground,
+            body,
+            local_anchor_a=position + (0, 1.0 + length),
+            local_anchor_b=(0, 1.0),
+            length=length,
+        )
+
+    def _motor(self, ground, body, position):
+        self.world.add_motor_joint(
+            ground,
+            body,
+            max_velocity_force=200.0,
+            max_velocity_torque=200.0,
+        )
+
+    def _prismatic(self, ground, body, position):
+        self.world.add_prismatic_joint(ground, body, anchor=position - (1.0, 0))
+
+    def _revolute(self, ground, body, position):
+        self.world.add_revolute_joint(ground, body, anchor=position - (1.0, 0))
+
+    def _weld(self, ground, body, position):
+        self.world.add_weld_joint(
+            ground,
+            body,
+            anchor=position - (1.0, 0),
+            linear_hertz=1.0,
+            linear_damping_ratio=0.5,
+            angular_hertz=1.0,
+            angular_damping_ratio=0.5,
+        )
+
+    def _wheel(self, ground, body, position):
+        self.world.add_wheel_joint(
+            ground,
+            body,
+            anchor=position - (1.0, 0),
+            axis=(0, 1),
+            enable_spring=True,
+            spring_hertz=1.0,
+            spring_damping_ratio=0.7,
+            lower_translation=-1.0,
+            upper_translation=1.0,
+            enable_limit=True,
+            enable_motor=True,
+            max_motor_torque=10.0,
+            motor_speed=1.0,
+        )
+
+    @lock_x.callback
+    @lock_y.callback
+    @lock_rotation.callback
+    def on_lock_change(self, key, value):
+        """Apply the locks live. Bodies must be woken to notice."""
+        for body in self.bodies:
+            setattr(body, key, value)
+            body.awake = True
+
+    @shove.callback
+    def on_shove(self, key, value):
+        self.bodies[0].apply_linear_impulse((100, 0))
+
+
+class FilterJointTest(BaseTest, category="Joints", name="Filter Joint"):
+    """Two stacks where one pair of boxes ignores each other.
+
+    A filter joint names an exact pair, which collision categories cannot do
+    without also affecting everything sharing a category. The left stack has
+    one, so its middle boxes sink through each other; the right stack does not,
+    so it stacks normally.
+    """
+
+    camera_center = (0, 4)
+    camera_zoom = 10.0
+
+    def setup(self):
+
+        self.world.new_body().static().position(0, -1).box(40, 2).build()
+
+        boxes = self.world.new_body().dynamic().box(1, 1, density=1.0)
+
+        # Left: the middle pair is joined, so they pass through each other.
+        left = [boxes.position(-3, 0.5 + 1.2 * i).build() for i in range(4)]
+        self.joint = self.world.add_filter_joint(left[1], left[2])
+
+        # Right: an ordinary stack, for comparison.
+        self.right = [boxes.position(3, 0.5 + 1.2 * i).build() for i in range(4)]
+        self.left = left
+
+    def debug_draw(self, debug_draw):
+        left_height = max(b.position.y for b in self.left)
+        right_height = max(b.position.y for b in self.right)
+        debug_draw.draw_string(
+            (-8, 8),
+            f"filtered stack top {left_height:.2f}   normal stack top {right_height:.2f}",
+        )
+
+
+class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
+    """A scissor lift raised by a single motor, with a car parked on top.
+
+    Every crossing pair is pinned at its middle and at both ends, so the whole
+    stack is one loop of constraints. That makes it a stiff thing to solve:
+    the joints are given a high constraint stiffness, and it wants at least
+    eight sub-steps to stay steady under the car's weight. The testbed
+    default is comfortably above that.
+
+    The lift itself is one distance joint with a motor, pulling the bottom
+    scissor closed.
+    """
+
+    camera_center = (0, 9)
+    camera_zoom = 25.0 * 0.4
+
+    motor = UI.bool(False)
+    motor_force = UI.float(2000.0, min=0.0, max=3000.0, label="Max force")
+    motor_speed = UI.float(0.25, min=-0.3, max=0.3, label="Speed")
+
+    # Stiff enough that the linkage does not visibly sag under the car.
+    CONSTRAINT_HERTZ = 240.0
+    CONSTRAINT_DAMPING = 20.0
+    LEVELS = 3
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.segment((-20, 0), (20, 0))
+        ground = ground.build()
+
+        def tune(joint):
+            joint.constraint_tuning = (self.CONSTRAINT_HERTZ, self.CONSTRAINT_DAMPING)
+            return joint
+
+        base_a, base_b = ground, ground
+        anchor_a, anchor_b = (-2.5, 0.2), (2.5, 0.2)
+        y = 0.5
+        lift_link = None
+
+        for level in range(self.LEVELS):
+            # The two arms of one scissor, crossed and pinned in the middle.
+            arms = []
+            for tilt in (0.15, -0.15):
+                arm = (
+                    self.world.new_body()
+                    .dynamic()
+                    .position(0, y)
+                    .rotation(tilt)
+                    .sleep_threshold(0.01)
+                    .capsule((-2.5, 0), (2.5, 0), radius=0.15)
+                    .build()
+                )
+                arms.append(arm)
+            left_arm, right_arm = arms
+
+            if level == 1:
+                lift_link = right_arm
+
+            tune(
+                self.world.add_joint(
+                    RevoluteJointDef(
+                        base_a,
+                        left_arm,
+                        local_anchor_a=anchor_a,
+                        local_anchor_b=(-2.5, 0),
+                        # Only the bottom pair may touch the ground.
+                        collide_connected=(level == 0),
+                    )
+                )
+            )
+
+            if level == 0:
+                # The bottom right corner rolls along the ground instead of
+                # being pinned, which is what lets the scissor open at all.
+                tune(
+                    self.world.add_joint(
+                        WheelJointDef(
+                            base_b,
+                            right_arm,
+                            local_anchor_a=anchor_b,
+                            local_anchor_b=(2.5, 0),
+                            enable_spring=False,
+                            collide_connected=True,
+                        )
+                    )
+                )
+            else:
+                tune(
+                    self.world.add_joint(
+                        RevoluteJointDef(
+                            base_b,
+                            right_arm,
+                            local_anchor_a=anchor_b,
+                            local_anchor_b=(2.5, 0),
+                        )
+                    )
+                )
+
+            tune(
+                self.world.add_joint(
+                    RevoluteJointDef(
+                        left_arm,
+                        right_arm,
+                        local_anchor_a=(0, 0),
+                        local_anchor_b=(0, 0),
+                    )
+                )
+            )
+
+            # The next scissor stands on this one, crossed over.
+            base_a, base_b = right_arm, left_arm
+            anchor_a, anchor_b = (-2.5, 0), (2.5, 0)
+            y += 1.0
+
+        platform = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, y)
+            .sleep_threshold(0.01)
+            .box(6, 0.4)
+            .build()
+        )
+        tune(
+            self.world.add_joint(
+                RevoluteJointDef(
+                    platform,
+                    base_a,
+                    local_anchor_a=(-2.5, -0.4),
+                    local_anchor_b=anchor_a,
+                    collide_connected=True,
+                )
+            )
+        )
+        tune(
+            self.world.add_joint(
+                WheelJointDef(
+                    platform,
+                    base_b,
+                    local_anchor_a=(2.5, -0.4),
+                    local_anchor_b=anchor_b,
+                    enable_spring=False,
+                    collide_connected=True,
+                )
+            )
+        )
+
+        # One motor raises the whole lift by closing the bottom scissor.
+        self.lift_joint = self.world.add_joint(
+            DistanceJointDef(
+                ground,
+                lift_link,
+                local_anchor_a=(-2.5, 0.2),
+                local_anchor_b=(0.5, 0),
+                enable_spring=True,
+                min_length=0.2,
+                max_length=5.5,
+                enable_limit=True,
+                enable_motor=self.motor,
+                motor_speed=self.motor_speed,
+                max_motor_force=self.motor_force,
+            )
+        )
+
+        self.car = Car(
+            self.world, (0, y + 2.0), scale=1.0, hertz=3.0, damping_ratio=0.7
+        )
+
+    @motor.callback
+    def on_motor_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.enable_motor = value
+            self.lift_joint.wake_bodies()
+
+    @motor_force.callback
+    def on_force_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.max_motor_force = value
+            self.lift_joint.wake_bodies()
+
+    @motor_speed.callback
+    def on_speed_change(self, key, value):
+        if hasattr(self, "lift_joint"):
+            self.lift_joint.motor_speed = value
+            self.lift_joint.wake_bodies()
+
+
+class Cantilever(BaseTest, category="Joints", name="Cantilever"):
+    """Eight capsules welded end to end, anchored at the wall and free at the tip.
+
+    A weld joint is rigid at zero hertz and springy below that, so the sliders
+    turn a solid beam into one that sags and wobbles under its own weight.
+    Linear softness lets the segments pull apart along the beam; angular
+    softness lets them hinge, which is what actually droops the tip.
+
+    The tip height is drawn each frame, since the interesting thing is how far
+    it settles rather than what it looks like mid-swing.
+    """
+
+    camera_center = (0, 0)
+    camera_zoom = 25.0 * 0.35
+
+    linear_hertz = UI.float(15.0, min=0.0, max=20.0, label="Linear hertz")
+    linear_damping = UI.float(0.5, min=0.0, max=10.0, label="Linear damping")
+    angular_hertz = UI.float(5.0, min=0.0, max=20.0, label="Angular hertz")
+    angular_damping = UI.float(0.5, min=0.0, max=4.0, label="Angular damping")
+    collide_connected = UI.bool(False, label="Collide connected")
+
+    COUNT = 8
+
+    def setup(self):
+        ground = self.world.new_body().static().build()
+
+        half_length = 0.5
+        self.joints = []
+        previous = ground
+
+        for i in range(self.COUNT):
+            segment = (
+                self.world.new_body()
+                .dynamic()
+                .position((1.0 + 2.0 * i) * half_length, 0.0)
+                .capsule(
+                    (-half_length, 0), (half_length, 0), radius=0.125, density=20.0
+                )
+                .build()
+            )
+
+            # The pivot sits where the two capsules meet, expressed in each
+            # body's own frame.
+            pivot = ((2.0 * i) * half_length, 0.0)
+            joint = self.world.add_joint(
+                WeldJointDef(
+                    previous,
+                    segment,
+                    local_anchor_a=previous.get_local_point(pivot),
+                    local_anchor_b=segment.get_local_point(pivot),
+                    linear_hertz=self.linear_hertz,
+                    linear_damping_ratio=self.linear_damping,
+                    angular_hertz=self.angular_hertz,
+                    angular_damping_ratio=self.angular_damping,
+                    collide_connected=self.collide_connected,
+                )
+            )
+            joint.constraint_tuning = (120.0, 10.0)
+            self.joints.append(joint)
+            previous = segment
+
+        self.tip = previous
+
+    @linear_hertz.callback
+    @linear_damping.callback
+    @angular_hertz.callback
+    @angular_damping.callback
+    def on_softness_change(self, key, value):
+        for joint in getattr(self, "joints", []):
+            joint.linear_hertz = self.linear_hertz
+            joint.linear_damping_ratio = self.linear_damping
+            joint.angular_hertz = self.angular_hertz
+            joint.angular_damping_ratio = self.angular_damping
+            joint.wake_bodies()
+
+    @collide_connected.callback
+    def on_collide_change(self, key, value):
+        # Not settable after creation in a useful way, so rebuild.
+        if hasattr(self, "joints"):
+            for body in list(self.world.bodies):
+                body.destroy()
+            self.setup()
+
+    def debug_draw(self, debug_draw):
+        debug_draw.draw_string(
+            self.tip.position + (1, 1),
+            f"tip y = {self.tip.position.y:.2f}",
+            color=Color(255, 255, 255, 255),
+        )
+
+
+class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
+    """A jointed figure dropped from a height, to be poked and dragged.
+
+    Every joint has an angle limit, a friction motor and a spring. The limits
+    are what keep it looking like a body rather than a bag of sticks; the
+    friction decides whether it flops or holds a pose; the spring pulls it
+    back towards standing.
+
+    Turn the friction to zero for a rag, or up for something that resists
+    being folded. Drag a limb to feel the difference.
+    """
+
+    camera_center = (0, 12)
+    camera_zoom = 16.0
+
+    friction = UI.float(0.03, min=0.0, max=1.0, label="Joint friction")
+    hertz = UI.float(5.0, min=0.0, max=10.0, label="Spring hertz")
+    damping = UI.float(0.5, min=0.0, max=4.0, label="Spring damping")
+    respawn = UI.button("Respawn")
+
+    SPAWN = (0.0, 25.0)
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.segment((-20, 0), (20, 0))
+        ground.build()
+
+        # A stiff, barely-damped contact response, so a body landing on the
+        # ground does not sink into it before being pushed back out.
+        self.world.contact_hertz = 240.0
+        self.world.contact_damping_ratio = 0.0
+        self.world.contact_push_velocity = 2.0
+
+        self.human = None
+        self.spawn()
+
+    def spawn(self):
+        if self.human is not None:
+            self.human.destroy()
+        self.human = Human(
+            self.world,
+            self.SPAWN,
+            scale=1.0,
+            friction_torque=self.friction,
+            hertz=self.hertz,
+            damping_ratio=self.damping,
+        )
+
+    @respawn.callback
+    def on_respawn(self, key, value):
+        if hasattr(self, "human"):
+            self.spawn()
+
+    @friction.callback
+    def on_friction_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_friction_torque(value)
+
+    @hertz.callback
+    def on_hertz_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_spring_hertz(value)
+
+    @damping.callback
+    def on_damping_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_joint_damping_ratio(value)
+
+
+class ScaleRagdoll(BaseTest, category="Joints", name="Scale Ragdoll"):
+    """One ragdoll, resized live.
+
+    Dragging the slider rewrites every bone's shape and every joint frame in
+    place, keeping the pose. It is a test of whether a jointed thing survives
+    being rebuilt underneath itself, which is why the figure is left lying on
+    the ground rather than dropped: you want to watch the joints hold.
+
+    Joint friction grows with the cube of the size, not in step with it, so a
+    larger figure is proportionally as floppy rather than turning rigid.
+    """
+
+    camera_center = (0, 4.5)
+    camera_zoom = 6.0
+
+    # The lower bound is not the C++ sample's 0.1: below about half size the
+    # feet fall under Box2D's minimum polygon feature size and cannot be built.
+    scale = UI.float(1.0, min=0.5, max=10.0)
+
+    def setup(self):
+        ground = self.world.new_body().static()
+        ground.box(40, 2, offset=(0, -1))
+        ground.build()
+
+        self.human = Human(
+            self.world,
+            (0, 5),
+            scale=self.scale,
+            friction_torque=0.03,
+            hertz=1.0,
+            damping_ratio=0.5,
+            colorize=False,
+        )
+        self.human.apply_random_angular_impulse(0.1)
+
+    @scale.callback
+    def on_scale_change(self, key, value):
+        if getattr(self, "human", None) is not None:
+            self.human.set_scale(value)

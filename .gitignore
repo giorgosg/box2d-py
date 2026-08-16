@@ -24,3 +24,4 @@ Pipfile.lock
 imgui.ini
 testbed.prof
 /src/box2d_python.egg-info/
+web/*.whl

@@ -26,13 +26,14 @@ dependencies = [
 
 [project.optional-dependencies]
 testbed = [
-  "imgui_bundle",
+  "imgui_bundle>=1.92",
   "PyOpenGL",
   "PyOpenGL-accelerate",
   "numpy"
 ]
 dev = [
     "black",
+    "setuptools>=75.8.0",
     "pre-commit",
     "pytest",
     "sphinx",
@@ -51,7 +52,13 @@ include = ["box2d*", "box2d_testbed*", "tools"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+# The gui tests open a real window, so they are excluded by default and run
+# with `pytest -m gui`. They are the only thing that exercises the OpenGL
+# renderer and the imgui shell, so they matter on an imgui_bundle upgrade.
+addopts = "-ra -q -m 'not gui'"
+markers = [
+  "gui: needs a display; opens a real testbed window",
+]
 testpaths = [
   "src/tests",
 ]

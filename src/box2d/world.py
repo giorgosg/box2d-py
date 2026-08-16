@@ -1,8 +1,16 @@
-# src/box3d/world.py
+# src/box2d/world.py
+
+import math
+import traceback
 
 from ._box2d import lib, ffi
+
+#: Whether this build carries the enkiTS task scheduler. A build made without
+#: it runs Box2D single threaded, which is every target that has no threads.
+HAS_THREADS = hasattr(lib, "setup_threadpool")
 from .body import BodyBuilder, Body
 from .joint import (
+    FilterJoint,
     MouseJoint,
     WeldJoint,
     RevoluteJoint,
@@ -11,15 +19,36 @@ from .joint import (
     DistanceJoint,
     MotorJoint,
 )
-from .math import Vec2, VectorLike, AABB, Transform, to_vec2
+from .math import Vec2, Rot, VectorLike, AABB, Transform
+from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
+from .query import ShapeProxy
+from .diagnostics import Counters, Profile
+from .dataclasses import BodyDef, BodyType
+from .events import (
+    BodyMoveEvent,
+    Contact,
+    ContactBeginEvent,
+    ContactEndEvent,
+    ContactEvents,
+    ContactHitEvent,
+    JointEvent,
+)
+from .jointdef import (
+    JointDef,
+    FilterJointDef,
+    WeldJointDef,
+    RevoluteJointDef,
+    PrismaticJointDef,
+    WheelJointDef,
+    DistanceJointDef,
+    MotorJointDef,
+    MouseJointDef,
+)
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
+from .lifetime import IdRef, DestroyedError, raw_id, is_live
 from dataclasses import dataclass
-from .shapedef import CircleDef
-from dataclasses import dataclass
-from .math import Vec2
-from ._box2d import ffi, lib
 
 
 @dataclass
@@ -105,6 +134,8 @@ class World:
         ...     world.step(1/60, 4)
     """
 
+    _world_id = IdRef(lib.b2World_IsValid, "world")
+
     def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
         """Initialize physics world with specified gravity vector.
 
@@ -121,6 +152,13 @@ class World:
         world_def.gravity.x, world_def.gravity.y = gravity
         self._threads = threads
         if threads > 1:
+            if not HAS_THREADS:
+                raise RuntimeError(
+                    f"this build has no task scheduler, so threads={threads} "
+                    f"cannot be honoured; use threads=1. Builds without "
+                    f"threads are made for targets that have none, such as "
+                    f"WebAssembly."
+                )
             # Use the C-level task scheduler
             lib.setup_threadpool(threads)
             self._use_c_scheduler = True
@@ -137,16 +175,20 @@ class World:
 
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
-        # Store default simulation parameters
-        self._enable_sleep = world_def.enableSleep
-        self._enable_continuous = world_def.enableContinuous
-        self._restitution_threshold = world_def.restitutionThreshold
-        self._hit_event_threshold = world_def.hitEventThreshold
+        # Contact tuning is cached because Box2D has only a combined setter
+        # for the three values and no getter; everything else is read back
+        # from Box2D rather than mirrored here.
         self._contact_hertz = world_def.contactHertz
         self._contact_damping_ratio = world_def.contactDampingRatio
-        self._contact_push_velocity = world_def.contactPushMaxSpeed
+        self._contact_push_velocity = world_def.contactSpeed
 
         self._bodies = {}
+
+        # Callbacks, with the cffi trampolines that must outlive them.
+        self._custom_filter = self._custom_filter_trampoline = None
+        self._pre_solve = self._pre_solve_trampoline = None
+        self._friction_mixer = self._friction_trampoline = None
+        self._restitution_mixer = self._restitution_trampoline = None
 
     @property
     def gravity(self):
@@ -164,7 +206,7 @@ class World:
     @gravity.setter
     def gravity(self, value: VectorLike):
         """Set world gravity vector"""
-        value = to_vec2(value)
+        value = Vec2(value)
         lib.b2World_SetGravity(self._world_id, value.b2Vec2[0])
 
     def step(self, time_step, substep_count=4):
@@ -195,480 +237,239 @@ class World:
         """
         return BodyBuilder(self)
 
-    def add_mouse_joint(
+    def add_body(
         self,
-        body,
-        target,
-        max_force=1000.0,
-        damping_ratio=0.7,
-        hertz=5,
-    ) -> MouseJoint:
-        """Create a mouse joint for interactive dragging between bodies
+        body_type: "BodyType | str" = None,
+        position: VectorLike = None,
+        rotation: float = None,
+        linear_velocity: VectorLike = None,
+        angular_velocity: float = None,
+        linear_damping: float = None,
+        angular_damping: float = None,
+        gravity_scale: float = None,
+        sleep_threshold: float = None,
+        name: str = None,
+        user_data=None,
+        enable_sleep: bool = None,
+        is_awake: bool = None,
+        lock_x: bool = None,
+        lock_y: bool = None,
+        lock_rotation: bool = None,
+        is_bullet: bool = None,
+        enable_contact_recycling: bool = None,
+        is_enabled: bool = None,
+        allow_fast_rotation: bool = None,
+    ) -> Body:
+        """Create a body in this world.
+
+        This is the direct counterpart to :meth:`Body.add_box` and the
+        ``add_*_joint`` methods: it makes a body in one call. :meth:`new_body`
+        returns a builder for the same thing in fluent style, and builds through
+        here.
+
+        Every argument left as None keeps Box2D's default for that property.
 
         Args:
-            body: Body to drag
-            target: Initial target position in world coordinates
-            max_force: Maximum constraint force (default 1000.0)
-            damping_ratio: Response damping ratio (0-1, default 0.7)
-            herts: Spring stiffness in Hz (higher = stiffer movement)
+            body_type: 'static', 'kinematic' or 'dynamic', or a BodyType.
+                Defaults to static, as Box2D does.
+            position: Initial world position, as a vector-like.
+            rotation: Initial world rotation in radians.
+            linear_velocity: Initial linear velocity, as a vector-like.
+            angular_velocity: Initial angular velocity in radians per second.
+            linear_damping: Linear damping, reducing linear velocity. May exceed 1.
+            angular_damping: Angular damping, reducing angular velocity. May exceed 1.
+            gravity_scale: Scale applied to gravity for this body.
+            sleep_threshold: Sleep speed threshold in meters per second.
+            name: Optional name for debugging, up to 31 characters.
+            user_data: Any Python object to associate with the body. Readable
+                afterwards as ``body.user_data``.
+            enable_sleep: False if this body should never fall asleep.
+            is_awake: Whether the body starts awake.
+            lock_x: True to prevent translation along the world x-axis.
+            lock_y: True to prevent translation along the world y-axis.
+            lock_rotation: True to prevent the body from rotating.
+            is_bullet: True to use continuous collision detection for this body.
+            enable_contact_recycling: Reuse this body's contacts between steps.
+                On by default; Box2D suggests turning it off for characters.
+            is_enabled: False to create the body disabled.
+            allow_fast_rotation: True to bypass rotational speed limits.
+
+        Returns:
+            Body: The newly created body, with no shapes attached yet. Add them
+            with :meth:`Body.add_box`, :meth:`Body.add_circle` and friends.
 
         Example:
             >>> world = World()
-            >>> box = world.new_body().dynamic().position(0,5).build()
-            >>> mouse_joint = world.add_mouse_joint(box, (0,5))
+            >>> ground = world.add_body(position=(0, -5))
+            >>> _ = ground.add_box(20, 1)
+            >>> ball = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> _ = ball.add_circle(radius=0.5)
         """
-        if body._body_id not in self._bodies:
-            raise ValueError("Bodies must belong to this world")
-        return MouseJoint(self, body, target, max_force, damping_ratio, hertz)
+        body_def = BodyDef()
+
+        if body_type is not None:
+            body_def.type = Body.resolve_type(body_type)
+        if position is not None:
+            body_def.position = Vec2(position)
+        if rotation is not None:
+            body_def.rotation = Rot(rotation)
+        if linear_velocity is not None:
+            body_def.linear_velocity = Vec2(linear_velocity)
+        if angular_velocity is not None:
+            body_def.angular_velocity = angular_velocity
+        if linear_damping is not None:
+            body_def.linear_damping = linear_damping
+        if angular_damping is not None:
+            body_def.angular_damping = angular_damping
+        if gravity_scale is not None:
+            body_def.gravity_scale = gravity_scale
+        if sleep_threshold is not None:
+            body_def.sleep_threshold = sleep_threshold
+        if name is not None:
+            body_def.name = name
+        if user_data is not None:
+            body_def.user_data = user_data
+        if enable_sleep is not None:
+            body_def.enable_sleep = enable_sleep
+        if is_awake is not None:
+            body_def.is_awake = is_awake
+        if lock_x is not None:
+            body_def.lock_x = lock_x
+        if lock_y is not None:
+            body_def.lock_y = lock_y
+        if lock_rotation is not None:
+            body_def.lock_rotation = lock_rotation
+        if is_bullet is not None:
+            body_def.is_bullet = is_bullet
+        if enable_contact_recycling is not None:
+            body_def.enable_contact_recycling = enable_contact_recycling
+        if is_enabled is not None:
+            body_def.is_enabled = is_enabled
+        if allow_fast_rotation is not None:
+            body_def.allow_fast_rotation = allow_fast_rotation
+
+        return Body(self, body_def)
+
+    def add_joint(self, joint_def):
+        """Create a joint in this world from a joint definition.
+
+        This is the single place joints are made. The ``add_*_joint`` methods
+        below are shorthand that build a definition and call this.
+
+        Args:
+            joint_def: Any definition from :mod:`box2d.jointdef`, such as
+                :class:`RevoluteJointDef`.
+
+        Returns:
+            The created joint.
+
+        Raises:
+            ValueError: If either body belongs to a different world, or if a
+                definition gives both a world anchor and local anchors.
+
+        Example:
+            >>> world = World()
+            >>> a = world.add_body(body_type='dynamic', position=(0, 0))
+            >>> b = world.add_body(body_type='dynamic', position=(1, 0))
+            >>> joint = world.add_joint(
+            ...     RevoluteJointDef(a, b, anchor=(0.5, 0), enable_motor=True,
+            ...                      max_motor_torque=100)
+            ... )
+        """
+        self._check_bodies(joint_def)
+        return joint_def.joint_class(self, **joint_def.joint_arguments())
+
+    def _check_bodies(self, joint_def):
+        """Every body a joint connects has to live in this world."""
+        bodies = (
+            [joint_def.body]
+            if isinstance(joint_def, MouseJointDef)
+            else [joint_def.body_a, joint_def.body_b]
+        )
+        for body in bodies:
+            if body._body_id not in self._bodies:
+                raise ValueError("Every body of a joint must belong to this world")
+
+    def add_mouse_joint(
+        self, body, target: VectorLike, max_force=1000.0, damping_ratio=0.7, hertz=5.0
+    ) -> "MouseJoint":
+        """Drag a body toward a world-space target. See :class:`MouseJointDef`."""
+        return self.add_joint(
+            MouseJointDef(body, target, max_force, damping_ratio, hertz)
+        )
+
+    def add_filter_joint(self, body_a, body_b) -> "FilterJoint":
+        """Stop two bodies colliding. See :class:`FilterJointDef`."""
+        return self.add_joint(FilterJointDef(body_a, body_b))
 
     def add_weld_joint(
         self,
         body_a,
         body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        anchor=None,
-        collide_connected=False,
-        linear_hertz=None,
-        linear_damping_ratio=None,
-        angular_hertz=None,
-        angular_damping_ratio=None,
-        reference_angle=None,
-    ) -> WeldJoint:
-        """Create a weld joint that rigidly connects two bodies.
-
-        Args:
-            body_a: The first body to connect (must belong to this world)
-            body_b: The second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x, y) on body_a where the joint attaches.
-            local_anchor_b (tuple): Local coordinates (x, y) on body_b where the joint attaches.
-            anchor: World coordinates (x, y) where the joint attaches. (Used without local anchors)
-            collide_connected (bool, optional): If True, the connected bodies will collide.
-            linear_hertz (float, optional): Linear spring stiffness in Hertz (0 means rigid).
-            linear_damping_ratio (float, optional): Linear damping ratio (non-dimensional).
-            angular_hertz (float, optional): Angular spring stiffness in Hertz (0 means rigid).
-            angular_damping_ratio (float, optional): Angular damping ratio (non-dimensional).
-            reference_angle (float, optional): The body_b angle minus body_a angle in the reference state (radians)
-
-        Returns:
-            WeldJoint: The created weld joint connecting the two bodies.
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0, 0).build()
-            >>> body_b = world.new_body().dynamic().position(1, 1).build()
-            >>> weld_joint = world.add_weld_joint(body_a, body_b, anchor=(0.5, 0.5))
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError(
-                    "You can't set local anchors when setting a world anchor"
-                )
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-        return WeldJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            linear_hertz,
-            linear_damping_ratio,
-            angular_hertz,
-            angular_damping_ratio,
-            reference_angle,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
+    ) -> "WeldJoint":
+        """Hold two bodies rigidly together. See :class:`WeldJointDef`."""
+        return self.add_joint(
+            WeldJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_revolute_joint(
         self,
         body_a,
         body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        anchor=None,
-        collide_connected=False,
-        lower_angle=None,
-        upper_angle=None,
-        enable_limit=None,
-        motor_speed=None,
-        max_motor_torque=None,
-        enable_motor=None,
-        reference_angle=None,
-    ) -> RevoluteJoint:
-        """
-        Create a revolute joint connecting two bodies, allowing relative rotation about an anchor point.
-
-        Args:
-            body_a: The first body to connect (must belong to this world).
-            body_b: The second body to connect (must belong to this world).
-            local_anchor_a (tuple): Local coordinates (x, y) on body_a for the joint.
-            local_anchor_b (tuple): Local coordinates (x, y) on body_b for the joint.
-            collide_connected (bool, optional): Whether the connected bodies should collide with each other.
-                                                  Defaults to False.
-            lower_angle (float, optional): Lower joint limit in radians.
-            upper_angle (float, optional): Upper joint limit in radians.
-            enable_limit (bool, optional): Enable joint limits if True.
-            motor_speed (float, optional): Desired motor speed in radians per second.
-            max_motor_torque (float, optional): Maximum motor torque in newton-meters.
-            enable_motor (bool, optional): Enable the joint motor if True.
-            reference_angle (float, optional): Reference angle between the two bodies.
-
-        Returns:
-            RevoluteJoint: The created revolute joint connecting body_a and body_b.
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0, 0).build()
-            >>> body_b = world.new_body().dynamic().position(1, 0).build()
-            >>> revolute_joint = world.add_revolute_joint(
-            ...     body_a, body_b, (0, 0), (0, 0),
-            ...     collide_connected=False,
-            ...     enable_limit=True,
-            ...     lower_angle=-0.5,
-            ...     upper_angle=0.5
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError(
-                    "You can't set local anchors when setting a world anchor"
-                )
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-        return RevoluteJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            lower_angle,
-            upper_angle,
-            enable_limit,
-            motor_speed,
-            max_motor_torque,
-            enable_motor,
-            reference_angle,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
+    ) -> "RevoluteJoint":
+        """Pin two bodies at a point they rotate about. See :class:`RevoluteJointDef`."""
+        return self.add_joint(
+            RevoluteJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_prismatic_joint(
         self,
         body_a,
         body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        axis=(1, 0),
-        anchor=None,
-        collide_connected=False,
-        lower_limit=None,
-        upper_limit=None,
-        enable_limit=None,
-        motor_speed=None,
-        max_motor_force=None,
-        enable_motor=None,
-        reference_angle=None,
-        enable_spring=None,
-        hertz=None,
-        damping_ratio=None,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "PrismaticJoint":
-        """Create a prismatic joint that allows sliding motion along an axis.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            axis (tuple): The axis defining allowed translation (x,y) in body A's frame
-            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
-            collide_connected (bool): Whether bodies can collide with each other
-            lower_limit (float): Lower translation limit
-            upper_limit (float): Upper translation limit
-            enable_limit (bool): Whether to enable joint limits
-            motor_speed (float): Desired motor speed in meters/sec
-            max_motor_force (float): Maximum motor force in Newtons
-            enable_motor (bool): Whether to enable the joint motor
-            reference_angle (float): Reference angle between bodies in radians
-            enable_spring (bool): Enable spring behavior
-            hertz (float): Spring stiffness frequency in Hz
-            damping_ratio (float): Spring damping ratio
-
-        Returns:
-            PrismaticJoint: The created prismatic joint
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0,0).build()
-            >>> body_b = world.new_body().dynamic().position(1,0).build()
-            >>> # Create sliding joint along x-axis
-            >>> joint = world.add_prismatic_joint(
-            ...     body_a, body_b,
-            ...     anchor=(0.5,0),
-            ...     axis=(1,0),
-            ...     enable_limit=True,
-            ...     lower_limit=-1,
-            ...     upper_limit=1
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError("Can't set local anchors when setting a world anchor")
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-
-        return PrismaticJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            axis,
-            collide_connected,
-            lower_limit,
-            upper_limit,
-            enable_limit,
-            motor_speed,
-            max_motor_force,
-            enable_motor,
-            reference_angle,
-            enable_spring,
-            hertz,
-            damping_ratio,
+        """Let two bodies slide along one axis. See :class:`PrismaticJointDef`."""
+        return self.add_joint(
+            PrismaticJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_wheel_joint(
         self,
         body_a,
         body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        axis=(1, 0),
-        anchor=None,
-        collide_connected=False,
-        enable_limit=False,
-        lower_translation=0.0,
-        upper_translation=0.0,
-        enable_motor=False,
-        motor_speed=0.0,
-        max_motor_torque=0.0,
-        enable_spring=False,
-        spring_hertz=0.0,
-        spring_damping_ratio=0.0,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "WheelJoint":
-        """Create a wheel joint for vehicle suspension simulation.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            axis (tuple): The axis defining translation (x,y) in body A's frame
-            anchor: World coordinates (x,y) where joint attaches (alternative to local anchors)
-            collide_connected (bool): Whether bodies can collide with each other
-            enable_limit (bool): Enable translation limits
-            lower_translation (float): Lower translation limit
-            upper_translation (float): Upper translation limit
-            enable_motor (bool): Enable the joint motor
-            motor_speed (float): Desired motor speed in radians/sec
-            max_motor_torque (float): Maximum motor torque in N-m
-            enable_spring (bool): Enable spring behavior
-            spring_hertz (float): Spring oscillation frequency in Hz
-            spring_damping_ratio (float): Spring damping ratio (non-dimensional)
-
-        Returns:
-            WheelJoint: The created wheel joint
-
-        Example:
-            >>> world = World()
-            >>> chassis = world.new_body().dynamic().position(0,1).box(2,0.5).build()
-            >>> wheel = world.new_body().dynamic().position(1,0).circle(0.4).build()
-            >>> # Create wheel suspension
-            >>> joint = world.add_wheel_joint(
-            ...     chassis, wheel,
-            ...     anchor=(1,0),
-            ...     axis=(0,1),  # Vertical suspension movement
-            ...     enable_spring=True,
-            ...     spring_hertz=4.0,
-            ...     spring_damping_ratio=0.7
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        if anchor is not None:
-            if local_anchor_a is not None or local_anchor_b is not None:
-                raise ValueError("Can't set local anchors when setting a world anchor")
-            local_anchor_a = body_a.transform.inverse(anchor)
-            local_anchor_b = body_b.transform.inverse(anchor)
-
-        return WheelJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            axis,
-            collide_connected,
-            enable_limit,
-            lower_translation,
-            upper_translation,
-            enable_motor,
-            motor_speed,
-            max_motor_torque,
-            enable_spring,
-            spring_hertz,
-            spring_damping_ratio,
+        """A sliding axis with a spring, as for suspension. See :class:`WheelJointDef`."""
+        return self.add_joint(
+            WheelJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_distance_joint(
         self,
         body_a,
         body_b,
-        local_anchor_a=None,
-        local_anchor_b=None,
-        collide_connected=False,
-        length=None,
-        min_length=None,
-        max_length=None,
-        enable_limit=False,
-        enable_spring=False,
-        hertz=None,
-        damping_ratio=None,
-        enable_motor=False,
-        motor_speed=None,
-        max_motor_force=None,
+        local_anchor_a: VectorLike = None,
+        local_anchor_b: VectorLike = None,
+        **kwargs,
     ) -> "DistanceJoint":
-        """Create a distance joint that maintains or limits distance between points on two bodies.
-
-        Args:
-            body_a: First body to connect (must belong to this world)
-            body_b: Second body to connect (must belong to this world)
-            local_anchor_a (tuple): Local coordinates (x,y) on body_a where joint attaches
-            local_anchor_b (tuple): Local coordinates (x,y) on body_b where joint attaches
-            collide_connected (bool): Whether bodies can collide with each other
-            length (float): Rest length. Calculated from anchors if None.
-            min_length (float): Minimum allowed length when using limits
-            max_length (float): Maximum allowed length when using limits
-            enable_limit (bool): Whether to enable length limits
-            enable_spring (bool): Enable spring behavior
-            hertz (float): Spring oscillation frequency in Hz
-            damping_ratio (float): Spring damping ratio
-            enable_motor (bool): Enable the joint motor
-            motor_speed (float): Desired motor speed in meters/second
-            max_motor_force (float): Maximum motor force in Newtons
-
-        Returns:
-            DistanceJoint: The created distance joint
-
-        Example:
-            >>> world = World()
-            >>> body_a = world.new_body().dynamic().position(0,0).build()
-            >>> body_b = world.new_body().dynamic().position(2,0).build()
-            >>> # Create spring joint
-            >>> spring = world.add_distance_joint(
-            ...     body_a, body_b,
-            ...     local_anchor_a=(0,0),
-            ...     local_anchor_b=(2,0),
-            ...     enable_spring=True,
-            ...     hertz=4.0,
-            ...     damping_ratio=0.5
-            ... )
-            >>> # Create rope joint
-            >>> rope = world.add_distance_joint(
-            ...     body_a, body_b,
-            ...     local_anchor_a=(0,1),
-            ...     local_anchor_b=(2,1),
-            ...     enable_limit=True,
-            ...     min_length=1.0,
-            ...     max_length=3.0
-            ... )
-        """
-        if (body_a._body_id not in self._bodies) or (
-            body_b._body_id not in self._bodies
-        ):
-            raise ValueError("Both bodies must belong to this world")
-
-        return DistanceJoint(
-            self,
-            body_a,
-            body_b,
-            local_anchor_a,
-            local_anchor_b,
-            collide_connected,
-            length,
-            min_length,
-            max_length,
-            enable_limit,
-            enable_spring,
-            hertz,
-            damping_ratio,
-            enable_motor,
-            motor_speed,
-            max_motor_force,
+        """Keep two points a fixed distance apart. See :class:`DistanceJointDef`."""
+        return self.add_joint(
+            DistanceJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
-    def add_motor_joint(
-        self,
-        body_a,
-        body_b,
-        linear_offset=None,
-        angular_offset=None,
-        max_force=None,
-        max_torque=None,
-        correction_factor=None,
-        collide_connected=False,
-    ) -> "MotorJoint":
-        """Create a motor joint to control relative motion between two bodies.
-
-        Args:
-            body_a: First body to connect
-            body_b: Second body to connect
-            linear_offset (tuple): Desired position of bodyB in bodyA's frame
-            angular_offset (float): Desired angle between bodies in radians
-            max_force (float): Maximum force in Newtons
-            max_torque (float): Maximum torque in Newton-meters
-            correction_factor (float): Position correction factor [0,1]
-            collide_connected (bool): Whether bodies can collide
-
-        Returns:
-            MotorJoint: The created motor joint
-
-        Example:
-            >>> world = World()
-            >>> ground = world.new_body().build()
-            >>> body = world.new_body().dynamic().position(0, 4).build()
-            >>> motor = world.add_motor_joint(
-            ...     ground, body,
-            ...     linear_offset=(1, 0),  # Move body 1m right
-            ...     max_force=100
-            ... )
-        """
-        return MotorJoint(
-            self,
-            body_a,
-            body_b,
-            linear_offset,
-            angular_offset,
-            max_force,
-            max_torque,
-            correction_factor,
-            collide_connected,
-        )
+    def add_motor_joint(self, body_a, body_b, **kwargs) -> "MotorJoint":
+        """Drive the relative motion of two bodies. See :class:`MotorJointDef`."""
+        return self.add_joint(MotorJointDef(body_a, body_b, **kwargs))
 
     def _track_body(self, body: "Body"):
         """Internal method to track body references. Called automatically during body creation.
@@ -693,6 +494,144 @@ class World:
         """
         return list(self._bodies.values())
 
+    def cast_mover(
+        self,
+        point1: VectorLike,
+        point2: VectorLike,
+        radius: float,
+        translation: VectorLike,
+        filter: "CollisionFilter" = None,
+    ) -> float:
+        """Sweep a capsule through the world and report how far it gets.
+
+        A shape cast tuned for character movement: it slides along surfaces
+        rather than catching on them, and resists clipping through thin
+        geometry.
+
+        Args:
+            point1: First endpoint of the capsule's axis, in world coordinates.
+            point2: Second endpoint.
+            radius: The capsule's radius.
+            translation: The movement to sweep along.
+            filter: Which shapes to test against. Defaults to everything.
+
+        Returns:
+            float: The fraction of the translation travelled before hitting
+            something, 1.0 if the way is clear.
+
+        Example:
+            >>> world = World()
+            >>> fraction = world.cast_mover((0, 1), (0, 2), 0.5, (0, -10))
+        """
+        if filter is None:
+            filter = CollisionFilter()
+        capsule = ffi.new("b2Capsule*")
+        capsule.center1 = Vec2(point1).b2Vec2[0]
+        capsule.center2 = Vec2(point2).b2Vec2[0]
+        capsule.radius = float(radius)
+        return lib.b2World_CastMover(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            capsule,
+            Vec2(translation).b2Vec2[0],
+            filter.b2QueryFilter[0],
+        )
+
+    def collide_mover(
+        self,
+        point1: VectorLike,
+        point2: VectorLike,
+        radius: float,
+        filter: "CollisionFilter" = None,
+    ) -> list:
+        """Find the surfaces a capsule is up against, as collision planes.
+
+        Feed the result to :func:`box2d.mover.solve_planes` to work out where
+        the character can actually move, then to
+        :func:`box2d.mover.clip_vector` to trim its velocity.
+
+        Args:
+            point1: First endpoint of the capsule's axis, in world coordinates.
+            point2: Second endpoint.
+            radius: The capsule's radius.
+            filter: Which shapes to consider. Defaults to everything.
+
+        Returns:
+            list[CollisionPlane]: One per surface touched, each carrying the
+            shape it came from.
+        """
+        if filter is None:
+            filter = CollisionFilter()
+        capsule = ffi.new("b2Capsule*")
+        capsule.center1 = Vec2(point1).b2Vec2[0]
+        capsule.center2 = Vec2(point2).b2Vec2[0]
+        capsule.radius = float(radius)
+
+        planes = []
+        resolve = self._shape_from_id
+
+        @ffi.callback("bool(b2ShapeId, b2PlaneResult*, void*)")
+        def collect(shape_id, result, _context):
+            try:
+                if result.hit:
+                    planes.append(
+                        CollisionPlane._from_plane_result(result, resolve(shape_id))
+                    )
+            except Exception:
+                traceback.print_exc()
+            return True
+
+        lib.b2World_CollideMover(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            capsule,
+            filter.b2QueryFilter[0],
+            collect,
+            ffi.NULL,
+        )
+        return planes
+
+    def explode(
+        self,
+        position: VectorLike,
+        radius: float,
+        impulse_per_length: float,
+        falloff: float = None,
+        mask: int = None,
+    ) -> None:
+        """Apply a radial impulse to everything within a radius.
+
+        Box2D pushes each dynamic shape whose surface falls inside the circle,
+        scaled by how much of it is exposed, so a wide body is thrown harder
+        than a narrow one at the same distance.
+
+        Args:
+            position: Centre of the explosion, in world coordinates.
+            radius: How far the blast reaches, in metres.
+            impulse_per_length: Impulse applied per metre of exposed surface.
+                Negative values pull inward, making an implosion.
+            falloff: Distance over which the impulse fades to nothing past the
+                radius. Defaults to Box2D's own value.
+            mask: Collision mask deciding which shapes are affected. Defaults
+                to everything.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(1, 0))
+            >>> _ = body.add_circle(radius=0.5)
+            >>> world.explode((0, 0), radius=5.0, impulse_per_length=10.0)
+            >>> world.step(1 / 60, 4)
+        """
+        explosion = lib.b2DefaultExplosionDef()
+        explosion.position = Vec2(position).b2Vec2[0]
+        explosion.radius = float(radius)
+        explosion.impulsePerLength = float(impulse_per_length)
+        if falloff is not None:
+            explosion.falloff = float(falloff)
+        if mask is not None:
+            explosion.maskBits = int(mask)
+        lib.b2World_Explode(self._world_id, ffi.addressof(explosion))
+
     def draw(self, debug_draw: DebugDraw):
         """Render world state using debug drawing interface.
 
@@ -704,7 +643,10 @@ class World:
             >>> debug_draw = DebugDraw()
             >>> world.draw(debug_draw)
         """
-        lib.b2World_Draw(self._world_id, ffi.addressof(debug_draw._debug_draw))
+        # Bound to a local: ffi.addressof does not keep its argument alive,
+        # so every call site names something that outlives the call.
+        callbacks = debug_draw._debug_draw
+        lib.b2World_Draw(self._world_id, ffi.addressof(callbacks))
 
     def query_aabb(
         self,
@@ -738,15 +680,13 @@ class World:
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
 
-        # Convert the CollisionFilter to a Box2D c_filter.
         c_filter = filter.b2QueryFilter
-        filter_dict = {
-            "categoryBits": c_filter.categoryBits,
-            "maskBits": c_filter.maskBits,
-        }
 
+        # 3.2 added a query origin for large-world support. Coordinates in
+        # this binding are absolute, so the origin is always the world origin.
         lib.b2World_OverlapAABB(
             self._world_id,
+            Vec2(0, 0).b2Vec2[0],
             aabb.b2AABB[0],
             c_filter[0],
             overlap_callback,
@@ -782,25 +722,115 @@ class World:
             >>> len(overlaps) <= 10
             True
         """
+        # Box2D 3.1 replaced b2World_OverlapCircle with the general
+        # b2World_OverlapShape. A circle is a single-point proxy with a radius.
+        return self.query_shape(
+            ShapeProxy.circle(radius, center=position),
+            filter=filter,
+            max_results=max_results,
+        )
+
+    def query_shape(
+        self,
+        proxy: ShapeProxy,
+        filter: "CollisionFilter" = None,
+        max_results: int = None,
+    ) -> list:
+        """Find shapes overlapping an arbitrary region.
+
+        The general form of :meth:`query_circle`: any region a
+        :class:`ShapeProxy` can describe, which is any convex shape.
+
+        Args:
+            proxy: The region to test, in world coordinates.
+            filter: Optional CollisionFilter controlling which shapes are tested.
+            max_results: Stop after this many shapes.
+
+        Returns:
+            list: The overlapping shapes.
+
+        Example:
+            >>> world = World()
+            >>> box = world.new_body().dynamic().position(0, 0).box(1, 1).build()
+            >>> hits = world.query_shape(ShapeProxy.box(4, 4))
+            >>> box.shapes[0] in hits
+            True
+        """
         if filter is None:
             filter = CollisionFilter()
 
         results = []
         overlap_callback = make_overlap_callback(results, max_results)
-
-        circle = CircleDef(radius).b2Circle
-        transform = Transform(position=position).b2Transform
         c_filter = filter.b2QueryFilter
 
-        lib.b2World_OverlapCircle(
+        # 3.2 added a query origin for large-world support. Coordinates in
+        # this binding are absolute, so the origin is always the world origin.
+        lib.b2World_OverlapShape(
             self._world_id,
-            circle,
-            transform[0],
+            Vec2(0, 0).b2Vec2[0],
+            proxy.b2ShapeProxy,
             c_filter[0],
             overlap_callback,
             ffi.NULL,
         )
         return results
+
+    def cast_shape(
+        self,
+        proxy: ShapeProxy,
+        translation: VectorLike,
+        filter: "CollisionFilter" = None,
+        first_hit_only: bool = False,
+    ) -> list[RayCastResult]:
+        """Sweep a shape through the world and report what it runs into.
+
+        A ray cast asks what a point would hit; this asks what a shape of real
+        size would hit, which is the question behind "can this character fit
+        through the gap" and "where would this box land if dropped straight
+        down".
+
+        A shape already overlapping the proxy at its starting position is
+        reported at fraction 0, so a cast that starts inside geometry tells
+        you so rather than silently skipping it. (Box2D's lower-level
+        ``b2ShapeCast`` treats initial overlap as a miss instead; this is the
+        world-level function, which does not.)
+
+        Args:
+            proxy: The shape to sweep, at its starting position.
+            translation: How far to sweep it, as a vector-like. Hits are
+                reported as a fraction of this.
+            filter: Optional CollisionFilter controlling which shapes are tested.
+            first_hit_only: Stop at the nearest hit rather than collecting all.
+
+        Returns:
+            list[RayCastResult]: Hits, nearest first. The point and normal are
+            in world coordinates.
+
+        Example:
+            >>> world = World()
+            >>> ground = world.new_body().position(0, 0).box(20, 1).build()
+            >>> hits = world.cast_shape(ShapeProxy.circle(0.5, (0, 10)), (0, -20))
+            >>> round(hits[0].point.y, 1)
+            0.5
+        """
+        if filter is None:
+            filter = CollisionFilter()
+
+        results = []
+        callback = make_ray_cast_callback(results)
+        c_filter = filter.b2QueryFilter
+
+        lib.b2World_CastShape(
+            self._world_id,
+            Vec2(0, 0).b2Vec2[0],
+            proxy.b2ShapeProxy,
+            Vec2(translation).b2Vec2[0],
+            c_filter[0],
+            callback,
+            ffi.NULL,
+        )
+        results.sort(key=lambda hit: hit.fraction)
+        return results[:1] if first_hit_only else results
 
     def ray_cast(
         self,
@@ -835,8 +865,8 @@ class World:
 
         results = []
 
-        p1 = to_vec2(origin).b2Vec2[0]
-        p2 = to_vec2(translation).b2Vec2[0]
+        p1 = Vec2(origin).b2Vec2[0]
+        p2 = Vec2(translation).b2Vec2[0]
         c_filter = filter.b2QueryFilter
         if first_hit_only:
             result = lib.b2World_CastRayClosest(self._world_id, p1, p2, c_filter[0])
@@ -881,8 +911,6 @@ class World:
             ...      print(f"Sensor began contact with object")
 
         """
-        events = []
-
         # Get the events from Box2D
         sensor_events = lib.b2World_GetSensorEvents(self._world_id)
 
@@ -922,8 +950,295 @@ class World:
 
         return SensorEvents(begin=begin_events, end=end_events)
 
+    @staticmethod
+    def _shape_from_id(shape_id):
+        """Resolve a shape id back to its wrapper, or None if it is gone.
+
+        End-touch events can name a shape that was destroyed during the step,
+        so this has to tolerate that rather than hand back a dangling wrapper.
+        """
+        if not lib.b2Shape_IsValid(shape_id):
+            return None
+        data = lib.b2Shape_GetUserData(shape_id)
+        return ffi.from_handle(data) if data != ffi.NULL else None
+
+    # --- callbacks Box2D invokes during a step ------------------------------
+    #
+    # Each one keeps both the user's function and the cffi trampoline wrapping
+    # it on the World. Dropping the trampoline would let it be collected while
+    # Box2D still holds the pointer, which crashes on the next step.
+    #
+    # None of these may touch the world: Box2D calls them mid-solve, and
+    # creating or destroying anything from inside one corrupts the step.
+
+    @property
+    def custom_filter(self):
+        """Get or set a callback deciding whether two shapes may collide.
+
+        Called as ``fn(shape_a, shape_b)`` returning False to cancel the
+        contact. Consulted only when at least one of the shapes was created
+        with ``enable_custom_filtering=True``, so it is cheap to leave set.
+
+        Assign None to remove it. Use this for rules that categories and masks
+        cannot express, such as "these two specific bodies never collide".
+
+        Example:
+            >>> world = World()
+            >>> world.custom_filter = lambda a, b: a.body is not b.body
+        """
+        return self._custom_filter
+
+    @custom_filter.setter
+    def custom_filter(self, function):
+        if function is None:
+            lib.b2World_SetCustomFilterCallback(self._world_id, ffi.NULL, ffi.NULL)
+            self._custom_filter = self._custom_filter_trampoline = None
+            return
+
+        resolve = self._shape_from_id
+
+        # Exceptions are caught here rather than left to cffi's error= path,
+        # which reports them as unraisable. Allowing the collision is the
+        # harmless answer when the callback cannot decide.
+        @ffi.callback("bool(b2ShapeId, b2ShapeId, void*)")
+        def trampoline(shape_id_a, shape_id_b, _context):
+            try:
+                return bool(function(resolve(shape_id_a), resolve(shape_id_b)))
+            except Exception:
+                traceback.print_exc()
+                return True
+
+        self._custom_filter = function
+        self._custom_filter_trampoline = trampoline
+        lib.b2World_SetCustomFilterCallback(self._world_id, trampoline, ffi.NULL)
+
+    @property
+    def pre_solve(self):
+        """Get or set a callback run just before each contact is solved.
+
+        Called as ``fn(shape_a, shape_b, point, normal)`` returning False to
+        disable that contact for this step. Only for shapes created with
+        ``enable_pre_solve_events=True``, and never for sensors.
+
+        Assign None to remove it. This is how one-way platforms are built: let
+        a body through when it is moving upward, block it otherwise.
+
+        Note:
+            Box2D may call this from worker threads when the world has more
+            than one, so the callback must not touch shared state unguarded.
+        """
+        return self._pre_solve
+
+    @pre_solve.setter
+    def pre_solve(self, function):
+        if function is None:
+            lib.b2World_SetPreSolveCallback(self._world_id, ffi.NULL, ffi.NULL)
+            self._pre_solve = self._pre_solve_trampoline = None
+            return
+
+        resolve = self._shape_from_id
+
+        # As above: a callback that raises keeps the contact rather than
+        # silently dropping it, which would look like objects falling through.
+        @ffi.callback("bool(b2ShapeId, b2ShapeId, b2Vec2, b2Vec2, void*)")
+        def trampoline(shape_id_a, shape_id_b, point, normal, _context):
+            try:
+                return bool(
+                    function(
+                        resolve(shape_id_a),
+                        resolve(shape_id_b),
+                        Vec2(point.x, point.y),
+                        Vec2(normal.x, normal.y),
+                    )
+                )
+            except Exception:
+                traceback.print_exc()
+                return True
+
+        self._pre_solve = function
+        self._pre_solve_trampoline = trampoline
+        lib.b2World_SetPreSolveCallback(self._world_id, trampoline, ffi.NULL)
+
+    @property
+    def friction_mixer(self):
+        """Get or set how two shapes' frictions combine into a contact friction.
+
+        Called as ``fn(friction_a, material_a, friction_b, material_b)``
+        returning the friction to use. The material arguments are the shapes'
+        user material ids, which is what makes rules like "rubber on ice"
+        possible. Assign None to restore Box2D's default, the geometric mean.
+
+        Note:
+            Box2D calls this from worker threads and gives it no context, so it
+            must not touch Box2D or application state. If it raises, the
+            default mixing is used for that contact.
+        """
+        return self._friction_mixer
+
+    @friction_mixer.setter
+    def friction_mixer(self, function):
+        if function is None:
+            lib.b2World_SetFrictionCallback(self._world_id, ffi.NULL)
+            self._friction_mixer = self._friction_trampoline = None
+            return
+
+        @ffi.callback("float(float, uint64_t, float, uint64_t)")
+        def trampoline(friction_a, material_a, friction_b, material_b):
+            try:
+                return float(function(friction_a, material_a, friction_b, material_b))
+            except Exception:
+                traceback.print_exc()
+                return math.sqrt(friction_a * friction_b)
+
+        self._friction_mixer = function
+        self._friction_trampoline = trampoline
+        lib.b2World_SetFrictionCallback(self._world_id, trampoline)
+
+    @property
+    def restitution_mixer(self):
+        """Get or set how two shapes' restitutions combine.
+
+        Called as ``fn(restitution_a, material_a, restitution_b, material_b)``
+        returning the restitution to use. Assign None to restore Box2D's
+        default, the larger of the two.
+
+        Note:
+            The same worker-thread restriction as :attr:`friction_mixer`. If it
+            raises, the default mixing is used for that contact.
+        """
+        return self._restitution_mixer
+
+    @restitution_mixer.setter
+    def restitution_mixer(self, function):
+        if function is None:
+            lib.b2World_SetRestitutionCallback(self._world_id, ffi.NULL)
+            self._restitution_mixer = self._restitution_trampoline = None
+            return
+
+        @ffi.callback("float(float, uint64_t, float, uint64_t)")
+        def trampoline(restitution_a, material_a, restitution_b, material_b):
+            try:
+                return float(
+                    function(restitution_a, material_a, restitution_b, material_b)
+                )
+            except Exception:
+                traceback.print_exc()
+                return max(restitution_a, restitution_b)
+
+        self._restitution_mixer = function
+        self._restitution_trampoline = trampoline
+        lib.b2World_SetRestitutionCallback(self._world_id, trampoline)
+
+    def get_contact_events(self) -> ContactEvents:
+        """Contacts that began, ended, or hit during the last step.
+
+        Contacts are only reported for shapes that opted in. Begin and end need
+        ``enable_contact_events`` on both shapes; hits need ``enable_hit_events``
+        and an approach speed above :attr:`hit_event_threshold`. Box2D defaults
+        all of these off.
+
+        Returns:
+            ContactEvents: with ``begin``, ``end`` and ``hit`` lists, describing
+            only the step that just finished. Reading does not consume them, so
+            asking twice between steps gives the same answer; the next step
+            replaces them.
+
+        Example:
+            >>> world = World()
+            >>> body = world.add_body(body_type='dynamic', position=(0, 5))
+            >>> _ = body.add_circle(radius=0.5, enable_contact_events=True)
+            >>> ground = world.add_body(position=(0, 0))
+            >>> _ = ground.add_box(20, 1, enable_contact_events=True)
+            >>> for _ in range(200):
+            ...     world.step(1 / 60, 4)
+            ...     for touch in world.get_contact_events().begin:
+            ...         pass  # touch.shape_a and touch.shape_b just met
+        """
+        events = lib.b2World_GetContactEvents(self._world_id)
+        resolve = self._shape_from_id
+
+        begin = [
+            ContactBeginEvent(
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                contact=Contact(event.contactId),
+            )
+            for event in (events.beginEvents[i] for i in range(events.beginCount))
+        ]
+        end = [
+            ContactEndEvent(
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                contact=Contact(event.contactId),
+            )
+            for event in (events.endEvents[i] for i in range(events.endCount))
+        ]
+        hit = [
+            ContactHitEvent(
+                shape_a=resolve(event.shapeIdA),
+                shape_b=resolve(event.shapeIdB),
+                point=Vec2(event.point.x, event.point.y),
+                normal=Vec2(event.normal.x, event.normal.y),
+                approach_speed=event.approachSpeed,
+                contact=Contact(event.contactId),
+            )
+            for event in (events.hitEvents[i] for i in range(events.hitCount))
+        ]
+        return ContactEvents(begin=begin, end=end, hit=hit)
+
+    def get_body_events(self) -> list:
+        """Bodies that moved during the last step.
+
+        Box2D reports only bodies that actually moved, so this is cheaper than
+        walking every body to refresh what you draw.
+
+        Returns:
+            list[BodyMoveEvent]: One per body that moved.
+        """
+        events = lib.b2World_GetBodyEvents(self._world_id)
+        moves = []
+        for i in range(events.moveCount):
+            event = events.moveEvents[i]
+            if event.userData == ffi.NULL:
+                continue
+            moves.append(
+                BodyMoveEvent(
+                    body=ffi.from_handle(event.userData),
+                    transform=Transform.from_b2Transform(event.transform),
+                    fell_asleep=bool(event.fellAsleep),
+                )
+            )
+        return moves
+
+    def get_joint_events(self) -> list:
+        """Joints that passed their force or torque threshold last step.
+
+        A joint reports nothing unless its definition set ``force_threshold`` or
+        ``torque_threshold``, so this is how a breakable construction learns
+        which of its joints is about to give.
+
+        Returns:
+            list[JointEvent]: One per joint that reported.
+        """
+        events = lib.b2World_GetJointEvents(self._world_id)
+        reports = []
+        for i in range(events.count):
+            event = events.jointEvents[i]
+            if event.userData == ffi.NULL:
+                continue
+            reports.append(JointEvent(joint=ffi.from_handle(event.userData)))
+        return reports
+
+    @property
+    def is_valid(self) -> bool:
+        """Whether this world is still live, i.e. has not been destroyed."""
+        return is_live(self, "_world_id", lib.b2World_IsValid)
+
     def destroy(self):
         """Destroy the world.
+
+        Destroying a world also destroys every body, shape and joint in it.
+        Those objects raise :class:`DestroyedError` if used afterwards.
 
         Example:
             >>> world = World()
@@ -934,8 +1249,12 @@ class World:
             lib.cleanup_threadpool()
             self._use_c_scheduler = False
 
-        if hasattr(self, "_world_id"):
-            lib.b2DestroyWorld(self._world_id)
+        # Read past the validity check: destroy must stay callable (and a no-op)
+        # on an already-destroyed world, since __del__ routes through here.
+        raw = raw_id(self, "_world_id")
+        if raw is not None:
+            if lib.b2World_IsValid(raw):
+                lib.b2DestroyWorld(raw)
             del self._world_id
 
     def __del__(self):
@@ -955,12 +1274,11 @@ class World:
             >>> world = World()
             >>> world.enable_sleep = False  # Disable sleeping entirely
         """
-        return self._enable_sleep
+        return lib.b2World_IsSleepingEnabled(self._world_id)
 
     @enable_sleep.setter
     def enable_sleep(self, value: bool):
-        self._enable_sleep = bool(value)
-        lib.b2World_EnableSleeping(self._world_id, self._enable_sleep)
+        lib.b2World_EnableSleeping(self._world_id, bool(value))
 
     @property
     def enable_continuous(self) -> bool:
@@ -972,12 +1290,11 @@ class World:
             >>> world = World()
             >>> world.enable_continuous = False  # Disable CCD for static
         """
-        return self._enable_continuous
+        return lib.b2World_IsContinuousEnabled(self._world_id)
 
     @enable_continuous.setter
     def enable_continuous(self, value: bool):
-        self._enable_continuous = bool(value)
-        lib.b2World_EnableContinuous(self._world_id, self._enable_continuous)
+        lib.b2World_EnableContinuous(self._world_id, bool(value))
 
     @property
     def restitution_threshold(self) -> float:
@@ -989,12 +1306,11 @@ class World:
             >>> world = World()
             >>> world.restitution_threshold = 2.0  # Only apply restitution above 2m/s
         """
-        return self._restitution_threshold
+        return lib.b2World_GetRestitutionThreshold(self._world_id)
 
     @restitution_threshold.setter
     def restitution_threshold(self, value: float):
-        self._restitution_threshold = float(value)
-        lib.b2World_SetRestitutionThreshold(self._world_id, self._restitution_threshold)
+        lib.b2World_SetRestitutionThreshold(self._world_id, float(value))
 
     @property
     def hit_event_threshold(self) -> float:
@@ -1006,12 +1322,11 @@ class World:
             >>> world = World()
             >>> world.hit_event_threshold = 0.5  # Get events for slower impacts
         """
-        return self._hit_event_threshold
+        return lib.b2World_GetHitEventThreshold(self._world_id)
 
     @hit_event_threshold.setter
     def hit_event_threshold(self, value: float):
-        self._hit_event_threshold = float(value)
-        lib.b2World_SetHitEventThreshold(self._world_id, self._hit_event_threshold)
+        lib.b2World_SetHitEventThreshold(self._world_id, float(value))
 
     @property
     def contact_hertz(self) -> float:
@@ -1078,3 +1393,134 @@ class World:
             self._contact_damping_ratio,
             self._contact_push_velocity,
         )
+
+    # --- diagnostics --------------------------------------------------------
+
+    @property
+    def profile(self) -> Profile:
+        """Where the time went in the last step, in milliseconds.
+
+        Example:
+            >>> world = World()
+            >>> world.step(1 / 60, 4)
+            >>> world.profile.step >= 0.0
+            True
+        """
+        return Profile.from_b2Profile(lib.b2World_GetProfile(self._world_id))
+
+    @property
+    def counters(self) -> Counters:
+        """How big the simulation is: bodies, contacts, islands, bytes.
+
+        Example:
+            >>> world = World()
+            >>> body = world.new_body().dynamic().circle(1).build()
+            >>> world.step(1 / 60, 4)
+            >>> world.counters.body_count
+            1
+        """
+        return Counters.from_b2Counters(lib.b2World_GetCounters(self._world_id))
+
+    @property
+    def awake_body_count(self) -> int:
+        """How many bodies are awake.
+
+        Bodies that have settled stop being simulated, so this falling to zero
+        is how you know a scene has come to rest.
+        """
+        return lib.b2World_GetAwakeBodyCount(self._world_id)
+
+    @property
+    def bounds(self) -> AABB:
+        """The box containing every shape in the world.
+
+        Computed from the union of all shape bounds, so it is a query rather
+        than a stored value.
+        """
+        aabb = lib.b2World_GetBounds(self._world_id)
+        return AABB(
+            lower=Vec2(aabb.lowerBound.x, aabb.lowerBound.y),
+            upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
+        )
+
+    def dump_memory_stats(self):
+        """Write Box2D's memory breakdown to ``box2d_memory.txt``.
+
+        The filename is Box2D's, not a parameter, and the file lands in the
+        working directory.
+        """
+        lib.b2World_DumpMemoryStats(self._world_id)
+
+    # --- tuning -------------------------------------------------------------
+
+    @property
+    def maximum_linear_speed(self) -> float:
+        """Speed cap applied to every body, in m/s.
+
+        Box2D clamps to this rather than letting a body move so far in one
+        step that collision cannot keep up.
+        """
+        return lib.b2World_GetMaximumLinearSpeed(self._world_id)
+
+    @maximum_linear_speed.setter
+    def maximum_linear_speed(self, value: float):
+        lib.b2World_SetMaximumLinearSpeed(self._world_id, float(value))
+
+    @property
+    def contact_recycle_distance(self) -> float:
+        """How far a contact point may move and still be reused, in metres.
+
+        Reusing contact points keeps stacks stable, because the solver keeps
+        the impulses it had already worked out. Zero disables recycling.
+        """
+        return lib.b2World_GetContactRecycleDistance(self._world_id)
+
+    @contact_recycle_distance.setter
+    def contact_recycle_distance(self, value: float):
+        lib.b2World_SetContactRecycleDistance(self._world_id, float(value))
+
+    @property
+    def worker_count(self) -> int:
+        """How many workers the world may spread a step across.
+
+        Only meaningful for a world created with ``threads`` above one; the
+        task scheduler is what actually runs the work.
+        """
+        return lib.b2World_GetWorkerCount(self._world_id)
+
+    @worker_count.setter
+    def worker_count(self, value: int):
+        lib.b2World_SetWorkerCount(self._world_id, int(value))
+
+    @property
+    def enable_warm_starting(self) -> bool:
+        """Whether the solver starts from last step's impulses.
+
+        On by default and worth leaving on: Box2D's own header notes that
+        turning it off greatly reduces stability and buys no speed. Exposed
+        because seeing that difference is the point of a testbed.
+        """
+        return bool(lib.b2World_IsWarmStartingEnabled(self._world_id))
+
+    @enable_warm_starting.setter
+    def enable_warm_starting(self, value: bool):
+        lib.b2World_EnableWarmStarting(self._world_id, bool(value))
+
+    def enable_speculative(self, value: bool):
+        """Turn speculative contacts on or off.
+
+        Speculative contacts let the solver see a collision before it happens,
+        which is how fast objects stop cleanly instead of overshooting. Box2D
+        marks this as internal testing and offers no getter, so it is a method
+        rather than a property.
+        """
+        lib.b2World_EnableSpeculative(self._world_id, bool(value))
+
+    def rebuild_static_tree(self):
+        """Rebuild the static broad-phase tree from scratch.
+
+        Box2D marks this internal testing. Static shapes are inserted
+        incrementally, which can leave the tree unbalanced after many
+        additions; rebuilding restores query performance.
+        """
+        lib.b2World_RebuildStaticTree(self._world_id)

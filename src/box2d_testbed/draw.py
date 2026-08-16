@@ -1,12 +1,52 @@
 import numpy as np
-from OpenGL.GL import *
-import math
+from OpenGL.GL import (
+    GL_ARRAY_BUFFER,
+    GL_BLEND,
+    GL_DYNAMIC_DRAW,
+    GL_FALSE,
+    GL_FLOAT,
+    GL_INT,
+    GL_LINES,
+    GL_ONE_MINUS_SRC_ALPHA,
+    GL_POINTS,
+    GL_PROGRAM_POINT_SIZE,
+    GL_SRC_ALPHA,
+    GL_STATIC_DRAW,
+    GL_TRIANGLES,
+    GL_TRIANGLE_STRIP,
+    GL_TRUE,
+    GL_UNSIGNED_BYTE,
+    glBindBuffer,
+    glBindVertexArray,
+    glBlendFunc,
+    glBufferData,
+    glBufferSubData,
+    glDeleteBuffers,
+    glDeleteProgram,
+    glDeleteVertexArrays,
+    glDisable,
+    glDrawArrays,
+    glDrawArraysInstanced,
+    glEnable,
+    glEnableVertexAttribArray,
+    glGenBuffers,
+    glGenVertexArrays,
+    glGetUniformLocation,
+    glUniform1f,
+    glUniform2f,
+    glUniform3f,
+    glUniformMatrix4fv,
+    glUseProgram,
+    glVertexAttribDivisor,
+    glVertexAttribIPointer,
+    glVertexAttribPointer,
+)
+import ctypes
 import os
-from box2d.math import Vec2, AABB, Transform, Rot
-from .shader import create_program_from_files, create_program_from_strings
-import OpenGL
+import time
 
-OpenGL.ERROR_CHECKING = False
+from box2d.math import Vec2
+from .shader import create_program_from_files, create_program_from_strings
 
 
 def make_rgba8(hex_color, alpha=255):
@@ -90,12 +130,12 @@ class GLBackground:
         """Draw the background"""
         glUseProgram(self.program_id)
 
-        # Update uniforms
-        import glfw
+        # Update uniforms. The clock only feeds an animated background, so
+        # the standard library does; glfw was the only thing pulling that
+        # dependency in, and it tied the renderer to one platform backend.
+        elapsed = time.perf_counter() % 100.0
 
-        time = glfw.get_time() % 100.0
-
-        glUniform1f(self.time_uniform, time)
+        glUniform1f(self.time_uniform, elapsed)
         # Use camera instance for resolution
         glUniform2f(
             self.resolution_uniform, float(self.camera.width), float(self.camera.height)

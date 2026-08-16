@@ -1,7 +1,35 @@
-debug = False
+"""Shared state for the testbed: the view, the settings and the timings."""
+
+from box2d import HAS_THREADS
 
 
 class DebugDrawSettings:
+    """Which of Box2D's debug-draw flags are on.
+
+    Every key here must have a matching ``draw_<key>`` property on DebugDraw;
+    DebugDrawGL.update_settings raises if one goes missing rather than
+    silently leaving a dead toggle in the menu.
+    """
+
+    # Shown as checkboxes along the status bar. The rest are menu-only, since
+    # fifteen checkboxes do not fit on one row.
+    PRIMARY = (
+        "shapes",
+        "aabbs",
+        "joints",
+        "contacts",
+        "contact_normals",
+        "contact_impulses",
+        "mass",
+    )
+
+    # Where capitalising the key does not read well.
+    LABELS = {
+        "aabbs": "AABBs",
+        "anchor_a": "Anchor A",
+        "graph_colors": "Graph colours",
+    }
+
     def __init__(self):
         self.shapes = True
         self.aabbs = False
@@ -12,25 +40,45 @@ class DebugDrawSettings:
         self.friction_impulses = False
         self.mass = False
         self.joint_extras = False
+        # Added once the remaining six b2DebugDraw flags were bound.
+        self.contact_features = False
+        self.islands = False
+        self.graph_colors = False
+        self.body_names = False
+        self.chain_normals = False
+        self.anchor_a = False
         self._keys = (
             "shapes",
             "aabbs",
             "joints",
+            "joint_extras",
             "contacts",
             "contact_normals",
             "contact_impulses",
             "friction_impulses",
+            "contact_features",
             "mass",
-            "joint_extras",
+            "islands",
+            "graph_colors",
+            "body_names",
+            "chain_normals",
+            "anchor_a",
         )
 
-    def get_current(self):
+    def get_current(self, primary_only: bool = False):
+        """Returns a list of (key, value, display).
+
+        Args:
+            primary_only: Limit to the flags worth a permanent checkbox.
         """
-        returns a list of (key, value, display)
-        """
+        keys = self.PRIMARY if primary_only else self._keys
         return [
-            (key, self.__getattribute__(key), key.replace("_", " ").capitalize())
-            for key in self._keys
+            (
+                key,
+                getattr(self, key),
+                self.LABELS.get(key, key.replace("_", " ").capitalize()),
+            )
+            for key in keys
         ]
 
 
@@ -43,6 +91,12 @@ class PerformanceData:
         self.draw_ms_avg = 0
         self.draw_ms_max = 0
         self.smoothing_avg = 0.9
+        # Box2D's own view of the last step, which is narrower than the
+        # wall-clock physics_ms measured around it: the gap between them is
+        # the binding's overhead.
+        self.profile = None
+        self.counters = None
+        self.awake = 0
 
 
 class TestbedData:
@@ -54,15 +108,23 @@ class TestbedData:
         return cls._instance
 
     def __init__(self):
-        self.window_size = (1024, 768)
         self.center = (0, 0)  # Center at origin
         self.scale = 20
         self.gravity = (0, -10)
-        self.threads = 4
+        # A build without the task scheduler cannot honour more than one,
+        # and asking anyway raises rather than degrading -- which is what a
+        # WebAssembly build is, so defaulting to 4 made the testbed
+        # unstartable in a browser.
+        self.threads = 4 if HAS_THREADS else 1
         self.substeps = 20
         self.hertz = 60
         self.enable_continuous = True
         self.enable_sleep = True
+        # Bound on World for a while, but reachable only from code until now.
+        self.enable_warm_starting = True
+        self.enable_speculative = True
+        self.maximum_linear_speed = 400.0
+        self.contact_recycle_distance = 0.05
         self.show_dd = DebugDrawSettings()
         self.simulation_paused = False
         self.step_count = 0  # step count for current physics world

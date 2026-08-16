@@ -237,7 +237,7 @@ def test_shape_validity_and_collision_methods(dynamic_body):
 
 
 def test_contact_and_sensor_methods(world):
-    """Test contact_data, get_contact_data, get_contact_capacity, sensor_overlaps methods"""
+    """Test contact_data, contact_capacity, sensor_overlaps and sensor_capacity"""
     body1 = world.new_body().dynamic().position(0, 0).build()
     shape1 = body1.add_circle(radius=1.0)
 
@@ -246,11 +246,11 @@ def test_contact_and_sensor_methods(world):
     )  # Far apart, no contact initially
     shape2 = body2.add_box(1, 1)
 
-    # Test get_contact_capacity
-    assert shape1.get_contact_capacity() == 0  # No contacts initially
+    # Test contact_capacity
+    assert shape1.contact_capacity == 0  # No contacts initially
 
-    # Test get_contact_data
-    contacts = shape1.get_contact_data()
+    # Test contact_data
+    contacts = shape1.contact_data
     assert isinstance(contacts, list)
     assert len(contacts) == 0  # No contacts initially
 
@@ -261,15 +261,47 @@ def test_contact_and_sensor_methods(world):
     body3 = world.new_body().static().position(0, 0).build()
     sensor = body3.add_circle(radius=2.0, is_sensor=True)
 
-    # Test get_sensor_capacity
-    assert sensor.get_sensor_capacity() >= 0
+    # Test sensor_capacity
+    assert sensor.sensor_capacity >= 0
 
-    # Test get_sensor_overlaps
-    overlaps = sensor.get_sensor_overlaps()
+    # Test sensor_overlaps
+    overlaps = sensor.sensor_overlaps
     assert isinstance(overlaps, list)
 
     # Test sensor_overlaps property
     assert isinstance(sensor.sensor_overlaps, list)
+
+
+def test_sensor_actually_detects_overlap(world):
+    """A sensor must report shapes that overlap it, and emit a begin event.
+
+    The pre-existing sensor tests only assert types, so they stayed green when
+    Box2D 3.1 made shape.enable_sensor_events opt-in and sensors silently
+    stopped detecting anything.
+    """
+    sensor_body = world.new_body().static().position(0, 0).build()
+    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+
+    visitor = world.new_body().dynamic().position(0, 0).build()
+    visitor.add_circle(radius=0.5)
+
+    world.step(1 / 60, 4)
+
+    assert len(sensor.sensor_overlaps) == 1
+    assert len(world.get_sensor_events().begin) == 1
+
+
+def test_sensor_events_can_be_disabled_per_shape(world):
+    """A shape opting out of sensor events must not be detected."""
+    sensor_body = world.new_body().static().position(0, 0).build()
+    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+
+    visitor = world.new_body().dynamic().position(0, 0).build()
+    visitor.add_circle(radius=0.5, enable_sensor_events=False)
+
+    world.step(1 / 60, 4)
+
+    assert sensor.sensor_overlaps == []
 
 
 def test_chain_segments(static_body):
@@ -304,10 +336,12 @@ def test_shape_multiple_materials(static_body):
     mat1 = SurfaceMaterial(friction=0.1, restitution=0.9)
     mat2 = SurfaceMaterial(friction=0.9, restitution=0.1)
 
+    # One material per point, which for a loop is also one per segment. This
+    # used to pass five for a four-point loop, which Box2D asserts against.
     chain = static_body.add_chain(
         vertices=vertices,
         loop=True,
-        materials=[mat1, mat2, mat1, mat2, mat1],  # One material per segment
+        materials=[mat1, mat2, mat1, mat2],
     )
 
     # Test that segments have different materials
@@ -317,14 +351,14 @@ def test_shape_multiple_materials(static_body):
 
 
 def test_circle_get_set_geometry(dynamic_body):
-    """Test get_circle and set_circle methods for Circle shapes."""
+    """Test the geometry property for Circle shapes."""
     # Create a circle with known dimensions
     initial_radius = 0.5
     initial_center = (1.0, 2.0)
     circle = dynamic_body.add_circle(radius=initial_radius, center=initial_center)
 
     # Get the geometry and verify initial values
-    circle_def = circle.get_circle()
+    circle_def = circle.geometry
     assert circle_def.radius == pytest.approx(initial_radius)
     assert circle_def.center.x == pytest.approx(1.0)
     assert circle_def.center.y == pytest.approx(2.0)
@@ -335,17 +369,17 @@ def test_circle_get_set_geometry(dynamic_body):
     from box2d.shapedef import CircleDef
 
     new_circle_def = CircleDef(radius=new_radius, center=new_center)
-    circle.set_circle(new_circle_def)
+    circle.geometry = new_circle_def
 
     # Get the updated geometry and verify changes
-    updated_def = circle.get_circle()
+    updated_def = circle.geometry
     assert updated_def.radius == pytest.approx(new_radius)
     assert updated_def.center.x == pytest.approx(3.0)
     assert updated_def.center.y == pytest.approx(4.0)
 
 
 def test_capsule_get_set_geometry(dynamic_body):
-    """Test get_capsule and set_capsule methods for Capsule shapes."""
+    """Test the geometry property for Capsule shapes."""
     # Create a capsule with known dimensions
     initial_point1 = (-1.0, 0.5)
     initial_point2 = (1.0, 0.5)
@@ -355,7 +389,7 @@ def test_capsule_get_set_geometry(dynamic_body):
     )
 
     # Get the geometry and verify initial values
-    capsule_def = capsule.get_capsule()
+    capsule_def = capsule.geometry
     assert capsule_def.vertex1.x == pytest.approx(-1.0)
     assert capsule_def.vertex1.y == pytest.approx(0.5)
     assert capsule_def.vertex2.x == pytest.approx(1.0)
@@ -368,10 +402,10 @@ def test_capsule_get_set_geometry(dynamic_body):
     new_capsule_def = CapsuleDef(
         vertex1=Vec2(-2.0, 1.0), vertex2=Vec2(2.0, 1.0), radius=0.6
     )
-    capsule.set_capsule(new_capsule_def)
+    capsule.geometry = new_capsule_def
 
     # Get the updated geometry and verify changes
-    updated_def = capsule.get_capsule()
+    updated_def = capsule.geometry
     assert updated_def.vertex1.x == pytest.approx(-2.0)
     assert updated_def.vertex1.y == pytest.approx(1.0)
     assert updated_def.vertex2.x == pytest.approx(2.0)
@@ -380,14 +414,14 @@ def test_capsule_get_set_geometry(dynamic_body):
 
 
 def test_segment_get_set_geometry(static_body):
-    """Test get_segment and set_segment methods for Segment shapes."""
+    """Test the geometry property for Segment shapes."""
     # Create a segment with known dimensions
     initial_point1 = (-3.0, 0.0)
     initial_point2 = (3.0, 0.0)
     segment = static_body.add_segment(point1=initial_point1, point2=initial_point2)
 
     # Get the geometry and verify initial values
-    segment_def = segment.get_segment()
+    segment_def = segment.geometry
     assert segment_def.vertex1.x == pytest.approx(-3.0)
     assert segment_def.vertex1.y == pytest.approx(0.0)
     assert segment_def.vertex2.x == pytest.approx(3.0)
@@ -397,10 +431,10 @@ def test_segment_get_set_geometry(static_body):
     from box2d.shapedef import SegmentDef
 
     new_segment_def = SegmentDef(vertex1=Vec2(0.0, -2.0), vertex2=Vec2(0.0, 2.0))
-    segment.set_segment(new_segment_def)
+    segment.geometry = new_segment_def
 
     # Get the updated geometry and verify changes
-    updated_def = segment.get_segment()
+    updated_def = segment.geometry
     assert updated_def.vertex1.x == pytest.approx(0.0)
     assert updated_def.vertex1.y == pytest.approx(-2.0)
     assert updated_def.vertex2.x == pytest.approx(0.0)
@@ -408,23 +442,23 @@ def test_segment_get_set_geometry(static_body):
 
 
 def test_polygon_get_set_geometry(dynamic_body):
-    """Test get_polygon and set_polygon methods for Polygon shapes."""
+    """Test the geometry property for Polygon shapes."""
     # Create a polygon with known dimensions (a simple square)
     initial_vertices = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
     polygon = dynamic_body.add_polygon(vertices=initial_vertices)
 
     # Get the geometry and verify we have a polygon with 4 vertices
-    polygon_def = polygon.get_polygon()
+    polygon_def = polygon.geometry
     assert len(polygon_def.vertices) == 4
 
     # Create a new polygon shape (a triangle)
     from box2d.shapedef import PolygonDef
 
     new_polygon_def = PolygonDef(vertices=[(0, 0), (2, 0), (1, 2)])
-    polygon.set_polygon(new_polygon_def)
+    polygon.geometry = new_polygon_def
 
     # Get the updated geometry and verify changes
-    updated_def = polygon.get_polygon()
+    updated_def = polygon.geometry
     assert len(updated_def.vertices) == 3
     # Check the first vertex
     assert updated_def.vertices[0].x == pytest.approx(0.0)
@@ -438,12 +472,12 @@ def test_polygon_get_set_geometry(dynamic_body):
 
 
 def test_box_get_set_geometry(dynamic_body):
-    """Test get_polygon and set_polygon for Box shapes (which are Polygons)."""
+    """Test the geometry property for Box shapes (which are Polygons)."""
     # Create a box with known dimensions
     box = dynamic_body.add_box(width=2.0, height=1.0)
 
     # Get the geometry as a polygon
-    polygon_def = box.get_polygon()
+    polygon_def = box.geometry
     assert len(polygon_def.vertices) == 4  # Box has 4 corners
 
     # Calculate expected width and height from vertices
@@ -460,10 +494,10 @@ def test_box_get_set_geometry(dynamic_body):
 
     new_box_vertices = [(-1.5, -0.5), (1.5, -0.5), (1.5, 0.5), (-1.5, 0.5)]
     new_polygon_def = PolygonDef(vertices=new_box_vertices)
-    box.set_polygon(new_polygon_def)
+    box.geometry = new_polygon_def
 
     # Verify the changes
-    updated_def = box.get_polygon()
+    updated_def = box.geometry
     assert len(updated_def.vertices) == 4
     x_coords = [v.x for v in updated_def.vertices]
     y_coords = [v.y for v in updated_def.vertices]
