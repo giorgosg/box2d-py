@@ -4,7 +4,9 @@ Python Bindings for Box2D v3 using CFFI
 [![Documentation Status](https://readthedocs.org/projects/box2d-py/badge/)](https://box2d-py.readthedocs.io/)
 [![Build Status](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml/badge.svg)](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml)
 
-Python bindings for the [Box2D physics engine](https://box2d.org/) version 3. Provides Pythonic access to Box2D's feature set.
+Python bindings for the [Box2D physics engine](https://box2d.org/) version 3.2.
+Provides Pythonic access to Box2D's feature set, on Linux, macOS, Windows and
+in the browser.
 
 ## Installation
 
@@ -31,6 +33,48 @@ pip install box2d-python[testbed]
 ```bash
 box2d-testbed
 ```
+
+53 scenarios across 9 categories -- bodies, shapes, joints, stacking,
+continuous collision, events, character movement, collision queries and
+benchmarks -- each with its own controls in the side panel.
+
+Everything the panel offers is also on the keyboard, so a scenario can be
+driven without moving the mouse off it:
+
+| key | |
+|---|---|
+| `p` | pause and resume |
+| `o` | single step |
+| `r` | restart the scenario |
+| `Home` | reset the view |
+| `[` `]` | previous and next scenario |
+
+Drag to pan, scroll to zoom. A scenario can set the view it opens with
+through `camera_center` and `camera_zoom`; the status bar shows the current
+pair and copies it, so a view can be framed by hand and pasted back into the
+scenario as its default.
+
+### Drawing without OpenGL
+
+```bash
+BOX2D_TESTBED_RENDERER=imgui box2d-testbed
+```
+
+Draws through imgui's draw list instead of OpenGL, which needs no GL context
+and is what the browser build uses. Which one is quicker depends on the
+scene -- median milliseconds per frame spent drawing, 200 frames each:
+
+| scenario | OpenGL | imgui |
+|---|---|---|
+| Benchmark/Many Pyramids (1380 flat shapes) | 33.9 | 24.3 |
+| Shapes/Rounded | 4.0 | 7.0 |
+
+Flat shapes go straight into the draw list, so it wins there. Rounded ones
+cost it: every corner becomes a fan of triangles built in Python, which the
+OpenGL renderer gets from the shader instead.
+
+`src/tools/bench_render.py` produces these, and counts the primitives each
+renderer was asked for so it is clear both drew the same scene.
 
 ## Building for the browser
 
@@ -101,7 +145,16 @@ print(round(bodies[0].position.y, 2))  # -4.25
 ```
 
 ## Development Status
-⚠️ Early development preview - API subject to change  
-Currently supports some of the Box2D v3.0 functionality with active development ongoing.
+
+⚠️ Early development preview - API subject to change
+
+Tracks Box2D 3.2. Bodies, all seven joint types, every shape, sensor and
+contact events, the collision queries and casts, and character movement are
+bound and covered by tests; 1243 of them run on Linux, macOS and Windows for
+Python 3.12 and 3.13, and most run in WebAssembly as well.
+
+World snapshots are not bound yet.
+
+Active development, and the API is still free to change.
 
 [Full API Documentation](https://box2d-py.readthedocs.io/) | [Box2D Project](https://github.com/erincatto/box2d)
