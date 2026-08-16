@@ -22,8 +22,11 @@ from box2d.shapedef import PolygonDef
 def churn(kind="b2Transform", count=3000):
     """Allocate enough blocks to reclaim anything just freed.
 
-    cffi zeroes what it allocates, so a structure that was freed too early
-    reads back as zeros -- the same symptom macOS produces on its own.
+    What lands in the reclaimed block is the allocator's business: cffi
+    zeroes what it hands out, so Linux and macOS read back zeros, while
+    Windows leaves whatever was there. The tests below therefore ask only
+    whether the original data survived, which is the actual invariant --
+    asserting zeros made this suite fail on Windows, intermittently.
     """
     return [ffi.new(f"{kind} *") for _ in range(count)]
 
@@ -53,7 +56,7 @@ def test_a_struct_field_does_not_keep_its_structure_alive():
     """Why the joint frame getters bind the frame to a local first."""
     point = a_transform().p  # the transform dies here
     _junk = churn()
-    assert (point.x, point.y) == (0.0, 0.0), (
+    assert (point.x, point.y) != (3.0, 1.0), (
         "taking a struct field now keeps the structure alive; the frame "
         "getters in joint.py no longer need their local"
     )
@@ -63,7 +66,7 @@ def test_addressof_does_not_keep_its_argument_alive():
     """Why the polygon setter binds the polygon to a local first."""
     pointer = ffi.addressof(a_transform())  # the transform dies here
     _junk = churn()
-    assert (pointer.p.x, pointer.p.y) == (0.0, 0.0), (
+    assert (pointer.p.x, pointer.p.y) != (3.0, 1.0), (
         "ffi.addressof now keeps its argument alive; the local in "
         "Polygon.geometry is no longer load-bearing"
     )
