@@ -1,5 +1,5 @@
 {
-  "name": "box2d-scenarios",
+  "name": "box2d-py",
   "private": true,
   "type": "module",
   "description": "Content-addressed store for box2d-py testbed scenarios",
@@ -11,8 +11,8 @@
     "dev": "npm run prepare:web && wrangler dev",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit",
-    "migrate:local": "wrangler d1 migrations apply box2d-scenarios --local",
-    "migrate:remote": "wrangler d1 migrations apply box2d-scenarios --remote",
+    "migrate:local": "wrangler d1 migrations apply box2d-py --local",
+    "migrate:remote": "wrangler d1 migrations apply box2d-py --remote",
     "deploy": "npm run prepare:web && wrangler deploy"
   },
   "devDependencies": {

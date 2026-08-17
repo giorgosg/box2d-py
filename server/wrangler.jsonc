@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "box2d-scenarios",
+  "name": "box2d-py",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-17",
   "observability": {
@@ -16,10 +16,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "box2d-scenarios",
-      // Filled in by `wrangler d1 create box2d-scenarios`, which prints it.
-      // Deploying without it fails rather than writing somewhere unexpected.
-      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "database_name": "box2d-py",
+      "database_id": "d7841d7a-0977-4404-a9b7-af09acf450f4",
       "migrations_dir": "migrations"
     }
   ]

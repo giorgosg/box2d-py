@@ -95,11 +95,11 @@ npm run dev          # http://localhost:8787
 
 ## Deploying
 
-The database does not exist yet. Creating it prints the id that
-`wrangler.jsonc` is waiting for:
+For a new deployment, create the database once and put the id it prints in
+`wrangler.jsonc`:
 
 ```bash
-npx wrangler d1 create box2d-scenarios # paste the id into wrangler.jsonc
+npx wrangler d1 create box2d-py # paste the id into wrangler.jsonc
 npm run migrate:remote
 npm run deploy
 ```
