@@ -186,6 +186,56 @@ def test_drag_can_be_repeated(world):
 
 
 @needs_gui_stack
+@pytest.mark.parametrize("button, pans", [(1, False), (2, True)])
+def test_only_middle_mouse_drag_pans_the_camera(monkeypatch, button, pans):
+    """Right-drag is unbound; the same motion with middle held pans."""
+    from types import SimpleNamespace
+
+    import box2d_testbed.testbed as testbed_module
+    from box2d_testbed.testbed_state import state
+
+    delta = SimpleNamespace(x=12.0, y=-7.0)
+    io = SimpleNamespace(
+        display_size=SimpleNamespace(x=800.0, y=600.0),
+        mouse_wheel=0.0,
+        mouse_down=[False, button == 1, button == 2],
+        mouse_delta=delta,
+        mouse_clicked=[False, False, False],
+        mouse_released=[False, False, False],
+    )
+    monkeypatch.setattr(
+        testbed_module,
+        "imgui",
+        SimpleNamespace(
+            get_window_pos=lambda: SimpleNamespace(x=0.0, y=0.0),
+            get_window_size=lambda: SimpleNamespace(x=800.0, y=600.0),
+            get_io=lambda: io,
+            is_window_hovered=lambda: True,
+        ),
+    )
+
+    seen = []
+    camera = SimpleNamespace(set_view=lambda *_: None)
+    app = SimpleNamespace(
+        debug_draw=SimpleNamespace(camera=camera),
+        simulation=None,
+        key_press_events=lambda: None,
+        on_mouse_scroll=lambda *_: None,
+        on_middle_drag=seen.append,
+    )
+    current = state.current_test_obj
+    state.current_test_obj = None
+    try:
+        testbed_module.TestbedApp.render_simulation(app)
+    finally:
+        state.current_test_obj = current
+
+    assert bool(seen) is pans
+    if pans:
+        assert seen == [delta]
+
+
+@needs_gui_stack
 def test_layout_is_well_formed():
     """The docking layout is pure data, so it can be built without a window.
 

@@ -160,9 +160,11 @@ class TestbedApp:
         if mouse_scroll != 0.0 and imgui.is_window_hovered():
             self.on_mouse_scroll(mouse_scroll)
 
-        # Handle right mouse drag for panning
-        if io.mouse_down[1] and imgui.is_window_hovered():
-            self.on_right_drag(io.mouse_delta)
+        # Middle-drag pans the camera. Right-click is deliberately left
+        # unbound so it is available for context menus or scenario-specific
+        # interactions later.
+        if io.mouse_down[2] and imgui.is_window_hovered():
+            self.on_middle_drag(io.mouse_delta)
 
         # send key press events to current test
         self.key_press_events()
@@ -613,8 +615,8 @@ class TestbedApp:
         # Clamp scale to reasonable values
         state.scale = max(0.02, min(scale, 100.0))
 
-    def on_right_drag(self, delta):
-        """Handle right mouse drag for panning the camera"""
+    def on_middle_drag(self, delta):
+        """Handle middle mouse drag for panning the camera."""
         # Get current window size for scaling calculation
         size = imgui.get_window_size()
 
