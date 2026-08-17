@@ -6,16 +6,22 @@ inside its own directory, and on the web build the names will arrive from
 strangers, so it is tested as a boundary rather than as validation.
 """
 
+import hashlib
+import json
+
 import pytest
 
 from box2d_testbed.scenario_store import (
     BuiltinStore,
+    BrowserSharedStore,
     ScenarioRef,
+    SharedStore,
     StoreError,
     UserStore,
     template_for,
     user_scenario_dir,
     validate_name,
+    configured_shared_store,
 )
 
 
@@ -162,3 +168,171 @@ def test_the_template_is_named_after_its_file():
     # Absolute, because the loader runs a scenario file on its own.
     assert "from box2d_testbed.base_test import BaseTest, UI" in source
     assert "from ." not in source
+
+
+class _Response:
+    """The small part of an urllib response SharedStore consumes."""
+
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def read(self, limit=-1):
+        return self.body if limit < 0 else self.body[:limit]
+
+
+def sharing_server():
+    """An in-process transport with the Worker's content-addressed contract."""
+    saved = {}
+    requests = []
+
+    def open_request(request, timeout):
+        requests.append((request, timeout))
+        if request.get_method() == "POST":
+            digest = hashlib.sha256(request.data).hexdigest()
+            saved[digest] = request.data
+            return _Response(json.dumps({"id": digest}).encode())
+        digest = request.full_url.rsplit("/", 1)[-1]
+        return _Response(saved[digest])
+
+    return SharedStore("http://scenarios.test", opener=open_request), saved, requests
+
+
+def test_a_shared_store_publishes_and_reads_by_the_complete_hash():
+    store, saved, requests = sharing_server()
+    source = "# snowman: ☃\n"
+    expected = hashlib.sha256(source.encode()).hexdigest()
+
+    ref = store.publish(source)
+
+    assert ref.name == expected
+    assert ref.label == f"shared/{expected}.py"
+    assert not ref.writable
+    assert ref.runnable
+    assert ref.load_name == f"shared_{expected[:56]}"
+    assert store.fork_stem(ref.name) == f"shared_{expected[:12]}"
+    assert store.url_for(ref.name) == f"http://scenarios.test/s/{expected}"
+    assert saved == {expected: source.encode()}
+    assert requests[0][0].get_method() == "POST"
+    assert requests[0][1] == 5.0
+    assert ref.read() == source
+    assert requests[-1][0].get_method() == "GET"
+
+
+def test_shared_hashes_and_links_resolve_to_the_same_remembered_ref():
+    store, _, _ = sharing_server()
+    digest = "a" * 64
+
+    by_hash = store.reference(digest)
+    by_link = store.reference(f"http://scenarios.test/s/{digest}?from=friend")
+
+    assert by_hash == by_link
+    assert store.names() == [digest], "the session picker does not duplicate it"
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "",
+        "abcd",
+        "g" * 64,
+        "http://somewhere-else.test/s/" + "a" * 64,
+        "http://scenarios.test/not-s/" + "a" * 64,
+        "http://scenarios.test/s/" + "a" * 64 + "/more",
+    ],
+)
+def test_a_shared_reference_must_be_a_hash_or_a_link_from_our_server(reference):
+    store, _, _ = sharing_server()
+
+    with pytest.raises(StoreError):
+        store.reference(reference)
+
+
+def test_downloaded_content_is_verified_against_its_address():
+    digest = hashlib.sha256(b"the promised source").hexdigest()
+    store = SharedStore(
+        "http://scenarios.test",
+        opener=lambda request, timeout: _Response(b"something else"),
+    )
+
+    with pytest.raises(StoreError, match="does not match"):
+        store.read(digest)
+
+
+def test_the_client_enforces_the_servers_size_limit_before_connecting():
+    called = False
+
+    def should_not_open(request, timeout):
+        nonlocal called
+        called = True
+
+    store = SharedStore("http://scenarios.test", opener=should_not_open)
+
+    with pytest.raises(StoreError, match="65536"):
+        store.publish("x" * (64 * 1024 + 1))
+    assert not called
+
+
+def test_the_server_url_can_be_configured_for_the_desktop_app(monkeypatch):
+    monkeypatch.setenv("BOX2D_TESTBED_SERVER", "https://share.example.test/")
+
+    store = SharedStore()
+
+    assert store.base_url == "https://share.example.test"
+
+
+def test_sharing_is_off_by_default_and_each_runtime_opts_into_its_transport(
+    monkeypatch,
+):
+    monkeypatch.delenv("BOX2D_TESTBED_SHARING", raising=False)
+    assert configured_shared_store() is None
+
+    monkeypatch.setenv("BOX2D_TESTBED_SHARING", "desktop")
+    assert type(configured_shared_store()) is SharedStore
+
+    monkeypatch.setenv("BOX2D_TESTBED_SHARING", "web")
+    assert type(configured_shared_store()) is BrowserSharedStore
+
+
+def test_the_browser_store_uses_its_async_transport_for_both_directions():
+    source = "# fetched without blocking wasm\n"
+    body = source.encode()
+    digest = hashlib.sha256(body).hexdigest()
+    calls = []
+    store = BrowserSharedStore("https://scenarios.test")
+
+    async def fetch(url, *, method, response_limit, body=None):
+        calls.append((url, method, response_limit, body))
+        if method == "POST":
+            return json.dumps({"id": digest}).encode()
+        return source.encode()
+
+    store._fetch = fetch
+
+    async def round_trip():
+        ref = await store.publish_async(source)
+        return ref, await store.read_async(ref.name)
+
+    # The fake transport never yields. Drive this immediate coroutine directly
+    # so the same test works in Pyodide, whose browser event loop deliberately
+    # cannot implement blocking asyncio.run().
+    operation = round_trip()
+    try:
+        operation.send(None)
+    except StopIteration as completed:
+        ref, loaded = completed.value
+    else:  # pragma: no cover - means the fake unexpectedly became asynchronous
+        operation.close()
+        raise AssertionError("the fake browser transport unexpectedly yielded")
+
+    assert ref.name == digest
+    assert loaded == source
+    assert calls == [
+        ("https://scenarios.test/s", "POST", 8 * 1024, source),
+        (f"https://scenarios.test/s/{digest}", "GET", 64 * 1024, None),
+    ]

@@ -1,5 +1,6 @@
 """The panel that edits scenario source and reloads it into the running app."""
 
+import asyncio
 import re
 
 from imgui_bundle import imgui, imgui_color_text_edit, imgui_ctx
@@ -11,12 +12,49 @@ from .scenario_store import (
     ScenarioRef,
     StoreError,
     UserStore,
+    configured_shared_store,
     template_for,
     user_scenario_dir,
 )
 from .testbed_state import state
 
 TextEditor = imgui_color_text_edit.TextEditor
+
+
+def push_code_font(font):
+    """Push a font across the old and current imgui_bundle signatures."""
+    try:
+        return imgui_ctx.push_font(font, 0.0)
+    except TypeError:
+        # The imgui_bundle version bundled for Pyodide predates the optional
+        # base-size argument used by the current desktop binding.
+        return imgui_ctx.push_font(font)
+
+
+def modern_text_editor(editor) -> bool:
+    """Whether this is the rewritten TextEditor API used on desktop."""
+    return hasattr(editor, "get_main_cursor_position")
+
+
+def render_text_editor(
+    editor, title: str, size, *, parent_is_focused: bool = False
+):
+    """Render with either the current or Pyodide-pinned call signature."""
+    if modern_text_editor(editor):
+        return editor.render(title, size, window_flags=0)
+    return editor.render(title, parent_is_focused, size, False)
+
+
+def clear_editor_markers(editor) -> None:
+    """Clear diagnostic markers when this binding provides them."""
+    if hasattr(editor, "clear_markers"):
+        editor.clear_markers()
+
+
+def add_editor_marker(editor, line: int, color: int, message: str) -> None:
+    """Add a diagnostic marker when this binding provides them."""
+    if hasattr(editor, "add_marker"):
+        editor.add_marker(line, color, color, message, "")
 
 
 def set_python_language(editor) -> None:
@@ -63,13 +101,18 @@ def python_editor(line_numbers: bool = True, language: bool = True):
         set_python_language(editor)
     editor.set_show_line_numbers_enabled(line_numbers)
     editor.set_tab_size(4)
-    editor.set_insert_spaces_on_tabs(True)
+    # These two controls were added after the binding Pyodide 0.29.4 ships.
+    # Its editor still accepts typing and indentation; it simply does not
+    # expose the newer policy/display toggles.
+    if hasattr(editor, "set_insert_spaces_on_tabs"):
+        editor.set_insert_spaces_on_tabs(True)
     editor.set_auto_indent_enabled(True)
     # A dot in every space is unreadable in Python, which is nothing but
     # leading whitespace. Tabs stay visible: one in an indented block is worth
     # seeing, since it is what a stray copy-paste brings in.
     editor.set_show_whitespaces_enabled(False)
-    editor.set_show_tabs_enabled(True)
+    if hasattr(editor, "set_show_tabs_enabled"):
+        editor.set_show_tabs_enabled(True)
     return editor
 
 
@@ -139,6 +182,7 @@ class ScenarioEditor:
         self.app = app
         self.builtin_store = BuiltinStore()
         self.user_store = UserStore(user_scenario_dir())
+        self.shared_store = configured_shared_store()
         self.editor = python_editor()
 
         self.ref: ScenarioRef = None
@@ -149,6 +193,12 @@ class ScenarioEditor:
         self.message_is_error = False
         self.error_detail = None
         self._confirm_delete = False
+        self._open_shared = False
+        self._focus_shared_input = False
+        self.shared_reference = ""
+        self.last_shared_url = ""
+        self._sharing_task = None
+        self._close_shared_popup = False
 
     @property
     def mono_font(self):
@@ -164,7 +214,8 @@ class ScenarioEditor:
 
     def refs(self):
         """Everything openable: the user's scenarios first, then the builtins."""
-        return self.user_store.refs() + self.builtin_store.refs()
+        shared = self.shared_store.refs() if self.shared_store is not None else []
+        return self.user_store.refs() + shared + self.builtin_store.refs()
 
     @property
     def dirty(self) -> bool:
@@ -177,13 +228,18 @@ class ScenarioEditor:
         """
         return self.ref is not None and self.editor.get_text() != self.loaded_text
 
-    def open(self, ref: ScenarioRef) -> None:
+    def open(self, ref: ScenarioRef) -> bool:
         """Show a scenario's source, discarding whatever was in the buffer."""
         try:
             source = ref.read()
         except StoreError as exc:
             self._say(str(exc), error=True)
-            return
+            return False
+        self._show_source(ref, source)
+        return True
+
+    def _show_source(self, ref: ScenarioRef, source: str) -> None:
+        """Put already-read source in the editor; never executes it."""
         self.ref = ref
         self.editor.set_text(source)
         self.editor.set_read_only_enabled(not ref.writable)
@@ -191,11 +247,17 @@ class ScenarioEditor:
         # line endings and the trailing newline, and the difference would read
         # as an unsaved change the moment the file was opened.
         self.loaded_text = self.editor.get_text()
-        self.editor.clear_markers()
-        self._say(
-            f"{ref.label}"
-            + ("" if ref.writable else "  --  read-only; Fork it to make changes")
-        )
+        clear_editor_markers(self.editor)
+        if self.shared_store is not None and ref.store is self.shared_store:
+            self._say(
+                f"{ref.label}  --  downloaded but not run; review it, then Run "
+                "or Fork"
+            )
+        else:
+            self._say(
+                f"{ref.label}"
+                + ("" if ref.writable else "  --  read-only; Fork it to make changes")
+            )
 
     def open_current_scenario(self) -> None:
         """Open the file behind the scenario that is running."""
@@ -206,8 +268,8 @@ class ScenarioEditor:
             self._say("cannot tell which file that scenario came from", error=True)
             return
         for ref in self.refs():
-            if ref.name == name:
-                self.open(ref)
+            if ref.load_name == name:
+                self._request_open(ref)
                 return
         self._say(f"no scenario file named {name}", error=True)
 
@@ -229,7 +291,8 @@ class ScenarioEditor:
         source = rewrite_relative_imports(self.editor.get_text())
         source, renamed = rename_scenarios(source, taken_names())
         try:
-            name = self.user_store.free_name(f"{self.ref.name}_copy")
+            stem = self.ref.store.fork_stem(self.ref.name)
+            name = self.user_store.free_name(f"{stem}_copy")
             ref = self.user_store.write(name, source)
         except StoreError as exc:
             self._say(str(exc), error=True)
@@ -257,6 +320,97 @@ class ScenarioEditor:
         self.loaded_text = source
         self.load()
 
+    def share(self) -> str:
+        """Publish the current buffer and return its immutable link."""
+        if self.ref is None or self.shared_store is None:
+            return None
+        try:
+            ref = self.shared_store.publish(self.editor.get_text())
+            url = self.shared_store.url_for(ref.name)
+        except StoreError as exc:
+            self._say(str(exc), error=True)
+            return None
+        self.last_shared_url = url
+        self._say(f"shared {url}")
+        return url
+
+    def open_shared(self, value: str) -> bool:
+        """Fetch a shared scenario for review, without running its source."""
+        if self.shared_store is None:
+            return False
+        try:
+            ref = self.shared_store.reference(value, remember=False)
+        except StoreError as exc:
+            self._say(str(exc), error=True)
+            return False
+        if not self.open(ref):
+            return False
+        self.shared_store.reference(ref.name)
+        self.shared_reference = self.shared_store.url_for(ref.name)
+        return True
+
+    @property
+    def sharing_busy(self) -> bool:
+        return self._sharing_task is not None
+
+    def _start_sharing_task(self, coroutine) -> None:
+        """Schedule one browser/desktop network operation at a time."""
+        if self.sharing_busy:
+            coroutine.close()
+            return
+        self._sharing_task = asyncio.ensure_future(coroutine)
+
+    def _request_share(self) -> None:
+        if self.ref is None or self.shared_store is None:
+            return
+        source = self.editor.get_text()
+        self._say("sharing current buffer…")
+        self._start_sharing_task(self._share_async(source))
+
+    async def _share_async(self, source: str) -> None:
+        try:
+            ref = await self.shared_store.publish_async(source)
+            url = self.shared_store.url_for(ref.name)
+            self.last_shared_url = url
+            imgui.set_clipboard_text(url)
+            self._say(f"shared {url}  --  link copied")
+        except StoreError as exc:
+            self._say(str(exc), error=True)
+        finally:
+            self._sharing_task = None
+
+    def _request_open_shared(self, value: str) -> None:
+        if self.shared_store is None:
+            return
+        try:
+            ref = self.shared_store.reference(value, remember=False)
+        except StoreError as exc:
+            self._say(str(exc), error=True)
+            return
+        self._request_open(ref, close_popup=True)
+
+    def _request_open(self, ref: ScenarioRef, *, close_popup: bool = False) -> None:
+        """Read a shared ref asynchronously; local refs are already cheap."""
+        if self.shared_store is None or ref.store is not self.shared_store:
+            self.open(ref)
+            return
+        self._say(f"downloading {ref.label}…")
+        self._start_sharing_task(self._open_shared_async(ref, close_popup))
+
+    async def _open_shared_async(
+        self, ref: ScenarioRef, close_popup: bool = False
+    ) -> None:
+        try:
+            source = await self.shared_store.read_async(ref.name)
+            self._show_source(ref, source)
+            self.shared_store.reference(ref.name)
+            self.shared_reference = self.shared_store.url_for(ref.name)
+            self._close_shared_popup = close_popup
+        except StoreError as exc:
+            self._say(str(exc), error=True)
+        finally:
+            self._sharing_task = None
+
     def revert(self) -> None:
         if self.ref is not None:
             self.open(self.ref)
@@ -265,9 +419,9 @@ class ScenarioEditor:
         """Remove the open scenario, and whatever it had registered."""
         if self.ref is None or not self.ref.writable:
             return
-        name = self.ref.name
+        name = self.ref.load_name
         try:
-            self.ref.store.delete(name)
+            self.ref.store.delete(self.ref.name)
         except StoreError as exc:
             self._say(str(exc), error=True)
             return
@@ -289,9 +443,9 @@ class ScenarioEditor:
         path_for = getattr(self.ref.store, "path_for", None)
         filename = str(path_for(self.ref.name)) if path_for else None
 
-        self.editor.clear_markers()
+        clear_editor_markers(self.editor)
         try:
-            classes = loader.load_source(self.ref.name, source, filename=filename)
+            classes = loader.load_source(self.ref.load_name, source, filename=filename)
         except LoadError as exc:
             self._show_load_error(exc)
             return
@@ -321,7 +475,9 @@ class ScenarioEditor:
         self.error_detail = exc.detail
         if exc.line:
             red = imgui.color_convert_float4_to_u32((1.0, 0.35, 0.35, 1.0))
-            self.editor.add_marker(max(exc.line - 1, 0), red, red, exc.message, "")
+            add_editor_marker(
+                self.editor, max(exc.line - 1, 0), red, exc.message
+            )
 
     def _select_any_scenario(self) -> None:
         """Move onto some scenario that exists, after deleting the current one."""
@@ -343,6 +499,8 @@ class ScenarioEditor:
     def gui(self) -> None:
         """Draw the panel. Wired in as a dockable window."""
         self._toolbar()
+        if self.shared_store is not None:
+            self._shared_popup()
         self._file_picker()
         self._status()
         if self.ref is None:
@@ -360,8 +518,15 @@ class ScenarioEditor:
             and imgui.is_key_pressed(imgui.Key.s)
         ):
             self.save()
-        with imgui_ctx.push_font(self.mono_font, 0.0):
-            self.editor.render("##source", imgui.get_content_region_avail())
+        with push_code_font(self.mono_font):
+            render_text_editor(
+                self.editor,
+                "##source",
+                imgui.get_content_region_avail(),
+                parent_is_focused=imgui.is_window_focused(
+                    imgui.FocusedFlags_.root_and_child_windows
+                ),
+            )
 
     def _toolbar(self) -> None:
         if imgui.button("New"):
@@ -382,7 +547,7 @@ class ScenarioEditor:
         )
         imgui.same_line()
 
-        if _button_enabled("Run", writable):
+        if _button_enabled("Run", self.ref is not None and self.ref.runnable):
             self.load()
         imgui.set_item_tooltip("Load the buffer without writing it to disk")
         imgui.same_line()
@@ -394,6 +559,66 @@ class ScenarioEditor:
         if _button_enabled("Delete", writable):
             self._confirm_delete = True
         self._delete_popup()
+
+        if self.shared_store is not None:
+            if _button_enabled(
+                "Sharing…" if self.sharing_busy else "Share",
+                self.ref is not None and not self.sharing_busy,
+            ):
+                self._request_share()
+            imgui.set_item_tooltip(
+                "Upload the current buffer and copy its public, immutable link"
+            )
+            imgui.same_line()
+
+            if _button_enabled("Open link", not self.sharing_busy):
+                self._open_shared = True
+            imgui.set_item_tooltip(
+                "Fetch a shared scenario into the editor without running it"
+            )
+            if self.last_shared_url:
+                imgui.same_line()
+                if imgui.button("Copy link"):
+                    imgui.set_clipboard_text(self.last_shared_url)
+
+    def _shared_popup(self) -> None:
+        """Ask for a hash/link and make the execution boundary explicit."""
+        if self._open_shared:
+            imgui.open_popup("Open shared scenario")
+            self._open_shared = False
+            self._focus_shared_input = True
+        if not imgui.begin_popup_modal("Open shared scenario")[0]:
+            return
+
+        if self._close_shared_popup:
+            self._close_shared_popup = False
+            imgui.close_current_popup()
+            imgui.end_popup()
+            return
+
+        imgui.text_wrapped(
+            "Shared scenarios are public Python code. Opening downloads the source "
+            "for review; it does not execute it."
+        )
+        if self._focus_shared_input:
+            imgui.set_keyboard_focus_here()
+            self._focus_shared_input = False
+        imgui.set_next_item_width(620)
+        submitted, self.shared_reference = imgui.input_text(
+            "Hash or link##shared",
+            self.shared_reference,
+            flags=imgui.InputTextFlags_.enter_returns_true,
+        )
+        open_clicked = _button_enabled(
+            "Downloading…" if self.sharing_busy else "Open", not self.sharing_busy
+        )
+        imgui.same_line()
+        cancel_clicked = imgui.button("Cancel")
+        if (submitted or open_clicked) and not self.sharing_busy:
+            self._request_open_shared(self.shared_reference)
+        if cancel_clicked:
+            imgui.close_current_popup()
+        imgui.end_popup()
 
     def _delete_popup(self) -> None:
         """Deleting a file is not undoable, so it gets asked about."""
@@ -419,13 +644,13 @@ class ScenarioEditor:
         refs = self.refs()
         labels = [ref.label for ref in refs]
         current = next(
-            (i for i, ref in enumerate(refs) if self.ref and ref.name == self.ref.name),
+            (i for i, ref in enumerate(refs) if self.ref and ref == self.ref),
             -1,
         )
         imgui.set_next_item_width(-1)
         changed, index = imgui.combo("##file", current, labels)
         if changed and 0 <= index < len(refs):
-            self.open(refs[index])
+            self._request_open(refs[index])
 
     def _status(self) -> None:
         if self.message_is_error:

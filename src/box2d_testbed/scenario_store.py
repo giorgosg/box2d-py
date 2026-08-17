@@ -1,18 +1,24 @@
 """Where the scenarios the editor can open come from.
 
-Two stores exist here: the scenarios shipped with the package, which are
-readable but not writable, and a directory of the user's own, which is both.
-The web build will add a third backed by a content-addressed store on the
-network, which is the reason this is an interface at all rather than a pair of
-functions over ``open()``.
+The shipped scenarios are readable, the user's directory is writable, and the
+sharing server is immutable and addressed by a SHA-256 digest. Keeping all
+three behind stores lets the editor treat their source alike while preserving
+the important differences: a builtin cannot be overwritten, and downloaded
+Python is opened for review rather than run on arrival.
 """
 
+import asyncio
+import hashlib
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 #: A scenario name has to survive being used as a filename and as the tail of a
 #: module name, so it is held to what both accept: a Python identifier, in
@@ -21,6 +27,16 @@ from pathlib import Path
 #: arithmetic to get subtly wrong. It matters more than it looks: on the web
 #: these names arrive from strangers.
 NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
+
+#: The Worker accepts the same limit. Checking before opening a connection
+#: makes an accidental giant paste cheap, while the server remains the actual
+#: enforcement boundary.
+MAX_SCENARIO_BYTES = 64 * 1024
+
+#: Shared scenario names are the complete digest returned by the server.
+HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+
+DEFAULT_SCENARIO_SERVER = "http://127.0.0.1:8787"
 
 
 class StoreError(Exception):
@@ -56,6 +72,20 @@ class ScenarioRef:
     def writable(self) -> bool:
         return self.store.writable
 
+    @property
+    def runnable(self) -> bool:
+        return self.store.runnable
+
+    @property
+    def load_name(self) -> str:
+        """A safe synthetic Python module name for this scenario.
+
+        Local names already are Python identifiers. A content hash can start
+        with a digit, so the shared store gives it an internal prefix when the
+        user explicitly runs it.
+        """
+        return self.store.load_name(self.name)
+
     def read(self) -> str:
         return self.store.read(self.name)
 
@@ -69,6 +99,10 @@ class ScenarioStore:
     #: False if write and delete will refuse.
     writable = False
 
+    #: True when the source is standalone code the loader can execute. Builtin
+    #: modules use package-relative imports and are meant to be forked first.
+    runnable = False
+
     def names(self) -> list[str]:
         """Every scenario in the store, in the order to display them."""
         raise NotImplementedError
@@ -78,6 +112,14 @@ class ScenarioStore:
 
     def read(self, name: str) -> str:
         raise NotImplementedError
+
+    def load_name(self, name: str) -> str:
+        """Name to hand to the scenario loader when this source is run."""
+        return validate_name(name)
+
+    def fork_stem(self, name: str) -> str:
+        """Base filename to use when this scenario is copied to UserStore."""
+        return validate_name(name)
 
     def write(self, name: str, source: str) -> ScenarioRef:
         raise StoreError(f"{self.label} scenarios are read-only")
@@ -136,6 +178,7 @@ class UserStore(ScenarioStore):
 
     label = "user"
     writable = True
+    runnable = True
 
     def __init__(self, path):
         self.path = Path(path)
@@ -176,6 +219,277 @@ class UserStore(ScenarioStore):
             pass
         except OSError as exc:
             raise StoreError(f"cannot delete scenario {name!r}: {exc}") from exc
+
+
+class SharedStore(ScenarioStore):
+    """The public, immutable scenario server.
+
+    ``publish`` adds source and returns its content-addressed reference;
+    ``reference`` turns either a bare digest or one of this server's links into
+    a reference. Names are remembered only for this app session because the
+    server deliberately has no account or per-user listing.
+
+    The desktop transport is synchronous at this layer, with async wrappers
+    that move it off the ImGui thread when explicitly enabled. The browser
+    subclass implements the same async surface with Fetch.
+    """
+
+    label = "shared"
+    writable = False
+    runnable = True
+
+    def __init__(self, base_url: str = None, *, timeout: float = 5.0, opener=None):
+        self.base_url = (
+            base_url
+            or os.environ.get("BOX2D_TESTBED_SERVER")
+            or DEFAULT_SCENARIO_SERVER
+        ).rstrip("/")
+        self.timeout = timeout
+        self._opener = opener or urlopen
+        self._names: list[str] = []
+
+    def names(self) -> list[str]:
+        return list(self._names)
+
+    def load_name(self, name: str) -> str:
+        self._validate_hash(name)
+        # Keep the loader's longstanding 64-character identifier limit. The
+        # remaining 224 hash bits are still far beyond any realistic collision
+        # concern, while the full digest remains the external name and URL.
+        return f"shared_{name[:56]}"
+
+    def fork_stem(self, name: str) -> str:
+        self._validate_hash(name)
+        return f"shared_{name[:12]}"
+
+    def url_for(self, name: str) -> str:
+        self._validate_server()
+        self._validate_hash(name)
+        return f"{self.base_url}/s/{name}"
+
+    def reference(self, value: str, *, remember: bool = True) -> ScenarioRef:
+        """Resolve a full sharing URL or a bare SHA-256 digest."""
+        if not isinstance(value, str):
+            raise StoreError(f"{value!r} is not a scenario hash or link")
+        value = value.strip()
+        if HASH_PATTERN.fullmatch(value):
+            name = value
+        else:
+            self._validate_server()
+            parsed = urlsplit(value)
+            configured = urlsplit(self.base_url)
+            expected_prefix = configured.path.rstrip("/") + "/s/"
+            same_server = (
+                parsed.scheme.lower(),
+                parsed.netloc.lower(),
+            ) == (configured.scheme.lower(), configured.netloc.lower())
+            if not same_server or not parsed.path.startswith(expected_prefix):
+                raise StoreError(f"paste a SHA-256 hash or a link from {self.base_url}")
+            name = parsed.path[len(expected_prefix) :]
+            if "/" in name:
+                raise StoreError(f"{value!r} is not a scenario link")
+        self._validate_hash(name)
+        if remember:
+            self._remember(name)
+        return ScenarioRef(self, name)
+
+    def publish(self, source: str) -> ScenarioRef:
+        """Store source and return the immutable reference the server assigned."""
+        if not isinstance(source, str):
+            raise StoreError("a shared scenario must be text")
+        body = source.encode("utf-8")
+        if len(body) > MAX_SCENARIO_BYTES:
+            raise StoreError(
+                f"scenario is {len(body)} bytes; the sharing limit is "
+                f"{MAX_SCENARIO_BYTES}"
+            )
+        expected = hashlib.sha256(body).hexdigest()
+        request = Request(
+            f"{self._server_url()}/s",
+            data=body,
+            headers={"Content-Type": "text/x-python; charset=utf-8"},
+            method="POST",
+        )
+        payload = self._open(request, response_limit=8 * 1024)
+        try:
+            result = json.loads(payload.decode("utf-8"))
+            returned = result["id"]
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise StoreError(
+                "sharing server returned an invalid save response"
+            ) from exc
+        if returned != expected:
+            raise StoreError(
+                "sharing server returned a hash that does not match the source"
+            )
+        self._remember(returned)
+        return ScenarioRef(self, returned)
+
+    async def publish_async(self, source: str) -> ScenarioRef:
+        """Publish without blocking the UI thread in the desktop opt-in mode."""
+        return await asyncio.to_thread(self.publish, source)
+
+    def read(self, name: str) -> str:
+        """Fetch source and verify that it really has the requested address."""
+        self._validate_hash(name)
+        request = Request(self.url_for(name), method="GET")
+        body = self._open(request, response_limit=MAX_SCENARIO_BYTES)
+        actual = hashlib.sha256(body).hexdigest()
+        if actual != name:
+            raise StoreError(
+                f"sharing server returned content that does not match {name}"
+            )
+        try:
+            return body.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise StoreError("shared scenario is not UTF-8 text") from exc
+
+    async def read_async(self, name: str) -> str:
+        """Read without blocking the UI thread in the desktop opt-in mode."""
+        return await asyncio.to_thread(self.read, name)
+
+    def _server_url(self) -> str:
+        self._validate_server()
+        return self.base_url
+
+    def _validate_server(self) -> None:
+        parsed = urlsplit(self.base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise StoreError("BOX2D_TESTBED_SERVER must be an http:// or https:// URL")
+        if parsed.query or parsed.fragment:
+            raise StoreError("the sharing server URL cannot contain ? or #")
+
+    @staticmethod
+    def _validate_hash(name: str) -> str:
+        if not isinstance(name, str) or not HASH_PATTERN.fullmatch(name):
+            raise StoreError(f"{name!r} is not a complete SHA-256 scenario hash")
+        return name
+
+    def _remember(self, name: str) -> None:
+        if name not in self._names:
+            self._names.insert(0, name)
+
+    def _open(self, request: Request, *, response_limit: int) -> bytes:
+        try:
+            with self._opener(request, timeout=self.timeout) as response:
+                body = response.read(response_limit + 1)
+        except HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read(1024).decode("utf-8", errors="replace").strip()
+            except OSError:
+                pass
+            suffix = f": {detail}" if detail else ""
+            raise StoreError(
+                f"sharing server returned HTTP {exc.code}{suffix}"
+            ) from exc
+        except (OSError, URLError) as exc:
+            raise StoreError(f"cannot reach sharing server: {exc}") from exc
+        if len(body) > response_limit:
+            raise StoreError("sharing server returned more data than allowed")
+        return body
+
+
+class BrowserSharedStore(SharedStore):
+    """A SharedStore transported by Pyodide's asynchronous browser Fetch API."""
+
+    def publish(self, source: str) -> ScenarioRef:
+        raise StoreError("browser sharing must be awaited")
+
+    def read(self, name: str) -> str:
+        raise StoreError("browser downloads must be awaited")
+
+    async def publish_async(self, source: str) -> ScenarioRef:
+        if not isinstance(source, str):
+            raise StoreError("a shared scenario must be text")
+        source_bytes = source.encode("utf-8")
+        if len(source_bytes) > MAX_SCENARIO_BYTES:
+            raise StoreError(
+                f"scenario is {len(source_bytes)} bytes; the sharing limit is "
+                f"{MAX_SCENARIO_BYTES}"
+            )
+        expected = hashlib.sha256(source_bytes).hexdigest()
+        payload = await self._fetch(
+            f"{self._server_url()}/s",
+            method="POST",
+            body=source,
+            response_limit=8 * 1024,
+        )
+        try:
+            result = json.loads(payload.decode("utf-8"))
+            returned = result["id"]
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise StoreError(
+                "sharing server returned an invalid save response"
+            ) from exc
+        if returned != expected:
+            raise StoreError(
+                "sharing server returned a hash that does not match the source"
+            )
+        self._remember(returned)
+        return ScenarioRef(self, returned)
+
+    async def read_async(self, name: str) -> str:
+        self._validate_hash(name)
+        body = await self._fetch(
+            self.url_for(name), method="GET", response_limit=MAX_SCENARIO_BYTES
+        )
+        if hashlib.sha256(body).hexdigest() != name:
+            raise StoreError(
+                f"sharing server returned content that does not match {name}"
+            )
+        try:
+            return body.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise StoreError("shared scenario is not UTF-8 text") from exc
+
+    async def _fetch(
+        self,
+        url: str,
+        *,
+        method: str,
+        response_limit: int,
+        body: str = None,
+    ) -> bytes:
+        try:
+            from pyodide.http import pyfetch
+
+            options = {"method": method}
+            if body is not None:
+                options.update(
+                    body=body,
+                    headers={"Content-Type": "text/x-python; charset=utf-8"},
+                )
+            response = await pyfetch(url, **options)
+            if not response.ok:
+                detail = (await response.text())[:1024].strip()
+                suffix = f": {detail}" if detail else ""
+                raise StoreError(
+                    f"sharing server returned HTTP {response.status}{suffix}"
+                )
+            payload = await response.bytes()
+        except StoreError:
+            raise
+        except (ImportError, OSError) as exc:
+            raise StoreError(f"cannot reach sharing server: {exc}") from exc
+        if len(payload) > response_limit:
+            raise StoreError("sharing server returned more data than allowed")
+        return payload
+
+
+def configured_shared_store() -> SharedStore | None:
+    """The sharing client explicitly selected for this runtime, if any.
+
+    Desktop keeps its uncluttered local-file editor by default. Set
+    ``BOX2D_TESTBED_SHARING=desktop`` to opt in there; the web bootstrap sets
+    it to ``web`` and points the client at its own Worker origin.
+    """
+    mode = os.environ.get("BOX2D_TESTBED_SHARING", "").lower()
+    if mode == "web":
+        return BrowserSharedStore()
+    if mode in ("1", "true", "desktop"):
+        return SharedStore()
+    return None
 
 
 def user_scenario_dir() -> Path:

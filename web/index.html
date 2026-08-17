@@ -91,9 +91,13 @@ async function main() {
     await pyodide.loadPackage(["micropip", "imgui-bundle", "numpy"]);
 
     say("Loading the physics engine…", "box2d-python, built for WebAssembly.");
+    const buildResponse = await fetch(new URL("build.json", window.location.href));
+    if (!buildResponse.ok) throw new Error("web/build.json is missing");
+    const build = await buildResponse.json();
+    const wheelUrl = new URL(build.wheel, window.location.href).href;
     const micropip = pyodide.pyimport("micropip");
     await micropip.install("munch");
-    await micropip.install(WHEEL_URL, { deps: false });
+    await micropip.install(wheelUrl, { deps: false });
 
     say("Starting…", "");
     await pyodide.runPythonAsync(document.getElementById("app").textContent);
@@ -105,18 +109,21 @@ async function main() {
   }
 }
 
-// Served alongside this page; see web/serve.py.
-const WHEEL_URL = new URL("box2d_python-0.1.3-cp313-cp313-pyemscripten_2025_0_wasm32.whl",
-                          window.location.href).href;
 main();
 </script>
 
 <script type="text/python" id="app">
 import os
+from js import location
 
 # There is no PyOpenGL here, so the renderer that draws through imgui's draw
 # list is the only one that can run.
 os.environ["BOX2D_TESTBED_RENDERER"] = "imgui"
+# Sharing is a web feature. It uses asynchronous browser Fetch against the
+# same Worker origin that served this page, so there is no CORS or deployment
+# URL to configure and the desktop toolbar stays unchanged.
+os.environ["BOX2D_TESTBED_SHARING"] = "web"
+os.environ["BOX2D_TESTBED_SERVER"] = str(location.origin)
 
 import box2d
 import box2d_testbed.testbed as testbed

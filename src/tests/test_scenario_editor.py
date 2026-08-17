@@ -7,16 +7,49 @@ rather than appearing beside it, and it imports its own package relatively,
 which only works from inside that package. Both are fixed on the way out.
 """
 
+import hashlib
+import json
+from types import SimpleNamespace
+
 import pytest
 
 # The editor is imgui's, so without the testbed extra there is nothing to test.
 pytest.importorskip("imgui_bundle", reason="needs the testbed extra")
 
+import box2d_testbed.scenario_editor as scenario_editor  # noqa: E402
 from box2d_testbed.scenario_store import ScenarioRef  # noqa: E402
 from box2d_testbed.scenario_editor import (  # noqa: E402
     rename_scenarios,
     rewrite_relative_imports,
 )
+
+
+@pytest.mark.parametrize("old_binding", [False, True])
+def test_push_code_font_supports_both_imgui_signatures(monkeypatch, old_binding):
+    calls = []
+    sentinel = object()
+
+    if old_binding:
+
+        def push_font(font):
+            calls.append((font,))
+            return sentinel
+
+    else:
+
+        def push_font(font, size):
+            calls.append((font, size))
+            return sentinel
+
+    monkeypatch.setattr(
+        scenario_editor,
+        "imgui_ctx",
+        SimpleNamespace(push_font=push_font),
+    )
+
+    font = object()
+    assert scenario_editor.push_code_font(font) is sentinel
+    assert calls == ([(font,)] if old_binding else [(font, 0.0)])
 
 
 def test_a_scenario_is_renamed_so_the_copy_sits_beside_the_original():
@@ -193,10 +226,12 @@ def editor(tmp_path, monkeypatch):
 
     from box2d_testbed.base_test import BaseTest
     from box2d_testbed.scenario_editor import ScenarioEditor
+    from box2d_testbed.scenario_loader import loader
     from box2d_testbed.testbed_state import state
 
     monkeypatch.setenv("BOX2D_TESTBED_SCENARIOS", str(tmp_path))
     snapshot = {c: dict(tests) for c, tests in BaseTest.registry.items()}
+    generations = dict(loader._generations)
     selected = (state.current_test_cls, state.current_test_obj, state.scenario_error)
     try:
         yield ScenarioEditor(SimpleNamespace(simulation=None))
@@ -209,6 +244,8 @@ def editor(tmp_path, monkeypatch):
             current = BaseTest.registry.setdefault(category, {})
             current.clear()
             current.update(tests)
+        loader._generations.clear()
+        loader._generations.update(generations)
 
 
 def test_new_writes_a_scenario_and_opens_it(editor, tmp_path):
@@ -223,6 +260,10 @@ def test_new_writes_a_scenario_and_opens_it(editor, tmp_path):
     # A second one steps around the first rather than overwriting it.
     editor.new()
     assert editor.ref.name == "untitled_1"
+
+
+def test_desktop_sharing_controls_are_opt_in(editor):
+    assert editor.shared_store is None
 
 
 def test_a_fork_that_will_not_load_says_so(editor):
@@ -289,3 +330,88 @@ def test_opening_a_scenario_that_has_gone_missing_reports_it(editor, tmp_path):
     assert editor.message_is_error is True
     assert "cannot read" in editor.message
     assert editor.ref is None, "and nothing was opened"
+
+
+class _SharedResponse:
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def read(self, limit=-1):
+        return self.body if limit < 0 else self.body[:limit]
+
+
+def _shared_store(source):
+    from box2d_testbed.scenario_store import SharedStore
+
+    body = source.encode()
+    digest = hashlib.sha256(body).hexdigest()
+
+    def open_request(request, timeout):
+        if request.get_method() == "POST":
+            assert request.data == body
+            return _SharedResponse(json.dumps({"id": digest}).encode())
+        return _SharedResponse(body)
+
+    return SharedStore("http://scenarios.test", opener=open_request), digest
+
+
+def test_opening_a_shared_link_downloads_but_does_not_run_it(editor):
+    from box2d_testbed.scenario_loader import loader
+    from box2d_testbed.testbed_state import state
+
+    store, digest = _shared_store(WORKING)
+    editor.shared_store = store
+    running_before = state.current_test_cls
+
+    assert editor.open_shared(f"http://scenarios.test/s/{digest}")
+
+    assert editor.ref.name == digest
+    assert editor.editor.get_text() == WORKING
+    assert editor.editor.is_read_only_enabled()
+    assert loader.classes_for(editor.ref.load_name) == []
+    assert state.current_test_cls is running_before
+    assert "downloaded but not run" in editor.message
+    assert store.names() == [digest]
+
+    editor.load()
+
+    assert state.current_test_cls.name == "works"
+    assert loader.classes_for(editor.ref.load_name)
+
+
+def test_sharing_uploads_the_current_buffer_without_switching_files(editor):
+    editor.new()
+    editor.editor.set_text(WORKING)
+    local_ref = editor.ref
+    store, digest = _shared_store(WORKING)
+    editor.shared_store = store
+
+    url = editor.share()
+
+    assert url == f"http://scenarios.test/s/{digest}"
+    assert editor.last_shared_url == url
+    assert editor.ref is local_ref, "sharing does not replace the editable local file"
+    assert editor.dirty, "sharing is not the same operation as saving to disk"
+    assert store.names() == [digest]
+
+
+def test_a_downloaded_scenario_can_be_forked_to_an_editable_local_file(
+    editor, tmp_path
+):
+    store, digest = _shared_store(WORKING)
+    editor.shared_store = store
+    assert editor.open_shared(digest)
+
+    editor.fork()
+
+    expected_name = f"shared_{digest[:12]}_copy"
+    assert editor.ref.name == expected_name
+    assert editor.ref.writable
+    assert (tmp_path / f"{expected_name}.py").is_file()
+    assert "works copy" in editor.message

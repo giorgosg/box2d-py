@@ -31,7 +31,29 @@ if ! command -v node > /dev/null; then
 fi
 
 echo "==> Building the wasm32 wheel"
+# Editable desktop installs leave their native CFFI extension in src/. If it
+# stays there setuptools considers it an up-to-date build artifact and can
+# quietly package x86 ELF into the wasm wheel. Hold it aside for the cross
+# build, clear only Emscripten's generated build directories, then restore it.
+NATIVE_EXTENSION="$(find src/box2d -maxdepth 1 -type f -name '_box2d*.so' -print -quit)"
+EXTENSION_BACKUP=""
+restore_native_extension() {
+    if [ -n "$EXTENSION_BACKUP" ] && [ -f "$EXTENSION_BACKUP" ]; then
+        mv -f "$EXTENSION_BACKUP" "$NATIVE_EXTENSION"
+    fi
+}
+if [ -n "$NATIVE_EXTENSION" ]; then
+    BACKUP_DIR="$(mktemp -d)"
+    EXTENSION_BACKUP="$BACKUP_DIR/$(basename "$NATIVE_EXTENSION")"
+    mv "$NATIVE_EXTENSION" "$EXTENSION_BACKUP"
+    trap restore_native_extension EXIT
+fi
+find build -maxdepth 1 -type d \
+    \( -name 'lib.emscripten_*' -o -name 'temp.emscripten_*' -o -name 'bdist.emscripten_*' \) \
+    -exec rm -rf -- {} +
 pyodide build
+restore_native_extension
+trap - EXIT
 
 WHEEL="$(ls -t dist/*wasm32.whl | head -1)"
 echo "==> Built $WHEEL"
@@ -57,8 +79,11 @@ echo "==> Running the suite inside WebAssembly"
 echo "==> Running the testbed's Python inside WebAssembly"
 # imgui_bundle is in Pyodide's own index but its glfw dependency is not, and
 # munch is a pure-Python dependency pip will not resolve without it.
-"$VENV/bin/pip" install --quiet --no-deps imgui_bundle munch
+"$VENV/bin/pip" install --quiet --no-deps imgui_bundle munch numpy
 "$VENV/bin/python" src/tools/wasm_testbed_check.py
+
+echo "==> Preparing the browser assets"
+python web/prepare.py
 
 echo
 echo "==> $WHEEL is good"

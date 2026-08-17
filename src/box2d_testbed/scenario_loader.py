@@ -178,7 +178,7 @@ class ScenarioLoader:
         source = ref.read()
         path = getattr(ref.store, "path_for", None)
         return self.load_source(
-            ref.name, source, filename=str(path(ref.name)) if path else None
+            ref.load_name, source, filename=str(path(ref.name)) if path else None
         )
 
     def load_store(self, store: ScenarioStore) -> list:

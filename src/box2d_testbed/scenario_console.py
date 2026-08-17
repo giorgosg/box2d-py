@@ -19,7 +19,15 @@ from imgui_bundle import imgui, imgui_ctx
 import box2d
 from box2d import Vec2
 
-from .scenario_editor import TextEditor, python_editor
+from .scenario_editor import (
+    TextEditor,
+    add_editor_marker,
+    clear_editor_markers,
+    modern_text_editor,
+    push_code_font,
+    python_editor,
+    render_text_editor,
+)
 from .testbed_state import state
 
 #: Older output is dropped past this, so a loop that prints cannot grow the
@@ -184,9 +192,14 @@ class Console(code.InteractiveConsole):
 
     def name_being_typed(self) -> str:
         """The name the cursor is sitting at the end of, dots included."""
-        cursor = self.editor.get_main_cursor_position()
-        line = self.editor.get_line_text(cursor.line)
-        return NAME_BEING_TYPED.search(line[: cursor.index]).group()
+        if modern_text_editor(self.editor):
+            cursor = self.editor.get_main_cursor_position()
+            line = self.editor.get_line_text(cursor.line)
+            return NAME_BEING_TYPED.search(line[: cursor.index]).group()
+        # The older binding exposes its cursor through unusable C++ output
+        # parameters. Completion at the end of the prompt is still the common
+        # and useful case in the browser.
+        return NAME_BEING_TYPED.search(self.input.split("\n")[-1]).group()
 
     def complete(self) -> None:
         """Complete the name left of the cursor.
@@ -202,7 +215,11 @@ class Console(code.InteractiveConsole):
         # they are missing until the first one has been run -- and completing
         # `world.` is the first thing anyone tries.
         self.rebind()
-        cursor = self.editor.get_main_cursor_position()
+        cursor = (
+            self.editor.get_main_cursor_position()
+            if modern_text_editor(self.editor)
+            else None
+        )
         prefix = self.name_being_typed()
         if not prefix:
             self.completions = []
@@ -235,6 +252,11 @@ class Console(code.InteractiveConsole):
 
     def _replace_name(self, cursor, prefix: str, completion: str) -> None:
         """Swap the name being typed for a longer one, keeping the cursor after it."""
+        if cursor is None:
+            self.input = self.input[: -len(prefix)] + completion
+            lines = self.input.split("\n")
+            self.editor.set_cursor_position(len(lines) - 1, len(lines[-1]))
+            return
         start = TextEditor.DocPos(cursor.line, cursor.index - len(prefix))
         self.editor.select_region(start, cursor)
         self.editor.replace_text_in_current_cursor(completion)
@@ -297,14 +319,14 @@ class Console(code.InteractiveConsole):
         whatever the user had selected.
         """
         self.transcript.set_text("\n".join(text for text, _ in self.lines))
-        self.transcript.clear_markers()
+        clear_editor_markers(self.transcript)
         # A marker fills the line behind the text rather than recolouring it,
         # which at full strength is a solid red band three lines deep for every
         # traceback. Translucent, it reads as "these lines are the error".
         red = imgui.color_convert_float4_to_u32((1.0, 0.25, 0.25, 0.16))
         for index, (_, is_error) in enumerate(self.lines):
             if is_error:
-                self.transcript.add_marker(index, 0, red, "", "")
+                add_editor_marker(self.transcript, index, red, "")
         self._transcript_stale = False
 
     # -- gui -----------------------------------------------------------------
@@ -329,11 +351,16 @@ class Console(code.InteractiveConsole):
 
         # Code, so it is shown in the same font the editor uses: aligned
         # tracebacks, and a repr with columns that line up.
-        with imgui_ctx.push_font(self.mono_font, 0.0):
+        with push_code_font(self.mono_font):
             if self._transcript_stale:
                 self.refresh_transcript()
-            self.transcript.render(
-                "##output", (0, -self._footer_height), window_flags=0
+            render_text_editor(
+                self.transcript,
+                "##output",
+                (0, -self._footer_height),
+                parent_is_focused=imgui.is_window_focused(
+                    imgui.FocusedFlags_.root_and_child_windows
+                ),
             )
             self._transcript_rect = (
                 imgui.get_item_rect_min(),
@@ -350,9 +377,16 @@ class Console(code.InteractiveConsole):
             ):
                 self._focus_input = True
             if self._scroll_to_bottom:
-                self.transcript.scroll_to_line(
-                    self.transcript.get_line_count(), TextEditor.Scroll.align_bottom
-                )
+                line = self.transcript.get_line_count()
+                if hasattr(self.transcript, "scroll_to_line"):
+                    self.transcript.scroll_to_line(
+                        line, TextEditor.Scroll.align_bottom
+                    )
+                else:
+                    self.transcript.set_view_at_line(
+                        max(0, line - 1),
+                        TextEditor.SetViewAtLineMode.last_visible_line,
+                    )
                 self._scroll_to_bottom = False
 
             top = imgui.get_cursor_pos_y()
@@ -380,7 +414,10 @@ class Console(code.InteractiveConsole):
             # a child window rather than a plain item, so imgui's "focus the
             # next thing" left the keyboard nowhere and typing after Enter did
             # not reach it.
-            self.editor.set_focus()
+            if hasattr(self.editor, "set_focus"):
+                self.editor.set_focus()
+            else:
+                imgui.set_keyboard_focus_here()
             self._focus_input = False
 
         # Read before the widget runs: Enter reaches it first and puts a newline
@@ -400,11 +437,21 @@ class Console(code.InteractiveConsole):
             and bool(self.name_being_typed())
         )
 
+        line_height = (
+            self.editor.get_line_height()
+            if hasattr(self.editor, "get_line_height")
+            else imgui.get_text_line_height()
+        )
         size = (
             imgui.get_content_region_avail().x,
-            self.editor.get_line_height() * self._rows(),
+            line_height * self._rows(),
         )
-        self.editor.render("##input", size)
+        render_text_editor(
+            self.editor,
+            "##input",
+            size,
+            parent_is_focused=keyboard,
+        )
 
         if completing:
             # Take back the indent it inserted on the way past -- but only if it

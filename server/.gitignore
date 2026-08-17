@@ -1,0 +1,7 @@
+node_modules/
+# Written by `wrangler types` out of wrangler.jsonc, and half a megabyte of it.
+worker-configuration.d.ts
+# Local D1 state, and whatever else wrangler dev keeps between runs.
+.wrangler/
+# Written by `wrangler check startup` for optional profiler inspection.
+worker-startup.cpuprofile

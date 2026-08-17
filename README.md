@@ -48,7 +48,7 @@ Then the testbed and the tests:
 
 ```bash
 uv run box2d-testbed
-uv run pytest          # 1360 tests
+uv run pytest
 uv run pytest -m gui   # 3 more, each opening a real window
 ```
 
@@ -112,6 +112,23 @@ rather than replacing it, and rewriting its imports so the file stands alone.
 The Scenario menu also opens the file behind the scenario that is running,
 which is the quick way to find the one worth forking.
 
+In the browser build, **Share** uploads the current editor buffer and copies its
+immutable link. **Open link** accepts either that URL or its complete SHA-256
+hash. Downloaded scenarios open read-only and are not executed: review the
+source, then press **Run**, or **Fork** it into an editable in-browser file.
+
+The desktop app keeps these server controls hidden by default; its scenarios
+are already persistent files. They can be enabled explicitly for development:
+
+```bash
+BOX2D_TESTBED_SHARING=desktop \
+BOX2D_TESTBED_SERVER=http://127.0.0.1:8787 \
+box2d-testbed
+```
+
+There are no accounts and every shared scenario is public to anyone with its
+link.
+
 A scenario that will not compile, or that raises while building, leaves the
 scene you had running alone and reports itself: the message and the line in the
 editor, the traceback in the scenario's own panel. A per-frame hook that raises
@@ -157,6 +174,14 @@ back before you can type again.
 Between this and the editor, most questions about a scenario can be answered
 without restarting it.
 
+## Sharing server
+
+[`server/`](server/README.md) contains the Cloudflare Worker and D1 schema for
+the public, content-addressed scenario store. Posting Python source returns a
+shareable `/s/<sha256>` URL; following it returns exactly those UTF-8 bytes.
+The server is implemented and locally tested, while connecting it to the
+desktop and browser scenario pickers remains client-side work.
+
 ## Example Usage
 
 
@@ -185,7 +210,7 @@ Tracks Box2D `main`, which is ahead of the 3.1.1 release and not yet tagged
 
 Bodies, all seven joint types, every shape, sensor and contact events, the
 collision queries and casts, and character movement are bound and covered by
-tests; 1360 of them run on Linux, macOS and Windows for Python 3.12 and 3.13.
+tests on Linux, macOS and Windows for Python 3.12 and 3.13.
 
 World snapshots are not bound yet.
 

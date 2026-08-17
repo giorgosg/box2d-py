@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    // The runtime types and the Env interface both come from
+    // worker-configuration.d.ts, which `wrangler types` writes out of
+    // wrangler.jsonc. It is generated, so it is not checked in, and the
+    // typecheck script regenerates it before running.
+    "types": ["@cloudflare/vitest-pool-workers/types"],
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts", "worker-configuration.d.ts"]
+}

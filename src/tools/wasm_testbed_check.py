@@ -10,6 +10,8 @@ import sys
 
 # There is no PyOpenGL in a browser, so the imgui renderer is the only choice.
 os.environ["BOX2D_TESTBED_RENDERER"] = "imgui"
+os.environ["BOX2D_TESTBED_SHARING"] = "web"
+os.environ["BOX2D_TESTBED_SERVER"] = "http://localhost"
 
 print(f"platform: {sys.platform}")
 
@@ -129,8 +131,10 @@ from box2d_testbed.scenario_console import Console  # noqa: E402
 from box2d_testbed.scenario_editor import ScenarioEditor  # noqa: E402
 from box2d_testbed.scenario_loader import ScenarioLoader  # noqa: E402
 from box2d_testbed.scenario_store import UserStore, template_for  # noqa: E402
+from box2d_testbed.scenario_store import BrowserSharedStore  # noqa: E402
 
 editor = ScenarioEditor(None)
+assert type(editor.shared_store) is BrowserSharedStore
 language = getattr(editor.editor, "get_language_name", lambda: "unknown")()
 print(f"\neditor   : text widget built, highlighting {language!r}")
 
@@ -166,6 +170,8 @@ print(f"editing  : saved, loaded and simulated {loaded[0].name!r}")
 console = Console(SimpleNamespace(simulation=None))
 console.submit("6 * 7")
 assert console.lines[-1][0] == "42", console.lines[-3:]
-print("console  : evaluates")
+console.emit("marker compatibility", error=True)
+console.refresh_transcript()
+print("console  : evaluates and refreshes its transcript")
 
 print("\nThe testbed's Python runs in WebAssembly.")

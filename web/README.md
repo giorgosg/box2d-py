@@ -82,9 +82,10 @@ comes up empty, any node 18+ on `PATH` will do.
 python web/serve.py              # --port 8000 by default
 ```
 
-It copies the newest `dist/*wasm32.whl` next to `index.html` (a wheel has to
-be same-origin for micropip to install it), serves the directory with
-`Cache-Control: no-store`, and logs a line per request. Then open
+It runs `prepare.py`, which copies the newest `dist/*wasm32.whl` next to
+`index.html` and records its filename in `build.json` (the wheel has to be
+same-origin for micropip to install it), then serves the directory with
+`Cache-Control: no-store` and logs a line per request. Open
 <http://localhost:8000>.
 
 The first load pulls roughly 15 MB from the jsDelivr CDN -- the Pyodide
@@ -93,9 +94,10 @@ so it takes a while and needs network access. Afterwards the browser caches
 all of it. Loading progress is reported on the page; failures land in the same
 place, with the traceback.
 
-`index.html` hardcodes the wheel filename in its `WHEEL_URL` line. `serve.py`
-compares the two and warns loudly if they have drifted, which is what happens
-after a version bump: change `WHEEL_URL` to match the new name.
+The Cloudflare server serves these same files. From `server/`, `npm run dev`
+prepares the wheel and starts the Worker plus local D1 at
+<http://127.0.0.1:8787>; requests under `/s` reach the Worker and every other
+matching file uses Workers Static Assets.
 
 ## Versions have to agree
 
@@ -125,7 +127,7 @@ Bumping Pyodide means bumping all four together.
   filesystem accepts the writes -- but it is an in-memory one, so the scenario
   directory is empty again on the next load. See below.
 
-## Sharing scenarios, once there is somewhere to put them
+## Sharing scenarios
 
 The editor keeps scenarios in a directory, and in the browser that directory
 lives in Pyodide's in-memory filesystem: real enough to edit and reload
@@ -133,26 +135,29 @@ against, gone on refresh. Making them persist and shareable is a store behind
 `ScenarioStore` in `scenario_store.py`, which is why that is an interface with
 two implementations rather than a pair of functions over `open()`.
 
-The intended shape, not yet built:
+The store now lives in [`server/`](../server/README.md):
 
-- A worker over **D1**. Scenario files are a few KB of Python, so one table
-  holds them, and D1 answers "the most recent" and "the most opened" -- which
-  Workers KV cannot without an index maintained by hand. Content addressing
-  makes every response immutable, so `Cache-Control: immutable` and the Cache
-  API keep a popular scenario off the database entirely.
-- Addressed by **SHA-256, truncated** for a short URL. Not MD5: Workers'
-  `crypto.subtle` does not implement it, so it would mean shipping a JS
-  version, while `hashlib.sha256` and `crypto.subtle.digest('SHA-256')` agree
-  for nothing. And with anonymous writes, MD5 collisions are cheap enough that
-  a link someone reviewed could later resolve to different content.
+- A Worker over **D1**. `POST /s` stores source and returns its URL; `GET
+  /s/<hash>` returns it. Scenario files are a few KB of Python, so one table
+  holds them. Content addressing makes every response immutable, so
+  `Cache-Control: immutable` and the Cache API keep a popular scenario from
+  repeatedly reading the database.
+- Addressed by the complete **SHA-256** of the UTF-8 source. Not MD5: Workers'
+  `crypto.subtle` does not implement it, while `hashlib.sha256` and
+  `crypto.subtle.digest('SHA-256')` agree without another implementation. The
+  complete digest also avoids weakening a public content address just to save
+  characters in a URL.
 - No accounts, and everything public. Which makes it a pastebin that accepts
   Python, so: a size cap, a rate-limiting rule on the write, and no delete
   (immutable content has nothing to update).
-- **Nothing fetched is executed on its own.** Importing a shared scenario opens
+- **Nothing fetched is executed on its own.** Opening a shared scenario opens
   its source in the editor unrun; Run is a keypress away, but it is the reader's
-  keypress. In the browser the sandbox is the tab, but the same store will be
-  reachable from the desktop testbed, where a link that ran on arrival would be
-  a code-execution vector.
+  keypress. The browser uses Pyodide's asynchronous Fetch client, so a D1
+  request does not block animation frames.
+
+The page and API share one Worker origin. The web bootstrap enables **Share**
+and **Open link**; the desktop app hides them unless explicitly opted in with
+`BOX2D_TESTBED_SHARING=desktop`.
 
 ## The browser's imgui is older than yours
 
