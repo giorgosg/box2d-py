@@ -12,26 +12,26 @@ jobs:
   build-source:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
         submodules: recursive
-        
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
-        
+
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
         pip install build
-        
+
     - name: Build sdist
       run: python -m build --sdist
-        
+
     - name: Upload sdist
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -44,35 +44,32 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
         submodules: recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
 
     - name: Install cibuildwheel
       run: python -m pip install cibuildwheel
-      
-    - name: Install system dependencies (Ubuntu)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake
 
+    # No cmake step here: the Linux wheels are built inside the manylinux
+    # container, which has its own cmake, so installing one on the runner
+    # would not reach the build.
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
-        CIBW_BUILD: cp311-* cp312-* cp313-*
+        CIBW_BUILD: cp312-* cp313-*
         CIBW_SKIP: "*-win32 pp*"  # Skip 32-bit Windows builds and PyPy
         CIBW_BEFORE_BUILD: pip install cffi>=1.16.0
         CIBW_ARCHS_WINDOWS: AMD64  # Only build for 64-bit Windows
-        
+
     - name: Upload wheels
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wheels-${{ matrix.os }}
         path: ./wheelhouse/*.whl
@@ -82,26 +79,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: '*'
         path: dist
         merge-multiple: true
-        
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
-        
+
     - name: Install publishing dependencies
       run: pip install twine
-        
+
     - name: List files to upload
       run: find dist -type f | sort
-        
+
+    # Both the wheels and the sdist: the glob used to say *.whl, so the sdist
+    # was built and then dropped on the floor.
     - name: Publish to PyPI
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: python -m twine upload --skip-existing dist/*.whl
+      run: python -m twine upload --skip-existing dist/*.whl dist/*.tar.gz
 

@@ -2,6 +2,13 @@ include src/box2d/_box2d.so
 recursive-include box2d *
 recursive-include enkits *
 
+# The submodules are swept in wholesale, which on a machine that has already
+# built picks up the CMake trees as well -- object files and a CMakeCache.txt
+# full of local absolute paths. CI builds the sdist from a fresh checkout and
+# never sees them, so this is what keeps a local sdist matching CI's.
+prune box2d/build
+prune enkits/build
+
 include LICENSE
 include LICENSE-Box2D
 include README.md

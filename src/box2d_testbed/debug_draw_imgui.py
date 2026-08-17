@@ -278,8 +278,11 @@ class ImGuiDebugDraw(DebugDraw):
 
     def draw_polygon(self, transform, vertices, color):
         points = self.transform_to_screen(transform, vertices)
+        # thickness and flags by keyword, not position: imgui_bundle swapped
+        # the two between 1.92.4, which is what Pyodide ships, and 1.92.900.
+        # Either order is wrong somewhere, and the names are the same in both.
         self._draw_list.add_polyline(
-            points, pack_color(color), 1.0, imgui.ImDrawFlags_.closed
+            points, pack_color(color), thickness=1.0, flags=imgui.ImDrawFlags_.closed
         )
 
     def draw_solid_polygon(self, transform, vertices, radius, color):
@@ -291,7 +294,7 @@ class ImGuiDebugDraw(DebugDraw):
             points, pack_color(color, self.FILL_ALPHA)
         )
         self._draw_list.add_polyline(
-            points, pack_color(color), 1.0, imgui.ImDrawFlags_.closed
+            points, pack_color(color), thickness=1.0, flags=imgui.ImDrawFlags_.closed
         )
 
     def draw_circle(self, center, radius, color):
