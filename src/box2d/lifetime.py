@@ -7,7 +7,7 @@ own, or taken down with its world -- the id is stale, and handing a stale id
 back to Box2D reads freed memory and segfaults the interpreter.
 
 Every wrapper stores its id behind an :class:`IdRef`, which asks Box2D whether
-the id is still live on each read and raises :class:`DestroyedError` if it is
+the id is still live on each read and raises :class:`.DestroyedError` if it is
 not. Box2D's own ``b2*_IsValid`` functions are safe to call on stale ids,
 including ids whose world has already been destroyed, so this check never
 crashes on the values it is meant to reject.
@@ -40,7 +40,7 @@ def raw_id(obj, name: str):
 class IdRef:
     """Data descriptor exposing a Box2D id only while it remains valid.
 
-    Reading the attribute validates the id and raises :class:`DestroyedError`
+    Reading the attribute validates the id and raises :class:`.DestroyedError`
     if the underlying object is gone. This puts the check on every use without
     touching the call sites, which matter because there are several hundred.
 

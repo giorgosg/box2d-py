@@ -36,7 +36,7 @@ Body Management
 * ``world.bodies`` - Get list of all bodies in world
 
 Joint Creation
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 * ``world.add_distance_joint(body_a, body_b, ...)`` - Create a joint keeping bodies at a specific distance
 * ``world.add_revolute_joint(body_a, body_b, ...)`` - Create a hinge-like rotational joint 
@@ -47,7 +47,7 @@ Joint Creation
 * ``world.add_mouse_joint(body, target, ...)`` - Create a joint for interactive object dragging
 
 Spatial Queries
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 * ``world.query_aabb(aabb, collision_filter=None, max_results=None)`` - Find shapes in a specified AABB
 * ``world.query_circle(position, radius, collision_filter=None, max_results=None)`` - Find shapes in a circular area
@@ -55,7 +55,7 @@ Spatial Queries
 * ``world.get_sensor_events()`` - Get sensor overlap events from last simulation step
 
 Simulation Parameters
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 * ``world.gravity`` - Get/set gravitational acceleration vector (m/s²)
 * ``world.enable_sleep`` - Toggle body sleeping for inactive objects
@@ -114,12 +114,12 @@ Spatial queries:
         print(f"Hit at {hit.point}, normal: {hit.normal}")
 
 RayCastResult
-------------
+-------------
 
 Contains information about a ray's intersection with a shape.
 
 Properties
-^^^^^^^^^
+^^^^^^^^^^
 
 * ``shape`` - The shape hit by the ray
 * ``point`` - The hit point in world coordinates
@@ -127,30 +127,30 @@ Properties
 * ``fraction`` - Fraction of ray length to hit point (0.0 to 1.0)
 
 SensorEvent
-----------
+-----------
 
 Event generated when a sensor shape begins or ends overlap with another shape.
 
 Properties
-^^^^^^^^^
+^^^^^^^^^^
 
 * ``sensor`` - The sensor shape that triggered the event
 * ``visitor`` - The shape that entered or left the sensor
 * ``begin`` - True for beginning overlap, False for ending overlap
 
 SensorEvents
------------
+------------
 
 Collection of sensor events from a simulation step.
 
 Properties
-^^^^^^^^^
+^^^^^^^^^^
 
 * ``begin`` - List of sensor events for new overlaps
 * ``end`` - List of sensor events for ended overlaps
 
 Utility Functions
----------------
+-----------------
 
 * ``make_overlap_callback(results, max_results=None)`` - Create callback for overlap queries
 * ``make_ray_cast_callback(results)`` - Create callback for ray casting

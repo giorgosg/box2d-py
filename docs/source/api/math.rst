@@ -15,6 +15,19 @@ Key design principles of the Math module:
 * **Robust calculations**: Handles edge cases safely with proper numerical handling
 * **Box2D integration**: All classes provide conversion to and from Box2D's native C++ types
 
+VectorLike
+----------
+
+.. py:class:: VectorLike
+
+   Anything two floats can be read out of -- a :class:`Vec2`, a tuple, a list.
+   Every argument that means a point or a direction takes one of these and
+   passes it through :class:`Vec2`, rather than requiring one.
+
+   Declared as ``Iterable[float]`` in ``box2d.math``. It is a type alias
+   rather than a class, and is documented here because the signatures below
+   are full of it.
+
 Vec2
 ----
 

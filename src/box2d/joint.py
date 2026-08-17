@@ -39,7 +39,7 @@ class Joint(ABC):
     def destroy(self, wake_attached: bool = True):
         """Destroy the joint and remove it from the world.
 
-        The joint raises :class:`DestroyedError` if used afterwards. Destroying
+        The joint raises :class:`.DestroyedError` if used afterwards. Destroying
         twice is a no-op.
 
         Args:
@@ -128,7 +128,7 @@ class Joint(ABC):
 
     @property
     def local_frame_a(self) -> Transform:
-        """The joint's frame on body_a: attachment point and orientation.
+        """The joint's frame on body_a -- attachment point and orientation.
 
         The anchor alone positions a joint; the frame's rotation is what the
         joint measures its angle or axis against, so a revolute joint's zero

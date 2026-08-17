@@ -1,5 +1,5 @@
 Modules at a Glance
-==================
+===================
 
 These pages provide an organized overview of the Box2D-Python modules.
 

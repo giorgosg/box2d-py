@@ -3,6 +3,10 @@ from typing import Union, Iterable, TypeAlias, Protocol, runtime_checkable, Iter
 from ._box2d import ffi, lib
 
 
+# Anything two floats can be read out of -- a Vec2, a tuple, a list. Every
+# argument that means a point or a direction takes one of these and passes it
+# through Vec2, rather than requiring one. Documented in docs/source/api/math.rst,
+# where it can be a cross-reference target that the signatures link to.
 VectorLike = Iterable[float]
 
 b2Vec2_ctype = ffi.getctype("b2Vec2")
@@ -1085,7 +1089,7 @@ class Transform:
         Initialize transformation with position and rotation.
 
         Args:
-            position VectorLike: Translation component
+            position (VectorLike): Translation component
             rotation (Rot | float): Rotation component (accepts angle in radians)
 
         Example:
@@ -1228,11 +1232,6 @@ class ScaledTransform:
 
     Designed for visualization purposes - does not affect Box2D physics calculations.
     Applies transformations in the order: Scale → Rotate → Translate.
-
-    Attributes:
-        position (Vec2): Translation component of the transform
-        rotation (Rot): Rotation component of the transform
-        scale (Vec2): Scaling factors (x, y). Defaults to (1, 1)
 
     Example:
         >>> t = ScaledTransform(position=(10, 20), rotation=math.pi/2, scale=2)

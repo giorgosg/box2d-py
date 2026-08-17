@@ -17,12 +17,35 @@ release = "2025"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "sphinx_rtd_theme",
 ]
 
 templates_path = ["_templates"]
 exclude_patterns = []
+
+# So the standard types the signatures are full of -- int, float, tuple,
+# ValueError -- link to CPython's own documentation rather than sitting there
+# as plain text.
+intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
+
+# Signatures name types in full, box2d.math.Vec2 rather than Vec2, which
+# leaves them too wide to read. Show the last component and link it.
+python_use_unqualified_type_names = True
+
+# What `sphinx-build -n` can never resolve, so that running it says something.
+# Everything here is a word standing in for a type rather than naming one:
+# napoleon's "optional" marker, the prose types a few docstrings use, and the
+# C types cffi and Box2D hand back, which have no Python documentation.
+nitpick_ignore = [
+    ("py:class", "optional"),
+    ("py:class", "callable"),
+    ("py:class", "vector-like"),
+    ("py:class", "_cffi_backend._CDataBase"),
+    ("py:class", "b2Filter"),
+    ("py:class", "b2QueryFilter"),
+]
 
 # The compiled extension is not mocked: readthedocs builds it (see
 # .readthedocs.yml, which installs the package with cmake and the submodules).

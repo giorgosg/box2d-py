@@ -1,7 +1,7 @@
 """
 Events reported by the world after a step.
 
-Box2D collects what happened during :meth:`World.step` and hands it back as
+Box2D collects what happened during :meth:`.World.step` and hands it back as
 flat arrays. These dataclasses are the Python view of them, with shapes, bodies
 and joints resolved back to their wrapper objects rather than left as ids.
 
@@ -13,7 +13,7 @@ Events are opt-in per shape, and Box2D defaults them off:
 
 - contact begin and end need ``enable_contact_events`` on both shapes
 - hit events need ``enable_hit_events``, and only fire above the world's
-  :attr:`World.hit_event_threshold` approach speed
+  :attr:`.World.hit_event_threshold` approach speed
 - sensor overlap needs ``enable_sensor_events`` on the visiting shape
 """
 
@@ -95,7 +95,7 @@ class ContactEndEvent:
     """Two shapes stopped touching.
 
     A shape destroyed while touching another produces an end event whose
-    shape is already gone, so check :meth:`Shape.is_valid` before using them.
+    shape is already gone, so check :meth:`.Shape.is_valid` before using them.
 
     Attributes:
         shape_a: One of the shapes that were touching, possibly destroyed.

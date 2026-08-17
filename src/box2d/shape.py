@@ -276,7 +276,7 @@ class Shape(ABC):
     def destroy(self, update_body_mass: bool = True) -> None:
         """Remove this shape from its body.
 
-        The shape raises :class:`DestroyedError` if used afterwards. Destroying
+        The shape raises :class:`.DestroyedError` if used afterwards. Destroying
         twice is a no-op.
 
         Args:
@@ -850,6 +850,7 @@ class Chain:
             ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
             for i in range(returned)
         ]
+        """The :class:`ChainSegment` shapes this chain was built from, in order."""
 
     @classmethod
     def create(
@@ -934,7 +935,7 @@ class Chain:
         """Read the material a segment is actually using.
 
         Args:
-            segment_index: Index into :attr:`segments`.
+            segment_index: Index into :attr:`.segments`.
 
         Returns:
             SurfaceMaterial: A copy, so changing it does not affect the chain.

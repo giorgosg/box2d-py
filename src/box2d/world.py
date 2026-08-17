@@ -262,7 +262,7 @@ class World:
     ) -> Body:
         """Create a body in this world.
 
-        This is the direct counterpart to :meth:`Body.add_box` and the
+        This is the direct counterpart to :meth:`.Body.add_box` and the
         ``add_*_joint`` methods: it makes a body in one call. :meth:`new_body`
         returns a builder for the same thing in fluent style, and builds through
         here.
@@ -296,7 +296,7 @@ class World:
 
         Returns:
             Body: The newly created body, with no shapes attached yet. Add them
-            with :meth:`Body.add_box`, :meth:`Body.add_circle` and friends.
+            with :meth:`.Body.add_box`, :meth:`.Body.add_circle` and friends.
 
         Example:
             >>> world = World()
@@ -358,7 +358,7 @@ class World:
 
         Args:
             joint_def: Any definition from :mod:`box2d.jointdef`, such as
-                :class:`RevoluteJointDef`.
+                :class:`.RevoluteJointDef`.
 
         Returns:
             The created joint.
@@ -393,13 +393,13 @@ class World:
     def add_mouse_joint(
         self, body, target: VectorLike, max_force=1000.0, damping_ratio=0.7, hertz=5.0
     ) -> "MouseJoint":
-        """Drag a body toward a world-space target. See :class:`MouseJointDef`."""
+        """Drag a body toward a world-space target. See :class:`.MouseJointDef`."""
         return self.add_joint(
             MouseJointDef(body, target, max_force, damping_ratio, hertz)
         )
 
     def add_filter_joint(self, body_a, body_b) -> "FilterJoint":
-        """Stop two bodies colliding. See :class:`FilterJointDef`."""
+        """Stop two bodies colliding. See :class:`.FilterJointDef`."""
         return self.add_joint(FilterJointDef(body_a, body_b))
 
     def add_weld_joint(
@@ -410,7 +410,7 @@ class World:
         local_anchor_b: VectorLike = None,
         **kwargs,
     ) -> "WeldJoint":
-        """Hold two bodies rigidly together. See :class:`WeldJointDef`."""
+        """Hold two bodies rigidly together. See :class:`.WeldJointDef`."""
         return self.add_joint(
             WeldJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
@@ -423,7 +423,7 @@ class World:
         local_anchor_b: VectorLike = None,
         **kwargs,
     ) -> "RevoluteJoint":
-        """Pin two bodies at a point they rotate about. See :class:`RevoluteJointDef`."""
+        """Pin two bodies at a point they rotate about. See :class:`.RevoluteJointDef`."""
         return self.add_joint(
             RevoluteJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
@@ -436,7 +436,7 @@ class World:
         local_anchor_b: VectorLike = None,
         **kwargs,
     ) -> "PrismaticJoint":
-        """Let two bodies slide along one axis. See :class:`PrismaticJointDef`."""
+        """Let two bodies slide along one axis. See :class:`.PrismaticJointDef`."""
         return self.add_joint(
             PrismaticJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
@@ -449,7 +449,7 @@ class World:
         local_anchor_b: VectorLike = None,
         **kwargs,
     ) -> "WheelJoint":
-        """A sliding axis with a spring, as for suspension. See :class:`WheelJointDef`."""
+        """A sliding axis with a spring, as for suspension. See :class:`.WheelJointDef`."""
         return self.add_joint(
             WheelJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
@@ -462,13 +462,13 @@ class World:
         local_anchor_b: VectorLike = None,
         **kwargs,
     ) -> "DistanceJoint":
-        """Keep two points a fixed distance apart. See :class:`DistanceJointDef`."""
+        """Keep two points a fixed distance apart. See :class:`.DistanceJointDef`."""
         return self.add_joint(
             DistanceJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
     def add_motor_joint(self, body_a, body_b, **kwargs) -> "MotorJoint":
-        """Drive the relative motion of two bodies. See :class:`MotorJointDef`."""
+        """Drive the relative motion of two bodies. See :class:`.MotorJointDef`."""
         return self.add_joint(MotorJointDef(body_a, body_b, **kwargs))
 
     def _track_body(self, body: "Body"):
@@ -739,7 +739,7 @@ class World:
         """Find shapes overlapping an arbitrary region.
 
         The general form of :meth:`query_circle`: any region a
-        :class:`ShapeProxy` can describe, which is any convex shape.
+        :class:`.ShapeProxy` can describe, which is any convex shape.
 
         Args:
             proxy: The region to test, in world coordinates.
@@ -1238,7 +1238,7 @@ class World:
         """Destroy the world.
 
         Destroying a world also destroys every body, shape and joint in it.
-        Those objects raise :class:`DestroyedError` if used afterwards.
+        Those objects raise :class:`.DestroyedError` if used afterwards.
 
         Example:
             >>> world = World()
@@ -1410,7 +1410,7 @@ class World:
 
     @property
     def counters(self) -> Counters:
-        """How big the simulation is: bodies, contacts, islands, bytes.
+        """How big the simulation is -- bodies, contacts, islands, bytes.
 
         Example:
             >>> world = World()

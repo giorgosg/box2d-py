@@ -496,7 +496,7 @@ class BodyBuilder:
     def build(self) -> "Body":
         """Finalize the body creation and attach configured shapes.
 
-        Creates the body through :meth:`World.add_body` and attaches the shapes
+        Creates the body through :meth:`.World.add_body` and attaches the shapes
         configured on this builder. The builder may be reused to create several
         bodies; each build produces an independent body.
 
@@ -532,7 +532,7 @@ class Body:
         """
         Initialize a Body instance.
 
-        Prefer :meth:`World.add_body`, which is the supported way to create a
+        Prefer :meth:`.World.add_body`, which is the supported way to create a
         body. This constructor is the single point where a BodyDef becomes a
         live body, and everything else routes through it.
 
@@ -1038,7 +1038,7 @@ class Body:
         Destroy this body and remove it from the world.
 
         Destroying a body also destroys its shapes. The body and its shapes
-        raise :class:`DestroyedError` if used afterwards. Destroying twice is a
+        raise :class:`.DestroyedError` if used afterwards. Destroying twice is a
         no-op.
         """
         # Read past the validity check: the id is needed to deregister the body

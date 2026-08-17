@@ -51,7 +51,7 @@ class CollisionCategoryRegistry:
             The bitmask value assigned to this category.
 
         Raises:
-            ValueError if the maximum number of categories (16) is exceeded.
+            ValueError: If the maximum number of categories (16) is exceeded.
 
         Example:
             >>> reg = CollisionCategoryRegistry()
@@ -79,7 +79,7 @@ class CollisionCategoryRegistry:
             The bitmask associated with the category.
 
         Raises:
-            ValueError if the category has not been defined.
+            ValueError: If the category has not been defined.
 
         Example:
             >>> reg = CollisionCategoryRegistry(auto_create=True)

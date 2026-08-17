@@ -1,4 +1,8 @@
 version: 2
+
+# Box2D and enkiTS are compiled during the install below, so the submodules
+# have to be there first. `submodules: include: all` is what fetches them;
+# the pre_build hooks that used to repeat it ran too late to matter.
 submodules:
   include: all
 
@@ -8,10 +12,6 @@ build:
     python: "3.12"
   apt_packages:
     - cmake
-  jobs:
-    pre_build:
-      - git submodule init
-      - git submodule update
 
 python:
   install:

@@ -7,7 +7,7 @@ simulation behind it -- how many bodies, contacts and islands, and how many
 bytes they occupy.
 
 Both are snapshots of the step that just finished, so read them after
-:meth:`World.step` and before the next one::
+:meth:`.World.step` and before the next one::
 
     world.step(1 / 60, 4)
     profile = world.profile

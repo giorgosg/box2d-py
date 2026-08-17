@@ -7,9 +7,9 @@ over, and be moved by the player rather than by forces. Box2D 3.2 provides the
 pieces for doing that yourself against the same collision data the solver uses.
 
 The loop is: ask the world what a capsule would run into
-(:meth:`World.collide_mover`), work out the movement that satisfies all of
+(:meth:`.World.collide_mover`), work out the movement that satisfies all of
 those at once (:func:`solve_planes`), and remove the parts of the velocity that
-point into them (:func:`clip_vector`). :meth:`World.cast_mover` is the
+point into them (:func:`clip_vector`). :meth:`.World.cast_mover` is the
 sweep-test counterpart, for questions like "how far can I fall before I land".
 
 Nothing here moves anything. These are queries and geometry, so the character's
@@ -105,7 +105,7 @@ def solve_planes(target_delta, planes: List[CollisionPlane]) -> MoverResult:
 
     Args:
         target_delta: The movement wanted, as a vector-like, ignoring obstacles.
-        planes: What the mover is up against, from :meth:`World.collide_mover`.
+        planes: What the mover is up against, from :meth:`.World.collide_mover`.
 
     Returns:
         MoverResult: The movement to actually apply. Each plane's ``push`` is

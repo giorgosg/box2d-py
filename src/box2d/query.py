@@ -1,14 +1,14 @@
 """
 The shape used to ask the world a question.
 
-Overlap and cast queries do not take a :class:`Shape` -- a shape belongs to a
+Overlap and cast queries do not take a :class:`.Shape` -- a shape belongs to a
 body and sits somewhere in the world, while a query is about a region you
 describe on the spot. Box2D expresses that region as a point cloud with a
 radius, which covers every case with one type: one point with a radius is a
 circle, two points a capsule, four a box, and any point with a zero radius is
 the polygon through them.
 
-:class:`ShapeProxy` is that region, with constructors for the shapes you
+:class:`.ShapeProxy` is that region, with constructors for the shapes you
 actually want rather than the point clouds behind them::
 
     world.query_shape(ShapeProxy.box(2, 1, center=(4, 0)))
@@ -87,7 +87,7 @@ class ShapeProxy:
         """A box of the given full width and height, centred on ``center``.
 
         Args:
-            width: Full width, matching :meth:`Body.add_box`.
+            width: Full width, matching :meth:`.Body.add_box`.
             height: Full height.
             center: Where the box's centre sits, in world coordinates.
             rotation: Rotation about the centre, in radians.

@@ -3,7 +3,7 @@ Joint definitions.
 
 A joint definition bundles everything needed to create one joint, so that
 adding a joint is one declarative object rather than a call with a dozen
-keyword arguments. :meth:`World.add_joint` takes any of these.
+keyword arguments. :meth:`.World.add_joint` takes any of these.
 
 Every definition shares the fields in :class:`JointDef`: the two bodies, where
 the joint attaches to each, and whether those bodies still collide. Anchors can
@@ -248,7 +248,7 @@ class MotorJointDef(JointDef):
     """Drives the relative motion of two bodies.
 
     Box2D 3.2 rewrote this joint around velocities and springs. To pull a body
-    toward a world point, use :class:`MouseJointDef` instead.
+    toward a world point, use :class:`.MouseJointDef` instead.
 
     Attributes:
         linear_velocity: Desired relative linear velocity.
