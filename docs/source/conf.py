@@ -3,8 +3,6 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import sys, os, sphinx_rtd_theme
-
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -30,6 +28,12 @@ exclude_patterns = []
 # .readthedocs.yml, which installs the package with cmake and the submodules).
 # Mocking it made every module that reads a Box2D default at import time fail to
 # import, which silently left most of the API undocumented.
+#
+# Nothing is put on sys.path here either. Pointing it at src/ shadowed the
+# installed package with the source tree, which carries no compiled _box2d --
+# so every autodoc directive failed to import and rendered as nothing, and the
+# build still reported success. autodoc imports what is installed instead: the
+# editable install locally, the wheel readthedocs builds.
 
 # Napoleon settings for Google-style docstrings
 napoleon_google_docstring = True
@@ -39,5 +43,3 @@ napoleon_include_init_with_doc = True
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
-sys.path.insert(0, os.path.abspath("../../src/"))  # Add project to path
