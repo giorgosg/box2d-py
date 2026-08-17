@@ -130,6 +130,10 @@ class TestbedData:
         self.step_count = 0  # step count for current physics world
         self.step_number = 0  # how many times the step button has been pressed
         self.current_test_cls = None
+        # None while the current scenario is running. A traceback once it has
+        # failed to build or one of its hooks has raised, which the scenario's
+        # own panel shows in place of its controls.
+        self.scenario_error = None
         self.current_test_obj = None
         self.all_tests = None
         self.perf = PerformanceData()

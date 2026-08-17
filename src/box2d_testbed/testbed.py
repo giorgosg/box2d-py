@@ -14,10 +14,19 @@ from box2d import HAS_THREADS
 from .testbed_state import state
 from .testbed_simulation import TestbedSimulation
 from .base_test import BaseTest, format_view_declaration
+from .scenario_console import Console
+from .scenario_editor import ScenarioEditor
 import os
 import time
 from .debug_draw_imgui import ImGuiDebugDraw
 from box2d import Vec2
+
+
+#: What the code panels are drawn in, and the size to load it at. Inconsolata
+#: ships inside imgui_bundle's assets, so this needs nothing installed and is
+#: there in a browser build too.
+MONO_FONT = "fonts/Inconsolata-Medium.ttf"
+MONO_FONT_SIZE = 16.0
 
 
 class TestbedApp:
@@ -29,6 +38,12 @@ class TestbedApp:
         self.last_step_time = time.perf_counter()
         self.triangle_vao = None
         self.triangle_program = None
+        # Loaded once there is a font atlas to load it into, which is after the
+        # panels below have been built -- so they read it off the app each
+        # frame rather than being handed it.
+        self.mono_font = None
+        self.editor = ScenarioEditor(self)
+        self.console = Console(self)
         self.init_app()
 
     def init_app(self):
@@ -59,6 +74,22 @@ class TestbedApp:
         )
 
         self.runner_params.callbacks.pre_new_frame = self.update_physics_timer
+        self.runner_params.callbacks.load_additional_fonts = self.load_fonts
+
+    def load_fonts(self):
+        """The default font, and a monospace one for the code panels.
+
+        hello_imgui's own callback is called rather than replaced: it loads
+        DroidSans with the FontAwesome icons merged in, and the play and step
+        buttons in Controls are two of those icons.
+
+        The editor and the console show code, and a proportional font makes a
+        mess of it -- indentation that does not line up, and a text editor whose
+        cursor lands between characters, since ImGuiColorTextEdit measures one
+        glyph and assumes the rest match.
+        """
+        hello_imgui.imgui_default_settings.load_default_font_with_font_awesome_icons()
+        self.mono_font = hello_imgui.load_font(MONO_FONT, MONO_FONT_SIZE)
 
     def post_gl_init(self):
         """Build the renderer and the simulation, once there is a GL context."""
@@ -163,6 +194,12 @@ class TestbedApp:
             )
 
     def key_press_events(self):
+        # Not while something is being typed. The editor and the console are
+        # both text fields, and without this every letter reaching them also
+        # reached the testbed: typing "pr" in the console paused the simulation
+        # and restarted the scenario.
+        if imgui.get_io().want_capture_keyboard:
+            return
 
         # Map of ImGui key codes to string identifiers
         key_map = {
@@ -247,21 +284,37 @@ class TestbedApp:
     def create_layout(self):
         docking_params = hello_imgui.DockingParams()
 
+        # The saved layout is keyed by this name, and dock ids are positions in
+        # the split tree -- so adding a split moves windows an older ini had
+        # pinned elsewhere, which put the scenario's own panel in among the
+        # simulation's tabs. A new name means a clean layout instead, leaving
+        # whatever was saved under the old one alone. Change it when the set of
+        # windows or splits below changes.
+        docking_params.layout_name = "with-editor"
+
         # A right-hand panel split top to bottom into Tests, the current test's
-        # own UI, Controls, and Performance.
+        # own UI, Controls, and Performance, and a console along the bottom.
         docking_params.docking_splits = [
             self._docking_split("MainDockSpace", "RightPanel", imgui.Dir_.right, 0.2),
+            self._docking_split("MainDockSpace", "BottomPanel", imgui.Dir_.down, 0.25),
             self._docking_split("RightPanel", "RightPanel1", imgui.Dir_.down, 0.73),
             self._docking_split("RightPanel1", "RightPanel2", imgui.Dir_.down, 0.5),
             self._docking_split("RightPanel2", "RightPanel3", imgui.Dir_.down, 0.4),
         ]
         docking_params.dockable_windows = [
+            # The simulation is declared before the editor they share a dock
+            # space with, which is what leaves it the tab in front: the testbed
+            # should open showing physics, not source.
             self._dockable_window(
                 "Simulation",
                 "MainDockSpace",
                 self.render_simulation,
                 imgui_window_flags=imgui.WindowFlags_.no_background,
             ),
+            # The editor is here rather than in the 20% strip on the right,
+            # where no line of code fits.
+            self._dockable_window("Editor", "MainDockSpace", self.editor.gui),
+            self._dockable_window("Console", "BottomPanel", self.console.gui),
             self._dockable_window("Tests", "RightPanel1", self.show_test_list),
             self._dockable_window("Performance", "RightPanel3", self.show_stats),
             self._dockable_window("Controls", "RightPanel", self.show_controls),
@@ -282,9 +335,21 @@ class TestbedApp:
         return self._dockable_window(label, "RightPanel2", self.render_test_ui)
 
     def render_test_ui(self):
-        # Only render if a test object exists.
+        if state.current_test_cls is None:
+            return
         imgui.text(f"Test: {state.current_test_cls.name}")
         imgui.separator()
+
+        # A scenario that failed to build has no controls to show, so its panel
+        # shows why instead. This is the common view while editing one.
+        if state.scenario_error:
+            imgui.push_style_color(imgui.Col_.text, (1.0, 0.4, 0.4, 1.0))
+            imgui.text_wrapped(state.scenario_error)
+            imgui.pop_style_color()
+            if state.current_test_obj is None:
+                return
+            imgui.separator()
+
         # Iterate through UI elements defined in the current test.
         previous_was_button = False
         for name, elem in state.current_test_obj.ui_elements:
@@ -353,6 +418,10 @@ class TestbedApp:
             imgui.Key.left_bracket: lambda: self.cycle_test(-1),
             imgui.Key.right_bracket: lambda: self.cycle_test(1),
         }
+
+    def focus_editor(self):
+        """Bring the editor tab up, since it shares a dock with the simulation."""
+        self.runner_params.docking_params.focus_dockable_window("Editor")
 
     def toggle_pause(self):
         state.simulation_paused = not state.simulation_paused
@@ -444,6 +513,19 @@ class TestbedApp:
         imgui.text_disabled("P pause   O step   R reset   Home view   [ ] prev/next")
 
     def show_menus(self):
+        if imgui.begin_menu("Scenario"):
+            if imgui.menu_item("New", "", False)[0]:
+                self.editor.new()
+                self.focus_editor()
+            if imgui.menu_item("Edit the running one", "", False)[0]:
+                self.editor.open_current_scenario()
+                self.focus_editor()
+            if imgui.menu_item("Save", "Ctrl+S", False)[0]:
+                self.editor.save()
+            imgui.separator()
+            imgui.text_disabled(str(self.editor.user_store.path))
+            imgui.end_menu()
+
         if imgui.begin_menu("Draw"):
             for key, value, display in state.show_dd.get_current():
                 _, newvalue = imgui.menu_item(display, "", value)

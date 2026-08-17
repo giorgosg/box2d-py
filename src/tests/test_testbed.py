@@ -187,15 +187,38 @@ def test_drag_can_be_repeated(world):
 
 @needs_gui_stack
 def test_layout_is_well_formed():
-    """The docking layout is pure data, so it can be built without a window."""
+    """The docking layout is pure data, so it can be built without a window.
+
+    The whole app is constructed, which needs no GL context and no window: the
+    editor and the console are panels of it, and a layout referring to their
+    gui functions cannot be built without them.
+    """
     from box2d_testbed.testbed import TestbedApp
 
-    app = TestbedApp.__new__(TestbedApp)
+    app = TestbedApp()
     params = app.create_layout()
 
-    assert len(params.docking_splits) == 4
+    assert len(params.docking_splits) == 5
     labels = [w.label for w in params.dockable_windows]
-    assert labels == ["Simulation", "Tests", "Performance", "Controls", "Test UI"]
+    # All but the last, whose title follows the scenario that is selected and so
+    # depends on what has run before this.
+    assert labels[:-1] == [
+        "Simulation",
+        "Editor",
+        "Console",
+        "Tests",
+        "Performance",
+        "Controls",
+    ]
+    assert params.dockable_windows[-1].dock_space_name == "RightPanel2"
+    # The editor shares a dock space with the simulation, which has to come
+    # first: the tab declared first is the one in front, and the testbed should
+    # open showing physics rather than source.
+    simulation, editor = params.dockable_windows[:2]
+    assert simulation.dock_space_name == editor.dock_space_name == "MainDockSpace"
+    # Adding a split moves windows an older saved layout had pinned elsewhere,
+    # so the layout the ini is keyed by has to change with it.
+    assert params.layout_name != "Default"
 
     # Every window must dock into a space some split actually creates.
     created = {"MainDockSpace"} | {s.new_dock for s in params.docking_splits}

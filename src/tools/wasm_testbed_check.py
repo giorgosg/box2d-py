@@ -118,4 +118,54 @@ assert state.threads == 1, "a build with no scheduler must default to one thread
 box2d.World(threads=state.threads).destroy()
 print("a world builds with the testbed's default settings")
 
+# The editor and the console. The risk here is the browser's older imgui
+# binding: ImGuiColorTextEdit's Python API was reworked during 1.92, and
+# constructing the editor is what finds out which spelling this build wants.
+# None of it needs a window.
+import tempfile  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from box2d_testbed.scenario_console import Console  # noqa: E402
+from box2d_testbed.scenario_editor import ScenarioEditor  # noqa: E402
+from box2d_testbed.scenario_loader import ScenarioLoader  # noqa: E402
+from box2d_testbed.scenario_store import UserStore, template_for  # noqa: E402
+
+editor = ScenarioEditor(None)
+language = getattr(editor.editor, "get_language_name", lambda: "unknown")()
+print(f"\neditor   : text widget built, highlighting {language!r}")
+
+# The code panels are drawn in a monospace font that comes out of imgui_bundle's
+# own assets. Nothing here can load it -- that needs a font atlas -- but whether
+# the browser's copy of the wheel carries the file at all is worth knowing
+# before the panel is drawn with it.
+from imgui_bundle import hello_imgui  # noqa: E402
+
+from box2d_testbed.testbed import MONO_FONT  # noqa: E402
+
+assert hello_imgui.asset_exists(MONO_FONT), f"{MONO_FONT} is not in this build"
+print(f"font     : {MONO_FONT} is there")
+
+# Write a scenario, load it, and run it -- the whole editing loop, without the
+# panel around it. The filesystem here is the browser's, and does not persist.
+store = UserStore(tempfile.mkdtemp())
+scenario_loader = ScenarioLoader()
+reference = store.write("wasm_check", template_for("wasm_check"))
+loaded = scenario_loader.load_source(
+    "wasm_check", reference.read(), filename=str(store.path_for("wasm_check"))
+)
+world = box2d.World()
+try:
+    scenario = loaded[0](world)
+    scenario.setup()
+    for _ in range(10):
+        world.step(1 / 60, 4)
+finally:
+    world.destroy()
+print(f"editing  : saved, loaded and simulated {loaded[0].name!r}")
+
+console = Console(SimpleNamespace(simulation=None))
+console.submit("6 * 7")
+assert console.lines[-1][0] == "42", console.lines[-3:]
+print("console  : evaluates")
+
 print("\nThe testbed's Python runs in WebAssembly.")
