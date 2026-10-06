@@ -43,10 +43,6 @@ def test_exported_from_the_package(module, name):
 # neighbours is dropped as collinear.
 
 
-def test_a_triangle_is_valid():
-    assert box2d.PolygonDef([(0, 0), (1, 0), (0, 1)]).is_valid
-
-
 def _circle_points(count, radius=1.0):
     return [
         (
@@ -106,9 +102,9 @@ def body():
     world.destroy()
 
 
-def _adds(body, vertices, radius=0.0):
+def _adds(body, vertices, radius=0.0, offset=(0, 0), angle=0.0):
     try:
-        body.add_polygon(vertices, radius)
+        body.add_polygon(vertices, radius, offset=offset, angle=angle)
     except ValueError:
         return False
     return True
@@ -125,7 +121,8 @@ def test_is_valid_says_whether_adding_the_polygon_succeeds(body, vertices):
 
 
 # Box2D refuses a polygon shape whose rounding radius is negative or not a
-# number, even when its hull is fine.
+# number, even when its hull is fine. It stores the radius as a 32-bit float,
+# so a number too big for one is infinite by the time Box2D sees it.
 RADII = {
     "no radius": (None, True),
     "zero": (0.0, True),
@@ -133,6 +130,8 @@ RADII = {
     "negative": (-0.1, False),
     "nan": (math.nan, False),
     "infinite": (math.inf, False),
+    "close to the largest a float holds": (1e38, True),
+    "too big for a float": (1e39, False),
 }
 
 
@@ -141,6 +140,36 @@ def test_the_radius_must_be_a_size(body, radius, valid):
     triangle = BUILDABLE["triangle"]
     assert box2d.PolygonDef(triangle, radius).is_valid == valid
     assert _adds(body, triangle, radius or 0.0) == valid
+
+
+# The offset and rotation move the vertices, and Box2D refuses a polygon whose
+# moved vertices, normals or centroid are not finite 32-bit floats.
+PLACEMENTS = {
+    "offset": ({"offset": (1000, -2)}, True),
+    "offset that is not a number": ({"offset": (math.nan, 0)}, False),
+    "infinite offset": ({"offset": (0, math.inf)}, False),
+    "offset too big for a float": ({"offset": (1e39, 0)}, False),
+    # 1e20 + 1 is 1e20 in a 32-bit float, so the triangle collapses to a
+    # point and has no area to find a centroid from.
+    "offset too far to keep the triangle's shape": ({"offset": (1e20, 1e20)}, False),
+    "angle": ({"angle": 1.0}, True),
+    # A huge angle is still an angle: only its sine and cosine are kept.
+    "huge angle": ({"angle": 1e39}, True),
+    "angle that is not a number": ({"angle": math.nan}, False),
+    "infinite angle": ({"angle": math.inf}, False),
+    "rotation": ({"angle": box2d.Rot(1.0)}, True),
+    "rotation that is not a number": ({"angle": box2d.Rot(math.nan)}, False),
+}
+
+
+@pytest.mark.parametrize("placement, valid", PLACEMENTS.values(), ids=PLACEMENTS.keys())
+def test_the_placed_polygon_must_be_finite(body, placement, valid):
+    triangle = BUILDABLE["triangle"]
+    polygon = box2d.PolygonDef(
+        triangle, offset=placement.get("offset"), rotation=placement.get("angle")
+    )
+    assert polygon.is_valid == valid
+    assert _adds(body, triangle, **placement) == valid
 
 
 def test_doctests():
