@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+from box2d import World
+
 
 @pytest.fixture(autouse=True, scope="session")
 def isolated_scenario_dir(tmp_path_factory):
@@ -25,3 +27,15 @@ def isolated_scenario_dir(tmp_path_factory):
             os.environ.pop("BOX2D_TESTBED_SCENARIOS", None)
         else:
             os.environ["BOX2D_TESTBED_SCENARIOS"] = previous
+
+
+@pytest.fixture
+def world():
+    """A fresh world, destroyed after the test.
+
+    Test modules that need one set up differently define their own ``world``,
+    which takes precedence over this.
+    """
+    world = World()
+    yield world
+    world.destroy()

@@ -10,28 +10,7 @@ import pytest
 
 from box2d import World
 from box2d_testbed import tb_joints  # noqa: F401  (registers the scenarios)
-from box2d_testbed.base_test import BaseTest
-
-HERTZ = 60
-
-
-@pytest.fixture
-def world():
-    world = World()
-    yield world
-    world.destroy()
-
-
-def scenario(world, name):
-    test = BaseTest.registry["Joints"][name](world)
-    test.setup()
-    return test
-
-
-def run(test, seconds):
-    for _ in range(int(seconds * HERTZ)):
-        test.world.step(1 / HERTZ, 4)
-        test.after_step(1 / HERTZ)
+from testbed_scenarios import HERTZ, run, scenario
 
 
 def motor_box(test):
@@ -39,7 +18,7 @@ def motor_box(test):
 
 
 def test_unticking_go_stops_the_motor_joint_box(world):
-    test = scenario(world, "Motor Joint")
+    test = scenario(world, "Joints", "Motor Joint")
     run(test, 1.0)
     assert abs(motor_box(test).linear_velocity.x) > 1.0, "it should be moving"
 
@@ -53,7 +32,7 @@ def test_unticking_go_stops_the_motor_joint_box(world):
 
 
 def test_ticking_go_again_restarts_a_box_that_fell_asleep(world):
-    test = scenario(world, "Motor Joint")
+    test = scenario(world, "Joints", "Motor Joint")
     run(test, 1.0)
     test.enable_motion = False
     run(test, 3.0)
@@ -68,7 +47,7 @@ def test_ticking_go_again_restarts_a_box_that_fell_asleep(world):
 
 
 def test_a_motor_too_weak_to_hold_the_box_up_lets_it_land_on_the_platform(world):
-    test = scenario(world, "Motor Joint")
+    test = scenario(world, "Joints", "Motor Joint")
     # The box weighs 10 N, so this cannot hold it up.
     test.max_velocity_force = 2.0
     run(test, 4.0)
@@ -78,7 +57,7 @@ def test_a_motor_too_weak_to_hold_the_box_up_lets_it_land_on_the_platform(world)
 
 
 def test_lowering_the_force_cap_drops_a_box_that_go_stopped(world):
-    test = scenario(world, "Motor Joint")
+    test = scenario(world, "Joints", "Motor Joint")
     run(test, 1.0)
     test.enable_motion = False
     run(test, 3.0)
@@ -91,7 +70,7 @@ def test_lowering_the_force_cap_drops_a_box_that_go_stopped(world):
 
 
 def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
-    test = scenario(world, "Cantilever")
+    test = scenario(world, "Joints", "Cantilever")
     run(test, 1.0)
     sagging = test.tip.position
     assert sagging.y < -1.0, "the beam should have drooped"
@@ -104,7 +83,7 @@ def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
 
 
 def test_the_driving_course_ends_in_a_wall(world):
-    scenario(world, "Driving")
+    scenario(world, "Joints", "Driving")
 
     # Along the last flat stretch, towards the end of the course at x = 320.
     hits = world.ray_cast((310, 5), (20, 0), first_hit_only=True)
@@ -114,7 +93,7 @@ def test_the_driving_course_ends_in_a_wall(world):
 
 
 def test_the_user_constraint_ropes_pull_but_never_push(world):
-    test = scenario(world, "User Constraint")
+    test = scenario(world, "Joints", "User Constraint")
     tensions = []
     for _ in range(3 * HERTZ):
         run(test, 1 / HERTZ)
@@ -125,7 +104,7 @@ def test_the_user_constraint_ropes_pull_but_never_push(world):
 
 
 def test_the_soft_body_springs_retune_a_ring_that_has_settled(world):
-    test = scenario(world, "Soft Body")
+    test = scenario(world, "Joints", "Soft Body")
     # It lands, bounces and wobbles; by 30 s it has fallen asleep.
     run(test, 35.0)
     ring = [joint.body_a for joint in test.joints]
@@ -141,7 +120,7 @@ def coasting_speed(world, control=None, value=None):
 
     If a control is given, it is set half a second into the coast.
     """
-    test = scenario(world, "Driving")
+    test = scenario(world, "Joints", "Driving")
     test.on_key_down("d")
     run(test, 2.0)
     test.on_key_up("d")
@@ -180,7 +159,7 @@ def test_the_torque_slider_does_not_brake_a_coasting_car():
 
 
 def test_the_torque_slider_reaches_a_car_being_driven(world):
-    test = scenario(world, "Driving")
+    test = scenario(world, "Joints", "Driving")
     test.on_key_down("d")
     test.torque = 8.0
 
@@ -198,7 +177,7 @@ def drive_target(test):
 
 
 def test_the_speed_slider_reaches_a_car_being_driven(world):
-    test = scenario(world, "Driving")
+    test = scenario(world, "Joints", "Driving")
     test.on_key_down("d")
     test.speed = 50.0
 
@@ -207,7 +186,7 @@ def test_the_speed_slider_reaches_a_car_being_driven(world):
 
 
 def test_letting_go_of_one_of_two_drive_keys_keeps_the_other(world):
-    test = scenario(world, "Driving")
+    test = scenario(world, "Joints", "Driving")
     test.on_key_down("d")
     test.on_key_down("a")
     assert drive_target(test)[0] == pytest.approx(test.speed), "A, pressed last"
@@ -221,7 +200,7 @@ def test_letting_go_of_one_of_two_drive_keys_keeps_the_other(world):
 
 
 def test_braking_while_driving_and_letting_go_of_the_brake(world):
-    test = scenario(world, "Driving")
+    test = scenario(world, "Joints", "Driving")
     test.on_key_down("d")
     test.on_key_down("s")
     assert drive_target(test) == (0.0, pytest.approx(test.torque)), "braking"
