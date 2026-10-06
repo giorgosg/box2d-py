@@ -60,6 +60,10 @@ class Friction(BaseTest, category="Shapes", name="Friction"):
     frictionless one slides off the end of the ground.
     """
 
+    # Framed by hand: framing what moves would show only the boxes at the top.
+    camera_center = (0, 14)
+    camera_zoom = 15.0
+
     def setup(self):
         (
             self.world.new_body()
@@ -97,6 +101,10 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
     capsules. The polygons land on their corners and tumble, which scatters
     their bounces.
     """
+
+    # Framed by hand: framing what moves would leave the ground out of view.
+    camera_center = (0, 18)
+    camera_zoom = 27.5
 
     shape = UI.select("circle", ["circle", "box", "polygon", "capsule"])
 

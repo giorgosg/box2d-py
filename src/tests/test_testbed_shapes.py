@@ -84,3 +84,21 @@ def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
     # Box2D's sample makes the polygon a box 0.5 by 0.75 from its centre.
     corners = {(round(v.x, 6), round(v.y, 6)) for v in shape.vertices}
     assert corners == {(-1.0, -1.5), (1.0, -1.5), (1.0, 1.5), (-1.0, 1.5)}
+
+
+@pytest.mark.parametrize(
+    "name, top",
+    [
+        # The boxes start 28 m up, and slide down to the ground.
+        ("Friction", 28.5),
+        # The bodies drop from 40 m, and the restitution 1 ones come back up.
+        ("Restitution", 40.5),
+    ],
+)
+def test_the_opening_view_shows_the_ground_and_the_drop(world, name, top):
+    test = scenario(world, name)
+    center, zoom = test.view()
+
+    # zoom is half the visible height.
+    assert center.y - zoom <= 0.0, "the ground is below the view"
+    assert center.y + zoom >= top, "the bodies start above the view"
