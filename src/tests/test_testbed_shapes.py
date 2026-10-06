@@ -8,30 +8,9 @@ boxes that had come to rest sitting still on a running belt.
 
 import pytest
 
-from box2d import Polygon, PolygonDef, World
+from box2d import Polygon, PolygonDef
 from box2d_testbed import tb_shapes  # noqa: F401  (registers the scenarios)
-from box2d_testbed.base_test import BaseTest
-
-HERTZ = 60
-
-
-@pytest.fixture
-def world():
-    world = World()
-    yield world
-    world.destroy()
-
-
-def scenario(world, name):
-    test = BaseTest.registry["Shapes"][name](world)
-    test.setup()
-    return test
-
-
-def run(test, seconds):
-    for _ in range(int(seconds * HERTZ)):
-        test.world.step(1 / HERTZ, 4)
-        test.after_step(1 / HERTZ)
+from testbed_scenarios import run, scenario
 
 
 def dynamic_bodies(world):
@@ -39,7 +18,7 @@ def dynamic_bodies(world):
 
 
 def test_starting_the_conveyor_belt_moves_boxes_resting_on_it(world):
-    test = scenario(world, "Conveyor Belt")
+    test = scenario(world, "Shapes", "Conveyor Belt")
     test.tangent_speed = 0.0
     run(test, 3.0)
     boxes = dynamic_bodies(world)
@@ -55,7 +34,7 @@ def test_starting_the_conveyor_belt_moves_boxes_resting_on_it(world):
 
 
 def test_icing_the_middle_stretch_lets_a_box_resting_there_slide(world):
-    test = scenario(world, "Chain Materials")
+    test = scenario(world, "Shapes", "Chain Materials")
     # Grippy enough to stop the box on the middle stretch's gentle slope.
     test.icy_friction = 1.0
     run(test, 7.0)
@@ -72,7 +51,7 @@ def test_icing_the_middle_stretch_lets_a_box_resting_there_slide(world):
 
 
 def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
-    test = scenario(world, "Modify Geometry")
+    test = scenario(world, "Shapes", "Modify Geometry")
     test.shape = "polygon"
     test.scale = 2.0
     run(test, 0.5)
@@ -97,7 +76,7 @@ def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
     ],
 )
 def test_the_opening_view_shows_the_ground_and_the_drop(world, name, top):
-    test = scenario(world, name)
+    test = scenario(world, "Shapes", name)
     center, zoom = test.view()
 
     # zoom is half the visible height.
@@ -106,7 +85,7 @@ def test_the_opening_view_shows_the_ground_and_the_drop(world, name, top):
 
 
 def test_a_new_platform_shape_keeps_the_geometry_it_was_given(world):
-    test = scenario(world, "Modify Geometry")
+    test = scenario(world, "Shapes", "Modify Geometry")
     square = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
 
     shape = test.add_shape(PolygonDef(square, radius=0.25))
