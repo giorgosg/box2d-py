@@ -13,9 +13,12 @@ pivot is but not each body's local frame.
 """
 
 from dataclasses import dataclass, fields
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from .math import VectorLike
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .body import Body
 
 
 @dataclass

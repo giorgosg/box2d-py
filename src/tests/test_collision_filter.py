@@ -16,7 +16,6 @@ import doctest
 
 from box2d.collision_filter import (
     CollisionFilter,
-    filters_collide,
     CollisionCategoryRegistry,
 )
 

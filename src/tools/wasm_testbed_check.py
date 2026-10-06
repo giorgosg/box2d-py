@@ -19,14 +19,13 @@ import box2d
 
 print(f"box2d    : HAS_THREADS={box2d.HAS_THREADS}")
 
-from imgui_bundle import imgui  # noqa: E402
 import imgui_bundle  # noqa: E402
 
 print(f"imgui    : {imgui_bundle.__version__}")
 
 # The app module itself: this used to drag in PyOpenGL and fail.
 import box2d_testbed.testbed as testbed  # noqa: E402
-from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw, expand_polygon  # noqa: E402
+from box2d_testbed.debug_draw_imgui import expand_polygon  # noqa: E402
 
 print("testbed  : imported, with no PyOpenGL")
 
@@ -107,9 +106,7 @@ area = (
 expected = 100 * 100 + 400 * 10 + 3.141592653589793 * 100
 print(f"\nrounded outline area: {area:.1f} (expected {expected:.1f})")
 
-print(
-    f"\nrenderer choice honoured: " f"{testbed.TestbedApp.debug_draw_class().__name__}"
-)
+print(f"\nrenderer choice honoured: {testbed.TestbedApp.debug_draw_class().__name__}")
 # The testbed used to default to four threads regardless of the build, which
 # made it unstartable here: the first thing it did was ask for a scheduler
 # this build does not carry.

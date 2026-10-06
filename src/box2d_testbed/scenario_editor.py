@@ -36,9 +36,7 @@ def modern_text_editor(editor) -> bool:
     return hasattr(editor, "get_main_cursor_position")
 
 
-def render_text_editor(
-    editor, title: str, size, *, parent_is_focused: bool = False
-):
+def render_text_editor(editor, title: str, size, *, parent_is_focused: bool = False):
     """Render with either the current or Pyodide-pinned call signature."""
     if modern_text_editor(editor):
         return editor.render(title, size, window_flags=0)
@@ -250,8 +248,7 @@ class ScenarioEditor:
         clear_editor_markers(self.editor)
         if self.shared_store is not None and ref.store is self.shared_store:
             self._say(
-                f"{ref.label}  --  downloaded but not run; review it, then Run "
-                "or Fork"
+                f"{ref.label}  --  downloaded but not run; review it, then Run or Fork"
             )
         else:
             self._say(
@@ -475,9 +472,7 @@ class ScenarioEditor:
         self.error_detail = exc.detail
         if exc.line:
             red = imgui.color_convert_float4_to_u32((1.0, 0.35, 0.35, 1.0))
-            add_editor_marker(
-                self.editor, max(exc.line - 1, 0), red, exc.message
-            )
+            add_editor_marker(self.editor, max(exc.line - 1, 0), red, exc.message)
 
     def _select_any_scenario(self) -> None:
         """Move onto some scenario that exists, after deleting the current one."""

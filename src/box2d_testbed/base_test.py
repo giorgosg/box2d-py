@@ -257,8 +257,8 @@ class BaseTest:
         """
         Returns an instance of the first registered test.
         """
-        for category, tests in BaseTest.registry.items():
-            for name, test_cls in tests.items():
+        for tests in BaseTest.registry.values():
+            for test_cls in tests.values():
                 return test_cls
         return None
 

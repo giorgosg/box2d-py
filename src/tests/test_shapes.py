@@ -308,7 +308,7 @@ def test_contact_and_sensor_methods(world):
     body2 = (
         world.new_body().static().position(5, 0).build()
     )  # Far apart, no contact initially
-    shape2 = body2.add_box(1, 1)
+    body2.add_box(1, 1)
 
     # Test contact_capacity
     assert shape1.contact_capacity == 0  # No contacts initially

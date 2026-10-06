@@ -1,8 +1,11 @@
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional
 from enum import IntEnum
-from .math import Vec2, Rot, Transform
+from .math import Vec2, Rot
 from ._checked import lib, ffi
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .shape import Shape
 
 
 @dataclass

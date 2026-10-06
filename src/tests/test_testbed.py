@@ -293,9 +293,9 @@ def test_every_debug_draw_toggle_reaches_the_c_struct():
     draw = DebugDraw()
     for key in keys:
         name = "draw_" + key
-        assert hasattr(
-            type(draw), name
-        ), f"DebugDraw.{name} is missing, so the {key!r} toggle would do nothing"
+        assert hasattr(type(draw), name), (
+            f"DebugDraw.{name} is missing, so the {key!r} toggle would do nothing"
+        )
 
         before = getattr(draw, name)
         setattr(draw, name, not before)
@@ -540,12 +540,12 @@ def test_every_scenario_frames_its_moving_parts():
                     center.x + zoom * 1.6,
                 )
                 view_lower_y, view_upper_y = center.y - zoom, center.y + zoom
-                assert (
-                    lower_x <= view_upper_x and upper_x >= view_lower_x
-                ), f"{category}/{name} opens with its contents off screen"
-                assert (
-                    lower_y <= view_upper_y and upper_y >= view_lower_y
-                ), f"{category}/{name} opens with its contents off screen"
+                assert lower_x <= view_upper_x and upper_x >= view_lower_x, (
+                    f"{category}/{name} opens with its contents off screen"
+                )
+                assert lower_y <= view_upper_y and upper_y >= view_lower_y, (
+                    f"{category}/{name} opens with its contents off screen"
+                )
             world.destroy()
 
 
@@ -561,7 +561,7 @@ def test_every_box2d_draw_callback_is_bound():
     onto their own DrawBoundsFcn.
     """
     from box2d._box2d import ffi, lib
-    from box2d import DebugDraw, Vec2
+    from box2d import DebugDraw
 
     draw = DebugDraw()
     struct_callbacks = {
@@ -670,9 +670,9 @@ def test_draw_module_keeps_its_own_file_attribute():
     """
     from box2d_testbed import draw
 
-    assert draw.__file__.endswith(
-        os.path.join("box2d_testbed", "draw.py")
-    ), f"draw.__file__ is {draw.__file__}, not its own path"
+    assert draw.__file__.endswith(os.path.join("box2d_testbed", "draw.py")), (
+        f"draw.__file__ is {draw.__file__}, not its own path"
+    )
 
 
 @needs_gui_stack
@@ -697,9 +697,9 @@ def test_every_shader_the_testbed_loads_exists():
 def test_shaders_are_packaged():
     """They are data files, so they must be declared to ship with the wheel."""
     config = pathlib.Path("pyproject.toml").read_text()
-    assert (
-        "shaders" in config or "package-data" in config or "*.vs" in config
-    ), "shaders may not be included in the installed package"
+    assert "shaders" in config or "package-data" in config or "*.vs" in config, (
+        "shaders may not be included in the installed package"
+    )
 
 
 # --- scenarios must survive being drawn --------------------------------------
@@ -873,9 +873,9 @@ def test_our_menus_do_not_collide_with_hello_imgui_s():
         reserved.discard("App")
         reserved.discard(params.menu_app_title or "App")
 
-    assert (
-        ours & reserved == set()
-    ), f"menu name(s) {sorted(ours & reserved)} clash with hello_imgui's own"
+    assert ours & reserved == set(), (
+        f"menu name(s) {sorted(ours & reserved)} clash with hello_imgui's own"
+    )
 
 
 def test_reset_view_button_reframes_the_scenario():
@@ -923,9 +923,9 @@ def test_reset_and_reset_view_are_the_first_two_controls():
 
     names = [name for name, _ in test.ui_elements]
     assert names[:2] == ["reset", "reset_view"]
-    assert all(
-        element.type == "button" for _, element in test.ui_elements[:2]
-    ), "they share a row only while both are buttons"
+    assert all(element.type == "button" for _, element in test.ui_elements[:2]), (
+        "they share a row only while both are buttons"
+    )
     world.destroy()
 
 
@@ -998,7 +998,7 @@ def test_status_bar_reports_the_view_it_would_copy():
     assert "set_clipboard_text" in status
 
     # Right-justified, so it holds its place as the toggles change width.
-    assert (
-        "get_window_width()" in status
-    ), "the readout is not positioned from the right"
+    assert "get_window_width()" in status, (
+        "the readout is not positioned from the right"
+    )
     assert "calc_text_size(label)" in status, "its width must be measured to justify it"

@@ -17,10 +17,13 @@ position is yours to keep and update.
 """
 
 from dataclasses import dataclass
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from ._checked import ffi, lib
 from .math import Vec2
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .shape import Shape
 
 
 @dataclass

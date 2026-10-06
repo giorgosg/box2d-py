@@ -9,8 +9,6 @@ Nothing here moves anything. These are queries and geometry: the caller keeps
 the character's position.
 """
 
-import math
-
 import pytest
 
 from box2d import CollisionPlane, Vec2, World, clip_vector, solve_planes

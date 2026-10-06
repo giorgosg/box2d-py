@@ -2,12 +2,13 @@ from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .joint import Joint
-from .collision_filter import CollisionFilter
-from typing import Sequence, List
-from .material import SurfaceMaterial
+from typing import TYPE_CHECKING, Sequence, List
 from .dataclasses import MassData, ContactData, BodyDef
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .world import World
 
 
 class BodyBuilder:
@@ -521,7 +522,7 @@ class BodyBuilder:
 
         # Create shapes
         for shape_def in self._shape_defs:
-            method = getattr(body, f'add_{shape_def["type"]}')
+            method = getattr(body, f"add_{shape_def['type']}")
             method(*shape_def["params"], **shape_def["kwargs"])
 
         return body
@@ -1068,10 +1069,13 @@ class Body:
         return chain
 
     def remove_shape(self, shape):
-        """Remove a shape from the body."""
+        """Remove a shape from the body, updating the body's mass.
+
+        The same as ``shape.destroy()``. A shape that is not on this body is
+        left alone.
+        """
         if shape in self._shapes:
-            lib.b2DestroyShape(shape._shape_id, True)  # Update body mass
-            self._shapes.remove(shape)
+            shape.destroy()
 
     def is_sleep_enabled(self):
         """Check if the body is allowed to sleep."""
@@ -1351,7 +1355,7 @@ class Body:
             if len(value) > 31:
                 import warnings
 
-                warnings.warn("Body name truncated to 31 characters")
+                warnings.warn("Body name truncated to 31 characters", stacklevel=2)
                 value = value[:31]
             lib.b2Body_SetName(self._body_id, value.encode("utf-8"))
 
@@ -1411,8 +1415,3 @@ class Body:
     @type.setter
     def type(self, body_type) -> None:
         lib.b2Body_SetType(self._body_id, Body.resolve_type(body_type))
-
-    # TODO: currently is segfaults one of the tests. need to figure out why.
-    # def __del__(self):
-    # Attempt to clean up if destroy() wasn't explicitly called.
-    # self.destroy()

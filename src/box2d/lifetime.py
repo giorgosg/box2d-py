@@ -13,8 +13,6 @@ including ids whose world has already been destroyed, so this check never
 crashes on the values it is meant to reject.
 """
 
-from ._checked import lib
-
 
 class DestroyedError(RuntimeError):
     """Raised when a Box2D object is used after it has been destroyed.

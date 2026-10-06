@@ -18,11 +18,16 @@ Events are opt-in per shape, and Box2D defaults them off:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-from ._checked import ffi, lib
+from ._checked import lib
 from .dataclasses import ContactData
 from .math import Transform, Vec2
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .body import Body
+    from .joint import Joint
+    from .shape import Shape
 
 
 class Contact:

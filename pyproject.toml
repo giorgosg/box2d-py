@@ -32,7 +32,9 @@ testbed = [
   "numpy"
 ]
 dev = [
-    "black",
+    # Pinned, as are the pre-commit hook and CI's lint job (which reads this
+    # line), so a formatter release cannot reformat files nobody touched.
+    "ruff==0.16.10",
     "pcpp>=1.30",
     "setuptools>=75.8.0",
     "pre-commit",
@@ -62,4 +64,33 @@ markers = [
 ]
 testpaths = [
   "src/tests",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+# Pyflakes (unused and undefined names), syntax errors, and bugbear's likely
+# bugs. Formatting is ruff format's job, so no pycodestyle style rules.
+select = ["F", "E9", "B"]
+ignore = [
+  # zip() without strict=: every zip here pairs sequences built together.
+  "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests read attributes for the exception the read raises:
+# `with pytest.raises(DestroyedError): body.position`.
+"src/tests/**" = ["B018"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Immutable, so safe as argument defaults.
+extend-immutable-calls = [
+  "box2d.math.Vec2",
+  "box2d.math.Rot",
+  "box2d.Vec2",
+  "box2d.Rot",
+  "box2d.debug_draw.Color",
+  "box2d.Color",
 ]

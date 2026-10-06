@@ -59,9 +59,9 @@ def test_a_scenario_is_renamed_so_the_copy_sits_beside_the_original():
 
     assert renamed == ["Body Type copy"]
     assert 'name="Body Type copy"' in rewritten
-    assert (
-        'category="Bodies"' in rewritten
-    ), "the category is kept, so it sorts alongside"
+    assert 'category="Bodies"' in rewritten, (
+        "the category is kept, so it sorts alongside"
+    )
 
 
 def test_every_scenario_in_the_file_is_renamed():

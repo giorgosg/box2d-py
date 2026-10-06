@@ -39,13 +39,9 @@ def test_world_step():
     world.step(1.0 / 60.0, 4)
 
 
-def invalidgrav():
-    world = box2d.World(gravity=-10)
-
-
 def test_invalid():
-    with pytest.raises(Exception):
-        invalidgrav()
+    with pytest.raises(TypeError):
+        box2d.World(gravity=-10)
 
 
 def test_world_with_custom_gravity():
@@ -107,15 +103,25 @@ def test_world_query_aabb():
 
 
 def test_world_destructor():
-    world = World()
-    body = world.new_body().build()
+    """Dropping the last reference destroys the Box2D world.
 
-    # Delete the world
+    This used to read the deleted name after `del world`, so the NameError
+    satisfied pytest.raises(Exception) and nothing about the world was
+    checked at all.
+    """
+    import gc
+
+    from box2d._box2d import ffi
+
+    world = World()
+    world.new_body().build()
+    raw = ffi.new("b2WorldId*", world._world_id)[0]
+    assert lib.b2World_IsValid(raw)
+
+    # The world and its bodies refer to each other, so it takes a collection.
     del world
-    # Verify that the world was properly destroyed
-    with pytest.raises(Exception):
-        # Accessing a destroyed world should raise an exception
-        lib.b2World_GetGravity(world._world_id)
+    gc.collect()
+    assert not lib.b2World_IsValid(raw)
 
 
 def test_world_query_aabb_edge_cases():
@@ -189,7 +195,7 @@ def test_destroy_world_with_active_body_and_recreate():
     # Simulate a few steps to allow gravity to affect the body.
     for _ in range(10):
         world.step(1 / 60, substep_count=8)
-    pos_before_destroy = body.position.y
+    assert body.position.y < 10, "the first world simulated before being destroyed"
 
     # Destroy the world (which has active bodies).
     world.destroy()
@@ -213,13 +219,7 @@ def test_destroy_world_with_active_body_and_recreate():
 def test_recreate_multiple_worlds_after_destroying_active_bodies():
     # Create and simulate an initial world with an active body.
     initial_world = World(gravity=(0, -9.81))
-    body = (
-        initial_world.new_body()
-        .dynamic()
-        .position(0, 20)
-        .box(2, 2, density=1.0)
-        .build()
-    )
+    (initial_world.new_body().dynamic().position(0, 20).box(2, 2, density=1.0).build())
     for _ in range(10):
         initial_world.step(1 / 60, substep_count=8)
     initial_world.destroy()
@@ -263,18 +263,17 @@ def test_recreate_multiple_worlds_after_destroying_active_bodies():
 
         # With negative gravity along an axis, expect a decrease; with positive, an increase.
         if case["check_decrease"]:
-            assert (
-                final_val < init_val
-            ), f"For gravity {g}, expected {axis} coordinate to decrease (from {init_val} to {final_val})."
+            assert final_val < init_val, (
+                f"For gravity {g}, expected {axis} coordinate to decrease (from {init_val} to {final_val})."
+            )
         else:
-            assert (
-                final_val > init_val
-            ), f"For gravity {g}, expected {axis} coordinate to increase (from {init_val} to {final_val})."
+            assert final_val > init_val, (
+                f"For gravity {g}, expected {axis} coordinate to increase (from {init_val} to {final_val})."
+            )
         new_world.destroy()
 
 
-import pytest
-from box2d import World, AABB, CollisionFilter
+from box2d import CollisionFilter
 
 
 def test_query_aabb_filter_player():
@@ -317,9 +316,9 @@ def test_query_aabb_filter_player():
     for shape in player_body.shapes:
         assert shape in results, "Player shape should be in query results."
     for shape in enemy_body.shapes:
-        assert (
-            shape not in results
-        ), "Enemy shape must not be returned when filtering for 'player'."
+        assert shape not in results, (
+            "Enemy shape must not be returned when filtering for 'player'."
+        )
 
     w.destroy()
 
@@ -360,9 +359,9 @@ def test_query_aabb_filter_enemy():
     for shape in enemy_body.shapes:
         assert shape in results, "Enemy shape should be in query results."
     for shape in player_body.shapes:
-        assert (
-            shape not in results
-        ), "Player shape must not be returned when filtering for 'enemy'."
+        assert shape not in results, (
+            "Player shape must not be returned when filtering for 'enemy'."
+        )
 
     w.destroy()
 
@@ -400,9 +399,9 @@ def test_query_circle_filter_single():
     for shape in friend_body.shapes:
         assert shape in results, "Friend shape should be returned by the circle query."
     for shape in enemy_body.shapes:
-        assert (
-            shape not in results
-        ), "Enemy shape should not be returned (either by filter or distance)."
+        assert shape not in results, (
+            "Enemy shape should not be returned (either by filter or distance)."
+        )
 
     w.destroy()
 

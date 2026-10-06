@@ -3,6 +3,28 @@ name: Build Matrix
 on: [push, pull_request]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      # The version is the one pinned in the dev extra, so CI, pre-commit and
+      # a local `uv sync --extra dev` all run the same ruff.
+      - name: Install ruff
+        run: |
+          pip install "$(python -c 'import tomllib; dev = tomllib.load(open("pyproject.toml", "rb"))["project"]["optional-dependencies"]["dev"]; print(next(d for d in dev if d.startswith("ruff")))')"
+
+      - name: Lint
+        run: ruff check src setup.py web docs/source
+
+      - name: Check formatting
+        run: ruff format --check src setup.py web docs/source
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:

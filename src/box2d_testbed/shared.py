@@ -17,7 +17,7 @@ def create_random_polygon(self, extent, **kwargs):
     # is not computed until build() -- so the fallback has to be chosen here,
     # by building the def eagerly, rather than by catching around the queueing.
     try:
-        PolygonDef(vertices, radius).b2Polygon
+        _ = PolygonDef(vertices, radius).b2Polygon
     except ValueError:
         self.box(extent, extent, radius, **kwargs)
     else:

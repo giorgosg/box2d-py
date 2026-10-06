@@ -496,7 +496,7 @@ class Human:
         more honest than hard-coding a number that its next version changes.
         """
         try:
-            PolygonDef(
+            _ = PolygonDef(
                 vertices=[Vec2(point) * scale for point in FOOT_POINTS],
                 radius=FOOT_RADIUS * scale,
             ).b2Polygon
