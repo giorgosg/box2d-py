@@ -236,8 +236,8 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
         # The belt can only pull as hard as friction allows, hence grippy.
         # Box2D reuses a contact that has barely moved without reading the
         # shapes' materials again, so a box at rest on the belt would never
-        # see a new speed. Not recycling the belt's contacts makes them read
-        # it every step.
+        # see a new speed. So the belt's contacts are never recycled, and a
+        # new speed reaches every box on it at the next step.
         self.belt = (
             self.world.new_body()
             .static()
@@ -579,7 +579,8 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     def setup(self):
         # Box2D reuses a contact that has barely moved without reading the
         # materials again, so a box at rest would never feel a new friction.
-        # Not recycling the ground's contacts makes them read it every step.
+        # So the ground's contacts are never recycled, and a new friction
+        # reaches every box on it at the next step.
         ground = (
             self.world.new_body()
             .static()
