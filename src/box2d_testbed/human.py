@@ -265,8 +265,8 @@ class Human:
         """
         self.world = world
         self.scale = scale
-        #: The size the figure was built at, which set_scale measures from.
-        self.original_scale = scale
+        #: Joint friction per unit of size. Each joint's motor gets this times
+        #: the figure's scale times the joint's own share.
         self.friction_torque = friction_torque
         self.bones: List[Bone] = []
         self._by_name = {}
@@ -399,6 +399,9 @@ class Human:
         Zero switches the motors off, which is the difference between a body
         that folds under its own weight and one that holds a pose.
         """
+        # Kept so a later set_scale scales this torque, not the one the
+        # figure was built with.
+        self.friction_torque = torque
         for bone in self.bones:
             if bone.joint is None:
                 continue
@@ -454,8 +457,11 @@ class Human:
         self._check_scale_is_buildable(scale)
 
         ratio = scale / self.scale
-        original_ratio = scale / self.original_scale
-        friction_torque = (original_ratio**3) * self.friction_torque
+        # The motors get friction_torque times the scale, so for their torque
+        # to go with the cube of the size change, friction per unit of size
+        # goes with the square.
+        self.friction_torque *= ratio**2
+        friction_torque = self.friction_torque * scale
         origin = self.hip.position
 
         for index, bone in enumerate(self.bones):

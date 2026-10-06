@@ -24,7 +24,8 @@ class ShapeDef:
     Shapes are added to bodies after the body is created.
 
     Attributes:
-        user_data: Application specific shape data. This is set to the shape object created.
+        user_data: Application specific shape data, kept as the created shape's
+            ``user_data``.
         friction: The Coulomb (dry) friction coefficient, usually in the range [0,1]. default=0.6
         restitution: The coefficient of restitution (bounce), usually in the range [0,1]. default=0.0
         rolling_resistance: The rolling resistance coefficient, usually in the range [0,1]. default=0.0
@@ -79,9 +80,9 @@ class ShapeDef:
         # Start with defaults
         shape_def = lib.b2DefaultShapeDef()
 
-        # Override with any explicitly set values
-        if self.user_data is not None:
-            shape_def.userData = self.user_data
+        # user_data is not written here: Box2D's userData holds the handle that
+        # maps a shape id back to its Python object, so the shape keeps the
+        # application's user_data itself.
 
         shape_def.material.friction = self.friction
         shape_def.material.restitution = self.restitution
@@ -467,7 +468,8 @@ class ChainDef:
             continuing the last segment straight on. Ignored for loops.
         materials: One SurfaceMaterial for the whole chain, or one per segment.
         filter: Collision filtering data as a CollisionFilter object
-        user_data: Application specific data
+        user_data: Application specific data, kept as the created chain's
+            ``user_data``.
         enable_sensor_events: True if sensors may detect this chain. See ShapeDef
             for why this defaults to True rather than Box2D's False. default=True
     """
@@ -530,9 +532,8 @@ class ChainDef:
         # Create a new chain definition
         chain_def = lib.b2DefaultChainDef()
 
-        # Set user data if provided
-        if self.user_data is not None:
-            chain_def.userData = self.user_data
+        # user_data is not written here either; the chain keeps it, as a
+        # shape does.
 
         # Create an array for the vertices
         b2_vertices = ffi.new("b2Vec2[]", count)

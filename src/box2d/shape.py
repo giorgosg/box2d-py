@@ -23,6 +23,7 @@ from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ContactData
 from .accessors import b2_value
 from .lifetime import IdRef, is_live, raw_id
+from ._fixed_attributes import FixedAttributes
 from .accessors import b2_bool, b2_float
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
@@ -30,7 +31,7 @@ if TYPE_CHECKING:  # annotations only; these modules import this one
     from .world import World
 
 
-class Shape:
+class Shape(FixedAttributes):
     """
     Base class for all non-chain shapes.
     It provides common properties like density, friction, restitution
@@ -38,8 +39,14 @@ class Shape:
 
     _shape_id = IdRef(lib.b2Shape_IsValid, "shape")
 
-    def __init__(self, body: "Body"):
+    #: Any Python object the application wants kept with this shape. Other
+    #: attributes cannot be added: a misspelt property would silently do
+    #: nothing, so setting an unknown one raises instead.
+    user_data = None
+
+    def __init__(self, body: "Body", user_data=None):
         self._body = body
+        self.user_data = user_data
 
     def _set_handle(self):
         """Set the handle for the shape."""
@@ -492,7 +499,7 @@ class Circle(Shape):
         """
         Initialize a Circle shape from a body a ShapeDef and a CircleDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCircleShape(
             body._body_id, ffi.addressof(sd), circledef.b2Circle
@@ -557,7 +564,7 @@ class Capsule(Shape):
         """
         Initialize a Capsule shape from a body and a CapsuleDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCapsuleShape(
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
@@ -635,7 +642,7 @@ class Segment(Shape):
         """
         Initialize a Segment shape from a body and a SegmentDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateSegmentShape(
             body._body_id, ffi.addressof(sd), segmentdef.b2Segment
@@ -700,7 +707,7 @@ class Polygon(Shape):
         """
         Initialize a Polygon shape from a body and a PolygonDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         pd = polygondef.b2Polygon
         self._shape_id = lib.b2CreatePolygonShape(
@@ -837,7 +844,7 @@ class ChainSegment(Shape):
         )
 
 
-class Chain:
+class Chain(FixedAttributes):
     """
     A chain shape that can be attached to a body.
     Chain shapes are not a subclass of Shape and do not have the common shape methods
@@ -846,8 +853,17 @@ class Chain:
 
     _chain_id = IdRef(lib.b2Chain_IsValid, "chain")
 
+    #: The :class:`ChainSegment` shapes this chain was built from, in order.
+    segments: List["ChainSegment"] = ()
+
+    #: Any Python object the application wants kept with this chain. Other
+    #: attributes cannot be added: a misspelt property would silently do
+    #: nothing, so setting an unknown one raises instead.
+    user_data = None
+
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
+        self.user_data = chaindef.user_data
         self._is_loop = chaindef.is_loop
         cd = chaindef.b2ChainDef
         self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
@@ -863,7 +879,6 @@ class Chain:
             ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
             for i in range(returned)
         ]
-        """The :class:`ChainSegment` shapes this chain was built from, in order."""
 
     @classmethod
     def create(
@@ -880,6 +895,7 @@ class Chain:
         rolling_resistance=None,
         tangent_speed=None,
         custom_color=None,
+        user_data=None,
     ):
         """
         Create and attach a chain shape to a body.
@@ -901,6 +917,7 @@ class Chain:
             ghost2=ghost2,
             filter=filter,
             materials=materials,
+            user_data=user_data,
         )
         return cls(body, shapedef)
 

@@ -4,6 +4,11 @@ from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
+from ._fixed_attributes import FixedAttributes
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotations only; world imports this module
+    from .world import World
 
 
 def _unit_vector(vector, what="a joint axis"):
@@ -20,7 +25,7 @@ def _unit_vector(vector, what="a joint axis"):
     return unit
 
 
-class Joint:
+class Joint(FixedAttributes):
     """Base class for all physics joints connecting two rigid bodies.
 
     Manages the lifecycle and common properties of constraints between bodies,
@@ -28,6 +33,14 @@ class Joint:
     """
 
     _joint_id = IdRef(lib.b2Joint_IsValid, "joint")
+
+    #: The world this joint belongs to.
+    world: "World" = None
+
+    #: Any Python object the application wants kept with this joint. Other
+    #: attributes cannot be added: a misspelt property would silently do
+    #: nothing, so setting an unknown one raises instead.
+    user_data = None
 
     def _set_userdata(self):
         """Finalize joint creation in the physics simulation.

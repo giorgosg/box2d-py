@@ -357,7 +357,7 @@ class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
         self.joint.motor_speed = self.motor_speed
         self.joint.spring_enabled = self.enable_spring
         self.joint.spring_damping_ratio = self.spring_damping
-        self.joint.spring_frequency_hertz = self.spring_hertz
+        self.joint.spring_hertz = self.spring_hertz
         self.body.awake = True
 
     def setup(self):
@@ -1024,7 +1024,7 @@ class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
     @motor.callback
     def on_motor_change(self, key, value):
         if hasattr(self, "lift_joint"):
-            self.lift_joint.enable_motor = value
+            self.lift_joint.motor_enabled = value
             self.lift_joint.wake_bodies()
 
     @motor_force.callback
