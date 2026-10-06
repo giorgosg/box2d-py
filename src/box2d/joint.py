@@ -25,6 +25,18 @@ def _unit_vector(vector, what="a joint axis"):
     return unit
 
 
+def _ordered(lower, upper, what):
+    """``(lower, upper)`` as floats, refusing a lower bound above the upper.
+
+    Box2D asserts this only in debug builds, and otherwise swaps the two --
+    so setting one bound past the other quietly moved the other one.
+    """
+    lower, upper = float(lower), float(upper)
+    if lower > upper:
+        raise ValueError(f"{what}: lower {lower} is above upper {upper}")
+    return lower, upper
+
+
 class Joint(FixedAttributes):
     """Base class for all physics joints connecting two rigid bodies.
 
@@ -614,14 +626,24 @@ class RevoluteJoint(Joint):
         lib.b2RevoluteJoint_SetMaxMotorTorque,
         doc="Maximum motor torque in newton-meters.",
     )
-    lower_limit = b2_value(
-        lib.b2RevoluteJoint_GetLowerLimit,
-        doc="The lower joint limit in radians.",
-    )
-    upper_limit = b2_value(
-        lib.b2RevoluteJoint_GetUpperLimit,
-        doc="The upper joint limit in radians.",
-    )
+
+    @property
+    def lower_limit(self) -> float:
+        """The lower joint limit in radians. Cannot be set above the upper."""
+        return lib.b2RevoluteJoint_GetLowerLimit(self._joint_id)
+
+    @lower_limit.setter
+    def lower_limit(self, lower):
+        self.set_limits(lower, self.upper_limit)
+
+    @property
+    def upper_limit(self) -> float:
+        """The upper joint limit in radians. Cannot be set below the lower."""
+        return lib.b2RevoluteJoint_GetUpperLimit(self._joint_id)
+
+    @upper_limit.setter
+    def upper_limit(self, upper):
+        self.set_limits(self.lower_limit, upper)
 
     def set_limits(self, lower, upper):
         """
@@ -630,8 +652,12 @@ class RevoluteJoint(Joint):
         Args:
             lower (float): Lower limit angle.
             upper (float): Upper limit angle.
+
+        Raises:
+            ValueError: If lower is above upper.
         """
-        lib.b2RevoluteJoint_SetLimits(self._joint_id, float(lower), float(upper))
+        lower, upper = _ordered(lower, upper, "revolute joint limits")
+        lib.b2RevoluteJoint_SetLimits(self._joint_id, lower, upper)
 
     enable_limit = b2_bool(
         lib.b2RevoluteJoint_IsLimitEnabled,
@@ -812,8 +838,7 @@ class PrismaticJoint(Joint):
     @lower_limit.setter
     def lower_limit(self, lower):
         """Set the lower joint limit."""
-        upper_limit = self.upper_limit
-        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower), float(upper_limit))
+        self.set_limits(lower, self.upper_limit)
 
     @property
     def upper_limit(self):
@@ -823,8 +848,7 @@ class PrismaticJoint(Joint):
     @upper_limit.setter
     def upper_limit(self, upper):
         """Set the upper joint limit."""
-        lower_limit = self.lower_limit
-        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower_limit), float(upper))
+        self.set_limits(self.lower_limit, upper)
 
     def set_limits(self, lower, upper):
         """Set the joint limits.
