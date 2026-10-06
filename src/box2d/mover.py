@@ -19,7 +19,7 @@ position is yours to keep and update.
 from dataclasses import dataclass
 from typing import List
 
-from ._box2d import ffi, lib
+from ._checked import ffi, lib
 from .math import Vec2
 
 

@@ -149,6 +149,50 @@ def test_chain_takes_explicit_ghosts(static_body):
     assert (segment.ghost2.x, segment.ghost2.y) == (-1, 1)
 
 
+def test_chain_destroy_removes_it_and_its_segments(static_body):
+    from box2d import DestroyedError
+
+    chain = static_body.add_chain(vertices=[(-5, 0), (0, 0), (5, 0)])
+    segments = list(chain.segments)
+
+    chain.destroy()
+
+    assert chain.is_valid() is False
+    assert chain not in static_body.chains
+    assert not any(segment.is_valid() for segment in segments)
+    with pytest.raises(DestroyedError):
+        chain.set_surface_material(SurfaceMaterial())
+    chain.destroy()  # a second time is a no-op
+
+
+def test_a_destroyed_chain_no_longer_collides(world, static_body):
+    chain = static_body.add_chain(vertices=[(5, 0), (-5, 0)])
+    ball = world.new_body().dynamic().position(0, 2).build()
+    ball.add_circle(radius=0.5)
+
+    chain.destroy()
+    for _ in range(120):
+        world.step(1 / 60, 4)
+
+    assert ball.position.y < -5
+
+
+def test_chain_destroy_after_its_body_is_a_no_op(static_body):
+    chain = static_body.add_chain(vertices=[(-5, 0), (0, 0), (5, 0)])
+    static_body.destroy()
+    chain.destroy()
+    assert chain.is_valid() is False
+
+
+def test_a_chain_segment_cannot_be_destroyed_alone(static_body):
+    """Box2D refuses, silently in a release build, so the binding says so."""
+    chain = static_body.add_chain(vertices=[(-5, 0), (0, 0), (5, 0)])
+    segment = chain.segments[0]
+    with pytest.raises(TypeError, match="Chain.destroy"):
+        segment.destroy()
+    assert segment.is_valid()
+
+
 def test_material_property(dynamic_body):
     shape = dynamic_body.add_circle(radius=0.5)
 
