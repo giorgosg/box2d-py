@@ -92,8 +92,8 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
     left to 1 on the right.
 
     A body bounces back to about restitution squared of the height it fell
-    from, so the middle one, at 0.5, comes back up a quarter of the way and
-    the last returns to where it started. It is only about: Box2D solves
+    from, so the middle ones, at about 0.5, come back up a quarter of the way
+    and the last returns to where it started. It is only about: Box2D solves
     contacts speculatively, a little before the bodies touch, which makes
     restitution approximate.
 
@@ -319,11 +319,11 @@ class Explosion(BaseTest, category="Shapes", name="Explosion"):
 
     Explode applies a radial impulse from the centre: in full out to Radius,
     fading to nothing over Falloff beyond it. The two circles mark those
-    distances. The impulse is per metre of outline the blast can see, so
-    which way a plank faces matters as much as how far away it is. The
+    distances. Impulse is the push per metre of outline the blast can see,
+    so which way a plank faces matters as much as how far away it is. The
     planks all lie level: the two beside the centre point straight at it,
     show it only their 0.2 m ends and barely move, while those above and
-    below take it broadside and fly. A negative impulse pulls inward. The
+    below take it broadside and fly. A negative Impulse pulls inward. The
     welds are springs, and pull the planks back to the ring for the next
     blast.
     """
@@ -383,12 +383,14 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
 
     Box2D applies wind shape by shape, from how much of the shape the wind
     can see and how fast the shape already moves through the air, so a plank
-    broadside on catches far more than one edge on. Drag is how much the
-    shape's own motion counts against the wind; lift pushes across the wind,
-    which is what makes the chain flutter rather than simply stream out. The
-    gust is the wind's direction plus a slowly wandering noise, scaled to its
-    speed, and the magenta line from the pin shows it. Links rebuilds the
-    chain.
+    broadside on catches far more than one edge on.
+
+    Wind X and Wind Y set the wind's velocity, in m/s. The gust actually
+    applied is that direction plus a slowly wandering noise, scaled to the
+    wind's speed, and the magenta line from the pin shows it. Drag is how
+    much the shape's own motion counts against the wind; Lift pushes across
+    the wind, which is what makes the chain flutter rather than simply stream
+    out. Links rebuilds the chain.
     """
 
     camera_center = (0, -4)
@@ -556,7 +558,9 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     same ground can be grippy in one stretch and slippery in the next. The
     box slides down the slope, which is too steep to hold it at any setting,
     across the ice, and stops on the flat. Raise Icy friction and boxes stop
-    on the middle stretch instead. Drop a box drops another; the newest
+    on the middle stretch instead. Grippy friction sets the slope and the
+    flat; below about 0.6 the box comes off the slope too fast to stop on
+    the flat, and runs off its far end. Drop a box drops another; the newest
     twelve are kept. Each stretch is labelled with its friction.
     """
 
