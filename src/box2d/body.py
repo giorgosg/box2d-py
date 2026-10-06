@@ -1,4 +1,4 @@
-from box2d._box2d import lib, ffi
+from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .joint import Joint

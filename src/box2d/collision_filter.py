@@ -18,7 +18,7 @@ Example usage:
 """
 
 import warnings
-from ._box2d import lib, ffi
+from ._checked import lib, ffi
 
 
 class CollisionCategoryRegistry:

@@ -1,6 +1,6 @@
 import math
 from typing import Union, Iterable, TypeAlias, Protocol, runtime_checkable, Iterator
-from ._box2d import ffi, lib
+from ._checked import ffi, lib
 
 
 # Anything two floats can be read out of -- a Vec2, a tuple, a list. Every

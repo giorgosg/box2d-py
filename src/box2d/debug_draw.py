@@ -1,5 +1,5 @@
 # debug_draw.py
-from ._box2d import ffi, lib
+from ._checked import ffi, lib
 from .math import Vec2, Rot, Transform, AABB, Mat22
 
 

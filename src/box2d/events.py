@@ -20,7 +20,7 @@ Events are opt-in per shape, and Box2D defaults them off:
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from ._box2d import ffi, lib
+from ._checked import ffi, lib
 from .dataclasses import ContactData
 from .math import Transform, Vec2
 

@@ -6,7 +6,7 @@ Each shape also has a classmethod "create" that matches the signature from befor
 Chain is implemented as a separate class.
 """
 
-from ._box2d import lib, ffi
+from ._checked import lib, ffi
 from abc import ABC
 from typing import List, Dict, Optional, Union, Any, Tuple, Iterable, Sequence
 from .math import Vec2, Transform, VectorLike, AABB
@@ -823,6 +823,21 @@ class ChainSegment(Shape):
         super().__init__(chain.body)
         self._set_handle()
 
+    def destroy(self, update_body_mass: bool = True) -> None:
+        """A segment cannot be removed from its chain; destroy the chain.
+
+        Box2D refuses to destroy one segment of a chain, and in a release build
+        refuses silently, which would have left this object claiming to be
+        destroyed while the segment carried on colliding.
+
+        Raises:
+            TypeError: Always.
+        """
+        raise TypeError(
+            "a chain segment cannot be destroyed on its own; "
+            "destroy its chain with Chain.destroy()"
+        )
+
 
 class Chain:
     """
@@ -895,6 +910,23 @@ class Chain:
     def body(self):
         """Return the body this chain is attached to."""
         return self._body
+
+    def destroy(self) -> None:
+        """Remove this chain, and every segment of it, from its body.
+
+        The chain and its segments raise :class:`.DestroyedError` if used
+        afterwards. Destroying twice is a no-op, as is destroying a chain whose
+        body has already gone.
+        """
+        raw = raw_id(self, "_chain_id")
+        if raw is None:
+            return
+        if lib.b2Chain_IsValid(raw):
+            lib.b2DestroyChain(raw)
+        chains = getattr(self._body, "_chains", ())
+        if self in chains:
+            chains.remove(self)
+        del self._chain_id
 
     def is_valid(self) -> bool:
         """

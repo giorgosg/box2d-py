@@ -21,7 +21,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List
 
-from ._box2d import ffi
+from ._checked import ffi
 from .math import Vec2, VectorLike
 
 #: Box2D's B2_MAX_POLYGON_VERTICES. A proxy may not carry more points than this.

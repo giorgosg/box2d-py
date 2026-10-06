@@ -3,7 +3,7 @@
 import math
 import traceback
 
-from ._box2d import lib, ffi
+from ._checked import lib, ffi
 
 #: Whether this build carries the enkiTS task scheduler. A build made without
 #: it runs Box2D single threaded, which is every target that has no threads.

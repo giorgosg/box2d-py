@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 from enum import IntEnum
 from .math import Vec2, Rot, Transform
-from ._box2d import lib, ffi
+from ._checked import lib, ffi
 
 
 @dataclass

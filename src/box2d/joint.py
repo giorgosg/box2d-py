@@ -1,6 +1,6 @@
 # joint.py
 
-from box2d._box2d import lib, ffi
+from ._checked import lib, ffi
 from abc import ABC, abstractmethod
 from .math import Vec2, Rot, Transform, VectorLike
 from .accessors import b2_bool, b2_float, b2_value

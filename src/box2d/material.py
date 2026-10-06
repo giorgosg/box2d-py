@@ -6,7 +6,7 @@ A material defines the friction, restitution, and other properties of a surface.
 from dataclasses import dataclass, field
 from typing import Optional, ClassVar
 from weakref import WeakValueDictionary
-from ._box2d import lib, ffi
+from ._checked import lib, ffi
 from .debug_draw import Color
 
 

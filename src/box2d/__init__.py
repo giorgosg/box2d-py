@@ -45,3 +45,4 @@ from .jointdef import (
     MouseJointDef,
 )
 from .lifetime import DestroyedError
+from ._checked import InvalidInputError
