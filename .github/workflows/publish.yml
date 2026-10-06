@@ -85,6 +85,11 @@ jobs:
         CIBW_TEST_COMMAND: >-
           cd {project} && python -m pytest src/tests -q -p no:cacheprovider
           --ignore=src/tests/test_build_config.py
+        # cmd's cd does not change drive without /d, and cibuildwheel tests
+        # from a temporary directory on C: while the checkout is on D:.
+        CIBW_TEST_COMMAND_WINDOWS: >-
+          cd /d {project} && python -m pytest src/tests -q -p no:cacheprovider
+          --ignore=src/tests/test_build_config.py
 
     - name: Upload wheels
       uses: actions/upload-artifact@v7
