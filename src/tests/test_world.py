@@ -3,6 +3,7 @@ import faulthandler
 
 faulthandler.enable()
 import os
+import time
 
 import pytest
 import box2d
@@ -459,6 +460,22 @@ def os_thread_count():
     return len(os.listdir("/proc/self/task"))
 
 
+def os_thread_count_settles_at(expected, timeout=2.0):
+    """Wait for the process to have ``expected`` OS threads, and say if it did.
+
+    A joined thread can still be listed in /proc/self/task for a moment: the
+    join returns once the thread has cleared its id, which is before the
+    kernel has finished reaping it. Counting straight after a world was
+    destroyed read one thread too many about one time in a hundred.
+    """
+    deadline = time.monotonic() + timeout
+    while os_thread_count() != expected:
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.001)
+    return True
+
+
 @needs_threads
 def test_a_threaded_world_steps():
     world = World(threads=4)
@@ -487,18 +504,18 @@ def test_each_world_owns_its_threads():
     other, which carried on single threaded without a word."""
     before = os_thread_count()
     first = World(threads=4)
-    assert os_thread_count() == before + 3, "three threads besides the caller's"
+    assert os_thread_count_settles_at(before + 3), "three besides the caller's"
     second = World(threads=2)
-    assert os_thread_count() == before + 4
+    assert os_thread_count_settles_at(before + 4)
 
     first.destroy()
-    assert os_thread_count() == before + 1, "the second world keeps its thread"
+    assert os_thread_count_settles_at(before + 1), "the second world keeps its own"
     pile(second)
     for _ in range(30):
         second.step(1 / 60, 4)
 
     second.destroy()
-    assert os_thread_count() == before
+    assert os_thread_count_settles_at(before)
 
 
 @needs_threads
