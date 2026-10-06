@@ -624,6 +624,17 @@ class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
 
         self.time = 0.0
 
+    @enable_motion.callback
+    def on_go_change(self, key, value):
+        if value:
+            # The box has been held still long enough to fall asleep, and a
+            # sleeping body ignores its joints until something wakes it.
+            self.motor.wake_bodies()
+        else:
+            # Time stops, so the box should stop too: drive it at zero.
+            # Leaving the last velocity in place would carry it off at speed.
+            self.motor.linear_velocity = (0.0, 0.0)
+
     @max_velocity_force.callback
     def on_max_force_change(self, key, value):
         self.motor.max_velocity_force = value
