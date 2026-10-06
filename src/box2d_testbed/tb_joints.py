@@ -475,26 +475,38 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             damping_ratio=self.damping,
             torque=self.torque,
         )
+        # The car starts with its motors on at zero speed: parked, brake on.
+        # Letting go of a key takes them off, and the car rolls freely.
+        self.motors_on = True
 
     @hertz.callback
+    def on_hertz_change(self, key, value):
+        self.car.set_hertz(value)
+
     @damping.callback
+    def on_damping_change(self, key, value):
+        self.car.set_damping_ratio(value)
+
     @torque.callback
-    def on_car_change(self, key, value):
-        # Speed is not here: it is read when a key is pressed.
-        self.car.set_hertz(self.hertz)
-        self.car.set_damping_ratio(self.damping)
-        self.car.set_torque(self.torque)
+    def on_torque_change(self, key, value):
+        # Only while the motors are on. Giving a coasting car torque would
+        # turn its motors on at zero speed, which is the brake.
+        if self.motors_on:
+            self.car.set_torque(value)
 
     def on_key_down(self, key):
         # Positive motor speed turns the wheels anticlockwise, which rolls
         # the car left. Braking is a motor told to hold the wheels still.
+        # Speed is read here, so the Speed slider takes effect on the next key.
         speeds = {"a": self.speed, "s": 0.0, "d": -self.speed}
         if key in speeds:
+            self.motors_on = True
             self.car.set_torque(self.torque)
             self.car.set_speed(speeds[key])
 
     def on_key_up(self, key):
         if key in ("a", "s", "d"):
+            self.motors_on = False
             self.car.set_torque(0.0)
             self.car.set_speed(0.0)
 
