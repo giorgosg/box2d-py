@@ -39,6 +39,10 @@ class InvalidInputError(ValueError):
     """
 
 
+# Exported from the package, so report it as living there.
+InvalidInputError.__module__ = "box2d"
+
+
 #: Failed checks reported by the log callback and not yet raised. A list
 #: rather than a flag so that nothing is lost if two arrive together.
 _pending = []

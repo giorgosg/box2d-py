@@ -179,8 +179,16 @@ without restarting it.
 [`server/`](server/README.md) contains the Cloudflare Worker and D1 schema for
 the public, content-addressed scenario store. Posting Python source returns a
 shareable `/s/<sha256>` URL; following it returns exactly those UTF-8 bytes.
-The server is implemented and locally tested, while connecting it to the
-desktop and browser scenario pickers remains client-side work.
+It is what the editor's **Share** and **Open link** buttons talk to, as
+described above.
+
+## Running in a browser
+
+The testbed also runs in a browser: CPython, Box2D and the bindings compiled to
+WebAssembly with Pyodide, drawing through imgui into a canvas. It is single
+threaded, and what you write in the editor lasts until the page reloads unless
+you share it. [`web/README.md`](web/README.md) covers building the wheel,
+checking it under node, and serving it.
 
 ## Example Usage
 
@@ -201,17 +209,42 @@ for _ in range(180):
 print(round(bodies[0].position.y, 2))  # -4.25
 ```
 
+Box2D checks what it is given. An argument it rejects raises
+`box2d.InvalidInputError`, a `ValueError`, from the call that passed it --
+naming the Box2D function and the check that failed -- and leaves the world as
+it was:
+
+```python
+>>> body = world.new_body().dynamic().build()
+>>> body.add_circle(radius=0.5, density=-1)
+Traceback (most recent call last):
+  ...
+box2d.InvalidInputError: b2CreateCircleShape rejected its input: b2IsValidFloat( def->density ) && def->density >= 0.0f (in b2CreateShape)
+```
+
+Box2D's other diagnostics, such as a body going unstable, are logged to the
+`box2d` logger.
+
 ## Development Status
 
 ⚠️ Early development preview - API subject to change
 
-Tracks Box2D `main`, which is ahead of the 3.1.1 release and not yet tagged
-3.2.0, so what is bound here moves with upstream.
+Tracks Box2D `main`, currently the 3.2.0 API (`box2d.BOX2D_VERSION`) ahead of
+it being tagged, so what is bound here moves with upstream.
 
-Bodies, all seven joint types, every shape, sensor and contact events, the
-collision queries and casts, and character movement are bound and covered by
-tests on Linux, macOS and Windows for Python 3.12 and 3.13.
+Bound and covered by tests on Linux, macOS and Windows for Python 3.12 and
+3.13, and in WebAssembly:
 
-World snapshots are not bound yet.
+- bodies, every shape, and chains
+- every joint type -- distance, filter, motor, mover, pogo, prismatic,
+  revolute, weld and wheel -- plus a mouse joint for dragging
+- sensor, contact, hit, body-move and joint events, and the pre-solve,
+  pre-continuous, custom filter and material mixing callbacks
+- the collision queries and casts
+- character movement, both kinematic (the mover queries and plane solver) and
+  dynamic (the mover and pogo joints)
+- solver tuning, profiling counters and a deterministic state hash
+
+Not bound yet: world snapshots, and recording and replay.
 
 [Full API Documentation](https://box2d-py.readthedocs.io/) | [Box2D Project](https://github.com/erincatto/box2d)
