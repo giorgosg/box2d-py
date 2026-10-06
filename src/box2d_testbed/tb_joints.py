@@ -1094,12 +1094,6 @@ class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
         self.world.contact_damping_ratio = 0.0
         self.world.contact_push_velocity = 2.0
 
-        self.human = None
-        self.spawn()
-
-    def spawn(self):
-        if self.human is not None:
-            self.human.destroy()
         self.human = Human(
             self.world,
             self.SPAWN,
@@ -1111,7 +1105,9 @@ class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
 
     @respawn.callback
     def on_respawn(self, key, value):
-        self.spawn()
+        # The figure is the whole scene, so a fresh one is a rebuild: what
+        # Reset does too, under the name Box2D's sample gives the button.
+        self.rebuild()
 
     @friction.callback
     def on_friction_change(self, key, value):
