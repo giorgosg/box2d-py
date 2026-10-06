@@ -156,7 +156,7 @@ def test_prismatic_spring_drives_towards_its_target(world):
     joint = world.add_joint(
         PrismaticJointDef(ground, slider, anchor=(0, 0), axis=(1, 0))
     )
-    joint.spring_enabled = True
+    joint.enable_spring = True
     joint.spring_hertz = 2.0
     joint.spring_damping_ratio = 0.9
     joint.target_translation = 5.0
@@ -170,52 +170,75 @@ def test_prismatic_spring_drives_towards_its_target(world):
 # --- distance spring force range --------------------------------------------
 
 
-def test_spring_force_range_round_trips(world):
+def test_spring_force_limits_round_trip(world):
+    ground = world.add_body(position=(0, 0))
+    hanging = world.add_body(body_type="dynamic", position=(0, -3))
+    hanging.add_circle(radius=0.5)
+    joint = world.add_joint(
+        DistanceJointDef(
+            ground,
+            hanging,
+            length=3.0,
+            lower_spring_force=-20.0,
+            upper_spring_force=40.0,
+        )
+    )
+    assert joint.lower_spring_force == pytest.approx(-20.0)
+    assert joint.upper_spring_force == pytest.approx(40.0)
+
+    joint.lower_spring_force = -50.0
+    joint.upper_spring_force = 100.0
+    assert joint.lower_spring_force == pytest.approx(-50.0)
+    assert joint.upper_spring_force == pytest.approx(100.0)
+
+
+def test_spring_force_limits_are_effectively_unbounded_by_default(world):
     ground = world.add_body(position=(0, 0))
     hanging = world.add_body(body_type="dynamic", position=(0, -3))
     hanging.add_circle(radius=0.5)
     joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
 
-    joint.spring_force_range = (-50.0, 100.0)
-    lower, upper = joint.spring_force_range
-    assert lower == pytest.approx(-50.0)
-    assert upper == pytest.approx(100.0)
-
-
-def test_default_spring_force_range_is_effectively_unbounded(world):
-    ground = world.add_body(position=(0, 0))
-    hanging = world.add_body(body_type="dynamic", position=(0, -3))
-    hanging.add_circle(radius=0.5)
-    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
-
-    lower, upper = joint.spring_force_range
     # Box2D uses FLT_MAX rather than an actual infinity here.
-    assert lower < -1e37
-    assert upper > 1e37
+    assert joint.lower_spring_force < -1e37
+    assert joint.upper_spring_force > 1e37
 
 
-def test_a_spring_that_can_only_pull_behaves_like_a_rope(world):
-    """Clamping the range at zero is what turns a spring into a rope."""
+def hanging_length(**limits):
+    """How far a weight ends up below a springy distance joint holding it."""
+    world = World()
+    ground = world.add_body(position=(0, 0))
+    weight = world.add_body(body_type="dynamic", position=(0, -3))
+    weight.add_box(1, 1, density=100.0)
+    world.add_joint(
+        DistanceJointDef(
+            ground,
+            weight,
+            length=3.0,
+            enable_spring=True,
+            spring_hertz=1.0,
+            spring_damping_ratio=0.5,
+            **limits,
+        )
+    )
+    for _ in range(240):
+        world.step(1 / 60, 4)
+    length = -weight.position.y
+    world.destroy()
+    return length
 
-    def rest_length(force_range):
-        world = World()
-        ground = world.add_body(position=(0, 0))
-        weight = world.add_body(body_type="dynamic", position=(0, -3))
-        weight.add_box(1, 1, density=100.0)
-        joint = world.add_joint(DistanceJointDef(ground, weight, length=3.0))
-        joint.spring_enabled = True
-        joint.spring_hertz = 1.0
-        joint.spring_damping_ratio = 0.1
-        if force_range is not None:
-            joint.spring_force_range = force_range
-        for _ in range(240):
-            world.step(1 / 60, 4)
-        length = -weight.position.y
-        world.destroy()
-        return length
 
-    # A spring allowed no upward force cannot hold the weight up at all.
-    assert rest_length((0.0, 0.0)) > rest_length(None)
+def test_a_spring_that_cannot_push_holds_a_weight_like_a_rope():
+    """Holding a weight up is pulling, which upper_spring_force does not limit."""
+    unlimited = hanging_length()
+    rope = hanging_length(upper_spring_force=0.0)
+    assert rope == pytest.approx(unlimited, abs=0.1)
+
+
+def test_a_spring_that_cannot_pull_lets_a_weight_fall_like_a_strut():
+    """lower_spring_force limits pulling; at zero the weight is not held."""
+    unlimited = hanging_length()
+    strut = hanging_length(lower_spring_force=0.0)
+    assert strut > unlimited + 5.0
 
 
 # --- chain surface materials ------------------------------------------------

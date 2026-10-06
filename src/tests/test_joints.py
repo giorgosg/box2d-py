@@ -127,8 +127,8 @@ def test_revolute_joint_creation(world_and_bodies):
         local_anchor_a=(0, 0),  # Local anchor on body_a
         local_anchor_b=(1, 1),  # Local anchor on body_b
         collide_connected=False,
-        lower_angle=-0.5,
-        upper_angle=0.5,
+        lower_limit=-0.5,
+        upper_limit=0.5,
         enable_limit=True,
         motor_speed=2.0,
         max_motor_torque=10.0,
@@ -161,8 +161,8 @@ def test_revolute_joint_via_world_method(world_and_bodies):
         local_anchor_a=(0, 0),
         local_anchor_b=(1, 1),
         collide_connected=True,
-        lower_angle=-0.5,
-        upper_angle=0.5,
+        lower_limit=-0.5,
+        upper_limit=0.5,
         enable_limit=True,
         motor_speed=2.0,
         max_motor_torque=10.0,

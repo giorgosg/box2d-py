@@ -1,7 +1,7 @@
 """Engine objects refuse attributes they do not have.
 
-A Box2D property set under a wrong name -- ``joint.enable_motor = True`` for
-``joint.motor_enabled`` -- would otherwise add a plain attribute to the Python
+A Box2D property set under a wrong name -- ``joint.motor_enabled = True`` for
+``joint.enable_motor`` -- would otherwise add a plain attribute to the Python
 object and change nothing in the simulation, with no error to say so. Two
 testbed controls did nothing for exactly that reason.
 """
@@ -61,7 +61,7 @@ def _is_data(owner, name):
 
 def _words(name):
     """The words of a name, ignoring order and a past-tense ending, so that
-    ``enable_motor`` and ``motor_enabled`` read as the same name."""
+    ``motor_enabled`` and ``enable_motor`` read as the same name."""
     return sorted(word.removesuffix("d") for word in name.split("_"))
 
 

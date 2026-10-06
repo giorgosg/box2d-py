@@ -86,14 +86,14 @@ def test_definition_settings_reach_the_joint(world, bodies):
             max_motor_torque=100.0,
             motor_speed=2.0,
             enable_limit=True,
-            lower_angle=-1.0,
-            upper_angle=1.0,
+            lower_limit=-1.0,
+            upper_limit=1.0,
         )
     )
-    assert joint.motor_enabled is True
+    assert joint.enable_motor is True
     assert joint.max_motor_torque == pytest.approx(100.0)
     assert joint.motor_speed == pytest.approx(2.0)
-    assert joint.limit_enabled is True
+    assert joint.enable_limit is True
 
 
 def test_a_definition_can_build_several_joints(world):
@@ -117,8 +117,8 @@ def test_a_definition_can_build_several_joints(world):
 def test_unset_fields_leave_box2d_defaults(world, bodies):
     """A field left as None is omitted rather than passed as None."""
     bare = world.add_joint(RevoluteJointDef(*bodies, anchor=(1, 0)))
-    assert bare.motor_enabled is False
-    assert bare.limit_enabled is False
+    assert bare.enable_motor is False
+    assert bare.enable_limit is False
 
 
 # --- the checks that used to be copied into every factory -------------------
@@ -190,17 +190,17 @@ def test_revolute_runtime_surface_matches_the_other_joints(world, bodies):
     """RevoluteJoint could be created with a motor but never toggled after."""
     joint = world.add_joint(RevoluteJointDef(*bodies, anchor=(1, 0)))
 
-    joint.motor_enabled = True
-    joint.limit_enabled = True
-    joint.spring_enabled = True
+    joint.enable_motor = True
+    joint.enable_limit = True
+    joint.enable_spring = True
     joint.spring_hertz = 3.0
     joint.spring_damping_ratio = 0.5
     joint.target_angle = math.pi / 8
     world.step(1 / 60, 4)
 
-    assert joint.motor_enabled is True
-    assert joint.limit_enabled is True
-    assert joint.spring_enabled is True
+    assert joint.enable_motor is True
+    assert joint.enable_limit is True
+    assert joint.enable_spring is True
     assert joint.spring_hertz == pytest.approx(3.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(math.pi / 8)
@@ -279,17 +279,24 @@ def test_filter_joint_can_be_destroyed(world):
 # --- conformance with Box2D's own definitions -------------------------------
 
 #: Where our field name differs from the C one by choice rather than omission.
+_SPRING = {"hertz": "spring_hertz", "dampingRatio": "spring_damping_ratio"}
 _DEF_ALIASES = {
+    "RevoluteJointDef": {
+        **_SPRING,
+        "lowerAngle": "lower_limit",
+        "upperAngle": "upper_limit",
+    },
     "PrismaticJointDef": {
+        **_SPRING,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
     "WheelJointDef": {
-        "hertz": "spring_hertz",
-        "dampingRatio": "spring_damping_ratio",
-        "lowerTranslation": "lower_translation",
-        "upperTranslation": "upper_translation",
+        **_SPRING,
+        "lowerTranslation": "lower_limit",
+        "upperTranslation": "upper_limit",
     },
+    "DistanceJointDef": _SPRING,
 }
 
 
@@ -363,13 +370,13 @@ def test_revolute_spring_reaches_the_joint():
             arm,
             anchor=(0, 0),
             enable_spring=True,
-            hertz=4.0,
-            damping_ratio=0.5,
+            spring_hertz=4.0,
+            spring_damping_ratio=0.5,
             target_angle=0.25 * math.pi,
         )
     )
 
-    assert joint.spring_enabled is True
+    assert joint.enable_spring is True
     assert joint.spring_hertz == pytest.approx(4.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(0.25 * math.pi)
@@ -397,8 +404,8 @@ def test_revolute_spring_pulls_towards_its_target():
                 arm,
                 anchor=(0, 0),
                 enable_spring=enable_spring,
-                hertz=3.0,
-                damping_ratio=0.8,
+                spring_hertz=3.0,
+                spring_damping_ratio=0.8,
                 target_angle=0.0,
             )
         )
@@ -412,3 +419,56 @@ def test_revolute_spring_pulls_towards_its_target():
     sprung, free = lowest_point(True), lowest_point(False)
     assert sprung > -0.3, f"the sprung arm should barely dip, got {sprung:.2f}"
     assert free < -0.9, f"the free arm should swing right down, got {free:.2f}"
+
+
+# --- one name per setting ---------------------------------------------------
+
+#: Settings Box2D fixes when a joint is made, so there is nothing to set later.
+_CREATION_ONLY = {
+    "body",  # the body a mouse joint drags
+    "axis",  # becomes the rotation of the joint frame
+    "normal",  # likewise, for a pogo joint
+    "reference_angle",  # likewise
+    "max_tension_force",  # Box2D has no setter for a pogo joint's limits
+    "max_compression_force",
+}
+
+
+def _joint_definitions():
+    from dataclasses import is_dataclass
+
+    import box2d.jointdef as jointdef
+
+    return [
+        value
+        for value in vars(jointdef).values()
+        if isinstance(value, type)
+        and is_dataclass(value)
+        and getattr(value, "joint_class", None) is not None
+    ]
+
+
+@pytest.mark.parametrize("definition", _joint_definitions(), ids=lambda d: d.__name__)
+def test_a_joint_is_changed_by_the_names_it_was_made_with(definition):
+    """Every setting a joint can change later is a property named as at creation.
+
+    A joint made with enable_motor= used to be changed with motor_enabled,
+    made with hertz= changed with spring_hertz, made with lower_angle= changed
+    with lower_limit. Two testbed controls set a name the joint did not have
+    because of it.
+    """
+    import inspect
+    from dataclasses import fields
+
+    from box2d.jointdef import JointDef
+
+    common = {field.name for field in fields(JointDef)}
+    joint_class = definition.joint_class
+    for field in fields(definition):
+        if field.name in common or field.name in _CREATION_ONLY:
+            continue
+        attribute = inspect.getattr_static(joint_class, field.name, None)
+        assert hasattr(type(attribute), "__set__"), (
+            f"{definition.__name__}.{field.name} has no settable "
+            f"{joint_class.__name__}.{field.name}"
+        )

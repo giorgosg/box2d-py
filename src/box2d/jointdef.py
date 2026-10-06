@@ -123,29 +123,29 @@ class RevoluteJointDef(JointDef):
     """Pins two bodies together at a point and lets them rotate about it.
 
     Attributes:
-        lower_angle: Lower limit of rotation in radians.
-        upper_angle: Upper limit of rotation in radians.
+        lower_limit: Lower limit of rotation in radians.
+        upper_limit: Upper limit of rotation in radians.
         enable_limit: Whether the angle limits are enforced.
         motor_speed: Desired motor speed in radians per second.
         max_motor_torque: Torque the motor may apply, in newton-metres.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Angle between the bodies at which the joint rests.
         enable_spring: Whether a spring pulls the joint towards target_angle.
-        hertz: Spring frequency.
-        damping_ratio: Spring damping ratio.
+        spring_hertz: Spring frequency.
+        spring_damping_ratio: Spring damping ratio.
         target_angle: The angle the spring pulls towards, in radians.
     """
 
-    lower_angle: Optional[float] = None
-    upper_angle: Optional[float] = None
+    lower_limit: Optional[float] = None
+    upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
     motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
     enable_spring: Optional[bool] = None
-    hertz: Optional[float] = None
-    damping_ratio: Optional[float] = None
+    spring_hertz: Optional[float] = None
+    spring_damping_ratio: Optional[float] = None
     target_angle: Optional[float] = None
 
 
@@ -164,8 +164,8 @@ class PrismaticJointDef(JointDef):
         reference_angle: Not supported since Box2D 3.2, where the axis owns the
             joint frame's rotation. Passing it raises.
         enable_spring: Whether a spring pulls the joint toward its rest length.
-        hertz: Spring frequency.
-        damping_ratio: Spring damping ratio.
+        spring_hertz: Spring frequency.
+        spring_damping_ratio: Spring damping ratio.
         target_translation: Where along the axis the spring pulls towards.
     """
 
@@ -178,8 +178,8 @@ class PrismaticJointDef(JointDef):
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
     enable_spring: Optional[bool] = None
-    hertz: Optional[float] = None
-    damping_ratio: Optional[float] = None
+    spring_hertz: Optional[float] = None
+    spring_damping_ratio: Optional[float] = None
     target_translation: Optional[float] = None
 
 
@@ -190,8 +190,8 @@ class WheelJointDef(JointDef):
     Attributes:
         axis: The suspension axis, in body_a's local coordinates. Defaults to (1, 0).
         enable_limit: Whether the translation limits are enforced.
-        lower_translation: Lower translation limit.
-        upper_translation: Upper translation limit.
+        lower_limit: Lower translation limit.
+        upper_limit: Upper translation limit.
         enable_motor: Whether the motor drives the joint.
         motor_speed: Desired motor speed in radians per second.
         max_motor_torque: Torque the motor may apply.
@@ -202,8 +202,8 @@ class WheelJointDef(JointDef):
 
     axis: VectorLike = (1, 0)
     enable_limit: Optional[bool] = None
-    lower_translation: Optional[float] = None
-    upper_translation: Optional[float] = None
+    lower_limit: Optional[float] = None
+    upper_limit: Optional[float] = None
     enable_motor: Optional[bool] = None
     motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
@@ -222,14 +222,15 @@ class DistanceJointDef(JointDef):
         max_length: Upper length limit.
         enable_limit: Whether the length limits are enforced.
         enable_spring: Whether the joint behaves as a spring rather than a rod.
-        hertz: Spring frequency.
-        damping_ratio: Spring damping ratio.
+        spring_hertz: Spring frequency.
+        spring_damping_ratio: Spring damping ratio.
         enable_motor: Whether the motor drives the length.
         motor_speed: Desired motor speed.
         max_motor_force: Force the motor may apply, in newtons.
-        lower_spring_force: Most the spring may push, in newtons.
-        upper_spring_force: Most the spring may pull. Clamping either at zero
-            turns the spring into a rope or a strut.
+        lower_spring_force: Most the spring may pull, as a negative force in
+            newtons. At zero it only pushes, like a strut.
+        upper_spring_force: Most the spring may push. At zero it only pulls,
+            like a rope.
     """
 
     length: Optional[float] = None
@@ -237,8 +238,8 @@ class DistanceJointDef(JointDef):
     max_length: Optional[float] = None
     enable_limit: Optional[bool] = None
     enable_spring: Optional[bool] = None
-    hertz: Optional[float] = None
-    damping_ratio: Optional[float] = None
+    spring_hertz: Optional[float] = None
+    spring_damping_ratio: Optional[float] = None
     enable_motor: Optional[bool] = None
     motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None

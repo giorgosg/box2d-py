@@ -138,11 +138,11 @@ def test_converted_joint_properties(world):
 
     joint.motor_speed = 3.0
     joint.max_motor_torque = 40.0
-    joint.motor_enabled = True
+    joint.enable_motor = True
 
     assert joint.motor_speed == pytest.approx(3.0)
     assert joint.max_motor_torque == pytest.approx(40.0)
-    assert joint.motor_enabled is True
+    assert joint.enable_motor is True
 
 
 def test_docstrings_survived_the_conversion():

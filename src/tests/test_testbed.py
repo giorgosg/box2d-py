@@ -454,9 +454,9 @@ def test_the_scissor_lift_motor_checkbox_reaches_the_joint(world):
     test = BaseTest.registry["Joints"]["Scissor Lift"](world)
     test.setup()
     test.motor = True
-    assert test.lift_joint.motor_enabled is True
+    assert test.lift_joint.enable_motor is True
     test.motor = False
-    assert test.lift_joint.motor_enabled is False
+    assert test.lift_joint.enable_motor is False
 
 
 @pytest.mark.parametrize("scenario", scenarios())

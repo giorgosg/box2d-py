@@ -89,7 +89,7 @@ def test_bones_are_named_for_debug_draw(human):
 def test_joint_limits_match_the_table(human):
     for definition, bone in zip(BONES[1:], human.bones[1:]):
         lower, upper = definition.limits
-        assert bone.joint.limit_enabled is True
+        assert bone.joint.enable_limit is True
         assert bone.joint.lower_limit == pytest.approx(lower, abs=1e-5)
         assert bone.joint.upper_limit == pytest.approx(upper, abs=1e-5)
 
@@ -107,10 +107,10 @@ def test_friction_scale_reaches_the_motor_torque(world):
 
 def test_springs_are_off_unless_asked_for(world):
     limp = Human(world, (0, 0))
-    assert all(joint.spring_enabled is False for joint in limp.joints)
+    assert all(joint.enable_spring is False for joint in limp.joints)
 
     sprung = Human(world, (10, 0), hertz=4.0, damping_ratio=0.5, group_index=2)
-    assert all(joint.spring_enabled is True for joint in sprung.joints)
+    assert all(joint.enable_spring is True for joint in sprung.joints)
     assert all(joint.spring_hertz == pytest.approx(4.0) for joint in sprung.joints)
 
 
@@ -189,10 +189,10 @@ def test_set_velocity_moves_every_bone(human):
 
 def test_zero_friction_turns_the_motors_off(human):
     human.set_joint_friction_torque(0.0)
-    assert all(joint.motor_enabled is False for joint in human.joints)
+    assert all(joint.enable_motor is False for joint in human.joints)
 
     human.set_joint_friction_torque(0.5)
-    assert all(joint.motor_enabled is True for joint in human.joints)
+    assert all(joint.enable_motor is True for joint in human.joints)
 
 
 def test_friction_torque_is_scaled_per_joint(world):
@@ -230,7 +230,7 @@ def test_friction_follows_the_cube_of_a_resize(world, built_at):
 def test_zero_hertz_turns_the_springs_off(world):
     human = Human(world, (0, 0), hertz=4.0, damping_ratio=0.5)
     human.set_joint_spring_hertz(0.0)
-    assert all(joint.spring_enabled is False for joint in human.joints)
+    assert all(joint.enable_spring is False for joint in human.joints)
 
 
 def test_sensor_events_can_be_enabled(human):

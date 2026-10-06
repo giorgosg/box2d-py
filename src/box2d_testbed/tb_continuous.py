@@ -131,8 +131,8 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_motor=True,
             max_motor_torque=self.flipper_torque,
             enable_limit=True,
-            lower_angle=-0.5,
-            upper_angle=0.4,
+            lower_limit=-0.5,
+            upper_limit=0.4,
             motor_speed=0.0,
         )
         self.right_joint = self.world.add_revolute_joint(
@@ -143,8 +143,8 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_motor=True,
             max_motor_torque=self.flipper_torque,
             enable_limit=True,
-            lower_angle=-0.4,
-            upper_angle=0.5,
+            lower_limit=-0.4,
+            upper_limit=0.5,
             motor_speed=0.0,
         )
 

@@ -3,7 +3,7 @@
 
 Setting a property under a wrong name used to add a plain attribute to the
 Python object and change nothing in Box2D, silently. Two testbed controls were
-broken that way -- ``joint.enable_motor`` for ``joint.motor_enabled`` among
+broken that way -- ``joint.motor_enabled`` for ``joint.enable_motor`` among
 them -- and nothing noticed, because nothing raised.
 """
 
@@ -56,8 +56,8 @@ def test_user_data_is_where_application_data_goes(objects, kind):
 @pytest.mark.parametrize(
     "kind, wrong, right",
     [
-        # The two names that broke testbed controls.
-        ("joint", "enable_motor", "motor_enabled"),
+        # Names like the two that broke testbed controls.
+        ("joint", "motor_enabled", "enable_motor"),
         ("joint", "spring_frequency_hertz", "spring_hertz"),
         # The tail of a longer name, and a plain misspelling.
         ("joint", "hertz", "spring_hertz"),
@@ -70,8 +70,8 @@ def test_the_error_names_the_property_that_was_meant(objects, kind, wrong, right
 
 
 def test_real_properties_still_set(objects):
-    objects["joint"].motor_enabled = True
-    assert objects["joint"].motor_enabled is True
+    objects["joint"].enable_motor = True
+    assert objects["joint"].enable_motor is True
     objects["body"].angular_damping = 0.5
     assert objects["body"].angular_damping == pytest.approx(0.5)
     objects["shape"].friction = 0.25
@@ -81,9 +81,9 @@ def test_real_properties_still_set(objects):
 def test_a_rejected_name_is_left_unset(objects):
     joint = objects["joint"]
     with pytest.raises(AttributeError):
-        joint.enable_motor = True
-    assert "enable_motor" not in vars(joint)
-    assert joint.motor_enabled is False
+        joint.motor_enabled = True
+    assert "motor_enabled" not in vars(joint)
+    assert joint.enable_motor is False
 
 
 def test_a_subclass_of_yours_can_add_attributes(world):

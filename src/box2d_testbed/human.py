@@ -331,13 +331,13 @@ class Human:
                         local_anchor_a=parent.get_local_point(pivot),
                         local_anchor_b=body.get_local_point(pivot),
                         enable_limit=True,
-                        lower_angle=lower,
-                        upper_angle=upper,
+                        lower_limit=lower,
+                        upper_limit=upper,
                         enable_motor=True,
                         max_motor_torque=definition.friction_scale * max_torque,
                         enable_spring=hertz > 0.0,
-                        hertz=hertz,
-                        damping_ratio=damping_ratio,
+                        spring_hertz=hertz,
+                        spring_damping_ratio=damping_ratio,
                     )
                 )
 
@@ -406,9 +406,9 @@ class Human:
             if bone.joint is None:
                 continue
             if torque == 0.0:
-                bone.joint.motor_enabled = False
+                bone.joint.enable_motor = False
             else:
-                bone.joint.motor_enabled = True
+                bone.joint.enable_motor = True
                 bone.joint.max_motor_torque = self.scale * bone.friction_scale * torque
 
     def set_joint_spring_hertz(self, hertz: float):
@@ -417,9 +417,9 @@ class Human:
             if bone.joint is None:
                 continue
             if hertz == 0.0:
-                bone.joint.spring_enabled = False
+                bone.joint.enable_spring = False
             else:
-                bone.joint.spring_enabled = True
+                bone.joint.enable_spring = True
                 bone.joint.spring_hertz = hertz
 
     def set_joint_damping_ratio(self, damping_ratio: float):
