@@ -203,8 +203,8 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
   them out to frame whatever moves. The **Copy** button in the status bar
   copies the current view as these two lines.
 
-The shipped scenarios double as examples of the library, so they keep to a few
-conventions:
+The shipped scenarios double as examples of the library, so these are the
+conventions for them:
 
 - The docstring says what the scenario shows, what to look at and why, and any
   keys it takes.

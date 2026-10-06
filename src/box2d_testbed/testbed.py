@@ -28,6 +28,15 @@ from box2d import Vec2
 MONO_FONT = "fonts/Inconsolata-Medium.ttf"
 MONO_FONT_SIZE = 16.0
 
+#: The Simulation window shows the scene and never scrolls: the wheel zooms.
+#: Left scrollable, a world label drawn outside the view extended its content,
+#: and the wheel then scrolled the scenario's status text away with it.
+SIMULATION_WINDOW_FLAGS = (
+    imgui.WindowFlags_.no_background
+    | imgui.WindowFlags_.no_scrollbar
+    | imgui.WindowFlags_.no_scroll_with_mouse
+)
+
 
 class TestbedApp:
     def __init__(self):
@@ -332,7 +341,7 @@ class TestbedApp:
                 "Simulation",
                 "MainDockSpace",
                 self.render_simulation,
-                imgui_window_flags=imgui.WindowFlags_.no_background,
+                imgui_window_flags=SIMULATION_WINDOW_FLAGS,
             ),
             # The editor is here rather than in the 20% strip on the right,
             # where no line of code fits.

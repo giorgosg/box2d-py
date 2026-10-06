@@ -42,6 +42,9 @@ class UIProperty:
         self._order = UIProperty._counter
         UIProperty._counter += 1
         self._callbacks = []  # ← store callbacks at the descriptor level
+        #: Run the callbacks even when the scene is not whole. Only for
+        #: controls that need nothing from it, like Reset.
+        self.always_runs = False
 
     def __set_name__(self, owner: Type, name: str):
         self.name = name
@@ -87,7 +90,7 @@ class UIProperty:
             ui_value.value = value
         # Before the scene is built there is nothing for a callback to act on;
         # setup reads the stored value instead.
-        if not getattr(obj, "is_set_up", True):
+        if not self.always_runs and not getattr(obj, "is_set_up", True):
             return
         for callback in ui_value.callbacks:
             callback(obj, self.name, value)

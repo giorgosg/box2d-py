@@ -35,6 +35,9 @@ class BaseTest:
     registry = {}
     reset = UI.button("Reset")
     reset_view = UI.button("Reset View")
+    # Both work whatever state the scene is in -- Reset is how a scene whose
+    # rebuild failed halfway gets another go.
+    reset.always_runs = reset_view.always_runs = True
 
     #: Where the camera sits when this scenario is opened, as (x, y). Leave
     #: None to frame the scenario's moving parts automatically.
@@ -49,9 +52,11 @@ class BaseTest:
     MIN_AUTO_ZOOM = 2.0
     MAX_AUTO_ZOOM = 45.0
 
-    #: True once setup has built the scene. Until then setting a control only
-    #: stores its value -- setup reads it -- and its callbacks do not run, so
-    #: a callback can rely on everything setup creates.
+    #: True while there is a whole scene: setup has finished, and is not
+    #: running again. Otherwise -- before the first setup, while setup or a
+    #: rebuild runs, or after a setup that raised -- setting a control only
+    #: stores its value, which setup reads, and its callbacks do not run. So a
+    #: callback can rely on everything setup creates.
     is_set_up = False
 
     def __init_subclass__(cls, *, category, name, **kwargs):
@@ -60,12 +65,15 @@ class BaseTest:
             BaseTest.registry[category] = {}
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
-        if "setup" in cls.__dict__:
-            cls.setup = _marks_set_up(cls.__dict__["setup"])
 
     def __init__(self, world):
         self.world = world
         self.mouse_joint = None  # For default dragging
+        self._setup_started = False
+        # Whichever setup this scenario ends up with -- its own, a parent's or
+        # a mixin's -- is wrapped once, around all of it, so a subclass's
+        # super().setup() does not count as the scene being finished.
+        self.setup = _tracking_set_up(self, self.setup)
         self.app_state = state
         self._ui_values = {}
         for key in dir(self.__class__):
@@ -247,9 +255,9 @@ class BaseTest:
         What Reset does, and what a control that changes how the scene is
         built should call. Destroying the bodies takes their shapes and
         joints with them. Does nothing before the first setup, which will
-        build the scene itself.
+        build the scene itself; after a setup that raised it tries again.
         """
-        if not self.is_set_up:
+        if not self._setup_started:
             return
         for body in list(self.world.bodies):
             body.destroy()
@@ -279,13 +287,15 @@ class BaseTest:
         return BaseTest.registry
 
 
-def _marks_set_up(setup):
-    """Wrap a scenario's setup so the scenario knows when it has run."""
+def _tracking_set_up(scenario, setup):
+    """Wrap a scenario's setup so the scenario knows when its scene is whole."""
 
     @functools.wraps(setup)
-    def wrapped(self, *args, **kwargs):
-        result = setup(self, *args, **kwargs)
-        self.is_set_up = True
+    def run(*args, **kwargs):
+        scenario._setup_started = True
+        scenario.is_set_up = False
+        result = setup(*args, **kwargs)
+        scenario.is_set_up = True
         return result
 
-    return wrapped
+    return run

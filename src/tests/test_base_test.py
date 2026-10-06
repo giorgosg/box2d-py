@@ -148,6 +148,105 @@ def test_a_subclass_inherits_the_set_up_tracking(world, scenario_class):
     assert scenario.crate.shapes[0].friction == pytest.approx(0.3)
 
 
+def test_a_setup_from_a_mixin_is_tracked_too(world):
+    """Only a setup written on the scenario class itself used to be tracked,
+    so one inherited from a mixin left every control and Reset dead."""
+
+    class Scene:
+        def setup(self):
+            self.ball = self.world.new_body().dynamic().circle(0.5).build()
+
+    class Mixed(Scene, BaseTest, category=CATEGORY, name="Mixed"):
+        radius = UI.float(0.5, min=0.1, max=1.0)
+
+        @radius.callback
+        def on_radius(self, key, value):
+            self.ball.shapes[0].radius = value
+
+    scenario = Mixed(world)
+    scenario.setup()
+    assert scenario.is_set_up
+    scenario.radius = 0.8
+    assert scenario.ball.shapes[0].radius == pytest.approx(0.8)
+
+    first = scenario.ball
+    scenario.reset = 1
+    assert not first.is_valid, "Reset rebuilt the scene"
+
+
+def test_a_subclass_finishes_its_own_setup_before_callbacks_run(world, scenario_class):
+    """super().setup() returning is not the scene being finished: a subclass
+    still has its own parts to build."""
+
+    class Labelled(scenario_class, category=CATEGORY, name="Labelled"):
+        def setup(self):
+            super().setup()
+            self.friction = 0.2  # a callback now would find no self.label
+            self.label = "made after the parent's setup"
+
+        @scenario_class.friction.callback
+        def on_friction_needing_label(self, key, value):
+            assert self.label
+
+    scenario = Labelled(world)
+    scenario.setup()  # raised AttributeError when the callback ran early
+    assert scenario.friction == 0.2, "the value is kept"
+
+    scenario.friction = 0.3  # and once the scene is whole, callbacks run
+    assert scenario.crate.shapes[0].friction == pytest.approx(0.3)
+
+
+def test_a_setup_that_sets_its_own_control_does_not_recurse_on_reset(world):
+    class SelfSet(BaseTest, category=CATEGORY, name="SelfSet"):
+        count = UI.int(3, min=1, max=10)
+
+        def setup(self):
+            self.count = 4  # e.g. clamped to what fits
+            for i in range(self.count):
+                self.world.new_body().dynamic().position(i, 0).circle(0.4).build()
+
+        @count.callback
+        def on_count(self, key, value):
+            self.rebuild()
+
+    scenario = SelfSet(world)
+    scenario.setup()
+    scenario.reset = 1
+    scenario.reset = 1
+    assert len(world.bodies) == 4
+
+
+def test_a_rebuild_that_raises_leaves_no_half_scene_marked_whole(world):
+    """Callbacks stay off over a half-built scene, and Reset tries again."""
+
+    class Flaky(BaseTest, category=CATEGORY, name="Flaky"):
+        fail = False
+        size = UI.float(1.0, min=0.5, max=2.0)
+
+        def setup(self):
+            self.world.new_body().static().segment((-5, 0), (5, 0)).build()
+            if self.fail:
+                raise RuntimeError("half built")
+            self.thing = self.world.new_body().dynamic().circle(self.size).build()
+
+        @size.callback
+        def on_size(self, key, value):
+            self.thing.shapes[0].radius = value
+
+    scenario = Flaky(world)
+    scenario.setup()
+    scenario.fail = True
+    with pytest.raises(RuntimeError):
+        scenario.rebuild()
+    assert scenario.is_set_up is False
+    scenario.size = 1.5  # would touch the destroyed body if it ran
+
+    scenario.fail = False
+    scenario.reset = 1
+    assert scenario.is_set_up
+    assert scenario.thing.shapes[0].radius == pytest.approx(1.5)
+
+
 # --- status ---------------------------------------------------------------------
 
 
@@ -217,9 +316,9 @@ def test_the_readme_example_runs(world):
     source = re.search(r"```python\n(.*?)```", section, re.S).group(1)
 
     namespace = {}
-    exec(source, namespace)
-    drop = namespace["Drop"](world)
     try:
+        exec(source, namespace)
+        drop = namespace["Drop"](world)
         drop.drop_height = 3.0  # before setup: stored for setup to read
         drop.setup()
         assert drop.box.position.y == pytest.approx(3.0)

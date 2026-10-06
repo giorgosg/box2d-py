@@ -237,6 +237,53 @@ def test_only_middle_mouse_drag_pans_the_camera(monkeypatch, button, pans):
 
 
 @needs_gui_stack
+def test_the_status_is_drawn_from_where_the_content_starts(monkeypatch):
+    """After the scene, from the content area's corner: below the tab bar,
+    which the window position would put it behind."""
+    from types import SimpleNamespace
+
+    import box2d_testbed.testbed as testbed_module
+    from box2d_testbed.testbed_state import state
+
+    io = SimpleNamespace(
+        display_size=SimpleNamespace(x=800.0, y=600.0),
+        mouse_wheel=0.0,
+        mouse_down=[False, False, False],
+        mouse_delta=SimpleNamespace(x=0.0, y=0.0),
+        mouse_clicked=[False, False, False],
+        mouse_released=[False, False, False],
+    )
+    content = SimpleNamespace(x=8.0, y=28.0)
+    monkeypatch.setattr(
+        testbed_module,
+        "imgui",
+        SimpleNamespace(
+            get_window_pos=lambda: SimpleNamespace(x=0.0, y=0.0),
+            get_window_size=lambda: SimpleNamespace(x=800.0, y=600.0),
+            get_cursor_screen_pos=lambda: content,
+            get_io=lambda: io,
+            is_window_hovered=lambda: False,
+        ),
+    )
+
+    order = []
+    app = SimpleNamespace(
+        debug_draw=SimpleNamespace(camera=SimpleNamespace(set_view=lambda *_: None)),
+        simulation=SimpleNamespace(draw=lambda: order.append("scene")),
+        key_press_events=lambda: None,
+        draw_status=lambda origin: order.append(("status", origin)),
+    )
+    current = state.current_test_obj
+    state.current_test_obj = None
+    try:
+        testbed_module.TestbedApp.render_simulation(app)
+    finally:
+        state.current_test_obj = current
+
+    assert order == ["scene", ("status", content)]
+
+
+@needs_gui_stack
 def test_layout_is_well_formed():
     """The docking layout is pure data, so it can be built without a window.
 
