@@ -2,8 +2,7 @@
 
 from .base_test import BaseTest, UI
 
-# create_random_polygon is imported for the side effect of extending BodyBuilder
-from .shared import donut, create_random_polygon, Car  # noqa: F401
+from .shared import donut, random_polygon, Car
 from .human import Human
 import math
 from box2d import Vec2, World, Body, Transform, Color
@@ -190,14 +189,16 @@ class Bridge(BaseTest, category="Joints", name="Bridge"):
         self.circles = [
             circle_builder.position(i, 20).build() for i in range(-10, 10, 2)
         ]
-        self.polygons = [
-            self.world.new_body()
-            .dynamic()
-            .position(i, 20)
-            .create_random_polygon(0.5, density=10)
-            .build()
-            for i in range(-11, 11, 2)
-        ]
+        self.polygons = []
+        for i in range(-11, 11, 2):
+            polygon = random_polygon(0.5)
+            self.polygons.append(
+                self.world.new_body()
+                .dynamic()
+                .position(i, 20)
+                .polygon(polygon.vertices, polygon.radius, density=10)
+                .build()
+            )
 
 
 class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
