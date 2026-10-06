@@ -52,3 +52,20 @@ def test_starting_the_conveyor_belt_moves_boxes_resting_on_it(world):
     # Carried right at up to 3 m/s; it takes them a moment to get going.
     moved = [box.position.x - x for box, x in zip(boxes, before)]
     assert all(distance > 1.5 for distance in moved), moved
+
+
+def test_icing_the_middle_stretch_lets_a_box_resting_there_slide(world):
+    test = scenario(world, "Chain Materials")
+    # Grippy enough to stop the box on the middle stretch's gentle slope.
+    test.icy_friction = 1.0
+    run(test, 7.0)
+    box = test.boxes[0]
+    assert not box.awake, "the box should have come to rest"
+    resting_at = box.position
+
+    test.icy_friction = 0.0
+    run(test, 2.0)
+
+    # Frictionless on a 1-in-7 slope, it slides downhill, to the right, at
+    # 1.4 m/s^2: 2.8 m in two seconds.
+    assert box.position.x > resting_at.x + 2.0

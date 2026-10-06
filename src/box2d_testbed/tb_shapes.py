@@ -569,9 +569,13 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     ICY = 1
 
     def setup(self):
+        # Box2D reuses a contact that has barely moved without reading the
+        # materials again, so a box at rest would never feel a new friction.
+        # Not recycling the ground's contacts makes them read it every step.
         ground = (
             self.world.new_body()
             .static()
+            .enable_contact_recycling(False)
             .chain(
                 self.POINTS,
                 ghost1=self.GHOST1,
@@ -594,6 +598,8 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     def on_friction_change(self, key, value):
         for index in range(len(self.chain.segments)):
             self.chain.set_surface_material(self.material(index), index)
+        # A box that has come to rest is asleep, and would not notice.
+        self.chain.body.wake_touching()
 
     @drop.callback
     def on_drop(self, key, value):
