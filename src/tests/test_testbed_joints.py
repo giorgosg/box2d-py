@@ -77,6 +77,19 @@ def test_a_motor_too_weak_to_hold_the_box_up_lets_it_land_on_the_platform(world)
     assert motor_box(test).position.y == pytest.approx(0.25, abs=0.05)
 
 
+def test_lowering_the_force_cap_drops_a_box_that_go_stopped(world):
+    test = scenario(world, "Motor Joint")
+    run(test, 1.0)
+    test.enable_motion = False
+    run(test, 3.0)
+    assert not motor_box(test).awake, "a box held still goes to sleep"
+
+    test.max_velocity_force = 2.0
+    run(test, 4.0)
+
+    assert motor_box(test).position.y == pytest.approx(0.25, abs=0.05)
+
+
 def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
     test = scenario(world, "Cantilever")
     run(test, 1.0)
