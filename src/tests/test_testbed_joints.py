@@ -93,12 +93,13 @@ def test_lowering_the_force_cap_drops_a_box_that_go_stopped(world):
 def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
     test = scenario(world, "Cantilever")
     run(test, 1.0)
-    sagging = test.status()
-    assert sagging != "tip y = 0.00"
+    sagging = test.tip.position
+    assert sagging.y < -1.0, "the beam should have drooped"
 
     test.collide_connected = True
 
-    assert test.status() == sagging, "the beam was rebuilt straight"
+    # A rebuild would make a new, level beam with its tip back at (7.5, 0).
+    assert test.tip.position == sagging, "the beam was rebuilt straight"
     assert all(joint.collide_connected for joint in test.joints)
 
 
@@ -117,9 +118,7 @@ def test_the_user_constraint_ropes_pull_but_never_push(world):
     tensions = []
     for _ in range(3 * HERTZ):
         run(test, 1 / HERTZ)
-        # "rope tension 152.8, 211.1 N"
-        numbers = test.status().removeprefix("rope tension ").removesuffix(" N")
-        tensions += [float(n) for n in numbers.split(", ")]
+        tensions += test.tension
 
     assert max(tensions) > 100, "the ropes should be holding the box up"
     assert min(tensions) >= 0, "a rope pushed the box away"
