@@ -1,30 +1,37 @@
 #!/usr/bin/env python
+"""The parts of the build pyproject.toml cannot express: the C libraries and
+the CFFI extension. Both come from src/tools/build_cffi.py."""
+
 import os
 import sys
+
 import setuptools
 from setuptools.command.build_ext import build_ext
 
-# Add the src/tools directory to the path so we can import build_cffi
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src", "tools"))
-from build_cffi import build_dependencies
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "tools")
+)
+import build_cffi  # noqa: E402
 
 
 class BuildExtWithDeps(build_ext):
-    """Custom build_ext command that builds C++ dependencies first"""
+    """Build Box2D and enkiTS with CMake before the extension that links them."""
 
     def run(self):
-        # Build Box2D and enkiTS first
-        print("Building Box2D and enkiTS dependencies...")
-        build_dependencies()
-
-        # Then run the regular build_ext command
+        build_cffi.build_dependencies()
         super().run()
 
 
+options = {}
+if not build_cffi.EMSCRIPTEN:
+    # cffi compiles against the stable ABI, so one wheel serves every CPython
+    # from 3.12 on. Pyodide resolves its wheels by their own tag, so the
+    # WebAssembly build keeps the version-specific one.
+    options["bdist_wheel"] = {"py_limited_api": "cp312"}
+
 setuptools.setup(
-    # Note: metadata is already specified in pyproject.toml.
+    # Metadata is in pyproject.toml.
     cffi_modules=["src/tools/build_cffi.py:ffibuilder"],
-    cmdclass={
-        "build_ext": BuildExtWithDeps,
-    },
+    cmdclass={"build_ext": BuildExtWithDeps},
+    options=options,
 )
