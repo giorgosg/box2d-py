@@ -114,18 +114,31 @@ class TestbedSimulation:
         Left to raise it would either take the app down or, once caught, print
         a traceback per frame for as long as the window is open -- and the
         scene is still worth looking at while the hook driving it is broken.
+
+        Returns what the hook returned, or None if it was not called.
         """
         test = self.current_test_obj
         if test is None or name in self._failed_hooks:
-            return
+            return None
         try:
-            getattr(test, name)(*args)
+            return getattr(test, name)(*args)
         except BaseException:
             self._failed_hooks.add(name)
             state.scenario_error = traceback.format_exc()
             print(
                 f"{name} raised; not calling it again:\n{state.scenario_error}", end=""
             )
+
+    def status_lines(self):
+        """The scenario's status() as a list of lines, empty for none."""
+        status = self._run_hook("status")
+        if status is None:
+            return []
+        if isinstance(status, str):
+            return status.splitlines()
+        if isinstance(status, (list, tuple)):
+            return [str(line) for line in status]
+        return [str(status)]
 
     def update_physics(self):
         if (

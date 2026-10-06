@@ -28,6 +28,15 @@ from box2d import Vec2
 MONO_FONT = "fonts/Inconsolata-Medium.ttf"
 MONO_FONT_SIZE = 16.0
 
+#: The Simulation window shows the scene and never scrolls: the wheel zooms.
+#: Left scrollable, a world label drawn outside the view extended its content,
+#: and the wheel then scrolled the scenario's status text away with it.
+SIMULATION_WINDOW_FLAGS = (
+    imgui.WindowFlags_.no_background
+    | imgui.WindowFlags_.no_scrollbar
+    | imgui.WindowFlags_.no_scroll_with_mouse
+)
+
 
 class TestbedApp:
     def __init__(self):
@@ -141,6 +150,9 @@ class TestbedApp:
         # Get window dimensions and position in screen coordinates
         pos = imgui.get_window_pos()
         size = imgui.get_window_size()
+        # Where the window's content starts: below its tab bar, inside its
+        # padding. The window position is the top of the tab bar.
+        content = imgui.get_cursor_screen_pos()
         io = imgui.get_io()
         # Ensure we have valid dimensions
         if size.x <= 0 or size.y <= 0:
@@ -188,12 +200,30 @@ class TestbedApp:
         if self.simulation is not None:
             # Draw simulation
             self.simulation.draw()
+            self.draw_status(content)
 
         if uses_gl:
             # Reset viewport
             self.gl_module().glViewport(
                 0, 0, int(io.display_size.x), int(io.display_size.y)
             )
+
+    def draw_status(self, origin):
+        """The scenario's status lines, from ``origin`` down: the top left of
+        the view's content area.
+
+        Drawn on the window's draw list, so on top of whichever renderer drew
+        the scene, and in screen space, so the text stays put as the camera
+        moves.
+        """
+        lines = self.simulation.status_lines()
+        if not lines:
+            return
+        draw_list = imgui.get_window_draw_list()
+        height = imgui.get_text_line_height_with_spacing()
+        color = imgui.get_color_u32(imgui.Col_.text)
+        for row, line in enumerate(lines):
+            draw_list.add_text((origin.x, origin.y + row * height), color, line)
 
     def key_press_events(self):
         # Not while something is being typed. The editor and the console are
@@ -311,7 +341,7 @@ class TestbedApp:
                 "Simulation",
                 "MainDockSpace",
                 self.render_simulation,
-                imgui_window_flags=imgui.WindowFlags_.no_background,
+                imgui_window_flags=SIMULATION_WINDOW_FLAGS,
             ),
             # The editor is here rather than in the 20% strip on the right,
             # where no line of code fits.

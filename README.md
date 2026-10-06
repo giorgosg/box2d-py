@@ -146,6 +146,78 @@ editor, the traceback in the scenario's own panel. A per-frame hook that raises
 is reported once and then not called again, so a broken `after_step` neither
 takes the window down nor floods the terminal.
 
+### What a scenario looks like
+
+A scenario is a class. Declaring it registers it, under the category and name
+it gives:
+
+```python
+from box2d_testbed.base_test import BaseTest, UI
+
+
+class Drop(BaseTest, category="Bodies", name="Drop"):
+    """A box dropped onto the ground from a height you choose.
+
+    Watch it settle: Box2D puts a body to sleep once it has been still for a
+    moment, and the status line says when that happens.
+    """
+
+    camera_center = (0, 5)
+    camera_zoom = 12.0
+
+    drop_height = UI.float(8.0, min=1.0, max=20.0)
+
+    def setup(self):
+        self.world.new_body().static().segment((-20, 0), (20, 0)).build()
+        self.box = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, self.drop_height)
+            .box(1, 1, friction=0.4)
+            .build()
+        )
+
+    @drop_height.callback
+    def on_drop_height(self, key, value):
+        # Where the box starts is part of building the scene, so build it again.
+        self.rebuild()
+
+    def status(self):
+        return "asleep" if not self.box.awake else f"height {self.box.position.y:.1f}"
+```
+
+- **`setup`** builds the scene. Reset and `self.rebuild()` throw the scene away
+  and call it again, keeping the controls as they are.
+- **Controls** (`UI.float`, `UI.int`, `UI.bool`, `UI.select`, `UI.button`) appear
+  in the scenario's panel. Read them as attributes. A callback runs when one
+  changes, but never before `setup` has built the scene, so it can rely on what
+  `setup` made: one that changes how the scene is built calls
+  `self.rebuild()`, and one that tunes something in place just sets it.
+- **`status`** returns a line, or a list of lines, shown at the top left of the
+  view. `debug_draw(self, debug_draw)` draws in the world instead, for labels
+  that belong to something in it.
+- **`after_step(dt)`** runs after every step, and `on_key_down(key)`,
+  `on_key_up(key)` and the `on_mouse_*` handlers take input. Dragging bodies
+  with the mouse is already handled.
+- **`camera_center` and `camera_zoom`** frame the scenario when it opens. Leave
+  them out to frame whatever moves. The **Copy** button in the status bar
+  copies the current view as these two lines.
+
+The shipped scenarios double as examples of the library, so these are the
+conventions for them:
+
+- The docstring says what the scenario shows, what to look at and why, and any
+  keys it takes.
+- Bodies are made with the builder, `world.new_body()...build()`, with
+  `.static()` spelt out for the ground.
+- Comments explain the physics or the reason for a number, not what the next
+  line does.
+- Only the public API: nothing from `box2d._box2d` or `ffi`, and no
+  underscore attributes.
+- Controls give `min=` and `max=` by keyword, and use `UI.float` for anything
+  physical.
+- Imports run standard library, then `box2d`, then the testbed.
+
 ## The console
 
 The **Console** panel along the bottom is a Python prompt on the running

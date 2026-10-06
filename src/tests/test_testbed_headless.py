@@ -107,6 +107,98 @@ def test_scenarios_can_be_switched_headlessly():
     assert frames > 0
 
 
+def test_a_scenarios_status_is_drawn_over_the_view():
+    """status() lines reach the window's draw list, through the installed imgui.
+
+    Drawn by the app rather than by either renderer, and checked against the
+    real binding, which a recorder could not do. Driven inside one imgui frame
+    of its own: a second run_headless in the same process renders the
+    Simulation window only on its first frame, so a check that needs it drawn
+    every frame cannot run the whole app.
+    """
+    from types import SimpleNamespace
+
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed import TestbedApp
+
+    context = imgui.create_context()
+    window_open = False
+    try:
+        io = imgui.get_io()
+        io.display_size = imgui.ImVec2(400.0, 300.0)
+        io.delta_time = 1.0 / 60.0
+        # As in run_headless: with no backend there is no font upload path.
+        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
+        imgui.new_frame()
+        imgui.begin("Simulation")
+        window_open = True
+
+        app = TestbedApp.__new__(TestbedApp)
+        draw_list = imgui.get_window_draw_list()
+        origin = imgui.get_cursor_screen_pos()
+
+        app.simulation = SimpleNamespace(status_lines=lambda: [])
+        before = draw_list.vtx_buffer.size()
+        app.draw_status(origin)
+        assert draw_list.vtx_buffer.size() == before, "no status, nothing drawn"
+
+        app.simulation = SimpleNamespace(status_lines=lambda: ["first", "second"])
+        app.draw_status(origin)
+        added = [
+            draw_list.vtx_buffer[i].pos
+            for i in range(before, draw_list.vtx_buffer.size())
+        ]
+        assert added, "the lines were drawn"
+        assert min(p.x for p in added) >= origin.x - 1, "from the content's left"
+        assert min(p.y for p in added) >= origin.y - 1, "and from its top down"
+    finally:
+        # Close what was opened, or end_frame asserts and hides the failure.
+        if window_open:
+            imgui.end()
+        imgui.end_frame()
+        imgui.destroy_context(context)
+
+
+def test_the_simulation_window_does_not_scroll():
+    """The wheel zooms the scene; it must not scroll the window.
+
+    It did when a world label drawn outside the view (the GL renderer places
+    text with the cursor) extended the window's content: the content, and the
+    scenario's status with it, moved up out of sight.
+    """
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed import SIMULATION_WINDOW_FLAGS
+
+    context = imgui.create_context()
+    try:
+        io = imgui.get_io()
+        io.display_size = imgui.ImVec2(400.0, 300.0)
+        io.delta_time = 1.0 / 60.0
+        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
+
+        content_top = []
+        for frame in range(6):
+            if frame == 1:
+                io.add_mouse_pos_event(100.0, 100.0)
+            if frame == 3:
+                io.add_mouse_wheel_event(0.0, -5.0)
+            imgui.new_frame()
+            imgui.set_next_window_pos((0.0, 0.0))
+            imgui.set_next_window_size((400.0, 300.0))
+            imgui.begin("Simulation", None, SIMULATION_WINDOW_FLAGS)
+            content_top.append(round(imgui.get_cursor_screen_pos().y))
+            imgui.set_cursor_screen_pos((50.0, 600.0))
+            imgui.text("a label below the view")
+            imgui.end()
+            imgui.end_frame()
+    finally:
+        imgui.destroy_context(context)
+
+    assert len(set(content_top)) == 1, f"the content moved: {content_top}"
+
+
 def test_every_overlay_draws_headlessly():
     """All fifteen debug-draw flags at once, through the imgui renderer."""
     from box2d_testbed.testbed_state import state
