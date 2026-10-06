@@ -1,16 +1,31 @@
-# test_shapes.py
-
-from .base_test import BaseTest, UI
-from itertools import product
 import math
 import random
+from itertools import product
 
+from box2d import (
+    CapsuleDef,
+    CircleDef,
+    Color,
+    PolygonDef,
+    SegmentDef,
+    SurfaceMaterial,
+    Vec2,
+)
+
+from .base_test import UI, BaseTest
 from .shared import random_polygon
-from box2d import CapsuleDef, Color, PolygonDef, SegmentDef, SurfaceMaterial, Vec2
-from box2d.shape import Circle, Capsule, Segment, Polygon
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
+    """A hundred random polygons with rounded corners, dropped into a box.
+
+    Each is the hull of three to eight random points, given a rounding radius
+    of 0.05 to 0.125. Box2D treats a rounded polygon as the polygon with a
+    skin of that thickness all round, so its corners become arcs. That costs
+    no extra vertices, and rounded corners do not snag on one another the way
+    sharp ones can. Watch them tumble into a heap, or drag one through it.
+    """
+
     def setup(self):
         (
             self.world.new_body()
@@ -21,170 +36,186 @@ class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
             .build()
         )
 
-        xcount, ycount = 10, 10
-        xstart, ystart = -5, 2
-
-        for x, y in product(range(xcount), range(ycount)):
+        for x, y in product(range(10), range(10)):
             polygon = random_polygon(0.5)
             (
                 self.world.new_body()
                 .dynamic()
-                .position(xstart + x, ystart + y)
+                .position(-5 + x, 2 + y)
                 .polygon(polygon.vertices, polygon.radius)
                 .build()
             )
 
 
 class Friction(BaseTest, category="Shapes", name="Friction"):
-    def setup(self):
-        # Create a static ground body.
-        ground = self.world.new_body().static()
-        ground.segment((-40, 0), (40, 0), friction=0.2)
-        ground.box(26.0, 0.5, offset=(-4.0, 22.0), angle=-0.25, friction=0.2)
-        ground.box(0.5, 2.0, offset=(10.5, 19.0), angle=0.0, friction=0.2)
-        ground.box(26.0, 0.5, offset=(4.0, 14.0), angle=0.25, friction=0.2)
-        ground.box(0.5, 2.0, offset=(-10.5, 11.0), angle=0.0, friction=0.2)
-        ground.box(26.0, 0.5, offset=(-4.0, 6.0), angle=-0.25, friction=0.2)
-        ground.build()
+    """Five boxes slide down a zigzag of ramps, each less grippy than the last.
 
-        # Create dynamic bodies.
-        friction_values = [0.75, 0.5, 0.35, 0.1, 0.0]
-        for i, f in enumerate(friction_values):
-            x = -15.0 + 4.0 * i
-            y = 28.0
-            self.world.new_body().dynamic().position(x, y).box(
-                1.0, 1.0, friction=f, density=25.0
-            ).build()
+    The boxes have friction 0.75, 0.5, 0.35, 0.1 and 0. Box2D mixes two
+    friction coefficients by their geometric mean, and the ramps have 0.2, so
+    against a ramp the boxes have 0.39, 0.32, 0.26, 0.14 and 0. A box can
+    rest on a ramp when that beats the ramp's gradient, tan(0.25) = 0.26. The
+    first two stop on the top ramp. The third only just grips: it slides the
+    length of the top ramp before friction has slowed it, drops off, and
+    stops on the second. The last two run down every ramp, and the
+    frictionless one slides off the end of the ground.
+    """
+
+    def setup(self):
+        (
+            self.world.new_body()
+            .static()
+            .segment((-40, 0), (40, 0), friction=0.2)
+            .box(26.0, 0.5, offset=(-4.0, 22.0), angle=-0.25, friction=0.2)
+            .box(0.5, 2.0, offset=(10.5, 19.0), friction=0.2)
+            .box(26.0, 0.5, offset=(4.0, 14.0), angle=0.25, friction=0.2)
+            .box(0.5, 2.0, offset=(-10.5, 11.0), friction=0.2)
+            .box(26.0, 0.5, offset=(-4.0, 6.0), angle=-0.25, friction=0.2)
+            .build()
+        )
+
+        for i, friction in enumerate([0.75, 0.5, 0.35, 0.1, 0.0]):
+            (
+                self.world.new_body()
+                .dynamic()
+                .position(-15.0 + 4.0 * i, 28.0)
+                .box(1.0, 1.0, friction=friction, density=25.0)
+                .build()
+            )
 
 
 class Restitution(BaseTest, category="Shapes", name="Restitution"):
+    """Forty bodies dropped from the same height, from restitution 0 on the
+    left to 1 on the right.
+
+    A body bounces back to about restitution squared of the height it fell
+    from, so the middle one, at 0.5, comes back up a quarter of the way and
+    the last returns to where it started. It is only about: Box2D solves
+    contacts speculatively, a little before the bodies touch, which makes
+    restitution approximate.
+
+    Shape rebuilds the scene with circles, boxes, random polygons or
+    capsules. The polygons land on their corners and tumble, which scatters
+    their bounces.
+    """
+
     shape = UI.select("circle", ["circle", "box", "polygon", "capsule"])
 
     def setup(self):
-        ground = (
-            self.world.new_body().static().segment((-40, 0), (40, 0), restitution=0)
-        )
-        ground.build()
+        self.world.new_body().static().segment((-40, 0), (40, 0), restitution=0).build()
 
-        e_count = 40
-        dr = 1.0 / (e_count - 1)
-        dx = 2.0
-
-        x_list = [-1.0 * (e_count - 1) + i * dx for i in range(e_count)]
-        restitution_list = [i * dr for i in range(e_count)]
-        y_position = 40.0
-        shape = self.shape
-        for x, r in zip(x_list, restitution_list):
-            builder = self.world.new_body().dynamic().position(x, y_position)
-            if shape == "circle":
-                builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
-            elif shape == "box":
-                builder.box(1.0, 1.0, restitution=r, density=1.0)
-            elif shape == "polygon":
+        count = 40
+        for i in range(count):
+            restitution = i / (count - 1)
+            builder = self.world.new_body().dynamic().position(-(count - 1) + 2 * i, 40)
+            if self.shape == "circle":
+                builder.circle(0.5, restitution=restitution, density=1.0)
+            elif self.shape == "box":
+                builder.box(1.0, 1.0, restitution=restitution, density=1.0)
+            elif self.shape == "polygon":
                 polygon = random_polygon(0.5)
                 builder.polygon(
-                    polygon.vertices, polygon.radius, restitution=r, density=1.0
-                )
-            elif shape == "capsule":
-                builder.capsule(
-                    (0, -0.5), (0, 0.5), radius=0.5, restitution=r, density=1.0
+                    polygon.vertices,
+                    polygon.radius,
+                    restitution=restitution,
+                    density=1.0,
                 )
             else:
-                builder.circle(radius=0.5, center=(0, 0), restitution=r, density=1.0)
+                builder.capsule(
+                    (0, -0.5),
+                    (0, 0.5),
+                    radius=0.5,
+                    restitution=restitution,
+                    density=1.0,
+                )
             builder.build()
 
     @shape.callback
-    def on_shape_change(self, key, new_value):
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+    def on_shape_change(self, key, value):
+        self.rebuild()
 
 
 class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
-    """Reshape a live shape in place.
+    """A box resting on a kinematic platform whose shape is changed live.
 
-    The kinematic platform's shape is swapped between geometry types and
-    rescaled without recreating the body, using the shape's geometry
-    properties. The body's mass has to be recomputed afterwards.
+    Scale gives the platform's shape new geometry in place, and the box on
+    top is woken to move with it. Shape swaps the platform's shape for a
+    circle, capsule, segment or polygon. Box2D can change a shape's kind in
+    place too, but this binding's shapes are typed -- a Circle stays a
+    Circle -- so a new kind is a new shape on the same body. The status line
+    names the shape the platform has now.
     """
 
     camera_center = (0, 5)
-    camera_zoom = 25.0 * 0.25
+    camera_zoom = 6.25
 
     shape = UI.select("circle", ["circle", "capsule", "segment", "polygon"])
     scale = UI.float(1.0, min=0.1, max=4.0)
 
     def setup(self):
-
         self.world.new_body().static().box(20, 2, offset=(0, -1)).build()
         self.world.new_body().dynamic().position(0, 4).box(2, 2).build()
 
         self.platform = self.world.new_body().kinematic().position(0, 1).build()
-        self.shape_obj = self.platform.add_circle(radius=0.5)
+        self.platform_shape = self.platform.add_circle(radius=0.5)
 
-    def update_shape(self):
-        """Replace the platform's geometry with the currently selected shape."""
-        body = self.shape_obj.body
+    def geometry(self):
+        """The selected shape at the selected scale, sized as in Box2D's sample."""
         scale = self.scale
-
-        # A shape cannot change type in place, so swap the object when needed
-        # and only touch the geometry when the type already matches.
-        if self.shape == "circle" and isinstance(self.shape_obj, Circle):
-            self.shape_obj.radius = 0.5 * scale
-        elif self.shape == "capsule" and isinstance(self.shape_obj, Capsule):
-            self.shape_obj.geometry = CapsuleDef(
-                (-0.5 * scale, 0), (0, 0.5 * scale), 0.5 * scale
-            )
-        elif self.shape == "segment" and isinstance(self.shape_obj, Segment):
-            self.shape_obj.geometry = SegmentDef((-0.5 * scale, 0), (0.75 * scale, 0))
-        elif self.shape == "polygon" and isinstance(self.shape_obj, Polygon):
-            self.shape_obj.geometry = PolygonDef(
-                [
-                    (-0.5 * scale, -0.75 * scale),
-                    (0.5 * scale, -0.75 * scale),
-                    (0.5 * scale, 0.75 * scale),
-                    (-0.5 * scale, 0.75 * scale),
-                ]
-            )
-        else:
-            self.shape_obj = self._recreate(body, scale)
-
-        body.update_mass_from_shapes()
-
-    def _recreate(self, body, scale):
-        """Attach a fresh shape of the selected type, dropping the old one."""
-        self.shape_obj.destroy()
         if self.shape == "circle":
-            return body.add_circle(radius=0.5 * scale)
+            return CircleDef(radius=0.5 * scale)
         if self.shape == "capsule":
-            return body.add_capsule(
-                point1=(-0.5 * scale, 0), point2=(0, 0.5 * scale), radius=0.5 * scale
-            )
+            return CapsuleDef((-0.5 * scale, 0), (0, 0.5 * scale), radius=0.5 * scale)
         if self.shape == "segment":
-            return body.add_segment(point1=(-0.5 * scale, 0), point2=(0.75 * scale, 0))
-        half_w, half_h = 0.5 * scale, 0.75 * scale
-        return body.add_polygon(
-            vertices=[
-                (-half_w, -half_h),
-                (half_w, -half_h),
-                (half_w, half_h),
-                (-half_w, half_h),
+            return SegmentDef((-0.5 * scale, 0), (0.75 * scale, 0))
+        half_width, half_height = 0.5 * scale, 0.75 * scale
+        return PolygonDef(
+            [
+                (-half_width, -half_height),
+                (half_width, -half_height),
+                (half_width, half_height),
+                (-half_width, half_height),
             ]
         )
+
+    def add_shape(self, geometry):
+        """Give the platform a new shape of whichever kind the geometry is."""
+        if isinstance(geometry, CircleDef):
+            return self.platform.add_circle(geometry.radius, geometry.center)
+        if isinstance(geometry, CapsuleDef):
+            return self.platform.add_capsule(
+                geometry.vertex1, geometry.vertex2, geometry.radius
+            )
+        if isinstance(geometry, SegmentDef):
+            return self.platform.add_segment(geometry.vertex1, geometry.vertex2)
+        return self.platform.add_polygon(geometry.vertices)
 
     @shape.callback
     @scale.callback
     def on_change(self, key, value):
-        self.update_shape()
+        geometry = self.geometry()
+        if isinstance(self.platform_shape.geometry, type(geometry)):
+            self.platform_shape.geometry = geometry
+        else:
+            self.platform_shape.destroy()
+            self.platform_shape = self.add_shape(geometry)
+        # New geometry leaves the body's mass as it was. A kinematic body has
+        # no mass to update, but this is the call a dynamic one would need.
+        self.platform.update_mass_from_shapes()
 
-    def debug_draw(self, debug_draw):
-        debug_draw.draw_string(
-            (-5, 8), f"{type(self.shape_obj).__name__.lower()}, scale {self.scale:.2f}"
-        )
+    def status(self):
+        kind = type(self.platform_shape).__name__.lower()
+        return f"platform: {kind}, scale {self.scale:.2f}"
 
 
 class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
-    """A surface whose tangent speed drags whatever rests on it sideways."""
+    """A static platform whose surface runs like a belt, carrying boxes off
+    the end.
+
+    The platform's body never moves. Its shape's tangent speed tells the
+    contact solver to treat the surface as though it slid along at that
+    speed, so friction drags whatever rests on it -- to the right when the
+    speed is positive. Tangent speed changes the running belt.
+    """
 
     camera_center = (2, 7.5)
     camera_zoom = 12.0
@@ -192,9 +223,9 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
     tangent_speed = UI.float(2.0, min=-10.0, max=10.0)
 
     def setup(self):
-
         self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 
+        # The belt can only pull as hard as friction allows, hence grippy.
         self.belt = (
             self.world.new_body()
             .static()
@@ -203,9 +234,9 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
             .build()
         )
 
-        boxes = self.world.new_body().dynamic().box(1, 1)
+        box = self.world.new_body().dynamic().box(1, 1)
         for i in range(5):
-            boxes.position(-10 + 2 * i, 7).build()
+            box.position(-10 + 2 * i, 7).build()
 
     @tangent_speed.callback
     def on_speed_change(self, key, value):
@@ -214,11 +245,17 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
 
 
 class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
-    """Odd and even boxes pass through each other.
+    """A row of numbered boxes in which odd and even boxes ignore each other.
 
-    Collision categories cannot express "these two particular shapes ignore
-    each other", so the world's custom filter decides per pair instead. It is
-    consulted only for shapes created with enable_custom_filtering.
+    Collision categories cannot say "these two particular shapes ignore each
+    other", so the world's custom filter decides pair by pair instead. Box2D
+    asks it only about shapes created with enable_custom_filtering.
+
+    The boxes start side by side and simply land, so drag one into its
+    neighbours: it passes through boxes of the other parity and shoves boxes
+    of its own. Count rebuilds the row. The status line counts the times the
+    filter has said no -- Box2D asks again about a rejected pair whenever
+    either box moves, so it climbs while anything is moving.
     """
 
     camera_center = (0, 5)
@@ -227,24 +264,23 @@ class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
     count = UI.int(10, min=2, max=20)
 
     def setup(self):
-
         self.world.new_body().static().segment((-40, 0), (40, 0)).build()
 
         self.index_of = {}
-        boxes = self.world.new_body().dynamic().box(2, 2, enable_custom_filtering=True)
+        box = self.world.new_body().dynamic().box(2, 2, enable_custom_filtering=True)
         for i in range(self.count):
-            body = boxes.position(-self.count + 2.0 * i, 5).build()
+            body = box.position(-self.count + 2.0 * i, 5).build()
             self.index_of[body.shapes[0]] = i
 
         self.world.custom_filter = self.should_collide
         self.rejected = 0
 
     def should_collide(self, shape_a, shape_b):
-        """Let a pair through when their indices differ in parity."""
+        """Let a pair through unless one box is odd and the other even."""
         a = self.index_of.get(shape_a)
         b = self.index_of.get(shape_b)
         if a is None or b is None:
-            return True  # anything against the ground still collides
+            return True  # the ground
         if (a & 1) != (b & 1):
             self.rejected += 1
             return False
@@ -252,24 +288,29 @@ class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
 
     @count.callback
     def on_count_change(self, key, value):
-        self.world.custom_filter = None
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+        self.rebuild()
 
     def debug_draw(self, debug_draw):
         for shape, index in self.index_of.items():
-            if shape.is_valid:
-                debug_draw.draw_string(shape.body.position, str(index))
-        debug_draw.draw_string((-9, 9), f"odd/even pairs rejected: {self.rejected}")
+            debug_draw.draw_string(shape.body.position, str(index))
+
+    def status(self):
+        return f"filter said no {self.rejected} times"
 
 
 class Explosion(BaseTest, category="Shapes", name="Explosion"):
-    """A ring of soft-welded planks blown outward by a radial impulse.
+    """A ring of twelve planks around a blast, each held in place by a
+    springy weld.
 
-    Each plank is held to the ground by a springy weld joint, so the blast
-    scatters them and the springs pull them back, which makes the falloff
-    easy to see: planks near the edge barely move.
+    Explode applies a radial impulse from the centre: in full out to Radius,
+    fading to nothing over Falloff beyond it. The two circles mark those
+    distances. The impulse is per metre of outline the blast can see, so
+    which way a plank faces matters as much as how far away it is. The
+    planks all lie level: the two beside the centre point straight at it,
+    show it only their 0.2 m ends and barely move, while those above and
+    below take it broadside and fly. A negative impulse pulls inward. The
+    welds are springs, and pull the planks back to the ring for the next
+    blast.
     """
 
     camera_center = (0, 0)
@@ -281,21 +322,19 @@ class Explosion(BaseTest, category="Shapes", name="Explosion"):
     detonate = UI.button("Explode")
 
     def setup(self):
-
         ground = self.world.new_body().static().build()
 
         ring_radius = 8.0
-        planks = self.world.new_body().dynamic().gravity_scale(0).box(2, 0.2)
+        plank = self.world.new_body().dynamic().gravity_scale(0).box(2, 0.2)
         for degrees in range(0, 360, 30):
             angle = math.radians(degrees)
             position = Vec2(
                 ring_radius * math.cos(angle), ring_radius * math.sin(angle)
             )
-            plank = planks.position(position).build()
-            # A soft weld, so the plank springs back after being thrown.
+            body = plank.position(position).build()
             self.world.add_weld_joint(
                 ground,
-                plank,
+                body,
                 local_anchor_a=position,
                 local_anchor_b=(0, 0),
                 linear_hertz=0.5,
@@ -317,32 +356,24 @@ class Explosion(BaseTest, category="Shapes", name="Explosion"):
         self.blasts += 1
 
     def debug_draw(self, debug_draw):
-        # Show where the blast reaches, and where it fades out.
-        steps = 48
-        for name, r in (
-            ("radius", self.radius),
-            ("falloff", self.radius + self.falloff),
-        ):
-            if r <= 0:
-                continue
-            colour = Color(255, 160, 0) if name == "radius" else Color(120, 90, 0)
-            previous = None
-            for i in range(steps + 1):
-                angle = 2 * math.pi * i / steps
-                point = Vec2(r * math.cos(angle), r * math.sin(angle))
-                if previous is not None:
-                    debug_draw.draw_segment(previous, point, colour)
-                previous = point
-        debug_draw.draw_string((-12, 12), f"explosions: {self.blasts}")
+        debug_draw.draw_circle((0, 0), self.radius, Color(255, 160, 0))
+        debug_draw.draw_circle((0, 0), self.radius + self.falloff, Color(120, 90, 0))
+
+    def status(self):
+        return f"explosions: {self.blasts}"
 
 
 class Wind(BaseTest, category="Shapes", name="Wind"):
-    """A hanging chain blown about by a gusting wind.
+    """A chain of planks hanging from a pin, blown about by a gusting wind.
 
-    Wind is applied per shape rather than per body, because how much a shape
-    catches depends on how much of it the wind can see. The gust is the steady
-    direction plus a slowly wandering noise, so the chain flutters instead of
-    simply leaning.
+    Box2D applies wind shape by shape, from how much of the shape the wind
+    can see and how fast the shape already moves through the air, so a plank
+    broadside on catches far more than one edge on. Drag is how much the
+    shape's own motion counts against the wind; lift pushes across the wind,
+    which is what makes the chain flutter rather than simply stream out. The
+    gust is the wind's direction plus a slowly wandering noise, scaled to its
+    speed, and the magenta line from the pin shows it. Links rebuilds the
+    chain.
     """
 
     camera_center = (0, -4)
@@ -355,23 +386,22 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
     links = UI.int(12, min=1, max=30)
 
     def setup(self):
-
         ground = self.world.new_body().static().build()
 
         radius = 0.5
         previous = ground
         self.shapes = []
-        planks = self.world.new_body().dynamic().box(0.2, 2 * radius, density=1.0)
+        link = self.world.new_body().dynamic().box(0.2, 2 * radius, density=1.0)
         for i in range(self.links):
-            link = planks.position(0, -radius - 2 * radius * i).build()
+            body = link.position(0, -radius - 2 * radius * i).build()
             self.world.add_revolute_joint(
                 previous,
-                link,
+                body,
                 local_anchor_a=(0, 0) if previous is ground else (0, -radius),
                 local_anchor_b=(0, radius),
             )
-            self.shapes.append(link.shapes[0])
-            previous = link
+            self.shapes.append(body.shapes[0])
+            previous = body
 
         self.noise = Vec2(0, 0)
         self.gust = Vec2(0, 0)
@@ -386,8 +416,7 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
             self.gust = Vec2(0, 0)
 
         for shape in self.shapes:
-            if shape.is_valid:
-                shape.apply_wind(self.gust, drag=self.drag, lift=self.lift)
+            shape.apply_wind(self.gust, drag=self.drag, lift=self.lift)
 
         # Wander the noise slowly so the gust is never quite steady.
         target = Vec2(random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3))
@@ -395,21 +424,34 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
 
     @links.callback
     def on_links_change(self, key, value):
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+        self.rebuild()
 
     def debug_draw(self, debug_draw):
         debug_draw.draw_segment((0, 0), self.gust * 0.2, Color(255, 0, 255))
-        debug_draw.draw_string((-12, 4), f"wind {self.gust.x:.1f}, {self.gust.y:.1f}")
+
+    def status(self):
+        return f"gust ({self.gust.x:.1f}, {self.gust.y:.1f}) m/s"
 
 
 class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
-    """Twenty wheels rolling down twenty lanes, each with more resistance.
+    """Twenty wheels set rolling along twenty lanes, each lane up with more
+    rolling resistance than the one below.
 
-    Rolling resistance opposes spin rather than sliding, so the wheels lower
-    down the screen stop sooner. Tilt the lanes to see resistance compete with
-    gravity instead of simply damping.
+    A wheel rolling without slipping loses nothing to friction, since its
+    contact point does not slide, so on its own it would roll forever, as
+    the bottom one does. Rolling resistance is a torque at the contact
+    against the two shapes turning relative to each other, up to the
+    coefficient times the radius times the contact force: a limit like
+    friction's, but on turning rather than sliding. It slows the spin, and
+    friction slows the wheel with it, so each lane up stops sooner; the top
+    wheel stops in about two seconds. Box2D scales it by the shapes' radius,
+    so it only acts on circles, capsules and rounded polygons.
+
+    Resistance Scale is how much resistance each lane adds. Lane tilt raises
+    the right end of every lane, in metres: uphill every wheel stops, and
+    those with too little resistance to hold on the slope roll back; downhill
+    only the lanes whose resistance outweighs the slope can stop theirs.
+    Both rebuild the scene. The status line counts the wheels stopped.
     """
 
     camera_center = (5, 20)
@@ -419,14 +461,15 @@ class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
     lift = UI.float(0.0, min=-10.0, max=10.0, label="Lane tilt")
 
     def setup(self):
-
         self.wheels = []
         for i in range(20):
             y = 2.0 * i
-            lane = self.world.new_body().static()
-            lane.segment((-40, y), (40, y + self.lift))
-            lane.build()
+            self.world.new_body().static().segment(
+                (-40, y), (40, y + self.lift)
+            ).build()
 
+            # Spinning at the rate that rolls it at 5 m/s, so it starts out
+            # rolling rather than skidding.
             wheel = (
                 self.world.new_body()
                 .dynamic()
@@ -441,41 +484,49 @@ class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
     @resistance_scale.callback
     @lift.callback
     def on_change(self, key, value):
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+        self.rebuild()
 
-    def debug_draw(self, debug_draw):
+    def status(self):
         stopped = sum(1 for w in self.wheels if abs(w.linear_velocity.x) < 0.1)
-        debug_draw.draw_string(
-            (-38, 42), f"wheels stopped: {stopped} of {len(self.wheels)}"
-        )
+        return f"wheels stopped: {stopped} of {len(self.wheels)}"
 
 
 class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
-    """Shapes placed far from their body's origin.
+    """A small stack whose shapes all sit metres from their bodies' origins.
 
-    A shape's geometry is in body-local coordinates, so it need not sit on the
-    origin. Getting the mass and rotation right for a shape that does not is
-    easy to break, which is what this exercises.
+    A shape's geometry is in body-local coordinates, so it need not sit on
+    the origin. Here a block, a capsule lying on it and a box dropped on top
+    are each offset from their body's origin, marked by the axes drawn
+    there. Box2D puts a body's centre of mass at its shapes' centroid, so the
+    stack settles level, as it would with the shapes centred. Getting the
+    mass and rotation right for offset shapes is easy to break, which is
+    what this exercises.
     """
 
     camera_center = (2, 8)
-    camera_zoom = 25.0 * 0.55
+    camera_zoom = 13.75
 
     def setup(self):
-
-        self.world.new_body().static().position(-1, 1).box(
-            2, 2, offset=(10, -2), angle=0.5 * math.pi
-        ).build()
-
-        self.world.new_body().dynamic().position(13.5, -0.75).capsule(
-            (-5, 1), (-4, 1), radius=0.25
-        ).build()
-
-        self.world.new_body().dynamic().position(0, 0).box(
-            1.5, 1.0, offset=(9, 2), angle=0.5 * math.pi
-        ).build()
+        (
+            self.world.new_body()
+            .static()
+            .position(-1, 1)
+            .box(2, 2, offset=(10, -2), angle=0.5 * math.pi)
+            .build()
+        )
+        (
+            self.world.new_body()
+            .dynamic()
+            .position(13.5, -0.75)
+            .capsule((-5, 1), (-4, 1), radius=0.25)
+            .build()
+        )
+        (
+            self.world.new_body()
+            .dynamic()
+            .box(1.5, 1.0, offset=(9, 2), angle=0.5 * math.pi)
+            .build()
+        )
 
     def debug_draw(self, debug_draw):
         for body in self.world.bodies:
@@ -483,11 +534,15 @@ class OffsetShapes(BaseTest, category="Shapes", name="Offset"):
 
 
 class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
-    """One chain, three surfaces.
+    """One chain, three surfaces: a steep grippy slope, an icy middle stretch
+    and a grippy flat.
 
-    A chain's material can be changed per segment after it is built, so the
-    same ground can be grippy in one stretch and slippery in the next. Drop
-    boxes onto the ramp and watch where they stop.
+    A chain takes a material per segment, when it is made or later, so the
+    same ground can be grippy in one stretch and slippery in the next. The
+    box slides down the slope, which is too steep to hold it at any setting,
+    across the ice, and stops on the flat. Raise Icy friction and boxes stop
+    on the middle stretch instead. Drop a box drops another; the newest
+    twelve are kept. Each stretch is labelled with its friction.
     """
 
     # Framed by hand: the whole ramp, not just the one box on it.
@@ -504,41 +559,49 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     # Where the slope would carry on past each end.
     GHOST1 = (30, 4)
     GHOST2 = (-30, 24)
+    ICY = 1
 
     def setup(self):
-        self.ground_body = self.world.new_body().static().build()
-        self.chain = self.ground_body.add_chain(
-            self.POINTS,
-            ghost1=self.GHOST1,
-            ghost2=self.GHOST2,
-            materials=[SurfaceMaterial(friction=0.9) for _ in self.POINTS[1:]],
+        ground = (
+            self.world.new_body()
+            .static()
+            .chain(
+                self.POINTS,
+                ghost1=self.GHOST1,
+                ghost2=self.GHOST2,
+                materials=[self.material(i) for i in range(len(self.POINTS) - 1)],
+            )
+            .build()
         )
+        self.chain = ground.chains[0]
         self.boxes = []
-        self.apply_materials()
         self.drop_box()
 
-    def apply_materials(self):
-        """The middle stretch is the icy one."""
-        for index in range(len(self.chain.segments)):
-            friction = self.icy_friction if index == 1 else self.grippy_friction
-            self.chain.set_surface_material(SurfaceMaterial(friction=friction), index)
+    def material(self, index):
+        """The surface of one stretch of the chain."""
+        friction = self.icy_friction if index == self.ICY else self.grippy_friction
+        return SurfaceMaterial(friction=friction)
 
     @icy_friction.callback
     @grippy_friction.callback
     def on_friction_change(self, key, value):
-        if hasattr(self, "chain"):
-            self.apply_materials()
+        for index in range(len(self.chain.segments)):
+            self.chain.set_surface_material(self.material(index), index)
 
     @drop.callback
     def on_drop(self, key, value):
-        if hasattr(self, "chain"):
-            self.drop_box()
+        self.drop_box()
 
     def drop_box(self):
         # Above the uphill end of the ground; anything dropped past either end
         # falls straight past it.
-        box = self.world.add_body(body_type="dynamic", position=(-16, 18))
-        box.add_box(1.2, 1.2, friction=0.3)
+        box = (
+            self.world.new_body()
+            .dynamic()
+            .position(-16, 18)
+            .box(1.2, 1.2, friction=0.3)
+            .build()
+        )
         self.boxes.append(box)
         # Keep the scene from growing without bound as the button is pressed.
         while len(self.boxes) > 12:
@@ -546,10 +609,8 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
 
     def debug_draw(self, debug_draw):
         for index, segment in enumerate(self.chain.segments):
-            label = "icy" if index == 1 else "grippy"
+            label = "icy" if index == self.ICY else "grippy"
             midpoint = (Vec2(self.POINTS[index]) + Vec2(self.POINTS[index + 1])) / 2
             debug_draw.draw_string(
-                midpoint + Vec2(0, 1),
-                f"{label} {segment.friction:.2f}",
-                color=Color.from_b2HexColor(0xFFFFFF),
+                midpoint + Vec2(0, 1), f"{label} {segment.friction:.2f}"
             )
