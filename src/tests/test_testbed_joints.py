@@ -97,3 +97,16 @@ def test_the_driving_course_ends_in_a_wall(world):
 
     assert hits, "nothing there: the car would drive off the end"
     assert hits[0].point.x == pytest.approx(320)
+
+
+def test_the_user_constraint_ropes_pull_but_never_push(world):
+    test = scenario(world, "User Constraint")
+    tensions = []
+    for _ in range(3 * HERTZ):
+        run(test, 1 / HERTZ)
+        # "rope tension 152.8, 211.1 N"
+        numbers = test.status().removeprefix("rope tension ").removesuffix(" N")
+        tensions += [float(n) for n in numbers.split(", ")]
+
+    assert max(tensions) > 100, "the ropes should be holding the box up"
+    assert min(tensions) >= 0, "a rope pushed the box away"
