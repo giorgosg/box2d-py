@@ -7,16 +7,17 @@ from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
 
 
-def _unit_axis(axis):
-    """The joint axis as a unit vector.
+def _unit_vector(vector, what="a joint axis"):
+    """A joint direction as a unit vector.
 
-    Box2D 3.2 has no axis field: the axis is the rotation of the joint's local
-    frames, built here from the vector's direction. A longer vector made a
-    rotation that was not unit length, which Box2D now rejects outright.
+    Box2D uses these directions as given: an axis becomes the rotation of the
+    joint's local frames, and a pogo normal scales the spring. A longer vector
+    made a rotation that was not unit length, which Box2D now rejects, or a
+    spring that was quietly stronger than asked for.
     """
-    unit = Vec2(axis).normalize()
+    unit = Vec2(vector).normalize()
     if unit.length == 0:
-        raise ValueError("a joint axis needs a direction, not a zero vector")
+        raise ValueError(f"{what} needs a direction, not a zero vector")
     return unit
 
 
@@ -732,7 +733,7 @@ class PrismaticJoint(Joint):
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
-        self._local_axis_a = _unit_axis(axis)
+        self._local_axis_a = _unit_vector(axis)
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_limit = enable_limit
@@ -928,7 +929,7 @@ class WheelJoint(Joint):
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
-        self._local_axis_a = _unit_axis(axis)
+        self._local_axis_a = _unit_vector(axis)
         self._enable_limit = enable_limit
         self._lower_translation = lower_translation
         self._upper_translation = upper_translation
@@ -1156,6 +1157,14 @@ class DistanceJoint(Joint):
         lib.b2DistanceJoint_SetSpringDampingRatio,
         doc="Get spring damping ratio.",
     )
+    spring_force = b2_value(
+        lib.b2DistanceJoint_GetSpringForce,
+        doc="""The force the spring is exerting right now, in newtons.
+
+        Positive pushes the bodies apart, negative pulls them together. Zero
+        when the spring is disabled.
+        """,
+    )
     limit_enabled = b2_bool(
         lib.b2DistanceJoint_IsLimitEnabled,
         lib.b2DistanceJoint_EnableLimit,
@@ -1378,4 +1387,191 @@ class MotorJoint(Joint):
         lib.b2MotorJoint_GetMaxSpringTorque,
         lib.b2MotorJoint_SetMaxSpringTorque,
         doc="Get or set the torque cap for the angular spring.",
+    )
+
+
+class MoverJoint(Joint):
+    """Drives a dynamic character body at a commanded velocity.
+
+    Built for physics-driven characters: each step the character sets the
+    velocity it wants, and this joint applies up to ``max_velocity_force`` to
+    reach it. The x and y axes are capped separately -- a character usually
+    gets ground force on x and none on y, so gravity and jumps stay its own.
+    Rotation is left alone; lock the body's rotation instead.
+
+    body_a is the reference the velocity is relative to, normally a static
+    body; body_b is the character.
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        linear_velocity: VectorLike = None,
+        max_velocity_force: VectorLike = None,
+        collide_connected=False,
+    ):
+        """Initialize a mover joint.
+
+        Args:
+            world: The physics world instance
+            body_a: The reference body, usually static
+            body_b: The character body
+            linear_velocity (vector-like): Desired velocity of body_b relative
+                to body_a
+            max_velocity_force (vector-like): Force cap for each axis, in
+                newtons. An axis with zero force is not driven.
+            collide_connected (bool): Whether connected bodies can collide
+        """
+        self.world = world
+
+        defn = lib.b2DefaultMoverJointDef()
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.collideConnected = collide_connected
+        if linear_velocity is not None:
+            defn.linearVelocity = Vec2(linear_velocity).b2Vec2[0]
+        if max_velocity_force is not None:
+            defn.maxVelocityForce = Vec2(max_velocity_force).b2Vec2[0]
+
+        self._def = defn
+        self._joint_id = lib.b2CreateMoverJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        self._set_userdata()
+
+    @property
+    def linear_velocity(self) -> Vec2:
+        """Get or set the desired velocity of body_b relative to body_a."""
+        return Vec2.from_b2Vec2(lib.b2MoverJoint_GetLinearVelocity(self._joint_id))
+
+    @linear_velocity.setter
+    def linear_velocity(self, value: VectorLike):
+        lib.b2MoverJoint_SetLinearVelocity(self._joint_id, Vec2(value).b2Vec2[0])
+
+    @property
+    def max_velocity_force(self) -> Vec2:
+        """Get or set the force cap on each axis, in newtons."""
+        return Vec2.from_b2Vec2(lib.b2MoverJoint_GetMaxVelocityForce(self._joint_id))
+
+    @max_velocity_force.setter
+    def max_velocity_force(self, value: VectorLike):
+        lib.b2MoverJoint_SetMaxVelocityForce(self._joint_id, Vec2(value).b2Vec2[0])
+
+
+class PogoJoint(Joint):
+    """A one-dimensional spring holding a character up off the ground.
+
+    The companion of :class:`MoverJoint`: a dynamic character floats on this
+    spring rather than resting its shape on the ground, which is what lets it
+    glide over steps and bumps. The spring runs along body_b's local y axis
+    (rotated by its local frame), pushing along the ground ``normal``.
+
+    A pogo is meant to be rebuilt every step, since the character may land on
+    a different body each time: ray cast down, destroy last step's pogo, and
+    create a new one attached where the ray hit. Pass the old joint's
+    :attr:`impulse` and :attr:`velocity` to the new one so the spring carries
+    on smoothly instead of starting over.
+
+    body_a is the ground that was hit; body_b is the character.
+    """
+
+    def __init__(
+        self,
+        world,
+        body_a,
+        body_b,
+        local_anchor_a: VectorLike = (0, 0),
+        local_anchor_b: VectorLike = (0, 0),
+        normal: VectorLike = (0, 1),
+        hertz=None,
+        damping_ratio=None,
+        rest_length=None,
+        max_tension_force=None,
+        max_compression_force=None,
+        impulse=None,
+        velocity=None,
+        collide_connected=False,
+    ):
+        """Initialize a pogo joint.
+
+        Args:
+            world: The physics world instance
+            body_a: The ground body
+            body_b: The character body
+            local_anchor_a (vector-like): Where the spring touches the ground,
+                in body_a's local coordinates
+            local_anchor_b (vector-like): Where the spring attaches to the
+                character, in body_b's local coordinates
+            normal (vector-like): The ground normal at the contact, in world
+                coordinates. The spring pushes along it. Normalized here.
+            hertz (float): Spring frequency
+            damping_ratio (float): Spring damping ratio
+            rest_length (float): Length the spring settles at
+            max_tension_force (float): How hard the spring may pull the
+                character down to the ground. Zero while jumping.
+            max_compression_force (float): How hard the spring may push the
+                character up
+            impulse (float): Starting impulse, from the previous pogo
+            velocity (float): Starting spring velocity, from the previous pogo
+            collide_connected (bool): Whether connected bodies can collide
+        """
+        self.world = world
+
+        defn = lib.b2DefaultPogoJointDef()
+        defn.base.bodyIdA = body_a._body_id
+        defn.base.bodyIdB = body_b._body_id
+        defn.base.localFrameA.p = Vec2(local_anchor_a).b2Vec2[0]
+        defn.base.localFrameB.p = Vec2(local_anchor_b).b2Vec2[0]
+        defn.base.collideConnected = collide_connected
+        defn.normal = _unit_vector(normal, "a pogo normal").b2Vec2[0]
+        for field, value in (
+            ("hertz", hertz),
+            ("dampingRatio", damping_ratio),
+            ("restLength", rest_length),
+            ("maxTensionForce", max_tension_force),
+            ("maxCompressionForce", max_compression_force),
+            ("impulse", impulse),
+            ("velocity", velocity),
+        ):
+            if value is not None:
+                setattr(defn, field, value)
+
+        self._def = defn
+        self._joint_id = lib.b2CreatePogoJoint(
+            self.world._world_id, ffi.addressof(self._def)
+        )
+        self._set_userdata()
+
+    rest_length = b2_float(
+        lib.b2PogoJoint_GetRestLength,
+        lib.b2PogoJoint_SetRestLength,
+        doc="Get or set the length the spring settles at.",
+    )
+    hertz = b2_float(
+        lib.b2PogoJoint_GetSpringHertz,
+        lib.b2PogoJoint_SetSpringHertz,
+        doc="Get or set the spring frequency in Hertz.",
+    )
+    damping_ratio = b2_float(
+        lib.b2PogoJoint_GetSpringDampingRatio,
+        lib.b2PogoJoint_SetSpringDampingRatio,
+        doc="Get or set the spring damping ratio.",
+    )
+    length = b2_value(
+        lib.b2PogoJoint_GetLength,
+        doc="The spring's current length, along the character's pogo axis.",
+    )
+    velocity = b2_value(
+        lib.b2PogoJoint_GetVelocity,
+        doc="The spring's internal velocity. Pass it to the next pogo.",
+    )
+    impulse = b2_value(
+        lib.b2PogoJoint_GetImpulse,
+        doc="""The spring's internal impulse. Pass it to the next pogo.
+
+        Per solver substep, so the force it represents is this divided by the
+        substep time: ``dt / sub_steps``.
+        """,
     )

@@ -318,6 +318,19 @@ class BodyBuilder:
         self._body_args["sleep_threshold"] = threshold
         return self
 
+    def safety_factor(self, factor: float):
+        """Set the continuous collision safety factor for the body.
+
+        See :attr:`.Body.safety_factor`.
+
+        Args:
+            factor: Non-dimensional, recommended range [0.01, 0.5].
+        Returns:
+            The builder instance
+        """
+        self._body_args["safety_factor"] = factor
+        return self
+
     def box(
         self,
         width: float,
@@ -617,6 +630,40 @@ class Body:
         lib.b2Body_SetSleepThreshold,
         doc="Get the sleep threshold value.",
     )
+    safety_factor = b2_float(
+        lib.b2Body_GetSafetyFactor,
+        lib.b2Body_SetSafetyFactor,
+        doc="""Get or set the continuous collision safety factor.
+
+        A body only uses continuous collision when it moves far enough in one
+        step to risk tunnelling through something, and this is the fraction of
+        that distance which counts as far enough. Smaller is safer but costs
+        speed and can make movement hitch. Non-dimensional; recommended range
+        [0.01, 0.5], default 0.5.
+        """,
+    )
+
+    @property
+    def min_extent(self) -> float:
+        """The minimum distance from any point on the body's shapes to its centre of mass.
+
+        Continuous collision measures how far a body can move before it risks
+        tunnelling against this.
+        """
+        return lib.b2Body_GetMinExtent(self._body_id)
+
+    @property
+    def max_extent(self) -> float:
+        """The maximum distance from any point on the body's shapes to its centre of mass."""
+        return lib.b2Body_GetMaxExtent(self._body_id)
+
+    @property
+    def max_extent_origin(self) -> float:
+        """The largest distance from the body origin to any point of its shapes.
+
+        Conservative: it may overestimate, never underestimate.
+        """
+        return lib.b2Body_GetMaxExtentOrigin(self._body_id)
 
     def _set_motion_lock(self, axis: str, value: bool) -> None:
         """Set one of the three motion locks, leaving the others alone."""

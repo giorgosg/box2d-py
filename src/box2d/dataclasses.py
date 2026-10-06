@@ -234,6 +234,8 @@ class BodyDef:
         angular_damping: Angular damping reduces angular velocity. Can be > 1.
         gravity_scale: Scale the gravity applied to this body. Non-dimensional.
         sleep_threshold: Sleep speed threshold, default is 0.05 meters per second.
+        safety_factor: Continuous collision safety factor. See
+            :attr:`.Body.safety_factor`. Default 0.5.
         name: Optional body name for debugging (up to 31 characters).
         user_data: Application specific body data.
         enable_sleep: Set to false if this body should never fall asleep.
@@ -257,6 +259,7 @@ class BodyDef:
     angular_damping: float = _default_body_def.angularDamping
     gravity_scale: float = _default_body_def.gravityScale
     sleep_threshold: float = _default_body_def.sleepThreshold
+    safety_factor: float = _default_body_def.safetyFactor
     name: Optional[str] = None
     user_data: Optional[object] = None
     enable_sleep: bool = _default_body_def.enableSleep
@@ -293,6 +296,7 @@ class BodyDef:
         body_def.angularDamping = self.angular_damping
         body_def.gravityScale = self.gravity_scale
         body_def.sleepThreshold = self.sleep_threshold
+        body_def.safetyFactor = self.safety_factor
 
         if self.name is not None:
             # Need to keep a reference to the C string
