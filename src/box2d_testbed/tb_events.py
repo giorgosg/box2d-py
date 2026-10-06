@@ -1,4 +1,4 @@
-from box2d import CollisionFilter, Color, SurfaceMaterial, Vec2
+from box2d import CollisionFilter, Color, SurfaceMaterial
 
 from .base_test import UI, BaseTest
 from .human import Human
@@ -6,51 +6,90 @@ from .shared import donut
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
-    def setup(self):
-        ground = self.world.new_body().static()
-        chain_points = [Vec2(x, 0) for x in range(9, -10, -1)]
-        ground.chain(
-            chain_points,
-            loop=False,
-            filter=CollisionFilter(category="ground", mask=["foot", "player"]),
-        )
-        ground = ground.build()
+    """A sensor at a character's feet, telling it when it stands on something.
 
-        player = self.world.new_body().dynamic().lock_rotation().position(0, 2)
-        player = player.capsule(
-            (0, -0.5),
-            (0, 0.5),
-            0.5,
-            filter=CollisionFilter(category="player", mask=["ground"]),
+    The player is a capsule with a sensor box 1 m wide under it. A sensor
+    detects overlap but never collides, so the box can reach a little below
+    the capsule without holding it up, and collision filters let it see only
+    the ground. Begin and end events from it keep a count of the ground
+    shapes it overlaps: above zero, the player is standing on something.
+
+    The ground is a chain of 1 m segments, so the foot straddles two almost
+    everywhere; walk off either end and the count drops to zero. The dots
+    mark the segments the sensor overlaps, read from sensor_overlaps: the
+    same answer asked for on demand, rather than kept up to date from events.
+
+    Move with the left and right arrow keys, or A and D as in Box2D's sample.
+    """
+
+    camera_center = (0, 3)
+    camera_zoom = 7.5
+
+    #: The push from a held key, in N, as in Box2D's sample.
+    FORCE = 50.0
+
+    def setup(self):
+        # Chains opt in to sensor events like shapes do, and box2d-py
+        # defaults that to on, so the foot can see this one.
+        (
+            self.world.new_body()
+            .static()
+            .chain(
+                [(x, 0) for x in range(9, -10, -1)],
+                filter=CollisionFilter(category="ground", mask=["foot", "player"]),
+            )
+            .build()
         )
-        player = player.box(
-            1,
-            0.5,
-            offset=(0, -1),
-            filter=CollisionFilter(category="foot", mask=["ground"]),
-            is_sensor=True,
+
+        self.player = (
+            self.world.new_body()
+            .dynamic()
+            .position(0, 2)
+            .lock_rotation()
+            .capsule(
+                (0, -0.5),
+                (0, 0.5),
+                0.5,
+                filter=CollisionFilter(category="player", mask=["ground"]),
+            )
+            .box(
+                1,
+                0.5,
+                offset=(0, -1),
+                is_sensor=True,
+                filter=CollisionFilter(category="foot", mask=["ground"]),
+            )
+            .build()
         )
-        self.player = player.build()
-        self.overlap_count = 0
-        self.move = 0
+        self.foot = next(shape for shape in self.player.shapes if shape.is_sensor)
+
+        self.overlaps = 0
+        self.held = set()
 
     def on_key_down(self, key):
-        if key == "a":
-            self.move = -1
-        elif key == "d":
-            self.move = 1
+        self.held.add(key)
 
     def on_key_up(self, key):
-        if key in ("a", "d"):
-            self.move = 0
+        self.held.discard(key)
 
     def after_step(self, dt):
-        self.player.apply_force((50 * self.move, 0))
-        sensorevents = self.world.get_sensor_events()
-        self.overlap_count += len(sensorevents.begin) - len(sensorevents.end)
+        # Holding both ways pushes both ways, and the player stands still.
+        direction = bool(self.held & {"right", "d"}) - bool(self.held & {"left", "a"})
+        self.player.apply_force((self.FORCE * direction, 0))
+
+        events = self.world.get_sensor_events()
+        self.overlaps += sum(1 for event in events.begin if event.sensor is self.foot)
+        self.overlaps -= sum(1 for event in events.end if event.sensor is self.foot)
 
     def debug_draw(self, debug_draw):
-        debug_draw.draw_string((5, 15), f"Overlap count: {self.overlap_count}")
+        for shape in self.foot.sensor_overlaps:
+            box = shape.aabb
+            middle = ((box.lower.x + box.upper.x) / 2, (box.lower.y + box.upper.y) / 2)
+            debug_draw.draw_point(middle, 10, Color(255, 255, 255))
+
+    def status(self):
+        where = "standing" if self.overlaps > 0 else "in the air"
+        return f"foot overlaps {self.overlaps} ground segments: {where}"
 
 
 class BouncingBoxes(BaseTest, category="Events", name="Contact"):
