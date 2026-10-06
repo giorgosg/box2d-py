@@ -207,7 +207,7 @@ def test_shape_removal():
 
     assert lib.b2Body_GetShapeCount(body._body_id) == 1
     assert removed not in body.shapes
-    assert not removed.is_valid(), "the same as removed.destroy()"
+    assert not removed.is_valid, "the same as removed.destroy()"
 
 
 def test_body_damping():

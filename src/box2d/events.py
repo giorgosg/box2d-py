@@ -100,7 +100,7 @@ class ContactEndEvent:
     """Two shapes stopped touching.
 
     A shape destroyed while touching another produces an end event whose
-    shape is already gone, so check :meth:`.Shape.is_valid` before using them.
+    shape is already gone, so check :attr:`.Shape.is_valid` before using them.
 
     Attributes:
         shape_a: One of the shapes that were touching, possibly destroyed.
