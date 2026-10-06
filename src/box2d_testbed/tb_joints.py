@@ -97,6 +97,9 @@ class SoftBody(BaseTest, category="Joints", name="Soft Body"):
         for joint in self.joints:
             joint.angular_damping_ratio = self.damping
             joint.angular_hertz = self.hertz
+        # A settled ring is asleep, and would not notice. Waking one capsule
+        # wakes the whole ring, since its welds make it one island.
+        self.joints[0].wake_bodies()
 
 
 class Arrow(BaseTest, category="Joints", name="Arrow"):

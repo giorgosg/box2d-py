@@ -110,3 +110,15 @@ def test_the_user_constraint_ropes_pull_but_never_push(world):
 
     assert max(tensions) > 100, "the ropes should be holding the box up"
     assert min(tensions) >= 0, "a rope pushed the box away"
+
+
+def test_the_soft_body_springs_retune_a_ring_that_has_settled(world):
+    test = scenario(world, "Soft Body")
+    # It lands, bounces and wobbles; by 30 s it has fallen asleep.
+    run(test, 35.0)
+    ring = [joint.body_a for joint in test.joints]
+    assert not any(body.awake for body in ring), "a settled ring goes to sleep"
+
+    test.hertz = 2.0
+
+    assert all(body.awake for body in ring), "asleep, it ignores the new spring"
