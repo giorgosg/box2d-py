@@ -65,3 +65,13 @@ def test_ticking_go_again_restarts_a_box_that_fell_asleep(world):
 
     # The path picks up where it stopped: 0.47 m along it in the next second.
     assert (motor_box(test).position - start).length > 0.3
+
+
+def test_a_motor_too_weak_to_hold_the_box_up_lets_it_land_on_the_platform(world):
+    test = scenario(world, "Motor Joint")
+    # The box weighs 10 N, so this cannot hold it up.
+    test.max_velocity_force = 2.0
+    run(test, 4.0)
+
+    # Resting on the platform, whose top is y = 0; the box is 0.5 tall.
+    assert motor_box(test).position.y == pytest.approx(0.25, abs=0.05)

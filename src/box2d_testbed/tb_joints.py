@@ -582,12 +582,22 @@ class DistanceJoint(BaseTest, category="Joints", name="Distance Joint"):
 
 
 class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
-    """A box swept back and forth in mid-air by a motor joint.
+    """A box held up in mid-air and swept from side to side by a motor joint.
 
-    Box2D 3.2 rewrote this joint: it drives a relative velocity capped by a
-    maximum force, rather than correcting toward a target offset. Here the box
-    is driven back and forth along the platform, and the force cap decides
-    whether it can push past whatever it runs into.
+    Box2D 3.2 rewrote this joint: it drives a relative velocity, as hard as a
+    maximum force and torque allow, rather than correcting toward a target
+    offset. Here it joins the box to the ground and drives it along a sine
+    from side to side, while holding its vertical speed and its spin at zero.
+    Holding the vertical speed at zero is what keeps the box up.
+
+    The force cap is the thing to play with. The box weighs 10 N, and the
+    swing takes up to 8 N more, so below about 13 N the drive cannot hold it
+    up: it sinks, faster the lower the cap, down to the platform. Drag the
+    box with the mouse to feel it push back with up to the capped force and
+    torque. The status line shows what the joint is applying.
+
+    Untick Go to stop the clock: the drive goes to zero and the box holds
+    where it is. Ticking it again carries on along the path.
     """
 
     camera_center = (0, 7)
@@ -609,17 +619,15 @@ class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
             .build()
         )
 
-        # Obstacles for the box to push against, so the force cap is visible.
-        obstacle = self.world.new_body().dynamic().box(1.0, 1.0, density=1.0)
-        for x in (-6.0, 6.0):
-            obstacle.position(x, 8).build()
-
+        # Starts at rest, where the path does. Collides with the ground it is
+        # joined to, so a box the drive cannot hold up lands on the platform
+        # rather than falling through it.
         self.motor = self.world.add_motor_joint(
             ground,
             box,
-            linear_velocity=(self.speed, 0.0),
             max_velocity_force=self.max_velocity_force,
             max_velocity_torque=self.max_velocity_torque,
+            collide_connected=True,
         )
 
         self.time = 0.0
@@ -644,8 +652,10 @@ class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
         self.motor.max_velocity_torque = value
 
     def after_step(self, dt):
-        if self.enable_motion and dt > 0:
+        if self.enable_motion:
             self.time += dt
+            # The velocity of x = (speed / 2) * (1 - cos 2t), a path that
+            # swings between where the box started and speed metres right.
             self.motor.linear_velocity = (self.speed * math.sin(2.0 * self.time), 0.0)
 
     def status(self):
