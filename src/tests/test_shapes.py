@@ -107,7 +107,6 @@ def test_box_shape(dynamic_body):
 
 
 def test_chain_shape(static_body):
-    # A valid chain requires at least 4 vertices
     vertices = [(0, 0), (1, 0), (1, 1), (0, 1)]
     chain = static_body.add_chain(
         vertices=vertices, loop=True, friction=0.25, restitution=0.1
@@ -123,10 +122,31 @@ def test_chain_shape(static_body):
 
 
 def test_chain_shape_invalid(static_body):
-    # Providing fewer than 4 vertices should raise a ValueError
-    vertices = [(0, 0), (1, 0), (0.5, 1)]
-    with pytest.raises(ValueError):
-        static_body.add_chain(vertices=vertices)
+    # An open chain needs a segment, so 2 points; a loop needs 3.
+    with pytest.raises(ValueError, match="at least 2"):
+        static_body.add_chain(vertices=[(0, 0)])
+    with pytest.raises(ValueError, match="at least 3"):
+        static_body.add_chain(vertices=[(0, 0), (1, 0)], loop=True)
+
+
+def test_chain_ghosts_default_to_continuing_the_end_segments(static_body):
+    from box2d.shapedef import ChainDef
+
+    chain_def = ChainDef([(0, 0), (1, 0), (2, 1)])
+    assert chain_def.ghost1 == (-1, 0)
+    assert chain_def.ghost2 == (3, 2)
+
+
+def test_chain_takes_explicit_ghosts(static_body):
+    chain = static_body.add_chain(
+        vertices=[(1, 0), (0, 0)], ghost1=(2, 1), ghost2=(-1, 1)
+    )
+    assert len(chain.segments) == 1
+    from box2d._box2d import lib
+
+    segment = lib.b2Shape_GetChainSegment(chain.segments[0]._shape_id)
+    assert (segment.ghost1.x, segment.ghost1.y) == (2, 1)
+    assert (segment.ghost2.x, segment.ghost2.y) == (-1, 1)
 
 
 def test_material_property(dynamic_body):

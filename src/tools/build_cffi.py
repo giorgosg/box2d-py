@@ -202,8 +202,12 @@ def process_headers():
     extra_declarations = """
     """
 
+    # Each header is preprocessed on its own, with its includes stripped, so
+    # the order here has to satisfy the dependencies by hand: math_types.h
+    # holds b2Vec2 and friends, which everything after it uses.
     headers = [
         "base.h",
+        "math_types.h",
         "constants.h",
         "math_functions.h",
         "collision.h",
@@ -232,7 +236,9 @@ def process_headers():
         filetext = subprocess.run(
             command, text=True, input=filetext, stdout=subprocess.PIPE
         ).stdout
-        filetext = filetext.replace("B2_API", "")
+        # BOX2D_EXPORT is defined in base.h, so it survives preprocessing of
+        # every other header -- on b2_lengthUnitsPerMeter, for one.
+        filetext = filetext.replace("B2_API", "").replace("BOX2D_EXPORT", "")
         filetext = strip_inline_definitions(filetext)
         filetext = "\n".join(
             [line for line in filetext.splitlines() if not line.startswith("#")]

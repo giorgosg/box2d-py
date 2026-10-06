@@ -485,7 +485,7 @@ class Human:
 
             # The shapes changed size, so the body's mass has to be recomputed
             # from them or it keeps the old figure's inertia.
-            bone.body.apply_mass_from_shapes()
+            bone.body.update_mass_from_shapes()
 
         self.scale = scale
 

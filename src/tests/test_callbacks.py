@@ -15,7 +15,7 @@ import gc
 
 import pytest
 
-from box2d import World
+from box2d import World, Vec2
 
 
 @pytest.fixture
@@ -89,26 +89,38 @@ def test_custom_filter_can_be_cleared(world):
 
 def test_pre_solve_can_drop_a_contact(world):
     ground, ball = falling_pair(world, enable_pre_solve_events=True)
-    world.pre_solve = lambda a, b, point, normal: False
+    world.pre_solve = lambda a, b, manifold: manifold.points.clear()
     run(world)
     assert ball.position.y < -5
 
 
-def test_pre_solve_receives_the_contact_geometry(world):
+def test_pre_solve_receives_the_contact_manifold(world):
     ground, ball = falling_pair(world, enable_pre_solve_events=True)
     seen = []
 
-    def record(shape_a, shape_b, point, normal):
-        seen.append((point, normal))
-        return True
+    def record(shape_a, shape_b, manifold):
+        seen.append((shape_a, shape_b, manifold))
 
     world.pre_solve = record
     run(world)
 
     assert seen, "pre-solve was never called"
-    point, normal = seen[0]
-    assert abs(normal.y) == pytest.approx(1.0, abs=0.1), "a flat ground's normal"
-    assert point.y == pytest.approx(0.5, abs=0.6)
+    shape_a, shape_b, manifold = seen[0]
+    assert {shape_a, shape_b} == {ground.shapes[0], ball.shapes[0]}
+    assert abs(manifold.normal.y) == pytest.approx(1.0, abs=0.1), "flat ground"
+    assert manifold.points, "a touching contact has points"
+
+
+def test_pre_solve_edits_reach_the_solver(world):
+    """Turning the normal sideways turns a landing into a push sideways."""
+    ground, ball = falling_pair(world, enable_pre_solve_events=True)
+
+    def tilt(shape_a, shape_b, manifold):
+        manifold.normal = Vec2(1, 0) if shape_a is ground.shapes[0] else Vec2(-1, 0)
+
+    world.pre_solve = tilt
+    run(world, steps=60)
+    assert ball.position.y < 0, "with no upward push the ball sinks in"
 
 
 def test_pre_solve_makes_a_one_way_platform(world):
@@ -119,7 +131,11 @@ def test_pre_solve_makes_a_one_way_platform(world):
     player.add_circle(radius=0.5, enable_pre_solve_events=True)
     player.linear_velocity = (0, 12)
 
-    world.pre_solve = lambda a, b, point, normal: player.linear_velocity.y <= 0
+    def one_way(shape_a, shape_b, manifold):
+        if player.linear_velocity.y > 0:
+            manifold.points.clear()
+
+    world.pre_solve = one_way
 
     peak = -99.0
     for _ in range(180):
@@ -128,6 +144,64 @@ def test_pre_solve_makes_a_one_way_platform(world):
 
     assert peak > 1.0, "the player never got above the platform"
     assert player.position.y > 0, "and should have landed on top of it"
+
+
+def test_a_raising_pre_solve_keeps_the_contact(world, capsys):
+    ground, ball = falling_pair(world, enable_pre_solve_events=True)
+
+    def broken(shape_a, shape_b, manifold):
+        manifold.points.clear()
+        raise RuntimeError("boom")
+
+    world.pre_solve = broken
+    run(world, steps=60)
+    assert ball.position.y > 0, "the edit made before raising is not applied"
+    assert "boom" in capsys.readouterr().err
+
+
+# --- pre-continuous ----------------------------------------------------------
+
+
+def bullet_at_wall(world):
+    """A bullet fired at a thin wall, fast enough to cross it in one step."""
+    wall = world.add_body(position=(0, 0))
+    wall.add_box(0.1, 10, enable_pre_solve_events=True)
+    bullet = world.add_body(body_type="dynamic", position=(-5, 0), is_bullet=True)
+    bullet.add_circle(radius=0.1, enable_pre_solve_events=True)
+    bullet.linear_velocity = (600, 0)
+    return wall, bullet
+
+
+def test_continuous_collision_stops_a_bullet_at_a_wall(world):
+    wall, bullet = bullet_at_wall(world)
+    run(world, steps=10)
+    assert bullet.position.x < 0
+
+
+def test_pre_continuous_can_let_a_bullet_through(world):
+    wall, bullet = bullet_at_wall(world)
+    seen = []
+
+    def let_through(shape_a, shape_b, point, normal):
+        seen.append((point, normal))
+        return False
+
+    world.pre_continuous = let_through
+    run(world, steps=10)
+
+    assert seen, "pre-continuous was never called"
+    assert bullet.position.x > 0, "the bullet should have passed the wall"
+    point, normal = seen[0]
+    assert abs(normal.x) == pytest.approx(1.0, abs=0.01)
+
+
+def test_pre_solve_and_pre_continuous_are_independent(world):
+    world.pre_solve = lambda a, b, manifold: None
+    world.pre_continuous = lambda a, b, point, normal: True
+    world.pre_solve = None
+    assert world.pre_continuous is not None
+    world.pre_continuous = None
+    assert world.pre_solve is None and world.pre_continuous is None
 
 
 def test_pre_solve_can_be_cleared(world):

@@ -475,9 +475,10 @@ class BodyBuilder:
         """Add a chain shape to the body during construction.
 
         Args:
-            vertices: List of points that define the chain shape. Must contain at least 4 vertices.
+            vertices: The chain's points: at least 2 for an open chain, 3 for a loop.
             loop: Boolean indicating whether the chain should be closed (looped). Default is False.
-            **chaindef_args: Additional parameters for the shape definition.
+            **chaindef_args: Additional parameters for the shape definition, such as
+                ``ghost1``/``ghost2`` or ``materials``. See :class:`.ChainDef`.
         Returns:
             Self for method chaining.
         """
@@ -1002,9 +1003,10 @@ class Body:
         """Add a chain shape to the body.
 
         Args:
-            vertices: List of vertices defining the chain (must contain at least 4 vertices).
+            vertices: The chain's points: at least 2 for an open chain, 3 for a loop.
             loop: Boolean indicating whether the chain should be closed (looped).
-            **chaindef_args: Additional parameters for the `Chain` definition.
+            **chaindef_args: Additional parameters for the chain, such as
+                ``ghost1``/``ghost2`` or ``materials``. See :class:`.ChainDef`.
 
         Returns:
             The created chain shape.
@@ -1179,13 +1181,13 @@ class Body:
         b2_mass_data = mass_data.b2MassData
         lib.b2Body_SetMassData(self._body_id, b2_mass_data[0])
 
-    def apply_mass_from_shapes(self):
+    def update_mass_from_shapes(self):
         """Update mass properties to the sum of the mass properties of the shapes.
 
         This normally doesn't need to be called unless you called set_mass_data()
         to override the mass and later want to reset the mass.
         """
-        lib.b2Body_ApplyMassFromShapes(self._body_id)
+        lib.b2Body_UpdateMassFromShapes(self._body_id)
 
     @property
     def aabb(self) -> AABB:

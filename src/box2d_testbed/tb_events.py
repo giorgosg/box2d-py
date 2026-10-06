@@ -9,7 +9,7 @@ from box2d import RevoluteJointDef
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
     def setup(self):
         ground = self.world.new_body().static()
-        chain_points = [Vec2(x, 0) for x in range(10, -11, -1)]
+        chain_points = [Vec2(x, 0) for x in range(9, -10, -1)]
         ground.chain(
             chain_points,
             loop=False,
@@ -271,11 +271,22 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         self.player_shape = self.player.shapes[0]
 
         self.world.pre_solve = self.on_pre_solve
+        self.world.pre_continuous = self.on_pre_continuous
         self.held = set()
         self.dropped = 0
 
-    def on_pre_solve(self, shape_a, shape_b, point, normal):
-        """Keep the contact only when the player is above the platform.
+    def on_pre_solve(self, shape_a, shape_b, manifold):
+        """Drop the contact unless the player is on top of the platform."""
+        if not self.player_is_above(shape_a, shape_b, manifold.normal):
+            manifold.points.clear()
+
+    def on_pre_continuous(self, shape_a, shape_b, point, normal):
+        """The same rule, for a player moving fast enough to tunnel."""
+        return self.player_is_above(shape_a, shape_b, normal)
+
+    def player_is_above(self, shape_a, shape_b, normal):
+        """True unless this is the player meeting a platform from below or
+        the side.
 
         The normal points from shape_a to shape_b, so its sign tells us which
         side of the contact the player is on.

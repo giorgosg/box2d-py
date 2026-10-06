@@ -440,18 +440,32 @@ class ChainDef:
     """
     Definition for a chain shape.
 
-    A chain shape is defined by a sequence of points that form line segments.
-    Chain shapes are designed to eliminate "ghost" collisions with some limitations:
+    A chain shape is a sequence of points joined into line segments, built so
+    that bodies slide across the joins without catching on them:
+
     - chains are one-sided
-    - chains have a counter-clockwise winding order
+    - chains have a counter-clockwise winding order (the normal points to the
+      right of the segment direction)
     - chains can be either a loop or open
-    - a chain must have at least 4 points
+    - an open chain needs at least 2 points and a loop at least 3
     - chains should not self-intersect
 
+    Every point is a real vertex: an open chain of n points has n - 1
+    segments, and a loop of n points has n. An open chain also has a *ghost*
+    point beyond each end. Ghosts never collide; they tell Box2D which way the
+    surface continues past the end, so a body crossing onto another chain or
+    shape there does not catch on the corner. Overlapping two open chains'
+    ghosts with each other's end points joins them smoothly.
+
     Attributes:
-        vertices: A sequence of points defining the chain's vertices
-        is_loop: True if the chain is closed by connecting the first and last points
-        materials: Optional list of SurfaceMaterial objects for each segment
+        vertices: The chain's points, in order.
+        is_loop: True if the chain is closed by joining the last point back to
+            the first.
+        ghost1: The ghost before the first point of an open chain. Defaults to
+            continuing the first segment straight on. Ignored for loops.
+        ghost2: The ghost after the last point of an open chain. Defaults to
+            continuing the last segment straight on. Ignored for loops.
+        materials: One SurfaceMaterial for the whole chain, or one per segment.
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data
         enable_sensor_events: True if sensors may detect this chain. See ShapeDef
@@ -460,33 +474,47 @@ class ChainDef:
 
     vertices: Sequence[VectorLike]
     is_loop: bool = False
+    ghost1: Optional[VectorLike] = None
+    ghost2: Optional[VectorLike] = None
     materials: Sequence[SurfaceMaterial] = None
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
     enable_sensor_events: bool = True
 
     def __post_init__(self):
-        """Convert all vertices to Vec2 objects"""
-        # Convert vertices to Vec2
         self.vertices = [Vec2(v) for v in self.vertices]
 
-        # Validate vertices
         count = len(self.vertices)
-        if count < 4:
-            raise ValueError("Chain must have at least 4 vertices")
+        minimum = 3 if self.is_loop else 2
+        if count < minimum:
+            kind = "a loop" if self.is_loop else "an open chain"
+            raise ValueError(f"{kind} needs at least {minimum} points, got {count}")
 
-        # Validate materials if provided. Box2D wants 1 or exactly one per
-        # point, for loops and open chains alike -- on an open chain the two
-        # ghost segments get placeholder materials. This previously demanded
-        # count + 1 for loops, which Box2D rejects.
+        # Box2D leaves the ghosts at infinity unless they are set, and refuses
+        # to build an open chain with them there, so a default is always
+        # chosen here: carry the end segment straight on, as if the surface
+        # continued flat past the end.
+        if self.ghost1 is None:
+            first, second = self.vertices[0], self.vertices[1]
+            self.ghost1 = first + (first - second)
+        if self.ghost2 is None:
+            last, before = self.vertices[-1], self.vertices[-2]
+            self.ghost2 = last + (last - before)
+        self.ghost1 = Vec2(self.ghost1)
+        self.ghost2 = Vec2(self.ghost2)
+
         if self.materials is not None and len(self.materials) > 1:
-            if len(self.materials) != count:
+            if len(self.materials) != self.segment_count:
                 raise ValueError(
-                    f"a chain takes 1 material or one per point ({count}), "
-                    f"got {len(self.materials)}"
+                    f"a chain takes 1 material or one per segment "
+                    f"({self.segment_count}), got {len(self.materials)}"
                 )
 
-        super().__post_init__() if hasattr(super(), "__post_init__") else None
+    @property
+    def segment_count(self) -> int:
+        """How many segments the chain will have."""
+        count = len(self.vertices)
+        return count if self.is_loop else count - 1
 
     @property
     def b2ChainDef(self):
@@ -513,7 +541,9 @@ class ChainDef:
         self.b2_vertices = b2_vertices
 
         chain_def.points = b2_vertices
-        chain_def.count = count
+        chain_def.pointCount = count
+        chain_def.ghost1 = self.ghost1.b2Vec2[0]
+        chain_def.ghost2 = self.ghost2.b2Vec2[0]
         chain_def.isLoop = self.is_loop
         chain_def.enableSensorEvents = self.enable_sensor_events
 

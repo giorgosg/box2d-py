@@ -7,6 +7,19 @@ from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
 
 
+def _unit_axis(axis):
+    """The joint axis as a unit vector.
+
+    Box2D 3.2 has no axis field: the axis is the rotation of the joint's local
+    frames, built here from the vector's direction. A longer vector made a
+    rotation that was not unit length, which Box2D now rejects outright.
+    """
+    unit = Vec2(axis).normalize()
+    if unit.length == 0:
+        raise ValueError("a joint axis needs a direction, not a zero vector")
+    return unit
+
+
 class Joint(ABC):
     """Base class for all physics joints connecting two rigid bodies.
 
@@ -36,22 +49,18 @@ class Joint(ABC):
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
 
-    def destroy(self, wake_attached: bool = True):
+    def destroy(self):
         """Destroy the joint and remove it from the world.
 
-        The joint raises :class:`.DestroyedError` if used afterwards. Destroying
-        twice is a no-op.
-
-        Args:
-            wake_attached: Wake the bodies this joint connected. Defaults to
-                True so that releasing a constraint lets the bodies react to
-                it; pass False to leave sleeping bodies asleep.
+        Both bodies it connected are woken, so they can react to losing the
+        constraint. The joint raises :class:`.DestroyedError` if used
+        afterwards. Destroying twice is a no-op.
         """
         # Read past the validity check so destroy stays callable on a joint
         # Box2D has already reclaimed, e.g. one whose bodies went first.
         raw = raw_id(self, "_joint_id")
         if raw is not None and lib.b2Joint_IsValid(raw):
-            lib.b2DestroyJoint(raw, bool(wake_attached))
+            lib.b2DestroyJoint(raw)
         del self._joint_id
 
     @property
@@ -723,7 +732,7 @@ class PrismaticJoint(Joint):
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
-        self._local_axis_a = Vec2(axis)
+        self._local_axis_a = _unit_axis(axis)
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_limit = enable_limit
@@ -919,7 +928,7 @@ class WheelJoint(Joint):
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
-        self._local_axis_a = Vec2(axis)
+        self._local_axis_a = _unit_axis(axis)
         self._enable_limit = enable_limit
         self._lower_translation = lower_translation
         self._upper_translation = upper_translation

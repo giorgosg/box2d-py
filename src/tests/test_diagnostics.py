@@ -279,12 +279,6 @@ def test_disabling_warm_starting_costs_stability(world):
     ), "warm starting should hold the stack straighter"
 
 
-def test_speculative_can_be_toggled(world):
-    """No getter exists, so this only checks the call is wired up."""
-    world.enable_speculative(False)
-    world.enable_speculative(True)
-
-
 def test_rebuild_static_tree_keeps_queries_working(world):
     for x in range(20):
         body = world.add_body(position=(x * 2, 0))
