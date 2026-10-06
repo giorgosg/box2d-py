@@ -3,7 +3,6 @@ This module defines the ShapeDef class for configuring shapes in Box2D.
 A shape definition is used to create shapes with specific properties.
 """
 
-import math
 from dataclasses import dataclass
 from typing import Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
@@ -421,7 +420,8 @@ class PolygonDef:
         the offset and rotation, must then pass the checks Box2D makes when
         creating the shape: a radius that is not negative, and a finite
         radius, centroid, vertices and normals, as the 32-bit floats Box2D
-        stores. Both are asked of Box2D rather than repeated here.
+        stores. The hull is Box2D's own; the shape check follows
+        b2IsValidPolygon, which Box2D does not export.
 
         Returns:
             bool: True if the polygon can be built, False if adding it to a
@@ -433,13 +433,13 @@ class PolygonDef:
             >>> PolygonDef([(0, 0), (1, 0), (2, 0)]).is_valid
             False
         """
-        # An infinite angle has no sine or cosine, so Rot cannot be made from
-        # it and b2Polygon raises before Box2D sees anything.
-        if not isinstance(self.rotation, (Rot, type(None))) and math.isinf(
-            self.rotation
-        ):
+        # Making the polygon raises ValueError for, e.g., an infinite angle,
+        # which Rot has no sine or cosine for. Adding the polygon would raise
+        # the same, so that is False too.
+        try:
+            polygon = self._make_polygon()
+        except ValueError:
             return False
-        polygon = self._make_polygon()
         return polygon is not None and _is_valid_polygon(polygon)
 
     @property

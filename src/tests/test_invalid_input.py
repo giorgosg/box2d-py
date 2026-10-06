@@ -122,6 +122,15 @@ def test_constants_and_function_pointers_pass_through():
 BOX2D_SOURCE = pathlib.Path(__file__).parents[2] / "box2d" / "src"
 
 
+def braced_body(text, start):
+    """The text from ``start``, just inside an opening brace, to its match."""
+    depth, end = 1, start
+    while depth and end < len(text):
+        depth += {"{": 1, "}": -1}.get(text[end], 0)
+        end += 1
+    return text[start:end]
+
+
 def functions_with_input_checks():
     """Every non-static Box2D function whose body contains an input check."""
     signature = re.compile(
@@ -131,11 +140,7 @@ def functions_with_input_checks():
     for path in BOX2D_SOURCE.glob("*.c"):
         text = path.read_text()
         for match in signature.finditer(text):
-            depth, end = 1, match.end()
-            while depth and end < len(text):
-                depth += {"{": 1, "}": -1}.get(text[end], 0)
-                end += 1
-            if "B2_CHECK_INPUT" in text[match.end() : end]:
+            if "B2_CHECK_INPUT" in braced_body(text, match.end()):
                 names.add(match.group(1))
     return names
 
@@ -148,3 +153,49 @@ def test_every_function_with_an_input_check_is_wrapped():
     assert len(names) > 50, "the source scan found too little to be working"
     unwrapped = sorted(name for name in names if not is_checked(name))
     assert not unwrapped, f"checked in C but not in Python: {unwrapped}"
+
+
+#: b2IsValidPolygon as PolygonDef.is_valid's _is_valid_polygon follows it.
+#: Box2D keeps it static, so the Python side is a copy that an upgrade could
+#: leave behind.
+B2_IS_VALID_POLYGON = """
+    if ( polygon->count < 1 || polygon->count > B2_MAX_POLYGON_VERTICES )
+    {
+        return false;
+    }
+
+    if ( b2IsValidFloat( polygon->radius ) == false || polygon->radius < 0.0f )
+    {
+        return false;
+    }
+
+    if ( b2IsValidVec2( polygon->centroid ) == false )
+    {
+        return false;
+    }
+
+    for ( int i = 0; i < polygon->count; ++i )
+    {
+        if ( b2IsValidVec2( polygon->vertices[i] ) == false
+            || b2IsValidVec2( polygon->normals[i] ) == false )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+"""
+
+
+@pytest.mark.skipif(not BOX2D_SOURCE.is_dir(), reason="needs the Box2D source tree")
+def test_polygon_validity_still_matches_box2d():
+    """Fails when a Box2D update changes the polygon check is_valid copies."""
+    text = (BOX2D_SOURCE / "shape.c").read_text()
+    match = re.search(r"static bool b2IsValidPolygon\([^)]*\)\s*\{", text)
+    assert match, "b2IsValidPolygon is gone from shape.c"
+    body = braced_body(text, match.end())
+    assert body.split() == B2_IS_VALID_POLYGON.split(), (
+        "b2IsValidPolygon changed: update _is_valid_polygon in "
+        "box2d/shapedef.py to match, then the copy here"
+    )

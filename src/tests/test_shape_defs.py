@@ -159,6 +159,7 @@ PLACEMENTS = {
     "infinite angle": ({"angle": math.inf}, False),
     "rotation": ({"angle": box2d.Rot(1.0)}, True),
     "rotation that is not a number": ({"angle": box2d.Rot(math.nan)}, False),
+    "rotation as a Box2D struct": ({"angle": box2d.Rot(1.0).b2Rot}, True),
 }
 
 
