@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepares a Claude Code cloud session: Box2D/enkiTS sources, the Python
+# Prepares a Claude Code cloud session: the Box2D source, the Python
 # environment (which compiles the CFFI module), and the sharing server's
 # node dependencies. Local sessions are left alone.
 set -euo pipefail
@@ -10,10 +10,10 @@ fi
 
 cd "$CLAUDE_PROJECT_DIR"
 
-# Box2D and enkiTS are compiled from source, so the build needs them checked out.
+# Box2D is compiled from source, so the build needs it checked out.
 git submodule update --init --recursive
 
-# Creates .venv, builds Box2D and enkiTS with CMake, compiles the CFFI module
+# Creates .venv, builds Box2D with CMake, compiles the CFFI module
 # and installs the package in editable mode -- the same as the README.
 uv sync --python 3.13 --extra dev --extra testbed
 

@@ -15,7 +15,7 @@ import build_cffi  # noqa: E402
 
 
 class BuildExtWithDeps(build_ext):
-    """Build Box2D and enkiTS with CMake before the extension that links them."""
+    """Build Box2D with CMake before the extension that links it."""
 
     def run(self):
         build_cffi.build_dependencies()

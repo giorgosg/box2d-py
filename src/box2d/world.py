@@ -1,13 +1,15 @@
 # src/box2d/world.py
 
 import math
+import sys
 import traceback
 
 from ._checked import lib, ffi
 
-#: Whether this build carries the enkiTS task scheduler. A build made without
-#: it runs Box2D single threaded, which is every target that has no threads.
-HAS_THREADS = hasattr(lib, "setup_threadpool")
+#: Whether World(threads=N) can run on more than one thread. Box2D brings its
+#: own thread pool, so that is everywhere but WebAssembly, where the browser
+#: runtime has no threads and Box2D is built without them.
+HAS_THREADS = sys.platform != "emscripten"
 
 _version = lib.b2GetVersion()
 #: The version of the Box2D library this binding was built against.
@@ -154,6 +156,9 @@ class World:
 
         Args:
             gravity: Initial gravitational acceleration (x,y) in m/s².
+            threads: How many threads to step on, the calling one included.
+                Above one, the world starts a thread pool of its own, which
+                it stops when destroyed. Worlds do not share threads.
 
         Example:
             >>> world = World(gravity=(0, -9.8))
@@ -167,21 +172,13 @@ class World:
         if threads > 1:
             if not HAS_THREADS:
                 raise RuntimeError(
-                    f"this build has no task scheduler, so threads={threads} "
-                    f"cannot be honoured; use threads=1. Builds without "
-                    f"threads are made for targets that have none, such as "
-                    f"WebAssembly."
+                    f"this build has no threads, so threads={threads} cannot "
+                    f"be honoured; use threads=1. WebAssembly is built "
+                    f"without them, as the browser runtime has none."
                 )
-            # Use the C-level task scheduler
-            lib.setup_threadpool(threads)
-            self._use_c_scheduler = True
+            # With no task callbacks given, Box2D runs its own pool, one per
+            # world, sized to this.
             world_def.workerCount = threads
-            world_def.enqueueTask = lib.c_enqueue_tasks
-            world_def.finishTask = lib.c_finish_tasks
-            self._user_task_ctx = ffi.new_handle(self)
-            world_def.userTaskContext = self._user_task_ctx
-        else:
-            self._use_c_scheduler = False
 
         self._handle = ffi.new_handle(self)
         world_def.userData = self._handle
@@ -1329,11 +1326,6 @@ class World:
             >>> world = World()
             >>> world.destroy()
         """
-        # If using the C-level scheduler, clean it up.
-        if getattr(self, "_use_c_scheduler", False):
-            lib.cleanup_threadpool()
-            self._use_c_scheduler = False
-
         # Read past the validity check: destroy must stay callable (and a no-op)
         # on an already-destroyed world, since __del__ routes through here.
         raw = raw_id(self, "_world_id")
@@ -1594,10 +1586,11 @@ class World:
 
     @property
     def worker_count(self) -> int:
-        """How many workers the world may spread a step across.
+        """How many pieces the world splits a step's work into.
 
-        Only meaningful for a world created with ``threads`` above one; the
-        task scheduler is what actually runs the work.
+        Starts at the ``threads`` the world was created with. Changing it does
+        not change the world's thread pool, which keeps the size it was
+        created with: more pieces than threads simply queue.
         """
         return lib.b2World_GetWorkerCount(self._world_id)
 

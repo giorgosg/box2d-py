@@ -74,7 +74,7 @@ def test_state_hash_changes_as_the_world_moves():
     assert stepped_hash(steps=10) != stepped_hash(steps=11)
 
 
-@pytest.mark.skipif(not HAS_THREADS, reason="build has no task scheduler")
+@pytest.mark.skipif(not HAS_THREADS, reason="this build has no threads")
 def test_state_hash_ignores_the_thread_count():
     assert stepped_hash(threads=1) == stepped_hash(threads=4)
 

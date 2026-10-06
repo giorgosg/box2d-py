@@ -3,18 +3,18 @@ Builds the box2d._box2d CFFI extension.
 
 setup.py uses two things from here, and importing the module does nothing else:
 
-- ``build_dependencies()``, which build_ext runs first: Box2D, and enkiTS for
-  threaded builds, compiled as static libraries with CMake;
+- ``build_dependencies()``, which build_ext runs first: Box2D compiled as a
+  static library with CMake;
 - ``ffibuilder()``, which cffi calls for the FFI: the declarations read from
-  Box2D's public headers, plus the extension's own sources and link settings.
+  Box2D's public headers, and how to link the library.
 
-Nothing here needs a particular compiler. The headers are preprocessed in
-Python with pcpp, and the task scheduler glue is compiled by setuptools along
-with the extension, so a Windows build needs only Visual Studio and CMake.
+Nothing here needs a particular compiler: the headers are preprocessed in
+Python with pcpp, so a Windows build needs only Visual Studio and CMake.
 
-There are three shapes of build: native with threads, native without
-(BOX2D_PY_NO_THREADS=1), and cross-compiled to WebAssembly by pyodide build,
-which has no thread pool to give and so is always threadless.
+Threads need nothing from this build either. Box2D 3.2 has its own thread
+pool, one per world, so the extension is just Box2D. The one other shape of
+build is WebAssembly, cross-compiled by pyodide build, where Box2D is built
+without threads because the browser runtime has none to give.
 """
 
 import io
@@ -28,8 +28,6 @@ from cffi import FFI
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BOX2D_DIR = os.path.join(PROJECT_ROOT, "box2d")
-ENKITS_DIR = os.path.join(PROJECT_ROOT, "enkits")
-TASKS_DIR = os.path.join(PROJECT_ROOT, "src", "tasks")
 
 
 def _targeting_emscripten():
@@ -47,12 +45,6 @@ def _targeting_emscripten():
 
 
 EMSCRIPTEN = _targeting_emscripten()
-
-# Threads are optional at build time. enkiTS needs a real thread pool, which
-# rules it out on targets that have none -- WebAssembly without
-# SharedArrayBuffer being the one that prompted this. Box2D itself is happy
-# single threaded; only World(threads=N>1) needs the scheduler.
-WITH_THREADS = os.environ.get("BOX2D_PY_NO_THREADS", "") == "" and not EMSCRIPTEN
 
 
 # --- the C libraries ----------------------------------------------------------
@@ -75,7 +67,7 @@ def _cmake_dir(*parts):
     return os.path.join(PROJECT_ROOT, "build", "cmake", _target_name(), *parts)
 
 
-#: Where both static libraries land, whatever the generator.
+#: Where the static library lands, whatever the generator.
 LIBRARY_DIR = _cmake_dir("lib")
 
 
@@ -89,7 +81,7 @@ def _macos_architectures():
 
 
 def _cmake_args():
-    """Configure arguments shared by Box2D and enkiTS."""
+    """CMake configure arguments for the target being built."""
     args = [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_SHARED_LIBS=OFF",
@@ -150,24 +142,17 @@ def _cmake(source_dir, name, extra_args):
 
 
 def build_dependencies():
-    """Build Box2D, and enkiTS for a threaded build, as static libraries."""
+    """Build Box2D as a static library."""
     print(f"Building Box2D in {_cmake_dir('box2d')}")
-    box2d_args = [
-        "-DBOX2D_SAMPLES=OFF",
-        "-DBOX2D_UNIT_TESTS=OFF",
-        "-DBOX2D_BENCHMARKS=OFF",
-        "-DBOX2D_DOCS=OFF",
-    ]
-    _cmake(BOX2D_DIR, "box2d", box2d_args)
-
-    if not WITH_THREADS:
-        print("Skipping enkiTS: building without thread support")
-        return
-    print(f"Building enkiTS in {_cmake_dir('enkits')}")
     _cmake(
-        ENKITS_DIR,
-        "enkits",
-        ["-DENKITS_BUILD_EXAMPLES=OFF", "-DENKITS_BUILD_SHARED=OFF"],
+        BOX2D_DIR,
+        "box2d",
+        [
+            "-DBOX2D_SAMPLES=OFF",
+            "-DBOX2D_UNIT_TESTS=OFF",
+            "-DBOX2D_BENCHMARKS=OFF",
+            "-DBOX2D_DOCS=OFF",
+        ],
     )
 
 
@@ -239,14 +224,10 @@ def _preprocess_box2d_headers():
 
 
 def cdef_source():
-    """Everything the extension declares to cffi."""
+    """Everything the extension declares to cffi: Box2D's public API."""
     text = strip_inline_definitions(_preprocess_box2d_headers())
     # Pragmas and the like are left by the preprocessor; cdef() wants none.
-    text = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
-    if WITH_THREADS:
-        with open(os.path.join(TASKS_DIR, "task_scheduler.cffi")) as f:
-            text += "\n" + f.read()
-    return text
+    return "\n".join(line for line in text.splitlines() if not line.startswith("#"))
 
 
 # --- the extension --------------------------------------------------------------
@@ -255,14 +236,11 @@ def cdef_source():
 def link_config():
     """The libraries the extension links, and where they are."""
     libraries = ["box2d"]
-    if WITH_THREADS:
-        libraries.append("enkiTS")
-        # enkiTS is C++, and the extension is linked as C. MSVC links its C++
-        # runtime by itself; elsewhere it has to be named.
-        if platform.system() == "Darwin":
-            libraries.append("c++")
-        elif platform.system() != "Windows":
-            libraries.append("stdc++")
+    # Box2D's thread pool is POSIX threads outside Windows. macOS has them in
+    # its C library; on Linux, glibc before 2.34 -- which manylinux2014 is --
+    # keeps them in libpthread. WebAssembly is built without them.
+    if not EMSCRIPTEN and platform.system() not in ("Windows", "Darwin"):
+        libraries.append("pthread")
     return {"libraries": libraries, "library_dirs": [LIBRARY_DIR]}
 
 
@@ -270,20 +248,10 @@ def ffibuilder():
     """The FFI for box2d._box2d. cffi's setuptools hook calls this."""
     ffi = FFI()
     ffi.cdef(cdef_source())
-
-    source = '#include "box2d/box2d.h"\n'
-    sources = []
-    include_dirs = [os.path.join(BOX2D_DIR, "include")]
-    if WITH_THREADS:
-        source += '#include "TaskScheduler_c.h"\n#include "task_scheduler.h"\n'
-        sources.append(os.path.relpath(os.path.join(TASKS_DIR, "task_scheduler.c")))
-        include_dirs += [os.path.join(ENKITS_DIR, "src"), TASKS_DIR]
-
     ffi.set_source(
         "box2d._box2d",
-        source,
-        sources=sources,
-        include_dirs=include_dirs,
+        '#include "box2d/box2d.h"\n',
+        include_dirs=[os.path.join(BOX2D_DIR, "include")],
         **link_config(),
     )
     return ffi

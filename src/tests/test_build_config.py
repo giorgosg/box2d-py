@@ -1,9 +1,9 @@
 # tests/test_build_config.py
 """How the extension decides what to build.
 
-The build has three shapes now -- native with threads, native without, and
-cross-compiled to WebAssembly -- and which one you get is decided by
-environment variables read when the build script is imported. That is easy to get subtly wrong
+The build has two shapes -- native, and cross-compiled to WebAssembly -- and
+which one you get is decided by environment variables read when the build
+script is imported. That is easy to get subtly wrong
 in a way no other test would notice, because the wrong choice still produces
 a working extension, just not the one you asked for.
 
@@ -13,6 +13,7 @@ decided. They do not build anything, and importing the script must not either.
 
 import importlib
 import os
+import platform
 import sys
 
 import pytest
@@ -29,8 +30,7 @@ def load_build_module(environment):
     reimported rather than reloaded with the old values still bound.
     """
     saved = {
-        key: os.environ.get(key)
-        for key in ("BOX2D_PY_NO_THREADS", "BOX2D_PY_EMSCRIPTEN", "PYODIDE", "CC")
+        key: os.environ.get(key) for key in ("BOX2D_PY_EMSCRIPTEN", "PYODIDE", "CC")
     }
     for key in saved:
         os.environ.pop(key, None)
@@ -57,16 +57,8 @@ def _restore_build_module():
     sys.modules.pop("build_cffi", None)
 
 
-def test_a_plain_build_has_threads():
-    build = load_build_module({})
-    assert build.EMSCRIPTEN is False
-    assert build.WITH_THREADS is True
-
-
-def test_no_threads_is_opt_in():
-    build = load_build_module({"BOX2D_PY_NO_THREADS": "1"})
-    assert build.WITH_THREADS is False
-    assert build.EMSCRIPTEN is False
+def test_a_plain_build_is_native():
+    assert load_build_module({}).EMSCRIPTEN is False
 
 
 @pytest.mark.parametrize(
@@ -85,66 +77,44 @@ def test_emscripten_is_detected(environment):
     assert build.EMSCRIPTEN is True
 
 
-def test_emscripten_implies_no_threads():
-    """The reason the two are linked: wasm has no thread pool to give.
+def test_the_extension_links_only_box2d():
+    """Box2D 3.2 runs its own thread pool, so there is no scheduler to link.
 
-    Left unlinked, a wasm build would try to compile enkiTS and link a C++
-    thread pool that cannot run there.
+    Linux adds pthread for that pool; glibc before 2.34, which manylinux2014
+    is, keeps it out of libc.
     """
-    build = load_build_module({"PYODIDE": "1"})
-    assert build.EMSCRIPTEN is True
-    assert build.WITH_THREADS is False
+    config = load_build_module({}).link_config()
+    expected = ["box2d"]
+    if platform.system() not in ("Windows", "Darwin"):
+        expected.append("pthread")
+    assert config["libraries"] == expected
 
 
-def test_a_threadless_build_links_only_box2d():
-    """No enkiTS, and no C++ runtime -- enkiTS was the only C++ in the build."""
-    build = load_build_module({"BOX2D_PY_NO_THREADS": "1"})
-    config = build.link_config()
-
+def test_a_webassembly_build_links_no_threads():
+    """Box2D is built without threads there, so pthread is not wanted."""
+    config = load_build_module({"BOX2D_PY_EMSCRIPTEN": "1"}).link_config()
     assert config["libraries"] == ["box2d"]
 
 
-def test_a_threaded_build_links_the_scheduler():
-    build = load_build_module({})
-    config = build.link_config()
-
-    assert "box2d" in config["libraries"]
-    assert "enkiTS" in config["libraries"]
-
-
-def test_the_scheduler_is_declared_only_when_it_is_built():
-    """cffi must not promise symbols the extension does not carry.
-
-    A cdef naming setup_threadpool in a build without it produces an
-    extension whose import fails on a missing symbol, rather than a build
-    that simply has no threads.
-    """
-    threaded = load_build_module({})
-    headers = threaded.cdef_source()
-    assert "setup_threadpool" in headers
-
-    threadless = load_build_module({"BOX2D_PY_NO_THREADS": "1"})
-    headers = threadless.cdef_source()
-    assert "setup_threadpool" not in headers
-    assert "c_enqueue_tasks" not in headers
-    # The Box2D API is still all there.
+def test_the_declarations_are_box2ds_api():
+    headers = load_build_module({}).cdef_source()
     assert "b2CreateWorld" in headers
     assert "b2World_Step" in headers
+    # The enkiTS glue that used to be declared alongside is gone.
+    assert "setup_threadpool" not in headers
 
 
-def test_has_threads_matches_what_was_built():
-    """The runtime flag should describe the extension actually loaded."""
+def test_has_threads_everywhere_but_webassembly():
     from box2d import HAS_THREADS
-    from box2d._box2d import lib
 
-    assert HAS_THREADS is hasattr(lib, "setup_threadpool")
+    assert HAS_THREADS is (sys.platform != "emscripten")
 
 
 def test_importing_the_build_script_builds_nothing(tmp_path, monkeypatch):
     """setup.py imports it for every command, metadata included.
 
-    It used to preprocess the headers and compile the task scheduler with gcc
-    as a side effect of being imported.
+    It used to preprocess the headers and compile C with gcc as a side effect
+    of being imported.
     """
     import subprocess
 

@@ -476,12 +476,12 @@ class TestbedApp:
             state.step_number += 1
 
         imgui.push_item_width(100)
-        # Threads slider. A build without the task scheduler cannot go above
+        # Threads slider. A build without threads cannot go above
         # one, and asking raises, so the control does not offer it.
         if HAS_THREADS:
             changed, state.threads = imgui.slider_int("Threads", state.threads, 1, 32)
         else:
-            imgui.text_disabled("Threads: 1 (this build has no scheduler)")
+            imgui.text_disabled("Threads: 1 (this build has no threads)")
         # Substeps slider
         changed, state.substeps = imgui.slider_int("Substeps", state.substeps, 1, 32)
         # Hertz slider

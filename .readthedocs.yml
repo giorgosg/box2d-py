@@ -1,7 +1,7 @@
 version: 2
 
-# Box2D and enkiTS are compiled during the install below, so the submodules
-# have to be there first. `submodules: include: all` is what fetches them;
+# Box2D is compiled during the install below, so the submodule has to be
+# there first. `submodules: include: all` is what fetches them;
 # the pre_build hooks that used to repeat it ran too late to matter.
 submodules:
   include: all

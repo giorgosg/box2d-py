@@ -469,7 +469,7 @@ def test_the_testbed_imports_without_pyopengl():
 def test_the_testbed_defaults_to_a_thread_count_the_build_supports():
     """The testbed defaulted to four threads regardless of the build.
 
-    A WebAssembly build has no task scheduler and raises rather than
+    A WebAssembly build has no threads and raises rather than
     degrading, so the testbed could not start in a browser at all -- the
     first thing it did was ask for four threads.
     """

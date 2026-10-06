@@ -2,6 +2,8 @@
 import faulthandler
 
 faulthandler.enable()
+import os
+
 import pytest
 import box2d
 from box2d import World, AABB, HAS_THREADS
@@ -443,31 +445,81 @@ def test_query_circle_combined_filter():
     w.destroy()
 
 
-@pytest.mark.skipif(not HAS_THREADS, reason="built without the task scheduler")
-def test_world_threads():
-    w = World(gravity=(0, -10), threads=4)
-    bb = w.new_body().box(0.2, 0.2)
-    bodies = [bb.position(x, 0).build() for x in range(30)]
+needs_threads = pytest.mark.skipif(not HAS_THREADS, reason="this build has no threads")
 
+
+def pile(world, count=60):
+    ground = world.add_body()
+    ground.add_box(40, 1)
+    for i in range(count):
+        body = world.add_body(body_type="dynamic", position=((i % 10) - 5, 2 + i // 10))
+        body.add_box(0.9, 0.9)
+
+
+def os_thread_count():
+    return len(os.listdir("/proc/self/task"))
+
+
+@needs_threads
+def test_a_threaded_world_steps():
+    world = World(threads=4)
+    pile(world)
     for _ in range(60):
-        w.step(1 / 60)
+        world.step(1 / 60, 4)
+    world.destroy()
 
 
+@needs_threads
+def test_each_world_keeps_its_own_thread_count():
+    """The pool used to be one global, sized by whichever world came first:
+    a later World(threads=2) printed a warning and got the first one's."""
+    first = World(threads=4)
+    second = World(threads=2)
+    assert first.worker_count == 4
+    assert second.worker_count == 2
+    first.destroy()
+    second.destroy()
+
+
+@needs_threads
+@pytest.mark.skipif(not os.path.isdir("/proc/self/task"), reason="needs Linux /proc")
+def test_each_world_owns_its_threads():
+    """Destroying one world used to shut the shared pool down under every
+    other, which carried on single threaded without a word."""
+    before = os_thread_count()
+    first = World(threads=4)
+    assert os_thread_count() == before + 3, "three threads besides the caller's"
+    second = World(threads=2)
+    assert os_thread_count() == before + 4
+
+    first.destroy()
+    assert os_thread_count() == before + 1, "the second world keeps its thread"
+    pile(second)
+    for _ in range(30):
+        second.step(1 / 60, 4)
+
+    second.destroy()
+    assert os_thread_count() == before
+
+
+@needs_threads
+def test_the_split_can_change_after_creation():
+    """worker_count changes how a step is split, not the pool's size."""
+    world = World(threads=4)
+    pile(world)
+    for count in (2, 8, 1, 4):
+        world.worker_count = count
+        assert world.worker_count == count
+        for _ in range(10):
+            world.step(1 / 60, 4)
+    world.destroy()
+
+
+@pytest.mark.skipif(HAS_THREADS, reason="this build has threads")
 def test_threads_are_refused_when_the_build_has_none():
-    """A build without enkiTS cannot honour threads, and says so.
-
-    WebAssembly has no thread pool to give, so the extension is built without
-    the scheduler there. Asking for threads anyway used to reach a
-    lib.setup_threadpool that is simply absent, which is an AttributeError
-    from inside the constructor rather than an explanation.
-    """
-    if HAS_THREADS:
-        world = World(threads=4)
-        assert world.worker_count == 4
-        world.destroy()
-        return
-
-    with pytest.raises(RuntimeError, match="no task scheduler"):
+    """WebAssembly is built without threads, and asking for them says so
+    rather than failing somewhere less clear."""
+    with pytest.raises(RuntimeError, match="no threads"):
         World(threads=4)
 
     # One thread is always fine, whatever the build.
