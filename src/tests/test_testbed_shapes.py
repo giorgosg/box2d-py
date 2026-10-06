@@ -69,3 +69,18 @@ def test_icing_the_middle_stretch_lets_a_box_resting_there_slide(world):
     # Frictionless on a 1-in-7 slope, it slides downhill, to the right, at
     # 1.4 m/s^2: 2.8 m in two seconds.
     assert box.position.x > resting_at.x + 2.0
+
+
+def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
+    test = scenario(world, "Modify Geometry")
+    test.shape = "polygon"
+    test.scale = 2.0
+    run(test, 0.5)
+
+    test.reset = (test.reset or 0) + 1
+
+    platform = next(body for body in world.bodies if body.type == "kinematic")
+    (shape,) = platform.shapes
+    # Box2D's sample makes the polygon a box 0.5 by 0.75 from its centre.
+    corners = {(round(v.x, 6), round(v.y, 6)) for v in shape.vertices}
+    assert corners == {(-1.0, -1.5), (1.0, -1.5), (1.0, 1.5), (-1.0, 1.5)}

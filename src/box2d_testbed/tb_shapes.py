@@ -156,7 +156,7 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
         self.world.new_body().dynamic().position(0, 4).box(2, 2).build()
 
         self.platform = self.world.new_body().kinematic().position(0, 1).build()
-        self.platform_shape = self.platform.add_circle(radius=0.5)
+        self.platform_shape = self.add_shape(self.geometry())
 
     def geometry(self):
         """The selected shape at the selected scale, sized as in Box2D's sample."""
