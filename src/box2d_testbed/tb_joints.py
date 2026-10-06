@@ -303,7 +303,7 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
         return f"rope tension {self.tension[0]:.1f}, {self.tension[1]:.1f} N"
 
 
-class PrismaticJoint(BaseTest, category="Joints", name="Prismatic Joint"):
+class DiagonalSlide(BaseTest, category="Joints", name="Prismatic Joint"):
     """A tall box that may only slide along a diagonal, with a limit, a motor
     and a spring to switch on.
 
@@ -519,7 +519,7 @@ class Driving(BaseTest, category="Joints", name="Driving"):
         return ["left A, brake S, right D", f"{kph:.1f} km/h"]
 
 
-class DistanceJoint(BaseTest, category="Joints", name="Distance Joint"):
+class DistanceChain(BaseTest, category="Joints", name="Distance Joint"):
     """A chain of balls, each held at a distance from the one before.
 
     With the spring off, a distance joint is a rigid rod of the set length,
@@ -592,7 +592,7 @@ class DistanceJoint(BaseTest, category="Joints", name="Distance Joint"):
         self.rebuild()
 
 
-class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
+class HoveringBox(BaseTest, category="Joints", name="Motor Joint"):
     """A box held up in mid-air and swept from side to side by a motor joint.
 
     Box2D 3.2 rewrote this joint: it drives a relative velocity, as hard as a
@@ -794,7 +794,7 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
         self.bodies[0].apply_linear_impulse((100, 0))
 
 
-class FilterJoint(BaseTest, category="Joints", name="Filter Joint"):
+class FilteredStacks(BaseTest, category="Joints", name="Filter Joint"):
     """Two stacks where one pair of boxes ignores each other.
 
     A filter joint names an exact pair, which collision categories cannot do
