@@ -59,6 +59,20 @@ def _is_data(owner, name):
     return not (callable(attr) or isinstance(attr, (classmethod, staticmethod)))
 
 
+def _can_set(owner, name):
+    """Whether assigning ``name`` would work, not just be let through.
+
+    A read-only property or accessor passes :func:`_is_data` so that its own
+    read-only error is the one raised, but it is no use as a suggestion.
+    """
+    if not _is_data(owner, name):
+        return False
+    attr = inspect.getattr_static(owner, name)
+    if isinstance(attr, property):
+        return attr.fset is not None
+    return getattr(attr, "settable", True)
+
+
 def _words(name):
     """The words of a name, ignoring order and a past-tense ending, so that
     ``motor_enabled`` and ``enable_motor`` read as the same name."""
@@ -72,12 +86,18 @@ def _refusal(owner, name):
             f"it would only hide the method."
         )
 
-    settable = [n for n in dir(owner) if not n.startswith("_") and _is_data(owner, n)]
+    settable = [n for n in dir(owner) if not n.startswith("_") and _can_set(owner, n)]
     # The same words in another order, then the name as the end of longer
-    # ones (``hertz`` for ``spring_hertz``), then whatever is spelt closest.
+    # ones (``hertz`` for ``spring_hertz``), then names containing it less its
+    # first or last word (``spring_force_range`` for ``lower_spring_force``
+    # and ``upper_spring_force``), then whatever is spelt closest.
     close = [n for n in settable if _words(n) == _words(name)]
     if not close and len(name) >= 3:
         close = [n for n in settable if n.endswith(f"_{name}")]
+    words = name.split("_")
+    if not close and len(words) >= 3:
+        cores = {"_".join(words[1:]), "_".join(words[:-1])}
+        close = [n for n in settable if any(f"_{c}_" in f"_{n}_" for c in cores)]
     close = close or difflib.get_close_matches(name, settable, n=1)
     if len(close) == 1:
         hint = f" Did you mean {close[0]!r}?"

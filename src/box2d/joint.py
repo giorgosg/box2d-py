@@ -30,11 +30,24 @@ def _ordered(lower, upper, what):
 
     Box2D asserts this only in debug builds, and otherwise swaps the two --
     so setting one bound past the other quietly moved the other one.
+
+    Both are compared as the 32-bit floats Box2D stores: setting one bound
+    equal to the other compares it with a bound read back from Box2D, and
+    0.1 read back is not the 0.1 that was set.
+
+    At creation it is given the definition's values once defaults are filled
+    in, since one bound given alone can cross the other's default.
     """
-    lower, upper = float(lower), float(upper)
+    lower, upper = (float(ffi.cast("float", bound)) for bound in (lower, upper))
     if lower > upper:
         raise ValueError(f"{what}: lower {lower} is above upper {upper}")
     return lower, upper
+
+
+#: How the limit checks at creation describe themselves. Box2D defaults both
+#: limits to zero, so a lower limit given alone can be refused for crossing an
+#: upper limit nobody set.
+_UNSET_LIMITS = "joint limits (a limit not given is 0)"
 
 
 class Joint(FixedAttributes):
@@ -553,6 +566,9 @@ class RevoluteJoint(Joint):
             spring_hertz (float, optional): Spring frequency.
             spring_damping_ratio (float, optional): Spring damping ratio.
             target_angle (float, optional): The angle the spring pulls towards.
+
+        Raises:
+            ValueError: If lower_limit is above upper_limit.
         """
         self._localAnchorA = Vec2(local_anchor_a)
         self._localAnchorB = Vec2(local_anchor_b)
@@ -586,6 +602,7 @@ class RevoluteJoint(Joint):
             defn.upperAngle = self._upper_limit
         if self._enable_limit is not None:
             defn.enableLimit = self._enable_limit
+        _ordered(defn.lowerAngle, defn.upperAngle, f"revolute {_UNSET_LIMITS}")
 
         # Configure motor parameters.
         if self._motor_speed is not None:
@@ -757,6 +774,10 @@ class PrismaticJoint(Joint):
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring oscillation frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
+            target_translation (float): Where along the axis the spring pulls
+
+        Raises:
+            ValueError: If lower_limit is above upper_limit.
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
@@ -794,6 +815,9 @@ class PrismaticJoint(Joint):
             defn.lowerTranslation = self._lower_limit
         if self._upper_limit is not None:
             defn.upperTranslation = self._upper_limit
+        _ordered(
+            defn.lowerTranslation, defn.upperTranslation, f"prismatic {_UNSET_LIMITS}"
+        )
         if self._enable_motor is not None:
             defn.enableMotor = self._enable_motor
         if self._motor_speed is not None:
@@ -831,23 +855,21 @@ class PrismaticJoint(Joint):
     )
 
     @property
-    def lower_limit(self):
-        """Get the lower joint limit."""
+    def lower_limit(self) -> float:
+        """The lower translation limit. Cannot be set above the upper."""
         return lib.b2PrismaticJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
     def lower_limit(self, lower):
-        """Set the lower joint limit."""
         self.set_limits(lower, self.upper_limit)
 
     @property
-    def upper_limit(self):
-        """Get the upper joint limit."""
+    def upper_limit(self) -> float:
+        """The upper translation limit. Cannot be set below the lower."""
         return lib.b2PrismaticJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
     def upper_limit(self, upper):
-        """Set the upper joint limit."""
         self.set_limits(self.lower_limit, upper)
 
     def set_limits(self, lower, upper):
@@ -856,8 +878,12 @@ class PrismaticJoint(Joint):
         Args:
             lower (float): Lower translation limit
             upper (float): Upper translation limit
+
+        Raises:
+            ValueError: If lower is above upper.
         """
-        lib.b2PrismaticJoint_SetLimits(self._joint_id, float(lower), float(upper))
+        lower, upper = _ordered(lower, upper, "prismatic joint limits")
+        lib.b2PrismaticJoint_SetLimits(self._joint_id, lower, upper)
 
     enable_motor = b2_bool(
         lib.b2PrismaticJoint_IsMotorEnabled,
@@ -951,6 +977,9 @@ class WheelJoint(Joint):
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
+
+        Raises:
+            ValueError: If lower_limit is above upper_limit.
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
@@ -980,6 +1009,7 @@ class WheelJoint(Joint):
         defn.enableLimit = self._enable_limit
         defn.lowerTranslation = self._lower_limit
         defn.upperTranslation = self._upper_limit
+        _ordered(defn.lowerTranslation, defn.upperTranslation, f"wheel {_UNSET_LIMITS}")
         defn.enableMotor = self._enable_motor
         defn.motorSpeed = self._motor_speed
         defn.maxMotorTorque = self._max_motor_torque
@@ -1012,14 +1042,24 @@ class WheelJoint(Joint):
         lib.b2WheelJoint_EnableLimit,
         doc="Check if translation limits are enabled.",
     )
-    lower_limit = b2_value(
-        lib.b2WheelJoint_GetLowerLimit,
-        doc="Get lower translation limit.",
-    )
-    upper_limit = b2_value(
-        lib.b2WheelJoint_GetUpperLimit,
-        doc="Get upper translation limit.",
-    )
+
+    @property
+    def lower_limit(self) -> float:
+        """The lower translation limit. Cannot be set above the upper."""
+        return lib.b2WheelJoint_GetLowerLimit(self._joint_id)
+
+    @lower_limit.setter
+    def lower_limit(self, lower):
+        self.set_limits(lower, self.upper_limit)
+
+    @property
+    def upper_limit(self) -> float:
+        """The upper translation limit. Cannot be set below the lower."""
+        return lib.b2WheelJoint_GetUpperLimit(self._joint_id)
+
+    @upper_limit.setter
+    def upper_limit(self, upper):
+        self.set_limits(self.lower_limit, upper)
 
     def set_limits(self, lower, upper):
         """Set the translation limits.
@@ -1027,8 +1067,12 @@ class WheelJoint(Joint):
         Args:
             lower (float): Lower translation limit
             upper (float): Upper translation limit
+
+        Raises:
+            ValueError: If lower is above upper.
         """
-        lib.b2WheelJoint_SetLimits(self._joint_id, float(lower), float(upper))
+        lower, upper = _ordered(lower, upper, "wheel joint limits")
+        lib.b2WheelJoint_SetLimits(self._joint_id, lower, upper)
 
     enable_motor = b2_bool(
         lib.b2WheelJoint_IsMotorEnabled,
@@ -1104,6 +1148,13 @@ class DistanceJoint(Joint):
             enable_motor (bool): Enable the joint motor
             motor_speed (float): Desired motor speed in meters/second
             max_motor_force (float): Maximum motor force in Newtons
+            lower_spring_force (float): Most the spring may pull, as a
+                negative force in newtons. At zero it only pushes, like a strut.
+            upper_spring_force (float): Most the spring may push, in newtons.
+                At zero it only pulls, like a rope.
+
+        Raises:
+            ValueError: If lower_spring_force is above upper_spring_force.
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
@@ -1152,6 +1203,9 @@ class DistanceJoint(Joint):
             defn.lowerSpringForce = lower_spring_force
         if upper_spring_force is not None:
             defn.upperSpringForce = upper_spring_force
+        _ordered(
+            defn.lowerSpringForce, defn.upperSpringForce, "distance joint spring force"
+        )
 
         self._joint_id = lib.b2CreateDistanceJoint(
             self.world._world_id, ffi.addressof(self._def)
@@ -1202,21 +1256,23 @@ class DistanceJoint(Joint):
         lib.b2DistanceJoint_GetSpringForceRange(self._joint_id, lower, upper)
         return lower[0], upper[0]
 
+    def _set_spring_force_range(self, lower, upper):
+        lower, upper = _ordered(lower, upper, "distance joint spring force")
+        lib.b2DistanceJoint_SetSpringForceRange(self._joint_id, lower, upper)
+
     @property
     def lower_spring_force(self) -> float:
         """The most the spring may pull, as a negative force in newtons.
 
         Clamping it is what turns a spring into a strut: at zero the spring
         cannot pull, so it only pushes. Unbounded by default. Box2D calls this
-        the tension the spring can sustain.
+        the tension the spring can sustain. Cannot be set above the upper.
         """
         return self._spring_force_range()[0]
 
     @lower_spring_force.setter
     def lower_spring_force(self, value):
-        lib.b2DistanceJoint_SetSpringForceRange(
-            self._joint_id, float(value), self._spring_force_range()[1]
-        )
+        self._set_spring_force_range(value, self.upper_spring_force)
 
     @property
     def upper_spring_force(self) -> float:
@@ -1224,15 +1280,13 @@ class DistanceJoint(Joint):
 
         At zero the spring cannot push, so it only pulls, like a rope.
         Unbounded by default. Box2D calls this the compression the spring can
-        sustain.
+        sustain. Cannot be set below the lower.
         """
         return self._spring_force_range()[1]
 
     @upper_spring_force.setter
     def upper_spring_force(self, value):
-        lib.b2DistanceJoint_SetSpringForceRange(
-            self._joint_id, self._spring_force_range()[0], float(value)
-        )
+        self._set_spring_force_range(self.lower_spring_force, value)
 
     @property
     def min_length(self):

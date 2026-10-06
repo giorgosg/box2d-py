@@ -140,6 +140,21 @@ def test_every_plausible_name_is_offered(objects, kind, wrong, candidates):
         assert repr(name) in str(raised.value)
 
 
+def test_only_names_that_can_be_set_are_offered(world):
+    """``spring_force`` reads the force right now; it is no help to someone
+    setting the old ``spring_force_range``."""
+    ground = world.add_body(position=(0, 0))
+    body = world.add_body(body_type="dynamic", position=(0, -3))
+    joint = world.add_distance_joint(ground, body, (0, 0), (0, 0), length=3.0)
+
+    with pytest.raises(AttributeError) as raised:
+        joint.spring_force_range = (-1.0, 1.0)
+    message = str(raised.value)
+    assert "'spring_force'" not in message
+    assert "'lower_spring_force'" in message
+    assert "'upper_spring_force'" in message
+
+
 def test_a_one_letter_name_gets_no_guess(objects):
     """``body.x`` is not a misspelt ``lock_x``."""
     with pytest.raises(AttributeError) as raised:

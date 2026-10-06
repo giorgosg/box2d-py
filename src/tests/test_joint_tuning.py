@@ -203,6 +203,41 @@ def test_spring_force_limits_are_effectively_unbounded_by_default(world):
     assert joint.upper_spring_force > 1e37
 
 
+def test_spring_force_bounds_that_cross_are_refused(world):
+    """Box2D would swap them: upper 0 then lower 10 gave a range of (0, 10)."""
+    ground = world.add_body(position=(0, 0))
+    hanging = world.add_body(body_type="dynamic", position=(0, -3))
+    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
+
+    joint.upper_spring_force = 0.0
+    with pytest.raises(ValueError, match="lower 10.0 is above upper 0.0"):
+        joint.lower_spring_force = 10.0
+    joint.lower_spring_force = -5.0
+    with pytest.raises(ValueError, match="above upper"):
+        joint.upper_spring_force = -10.0
+    assert (joint.lower_spring_force, joint.upper_spring_force) == (-5.0, 0.0)
+
+
+def test_a_spring_force_bound_can_be_set_equal_to_the_other(world):
+    ground = world.add_body(position=(0, 0))
+    hanging = world.add_body(body_type="dynamic", position=(0, -3))
+    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
+
+    joint.lower_spring_force = 0.1
+    joint.upper_spring_force = 0.1
+    assert joint.upper_spring_force == pytest.approx(0.1)
+
+
+def test_a_distance_joint_cannot_be_made_with_crossed_spring_forces(world):
+    ground = world.add_body(position=(0, 0))
+    hanging = world.add_body(body_type="dynamic", position=(0, -3))
+    crossed = DistanceJointDef(
+        ground, hanging, length=3.0, lower_spring_force=10.0, upper_spring_force=0.0
+    )
+    with pytest.raises(ValueError, match="above upper"):
+        world.add_joint(crossed)
+
+
 def hanging_length(**limits):
     """How far a weight ends up below a springy distance joint holding it."""
     world = World()
@@ -239,6 +274,41 @@ def test_a_spring_that_cannot_pull_lets_a_weight_fall_like_a_strut():
     unlimited = hanging_length()
     strut = hanging_length(lower_spring_force=0.0)
     assert strut > unlimited + 5.0
+
+
+def propped_height(**limits):
+    """How high a weight ends up, resting on a springy distance joint below it."""
+    world = World()
+    ground = world.add_body(position=(0, 0))
+    weight = world.add_body(body_type="dynamic", position=(0, 3))
+    weight.add_box(1, 1, density=100.0)
+    world.add_joint(
+        DistanceJointDef(
+            ground,
+            weight,
+            length=3.0,
+            enable_spring=True,
+            spring_hertz=1.0,
+            spring_damping_ratio=0.5,
+            **limits,
+        )
+    )
+    for _ in range(240):
+        world.step(1 / 60, 4)
+    height = weight.position.y
+    world.destroy()
+    return height
+
+
+def test_a_spring_that_cannot_push_lets_a_weight_on_top_fall_like_a_rope():
+    """Holding a weight up from below is pushing, which a rope cannot do."""
+    assert propped_height() > 2.0
+    assert propped_height(upper_spring_force=0.0) < 0.0
+
+
+def test_a_spring_that_cannot_pull_props_a_weight_up_like_a_strut():
+    """The counterpart: a strut pushes, so the weight stays up."""
+    assert propped_height(lower_spring_force=0.0) > 2.0
 
 
 # --- chain surface materials ------------------------------------------------

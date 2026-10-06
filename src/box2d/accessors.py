@@ -74,6 +74,11 @@ class B2Accessor:
         self._id = None
         self.__doc__ = doc
 
+    @property
+    def settable(self):
+        """Whether assigning this property does anything, rather than raise."""
+        return self._setter is not None
+
     def __set_name__(self, owner, name):
         self._name = name
         self._id = _find_id_attribute(owner)

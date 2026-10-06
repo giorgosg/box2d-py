@@ -423,14 +423,22 @@ def test_revolute_spring_pulls_towards_its_target():
 
 # --- one name per setting ---------------------------------------------------
 
-#: Settings Box2D fixes when a joint is made, so there is nothing to set later.
+#: Definition fields with no property of the same name, and why.
 _CREATION_ONLY = {
-    "body",  # the body a mouse joint drags
-    "axis",  # becomes the rotation of the joint frame
-    "normal",  # likewise, for a pogo joint
-    "reference_angle",  # likewise
-    "max_tension_force",  # Box2D has no setter for a pogo joint's limits
+    "body",  # the body a mouse joint drags, fixed for the joint's life
+    # These become the rotation of the joint's local frames, and are changed
+    # later through local_frame_a and local_frame_b.
+    "axis",
+    "reference_angle",
+    # A pogo joint is rebuilt every step rather than changed, and Box2D has
+    # no setter for any of these.
+    "normal",
+    "max_tension_force",
     "max_compression_force",
+    # A pogo's starting state, carried over from the previous pogo. PogoJoint
+    # reads them back, but only to pass them on.
+    "impulse",
+    "velocity",
 }
 
 
@@ -468,7 +476,74 @@ def test_a_joint_is_changed_by_the_names_it_was_made_with(definition):
         if field.name in common or field.name in _CREATION_ONLY:
             continue
         attribute = inspect.getattr_static(joint_class, field.name, None)
-        assert hasattr(type(attribute), "__set__"), (
+        # Having __set__ is not enough: a read-only accessor has one too, and
+        # it raises. No attribute at all is not settable either.
+        if isinstance(attribute, property):
+            settable = attribute.fset is not None
+        else:
+            settable = getattr(attribute, "settable", False)
+        assert settable, (
             f"{definition.__name__}.{field.name} has no settable "
             f"{joint_class.__name__}.{field.name}"
         )
+
+
+# --- limits stay ordered ----------------------------------------------------
+# Box2D asserts lower <= upper only in debug builds; release builds swap the
+# two, so setting one bound past the other silently moved the other one.
+
+_LIMITED = {
+    "revolute": RevoluteJointDef,
+    "prismatic": PrismaticJointDef,
+    "wheel": WheelJointDef,
+}
+
+
+@pytest.fixture(params=list(_LIMITED), ids=list(_LIMITED))
+def limited_joint(request, world, bodies):
+    return world.add_joint(_LIMITED[request.param](*bodies, anchor=(1, 0)))
+
+
+def test_each_limit_can_be_set_on_its_own(limited_joint):
+    limited_joint.set_limits(-1.0, 1.0)
+    limited_joint.lower_limit = -0.5
+    limited_joint.upper_limit = 0.75
+    assert limited_joint.lower_limit == pytest.approx(-0.5)
+    assert limited_joint.upper_limit == pytest.approx(0.75)
+
+
+def test_limits_that_cross_are_refused(limited_joint):
+    limited_joint.set_limits(-1.0, 1.0)
+    with pytest.raises(ValueError, match="lower 2.0 is above upper 1.0"):
+        limited_joint.set_limits(2.0, 1.0)
+    with pytest.raises(ValueError, match="above upper"):
+        limited_joint.lower_limit = 1.5
+    with pytest.raises(ValueError, match="above upper"):
+        limited_joint.upper_limit = -1.5
+    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (-1.0, 1.0)
+
+
+@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+def test_a_joint_cannot_be_made_with_crossed_limits(world, bodies, definition):
+    crossed = definition(*bodies, anchor=(1, 0), lower_limit=1.0, upper_limit=-1.0)
+    with pytest.raises(ValueError, match="above upper"):
+        world.add_joint(crossed)
+
+
+def test_a_limit_can_be_set_equal_to_the_other(limited_joint):
+    """Box2D stores limits as 32-bit floats, so the bound read back is not
+    the 0.1 that was set; equal bounds must still be accepted."""
+    limited_joint.set_limits(0.1, 0.2)
+    limited_joint.upper_limit = 0.1
+    limited_joint.lower_limit = 0.1
+    assert limited_joint.upper_limit == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+def test_one_limit_alone_is_checked_against_the_others_default(
+    world, bodies, definition
+):
+    """Box2D defaults both limits to zero, so a lower limit of 0.5 given alone
+    crosses an upper limit nobody set -- the error has to say so."""
+    with pytest.raises(ValueError, match="a limit not given is 0"):
+        world.add_joint(definition(*bodies, anchor=(1, 0), lower_limit=0.5))
