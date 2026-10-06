@@ -87,3 +87,13 @@ def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
 
     assert test.status() == sagging, "the beam was rebuilt straight"
     assert all(joint.collide_connected for joint in test.joints)
+
+
+def test_the_driving_course_ends_in_a_wall(world):
+    scenario(world, "Driving")
+
+    # Along the last flat stretch, towards the end of the course at x = 320.
+    hits = world.ray_cast((310, 5), (20, 0), first_hit_only=True)
+
+    assert hits, "nothing there: the car would drive off the end"
+    assert hits[0].point.x == pytest.approx(320)

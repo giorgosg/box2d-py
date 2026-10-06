@@ -372,8 +372,10 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     Letting go takes the motor off, and the car rolls freely.
 
     The sliders set the suspension's stiffness and damping, and the speed and
-    torque the motors drive at. Too little torque and the car stalls on the
-    first big hill. The camera follows the car.
+    torque the motors drive at. Torque is what climbs: at 1 the car stalls on
+    the first big hill, at the default 5 it gets as far as the steep ramp
+    near the end, and at 10 it jumps the ramp and reaches the wall. The
+    camera follows the car.
     """
 
     camera_center = (0.0, 0.0)
@@ -385,7 +387,7 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     torque = UI.float(5.0, min=0.0, max=10.0)
 
     def setup(self):
-        # The ground, from left to right: a wall, then the flat the car
+        # The ground, from left to right: a cliff, then the flat the car
         # starts on.
         points = [(-20, -20), (-20, 0), (20, 0)]
         # Two runs of hills and dips, a point every 5 m.
@@ -406,16 +408,9 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             (x + 200, 0),  # a last flat stretch
             (x + 200, 20),  # and a wall
         ]
-        # Reversed so the solid side faces up. The first and last points are
-        # passed as ghosts, which only tell the end segments what lies beyond
-        # them, so neither wall is actually there.
-        points = points[::-1]
-        ground = (
-            self.world.new_body()
-            .static()
-            .chain(points[1:-1], ghost1=points[0], ghost2=points[-1])
-            .build()
-        )
+        # A chain collides on one side only, the right of the direction it
+        # runs in, so it runs right to left to face up.
+        ground = self.world.new_body().static().chain(points[::-1]).build()
 
         # A seesaw on the flat before the bridge, started tipping.
         pivot = (140.0, 1.0)
