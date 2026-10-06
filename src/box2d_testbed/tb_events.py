@@ -1,9 +1,7 @@
-from box2d import Vec2, CollisionFilter, Color
+from box2d import Vec2, CollisionFilter, Color, RevoluteJointDef, SurfaceMaterial
 from .base_test import BaseTest, UI
 from .human import Human
 from .shared import donut
-from box2d.material import SurfaceMaterial
-from box2d import RevoluteJointDef
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):

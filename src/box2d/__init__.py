@@ -3,6 +3,15 @@ from .math import Vec2, Rot, Transform, AABB, Mat22, ScaledTransform
 from .body import Body, BodyBuilder
 from .dataclasses import BodyType
 from .shape import Box, Capsule, Chain, ChainSegment, Circle, Polygon, Segment, Shape
+from .shapedef import (
+    ShapeDef,
+    CircleDef,
+    CapsuleDef,
+    SegmentDef,
+    PolygonDef,
+    ChainDef,
+)
+from .material import SurfaceMaterial
 from .joint import (
     Joint,
     DistanceJoint,
@@ -77,6 +86,13 @@ __all__ = [
     "Circle",
     "Polygon",
     "Segment",
+    "ShapeDef",
+    "CircleDef",
+    "CapsuleDef",
+    "SegmentDef",
+    "PolygonDef",
+    "ChainDef",
+    "SurfaceMaterial",
     "CollisionFilter",
     "CollisionCategoryRegistry",
     # joints

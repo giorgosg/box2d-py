@@ -310,14 +310,32 @@ def _compute_hull(vertices: Sequence[VectorLike]):
         - more than B2_MAX_POLYGON_VERTICES points
         This welds close points and removes collinear points.
     """
+    # No count check of our own: is_valid wants Box2D's empty hull for a bad
+    # count, not an exception.
     count = len(vertices)
-    if count < 3 or count > 8:
-        raise ValueError("Polygon must have at least 3 vertices and at most 8 vertices")
     b2_points = ffi.new("b2Vec2[]", count)
     for i, vertex in enumerate(vertices):
         b2_points[i].x, b2_points[i].y = Vec2(vertex)
     hull = lib.b2ComputeHull(b2_points, count)
     return hull
+
+
+def _is_valid_polygon(polygon) -> bool:
+    """The check b2CreatePolygonShape makes, b2IsValidPolygon.
+
+    Box2D keeps that function static, so it is followed here using the
+    validity checks Box2D does export. Its vertex count test is left out: a
+    polygon only gets here from a hull, which has 3 to 8 points. The struct
+    holds 32-bit floats, so a value too big for one is already infinite.
+    """
+    if not (lib.b2IsValidFloat(polygon.radius) and polygon.radius >= 0.0):
+        return False
+    if not lib.b2IsValidVec2(polygon.centroid):
+        return False
+    return all(
+        lib.b2IsValidVec2(polygon.vertices[i]) and lib.b2IsValidVec2(polygon.normals[i])
+        for i in range(polygon.count)
+    )
 
 
 @dataclass
@@ -390,6 +408,41 @@ class PolygonDef:
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
+    def is_valid(self) -> bool:
+        """
+        Whether Box2D can build a polygon from this definition.
+
+        Box2D makes a polygon from the convex hull of the vertices, and there
+        is no hull when there are too few or too many of them (at most
+        B2_MAX_POLYGON_VERTICES), or when they are so nearly collinear, or so
+        close together, that fewer than three corners survive Box2D merging
+        points within its linear slop. The polygon it makes, once placed by
+        the offset and rotation, must then pass the checks Box2D makes when
+        creating the shape: a radius that is not negative, and a finite
+        radius, centroid, vertices and normals, as the 32-bit floats Box2D
+        stores. The hull is Box2D's own; the shape check follows
+        b2IsValidPolygon, which Box2D does not export.
+
+        Returns:
+            bool: True if the polygon can be built, False if adding it to a
+            body would raise :class:`ValueError`.
+
+        Example:
+            >>> PolygonDef([(0, 0), (1, 0), (0, 1)]).is_valid
+            True
+            >>> PolygonDef([(0, 0), (1, 0), (2, 0)]).is_valid
+            False
+        """
+        # Making the polygon raises ValueError for, e.g., an infinite angle,
+        # which Rot has no sine or cosine for. Adding the polygon would raise
+        # the same, so that is False too.
+        try:
+            polygon = self._make_polygon()
+        except ValueError:
+            return False
+        return polygon is not None and _is_valid_polygon(polygon)
+
+    @property
     def b2Polygon(self):
         """
         Creates and returns the C structure for this polygon.
@@ -404,19 +457,26 @@ class PolygonDef:
         if count > 8:  # B2_MAX_POLYGON_VERTICES
             raise ValueError(f"Polygon has too many vertices: {count}, maximum is 8")
 
+        polygon = self._make_polygon()
+        if polygon is None:
+            raise ValueError("Failed to compute convex hull of polygon vertices")
+        return polygon
+
+    def _make_polygon(self):
+        """The b2Polygon Box2D makes from this definition, or None if the
+        vertices have no hull."""
         hull = _compute_hull(self.vertices)
         if hull.count == 0:
-            raise ValueError("Failed to compute convex hull of polygon vertices")
+            return None
 
         radius = self.radius if self.radius is not None else 0.0
         offset = Vec2(self.offset) if self.offset is not None else Vec2(0, 0)
         rotation = self.rotation if self.rotation is not None else Rot(0.0)
         if not isinstance(rotation, Rot):
             rotation = Rot(rotation)
-        polygon = lib.b2MakeOffsetRoundedPolygon(
+        return lib.b2MakeOffsetRoundedPolygon(
             ffi.addressof(hull), offset.b2Vec2[0], rotation.b2Rot[0], radius
         )
-        return polygon
 
     @classmethod
     def from_b2Polygon(cls, polygon):

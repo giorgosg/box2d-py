@@ -20,8 +20,7 @@ import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
-from box2d import CollisionFilter, RevoluteJointDef, Vec2
-from box2d.shapedef import CapsuleDef, PolygonDef
+from box2d import CapsuleDef, CollisionFilter, PolygonDef, RevoluteJointDef, Vec2
 
 if TYPE_CHECKING:  # only for the annotations below
     from box2d import Body, RevoluteJoint
@@ -498,20 +497,19 @@ class Human:
     def _check_scale_is_buildable(self, scale: float):
         """Raise if the foot would be too small to form a hull at this scale.
 
-        Tried rather than calculated: the limit is Box2D's, and asking it is
+        Asked rather than calculated: the limit is Box2D's, and asking it is
         more honest than hard-coding a number that its next version changes.
         """
-        try:
-            _ = PolygonDef(
-                vertices=[Vec2(point) * scale for point in FOOT_POINTS],
-                radius=FOOT_RADIUS * scale,
-            ).b2Polygon
-        except ValueError as error:
+        foot = PolygonDef(
+            vertices=[Vec2(point) * scale for point in FOOT_POINTS],
+            radius=FOOT_RADIUS * scale,
+        )
+        if not foot.is_valid:
             raise ValueError(
                 f"a figure cannot be built at scale {scale}: its feet fall below "
                 f"Box2D's minimum polygon size. Roughly 0.5 is the smallest that "
                 f"works."
-            ) from error
+            )
 
     def enable_sensor_events(self, enable: bool = True):
         """Let sensors detect this figure's bones."""
