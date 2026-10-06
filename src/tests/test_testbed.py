@@ -209,6 +209,7 @@ def test_only_middle_mouse_drag_pans_the_camera(monkeypatch, button, pans):
         SimpleNamespace(
             get_window_pos=lambda: SimpleNamespace(x=0.0, y=0.0),
             get_window_size=lambda: SimpleNamespace(x=800.0, y=600.0),
+            get_cursor_screen_pos=lambda: SimpleNamespace(x=8.0, y=28.0),
             get_io=lambda: io,
             is_window_hovered=lambda: True,
         ),

@@ -538,17 +538,17 @@ class {class_name}(BaseTest, category="User", name="{name}"):
             .build()
         )
 
-    def after_step(self, dt):
-        """Called once per physics step."""
-
-    def debug_draw(self, debug_draw):
-        """Called once per frame, on top of the rendered world."""
-        debug_draw.draw_string((-6, 12), f"height {{self.box.position.y:.1f}}")
-
     @drop_height.callback
     def on_drop_height(self, key, value):
         # Changing how a scene is built means building it again.
         self.rebuild()
+
+    def after_step(self, dt):
+        """Called once per physics step."""
+
+    def status(self):
+        """Shown at the top left of the view, every frame."""
+        return f"height {{self.box.position.y:.1f}}"
 '''
 
 

@@ -113,6 +113,8 @@ def run(test, steps, renderer):
         test.after_step(1 / 60)
     test.world.draw(renderer)
     test.debug_draw(renderer)
+    status = test.status()
+    assert status is None or isinstance(status, (str, list, tuple))
 
 
 @pytest.mark.parametrize("category,name", ALL_SCENARIOS)

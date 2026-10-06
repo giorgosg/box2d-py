@@ -85,7 +85,10 @@ class UIProperty:
             obj._ui_values[self.name] = ui_value
         else:
             ui_value.value = value
-        # print(self.name, ui_value.value, ui_value.callbacks)
+        # Before the scene is built there is nothing for a callback to act on;
+        # setup reads the stored value instead.
+        if not getattr(obj, "is_set_up", True):
+            return
         for callback in ui_value.callbacks:
             callback(obj, self.name, value)
 

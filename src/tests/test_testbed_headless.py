@@ -107,6 +107,49 @@ def test_scenarios_can_be_switched_headlessly():
     assert frames > 0
 
 
+def test_a_scenarios_status_is_drawn_over_the_view():
+    """status() lines reach the window's draw list, through the installed imgui.
+
+    Drawn by the app rather than by either renderer, and checked against the
+    real binding, which a recorder could not do. Driven inside one imgui frame
+    of its own: a second run_headless in the same process renders the
+    Simulation window only on its first frame, so a check that needs it drawn
+    every frame cannot run the whole app.
+    """
+    from types import SimpleNamespace
+
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed import TestbedApp
+
+    context = imgui.create_context()
+    try:
+        io = imgui.get_io()
+        io.display_size = imgui.ImVec2(400.0, 300.0)
+        io.delta_time = 1.0 / 60.0
+        # As in run_headless: with no backend there is no font upload path.
+        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
+        imgui.new_frame()
+        imgui.begin("Simulation")
+
+        app = TestbedApp.__new__(TestbedApp)
+        draw_list = imgui.get_window_draw_list()
+        origin = imgui.get_cursor_screen_pos()
+
+        app.simulation = SimpleNamespace(status_lines=lambda: [])
+        before = draw_list.vtx_buffer.size()
+        app.draw_status(origin)
+        assert draw_list.vtx_buffer.size() == before, "no status, nothing drawn"
+
+        app.simulation = SimpleNamespace(status_lines=lambda: ["first", "second"])
+        app.draw_status(origin)
+        assert draw_list.vtx_buffer.size() > before, "the lines were drawn"
+        imgui.end()
+    finally:
+        imgui.end_frame()
+        imgui.destroy_context(context)
+
+
 def test_every_overlay_draws_headlessly():
     """All fifteen debug-draw flags at once, through the imgui renderer."""
     from box2d_testbed.testbed_state import state

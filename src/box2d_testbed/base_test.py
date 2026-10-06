@@ -1,3 +1,5 @@
+import functools
+
 from box2d import Vec2
 from .testbed_state import state
 from .ui import UI, UIProperty
@@ -47,12 +49,19 @@ class BaseTest:
     MIN_AUTO_ZOOM = 2.0
     MAX_AUTO_ZOOM = 45.0
 
+    #: True once setup has built the scene. Until then setting a control only
+    #: stores its value -- setup reads it -- and its callbacks do not run, so
+    #: a callback can rely on everything setup creates.
+    is_set_up = False
+
     def __init_subclass__(cls, *, category, name, **kwargs):
         super().__init_subclass__(**kwargs)
         if category not in BaseTest.registry:
             BaseTest.registry[category] = {}
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
+        if "setup" in cls.__dict__:
+            cls.setup = _marks_set_up(cls.__dict__["setup"])
 
     def __init__(self, world):
         self.world = world
@@ -89,6 +98,15 @@ class BaseTest:
         Called every frame after the debug draw has rendered the simulation.
         """
         pass
+
+    def status(self):
+        """What the scenario is doing, shown at the top left of the view.
+
+        Return a string, a list of strings for several lines, or None for
+        nothing. Called every frame. Text drawn in debug_draw is placed in the
+        world and scrolls with the camera; this stays put.
+        """
+        return None
 
     def on_key_down(self, key):
         """
@@ -224,33 +242,24 @@ class BaseTest:
         self.apply_view()
 
     def rebuild(self):
-        """Throw the scene away and build it again.
+        """Throw the scene away and build it again, keeping the controls.
 
-        For controls that change how a scene is constructed rather than
-        something adjustable in place. Does nothing before the first setup,
-        so a control changed early cannot build a scene that setup then
-        builds a second copy of.
+        What Reset does, and what a control that changes how the scene is
+        built should call. Destroying the bodies takes their shapes and
+        joints with them. Does nothing before the first setup, which will
+        build the scene itself.
         """
-        if not self._is_built:
+        if not self.is_set_up:
             return
         for body in list(self.world.bodies):
             body.destroy()
+        self.mouse_joint = None
         self.setup()
-
-    @property
-    def _is_built(self):
-        return bool(self.world.bodies)
 
     @reset.callback
     def on_reset(self, key, value):
-        """
-        Callback for the reset button.
-        Deletes all bodies in the world and runs the test setup again.
-        If the test uses parameters (e.g. current_shape), these are preserved.
-        """
-        for body in list(self.world.bodies):
-            body.destroy()
-        self.setup()
+        """Callback for the Reset button."""
+        self.rebuild()
 
     @classmethod
     def get_first_test(cls):
@@ -268,3 +277,15 @@ class BaseTest:
         Returns the full test registry.
         """
         return BaseTest.registry
+
+
+def _marks_set_up(setup):
+    """Wrap a scenario's setup so the scenario knows when it has run."""
+
+    @functools.wraps(setup)
+    def wrapped(self, *args, **kwargs):
+        result = setup(self, *args, **kwargs)
+        self.is_set_up = True
+        return result
+
+    return wrapped

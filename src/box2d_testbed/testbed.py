@@ -141,6 +141,9 @@ class TestbedApp:
         # Get window dimensions and position in screen coordinates
         pos = imgui.get_window_pos()
         size = imgui.get_window_size()
+        # Where the window's content starts: below its tab bar, inside its
+        # padding. The window position is the top of the tab bar.
+        content = imgui.get_cursor_screen_pos()
         io = imgui.get_io()
         # Ensure we have valid dimensions
         if size.x <= 0 or size.y <= 0:
@@ -188,12 +191,30 @@ class TestbedApp:
         if self.simulation is not None:
             # Draw simulation
             self.simulation.draw()
+            self.draw_status(content)
 
         if uses_gl:
             # Reset viewport
             self.gl_module().glViewport(
                 0, 0, int(io.display_size.x), int(io.display_size.y)
             )
+
+    def draw_status(self, origin):
+        """The scenario's status lines, from ``origin`` down: the top left of
+        the view's content area.
+
+        Drawn on the window's draw list, so on top of whichever renderer drew
+        the scene, and in screen space, so the text stays put as the camera
+        moves.
+        """
+        lines = self.simulation.status_lines()
+        if not lines:
+            return
+        draw_list = imgui.get_window_draw_list()
+        height = imgui.get_text_line_height_with_spacing()
+        color = imgui.get_color_u32(imgui.Col_.text)
+        for row, line in enumerate(lines):
+            draw_list.add_text((origin.x, origin.y + row * height), color, line)
 
     def key_press_events(self):
         # Not while something is being typed. The editor and the console are
