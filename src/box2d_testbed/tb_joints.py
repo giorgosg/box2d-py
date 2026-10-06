@@ -634,8 +634,8 @@ class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
     @enable_motion.callback
     def on_go_change(self, key, value):
         if value:
-            # The box has been held still long enough to fall asleep, and a
-            # sleeping body ignores its joints until something wakes it.
+            # Held still, the box may have fallen asleep, and a sleeping body
+            # ignores a new drive until something wakes it.
             self.motor.wake_bodies()
         else:
             # Time stops, so the box should stop too: drive it at zero.
@@ -645,6 +645,8 @@ class MotorJoint(BaseTest, category="Joints", name="Motor Joint"):
     @max_velocity_force.callback
     def on_max_force_change(self, key, value):
         self.motor.max_velocity_force = value
+        # Or a box stopped by Go would sleep through a cap too low to hold it.
+        self.motor.wake_bodies()
 
     @max_velocity_torque.callback
     def on_max_torque_change(self, key, value):
