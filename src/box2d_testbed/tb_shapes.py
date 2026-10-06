@@ -475,14 +475,14 @@ class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
     camera_zoom = 27.5
 
     resistance_scale = UI.float(0.02, min=0.0, max=0.2)
-    lift = UI.float(0.0, min=-10.0, max=10.0, label="Lane tilt")
+    tilt = UI.float(0.0, min=-10.0, max=10.0, label="Lane tilt")
 
     def setup(self):
         self.wheels = []
         for i in range(20):
             y = 2.0 * i
             self.world.new_body().static().segment(
-                (-40, y), (40, y + self.lift)
+                (-40, y), (40, y + self.tilt)
             ).build()
 
             # Spinning at the rate that rolls it at 5 m/s, so it starts out
@@ -499,7 +499,7 @@ class RollingResistance(BaseTest, category="Shapes", name="Rolling Resistance"):
             self.wheels.append(wheel)
 
     @resistance_scale.callback
-    @lift.callback
+    @tilt.callback
     def on_change(self, key, value):
         self.rebuild()
 
