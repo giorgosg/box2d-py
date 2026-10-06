@@ -224,13 +224,9 @@ class Shape:
         md = lib.b2Shape_ComputeMassData(self._shape_id)
         return MassData.from_b2MassData(md)
 
+    @property
     def is_valid(self) -> bool:
-        """
-        Shape identifier validation. Can be used to detect orphaned ids.
-
-        Returns:
-            True if the shape id is valid, False otherwise
-        """
+        """Whether this shape is still live, i.e. has not been destroyed."""
         return is_live(self, "_shape_id", lib.b2Shape_IsValid)
 
     def apply_wind(
@@ -930,13 +926,9 @@ class Chain:
             chains.remove(self)
         del self._chain_id
 
+    @property
     def is_valid(self) -> bool:
-        """
-        Chain identifier validation. Can be used to detect orphaned ids.
-
-        Returns:
-            True if the chain id is valid, False otherwise
-        """
+        """Whether this chain is still live, i.e. has not been destroyed."""
         return is_live(self, "_chain_id", lib.b2Chain_IsValid)
 
     @property

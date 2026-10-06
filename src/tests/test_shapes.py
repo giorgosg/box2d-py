@@ -157,9 +157,9 @@ def test_chain_destroy_removes_it_and_its_segments(static_body):
 
     chain.destroy()
 
-    assert chain.is_valid() is False
+    assert chain.is_valid is False
     assert chain not in static_body.chains
-    assert not any(segment.is_valid() for segment in segments)
+    assert not any(segment.is_valid for segment in segments)
     with pytest.raises(DestroyedError):
         chain.set_surface_material(SurfaceMaterial())
     chain.destroy()  # a second time is a no-op
@@ -181,7 +181,7 @@ def test_chain_destroy_after_its_body_is_a_no_op(static_body):
     chain = static_body.add_chain(vertices=[(-5, 0), (0, 0), (5, 0)])
     static_body.destroy()
     chain.destroy()
-    assert chain.is_valid() is False
+    assert chain.is_valid is False
 
 
 def test_a_chain_segment_cannot_be_destroyed_alone(static_body):
@@ -190,7 +190,7 @@ def test_a_chain_segment_cannot_be_destroyed_alone(static_body):
     segment = chain.segments[0]
     with pytest.raises(TypeError, match="Chain.destroy"):
         segment.destroy()
-    assert segment.is_valid()
+    assert segment.is_valid
 
 
 def test_material_property(dynamic_body):
@@ -274,7 +274,7 @@ def test_shape_validity_and_collision_methods(dynamic_body):
     shape = dynamic_body.add_circle(radius=1.0, center=(0, 0))
 
     # Test is_valid
-    assert shape.is_valid() is True
+    assert shape.is_valid is True
 
     # Test test_point
     assert shape.test_point((0, 0)) is True  # Point at center should be inside
@@ -389,7 +389,7 @@ def test_chain_segments(static_body):
         assert hasattr(segment, "restitution")
 
         # Test valid shape
-        assert segment.is_valid()
+        assert segment.is_valid
 
 
 def test_shape_multiple_materials(static_body):

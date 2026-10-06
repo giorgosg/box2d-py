@@ -86,13 +86,13 @@ def test_is_valid_reports_destruction(world):
 
     assert world.is_valid is True
     assert body.is_valid is True
-    assert shape.is_valid() is True
+    assert shape.is_valid is True
 
     world.destroy()
 
     assert world.is_valid is False
     assert body.is_valid is False
-    assert shape.is_valid() is False
+    assert shape.is_valid is False
 
 
 def test_live_objects_are_unaffected(world):
@@ -116,3 +116,15 @@ def test_destroying_one_body_leaves_others_usable(world):
     assert keep.is_valid is True
     assert keep.position == (0, 0)
     world.step(1 / 60, 4)
+
+
+def test_is_valid_is_a_property_everywhere():
+    """Shape and Chain had it as a method while the rest had a property.
+
+    Mixing the two up went unnoticed one way round: a method used as
+    ``if shape.is_valid:`` is a bound method, always true.
+    """
+    from box2d import Body, Chain, Contact, Joint, Shape
+
+    for cls in (World, Body, Shape, Chain, Joint, Contact):
+        assert isinstance(cls.__dict__.get("is_valid"), property), cls.__name__

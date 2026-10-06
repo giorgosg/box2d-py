@@ -258,7 +258,7 @@ class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
 
     def debug_draw(self, debug_draw):
         for shape, index in self.index_of.items():
-            if shape.is_valid():
+            if shape.is_valid:
                 debug_draw.draw_string(shape.body.position, str(index))
         debug_draw.draw_string((-9, 9), f"odd/even pairs rejected: {self.rejected}")
 
@@ -385,7 +385,7 @@ class Wind(BaseTest, category="Shapes", name="Wind"):
             self.gust = Vec2(0, 0)
 
         for shape in self.shapes:
-            if shape.is_valid():
+            if shape.is_valid:
                 shape.apply_wind(self.gust, drag=self.drag, lift=self.lift)
 
         # Wander the noise slowly so the gust is never quite steady.

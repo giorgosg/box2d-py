@@ -215,9 +215,9 @@ def test_shape_destroy(body):
 
     shape.destroy()
 
-    assert shape.is_valid() is False
+    assert shape.is_valid is False
     assert shape not in body.shapes
-    assert other.is_valid() is True
+    assert other.is_valid is True
     with pytest.raises(DestroyedError):
         shape.density
 
@@ -266,7 +266,7 @@ def test_chain_segments_are_valid(world):
     chain = body.add_chain(vertices=[(-4, 0), (-2, 0), (0, 0), (2, 0), (4, 0)])
 
     assert chain.segments
-    assert all(segment.is_valid() for segment in chain.segments)
+    assert all(segment.is_valid for segment in chain.segments)
 
 
 def test_chain_segments_survive_later_allocation(world):
@@ -279,7 +279,7 @@ def test_chain_segments_survive_later_allocation(world):
         other = world.add_body(body_type="dynamic", position=(i, 50))
         other.add_circle(radius=0.1)
 
-    assert all(segment.is_valid() for segment in chain.segments)
+    assert all(segment.is_valid for segment in chain.segments)
 
 
 def test_chain_segments_are_usable(world):
@@ -302,4 +302,4 @@ def test_chain_segments_are_found_by_queries(world):
         world.add_body(body_type="dynamic", position=(i, 50)).add_circle(radius=0.1)
 
     found = world.query_aabb(AABB((-5, -1), (5, 1)))
-    assert all(shape.is_valid() for shape in found)
+    assert all(shape.is_valid for shape in found)
