@@ -266,9 +266,9 @@ def test_add_body_accepts_every_body_def_field():
     # `type` is deliberately exposed as `body_type`, to leave the builtin alone.
     defined = (defined - {"type"}) | {"body_type"}
 
-    assert (
-        defined - accepted == set()
-    ), f"add_body cannot set: {sorted(defined - accepted)}"
+    assert defined - accepted == set(), (
+        f"add_body cannot set: {sorted(defined - accepted)}"
+    )
 
 
 def test_body_builder_can_set_every_body_def_field():

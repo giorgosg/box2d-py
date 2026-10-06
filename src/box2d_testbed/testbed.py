@@ -354,7 +354,7 @@ class TestbedApp:
 
         # Iterate through UI elements defined in the current test.
         previous_was_button = False
-        for name, elem in state.current_test_obj.ui_elements:
+        for _name, elem in state.current_test_obj.ui_elements:
             # Buttons declared next to each other share a row, so Reset and
             # Reset View sit side by side rather than stacked.
             is_button = elem.type == "button"

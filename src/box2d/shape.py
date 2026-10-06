@@ -7,9 +7,8 @@ Chain is implemented as a separate class.
 """
 
 from ._checked import lib, ffi
-from abc import ABC
-from typing import List, Dict, Optional, Union, Any, Tuple, Iterable, Sequence
-from .math import Vec2, Transform, VectorLike, AABB
+from typing import TYPE_CHECKING, List, Optional, Union, Iterable, Sequence
+from .math import Vec2, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
     BoxDef,
@@ -21,13 +20,17 @@ from .shapedef import (
 )
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
-from .dataclasses import MassData, CastResult, ManifoldPoint, Manifold, ContactData
+from .dataclasses import MassData, CastResult, ContactData
 from .accessors import b2_value
 from .lifetime import IdRef, is_live, raw_id
-from .accessors import b2_bool, b2_float, b2_value
+from .accessors import b2_bool, b2_float
+
+if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .body import Body
+    from .world import World
 
 
-class Shape(ABC):
+class Shape:
     """
     Base class for all non-chain shapes.
     It provides common properties like density, friction, restitution
@@ -771,7 +774,6 @@ class Polygon(Shape):
         shapedef = ShapeDef(
             **shapedef_kwargs,
         )
-        b2sd = shapedef.b2ShapeDef
         return cls(body, shapedef, polygondef)
 
 

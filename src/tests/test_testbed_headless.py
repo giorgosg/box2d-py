@@ -78,7 +78,8 @@ def test_the_gl_renderer_still_needs_a_context():
     Not a complaint about the GL renderer -- it is faster. But it cannot run
     where there is no GL, and that includes CI and a browser.
     """
-    with pytest.raises(Exception):
+    # Which exception depends on the platform's PyOpenGL, so any will do.
+    with pytest.raises(Exception):  # noqa: B017
         run_headless(5, renderer="opengl")
 
 
@@ -160,7 +161,6 @@ def test_what_is_drawn_moves_as_the_world_does():
     checks it descends, and that it descends in step with the physics rather
     than drifting on its own.
     """
-    from box2d import World
     from box2d_testbed.base_test import BaseTest
     from box2d_testbed.testbed_state import state
 
@@ -301,7 +301,6 @@ def test_a_degenerate_polygon_is_left_alone():
 
 def test_the_grown_outline_stays_convex():
     """add_convex_poly_filled will render a concave outline wrongly."""
-    import math
 
     from box2d_testbed.debug_draw_imgui import expand_polygon
 
@@ -461,9 +460,9 @@ def test_the_testbed_imports_without_pyopengl():
     result = subprocess.run(
         [sys.executable, "-c", program], capture_output=True, text=True
     )
-    assert (
-        "OK" in result.stdout
-    ), f"the testbed cannot be imported without PyOpenGL:\n{result.stderr[-1500:]}"
+    assert "OK" in result.stdout, (
+        f"the testbed cannot be imported without PyOpenGL:\n{result.stderr[-1500:]}"
+    )
 
 
 def test_the_testbed_defaults_to_a_thread_count_the_build_supports():
@@ -1095,9 +1094,9 @@ def test_tab_completes_a_name_and_indents_when_there_is_none(scenario_dir):
     assert frames >= 20
     assert seen["completed"] == "world.gravity", "Tab completed the name"
     assert seen["indented"] != "if True:\n", "and indents where there is no name"
-    assert seen["indented"].startswith(
-        "if True:\n"
-    ), "without disturbing the line above"
+    assert seen["indented"].startswith("if True:\n"), (
+        "without disturbing the line above"
+    )
 
 
 def _doc_pos(line, index):

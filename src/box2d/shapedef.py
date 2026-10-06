@@ -3,12 +3,12 @@ This module defines the ShapeDef class for configuring shapes in Box2D.
 A shape definition is used to create shapes with specific properties.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
 from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
-from .math import Vec2, VectorLike, AABB, Rot
+from .math import Vec2, VectorLike, Rot
 from .debug_draw import Color
 
 _default_shape_def = lib.b2DefaultShapeDef()

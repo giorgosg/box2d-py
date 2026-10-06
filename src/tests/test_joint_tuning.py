@@ -81,9 +81,9 @@ def test_setting_the_frame_moves_the_body(world, hinge):
     for _ in range(120):
         world.step(1 / 60, 4)
 
-    assert (
-        arm.position.x > settled + 3
-    ), "the arm should have swung out to the new anchor"
+    assert arm.position.x > settled + 3, (
+        "the arm should have swung out to the new anchor"
+    )
 
 
 def test_local_frame_b_is_settable(hinge):

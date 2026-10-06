@@ -55,6 +55,14 @@ uv run pytest
 uv run pytest -m gui   # 3 more, each opening a real window
 ```
 
+Lint and formatting are ruff, as CI runs them; `pre-commit install` runs both
+on each commit:
+
+```bash
+uv run ruff check src setup.py web docs/source
+uv run ruff format src setup.py web docs/source
+```
+
 pip does the same job, which is what CI uses:
 
 ```bash
@@ -198,6 +206,7 @@ checking it under node, and serving it.
 
 ```python
 from box2d import World
+
 # Create physics world
 world = World(gravity=(0, -9.81))
 # Create static ground body (box takes full width and height)
@@ -207,7 +216,7 @@ bodybuilder = world.new_body().dynamic().box(0.5, 0.5)
 bodies = [bodybuilder.position(x, 5).build() for x in range(-5, 5)]
 # Simulation loop
 for _ in range(180):
-    world.step(1/60, 4)
+    world.step(1 / 60, 4)
 # Bodies have come to rest on top of the ground
 print(round(bodies[0].position.y, 2))  # -4.25
 ```

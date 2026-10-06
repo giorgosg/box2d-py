@@ -60,25 +60,25 @@ def bodies(world):
 ENTRY_POINTS = {
     # BodyBuilder
     "BodyBuilder.position": lambda w, bs, p: w.new_body().position(p).build(),
-    "BodyBuilder.linear_velocity": lambda w, bs, p: w.new_body()
-    .linear_velocity(p)
-    .build(),
-    "BodyBuilder.circle.center": lambda w, bs, p: w.new_body()
-    .circle(radius=1.0, center=p)
-    .build(),
+    "BodyBuilder.linear_velocity": lambda w, bs, p: (
+        w.new_body().linear_velocity(p).build()
+    ),
+    "BodyBuilder.circle.center": lambda w, bs, p: (
+        w.new_body().circle(radius=1.0, center=p).build()
+    ),
     "BodyBuilder.box.offset": lambda w, bs, p: w.new_body().box(1, 1, offset=p).build(),
-    "BodyBuilder.capsule.point1": lambda w, bs, p: w.new_body()
-    .capsule(p, (1.0, 1.0), 0.5)
-    .build(),
-    "BodyBuilder.capsule.point2": lambda w, bs, p: w.new_body()
-    .capsule((1.0, 1.0), p, 0.5)
-    .build(),
-    "BodyBuilder.segment.point1": lambda w, bs, p: w.new_body()
-    .segment(p, (1.0, 1.0))
-    .build(),
-    "BodyBuilder.segment.point2": lambda w, bs, p: w.new_body()
-    .segment((1.0, 1.0), p)
-    .build(),
+    "BodyBuilder.capsule.point1": lambda w, bs, p: (
+        w.new_body().capsule(p, (1.0, 1.0), 0.5).build()
+    ),
+    "BodyBuilder.capsule.point2": lambda w, bs, p: (
+        w.new_body().capsule((1.0, 1.0), p, 0.5).build()
+    ),
+    "BodyBuilder.segment.point1": lambda w, bs, p: (
+        w.new_body().segment(p, (1.0, 1.0)).build()
+    ),
+    "BodyBuilder.segment.point2": lambda w, bs, p: (
+        w.new_body().segment((1.0, 1.0), p).build()
+    ),
     # Body
     "Body.position": lambda w, bs, p: setattr(bs[0], "position", p),
     "Body.linear_velocity": lambda w, bs, p: setattr(bs[0], "linear_velocity", p),
@@ -100,13 +100,13 @@ ENTRY_POINTS = {
     ].get_world_point_velocity(p),
     # Shape
     "Shape.test_point.point": lambda w, bs, p: bs[0].shapes[0].test_point(p),
-    "Shape.get_closest_point.target": lambda w, bs, p: bs[0]
-    .shapes[0]
-    .get_closest_point(p),
+    "Shape.get_closest_point.target": lambda w, bs, p: (
+        bs[0].shapes[0].get_closest_point(p)
+    ),
     "Shape.ray_cast.origin": lambda w, bs, p: bs[0].shapes[0].ray_cast(p, (5.0, 5.0)),
-    "Shape.ray_cast.translation": lambda w, bs, p: bs[0]
-    .shapes[0]
-    .ray_cast((-5.0, 0.0), p),
+    "Shape.ray_cast.translation": lambda w, bs, p: (
+        bs[0].shapes[0].ray_cast((-5.0, 0.0), p)
+    ),
     "Body.add_circle.center": lambda w, bs, p: bs[0].add_circle(radius=1.0, center=p),
     "Body.add_box.offset": lambda w, bs, p: bs[0].add_box(1, 1, offset=p),
     "Body.add_capsule.point1": lambda w, bs, p: bs[0].add_capsule(p, (1.0, 1.0), 0.5),

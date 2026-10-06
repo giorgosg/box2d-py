@@ -17,7 +17,6 @@ import ast
 import pathlib
 import re
 
-import pytest
 
 HEADERS = ["box2d.h", "collision.h", "math_functions.h", "types.h", "base.h", "id.h"]
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]

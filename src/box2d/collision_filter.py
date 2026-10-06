@@ -18,7 +18,7 @@ Example usage:
 """
 
 import warnings
-from ._checked import lib, ffi
+from ._checked import ffi
 
 
 class CollisionCategoryRegistry:
@@ -91,7 +91,7 @@ class CollisionCategoryRegistry:
         try:
             return self._categories[name]
         except KeyError:
-            raise ValueError(f"Category '{name}' is not defined.")
+            raise ValueError(f"Category '{name}' is not defined.") from None
 
     def parse(self, cat) -> int:
         """
@@ -282,7 +282,9 @@ class CollisionFilter:
         for cat in cats:
             bit = self.registry.parse(cat)
             if not (self.category & bit):
-                warnings.warn(f"Category '{cat}' is not set; cannot remove it.")
+                warnings.warn(
+                    f"Category '{cat}' is not set; cannot remove it.", stacklevel=2
+                )
             self.category &= ~bit
         return self
 

@@ -49,17 +49,17 @@ def busy_world(world):
 def test_every_profile_field_exists_on_the_struct():
     profile = ffi.new("b2Profile*")
     for python_name, c_name in _PROFILE_FIELDS:
-        assert hasattr(
-            profile, c_name
-        ), f"Profile.{python_name} maps to b2Profile.{c_name}, which does not exist"
+        assert hasattr(profile, c_name), (
+            f"Profile.{python_name} maps to b2Profile.{c_name}, which does not exist"
+        )
 
 
 def test_every_counter_field_exists_on_the_struct():
     counters = ffi.new("b2Counters*")
     for python_name, c_name in _COUNTER_FIELDS:
-        assert hasattr(
-            counters, c_name
-        ), f"Counters.{python_name} maps to b2Counters.{c_name}, which does not exist"
+        assert hasattr(counters, c_name), (
+            f"Counters.{python_name} maps to b2Counters.{c_name}, which does not exist"
+        )
 
 
 def test_profile_covers_the_whole_struct():
@@ -274,9 +274,9 @@ def test_disabling_warm_starting_costs_stability(world):
         world.destroy()
         return drift
 
-    assert settle(True) < settle(
-        False
-    ), "warm starting should hold the stack straighter"
+    assert settle(True) < settle(False), (
+        "warm starting should hold the stack straighter"
+    )
 
 
 def test_rebuild_static_tree_keeps_queries_working(world):

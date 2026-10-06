@@ -14,7 +14,7 @@ import os
 import re
 import rlcompleter
 
-from imgui_bundle import imgui, imgui_ctx
+from imgui_bundle import imgui
 
 import box2d
 from box2d import Vec2
@@ -379,9 +379,7 @@ class Console(code.InteractiveConsole):
             if self._scroll_to_bottom:
                 line = self.transcript.get_line_count()
                 if hasattr(self.transcript, "scroll_to_line"):
-                    self.transcript.scroll_to_line(
-                        line, TextEditor.Scroll.align_bottom
-                    )
+                    self.transcript.scroll_to_line(line, TextEditor.Scroll.align_bottom)
                 else:
                     self.transcript.set_view_at_line(
                         max(0, line - 1),

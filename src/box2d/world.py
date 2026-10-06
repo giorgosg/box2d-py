@@ -33,7 +33,7 @@ from .joint import (
     PogoJoint,
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
-from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
+from .mover import CollisionPlane
 from .query import ShapeProxy
 from .diagnostics import Counters, Profile
 from .dataclasses import BodyDef, BodyType, Manifold
@@ -47,7 +47,6 @@ from .events import (
     JointEvent,
 )
 from .jointdef import (
-    JointDef,
     FilterJointDef,
     WeldJointDef,
     RevoluteJointDef,
@@ -62,7 +61,7 @@ from .jointdef import (
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
-from .lifetime import IdRef, DestroyedError, raw_id, is_live
+from .lifetime import IdRef, raw_id, is_live
 from dataclasses import dataclass
 
 

@@ -1,7 +1,6 @@
 # joint.py
 
 from ._checked import lib, ffi
-from abc import ABC, abstractmethod
 from .math import Vec2, Rot, Transform, VectorLike
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
@@ -21,7 +20,7 @@ def _unit_vector(vector, what="a joint axis"):
     return unit
 
 
-class Joint(ABC):
+class Joint:
     """Base class for all physics joints connecting two rigid bodies.
 
     Manages the lifecycle and common properties of constraints between bodies,
@@ -29,17 +28,6 @@ class Joint(ABC):
     """
 
     _joint_id = IdRef(lib.b2Joint_IsValid, "joint")
-
-    def __init__(self, world, body_a, body_b, collide_connected=False):
-        """Initialize a joint between two bodies.
-
-        Args:
-            world: The physics world where the joint exists
-            body_a: First body to connect (must be movable/dynamic)
-            body_b: Second body to connect (can be static or dynamic)
-            collide_connected: Whether connected bodies should collide with each other
-        """
-        pass
 
     def _set_userdata(self):
         """Finalize joint creation in the physics simulation.

@@ -1,5 +1,5 @@
 import math
-from typing import Union, Iterable, TypeAlias, Protocol, runtime_checkable, Iterator
+from typing import Union, Iterable, Iterator
 from ._checked import ffi, lib
 
 
@@ -2104,7 +2104,9 @@ class Mat22:
         """
         if isinstance(other, Mat22):
             return Mat22(self * other.cx, self * other.cy)
-        other_vec = Vec2(other)
+        # Converted rather than read straight off, so a tuple works too: it
+        # used to be converted and then ignored, and (x, y) raised.
+        other = Vec2(other)
         return Vec2(
             self.cx.x * other.x + self.cy.x * other.y,
             self.cx.y * other.x + self.cy.y * other.y,

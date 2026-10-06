@@ -9,7 +9,7 @@ could be got wrong, which is how joint anchors ended up rejecting b2Vec2.
 import pytest
 
 from box2d import World, DestroyedError, Vec2
-from box2d.accessors import B2Accessor, b2_bool, b2_float, b2_value, b2_vector
+from box2d.accessors import B2Accessor, b2_float, b2_vector
 from box2d.body import Body
 from box2d.joint import RevoluteJoint
 from box2d.lifetime import IdRef

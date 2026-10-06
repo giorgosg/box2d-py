@@ -110,3 +110,11 @@ def test_rot_pickle_roundtrip():
     original = Rot(math.pi / 3)
     reconstructed = pickle.loads(pickle.dumps(original))
     assert original == reconstructed
+
+
+def test_mat22_multiplies_any_vector_like():
+    """A tuple used to be converted, ignored, and then read as if it had .x."""
+    mat = Mat22(1, 2, 3, 4)
+    expected = mat * Vec2(1, 1)
+    assert mat * (1, 1) == expected
+    assert mat * [1, 1] == expected

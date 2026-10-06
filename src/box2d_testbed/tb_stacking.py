@@ -241,10 +241,10 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
         ground.build()
 
         sign = -1.0 if self.flip else 1.0
-        offset = 0.0 if self.flip else 0.0
 
-        # Three bodies per ledge, each hanging further over the edge.
-        for base_x, ledge in ((-11.0, "segment"), (0.0, "box"), (11.0, "capsule")):
+        # Three bodies per ledge -- segment, box, capsule -- each hanging
+        # further over the edge.
+        for base_x in (-11.0, 0.0, 11.0):
             for i, overhang in enumerate((0.0, 0.6, 1.2)):
                 x = base_x + sign * (overhang - 1.0 + i * 0.1)
                 body = self.world.new_body().dynamic().position(x, 4.9)

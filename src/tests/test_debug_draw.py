@@ -1,5 +1,4 @@
 # tests/test_debug_draw.py
-import pytest
 import doctest
 from box2d import DebugDraw, World, Vec2
 import box2d.debug_draw as debug_draw
@@ -52,7 +51,7 @@ def test_debug_draw_callbacks():
     debug_draw = MockDebugDraw()
 
     # Add a dynamic body with a box
-    body = world.new_body().dynamic().position(0, 0).build().add_box(1, 1)
+    world.new_body().dynamic().position(0, 0).build().add_box(1, 1)
 
     # Step and trigger debug drawing
     world.step(1 / 60)  # Simulate a physics step
@@ -68,7 +67,7 @@ def test_draw_circle():
     debug_draw.draw_shapes = True
 
     # Add a dynamic body with a circle
-    body = world.new_body().dynamic().position(0, 0).build().add_circle(1)
+    world.new_body().dynamic().position(0, 0).build().add_circle(1)
 
     # Step and draw
     world.step(1 / 60)
@@ -112,8 +111,8 @@ def test_draw_contacts():
     debug_draw.draw_contacts = True
 
     # Create two colliding boxes
-    body1 = world.new_body().dynamic().position(0, 0).build().add_box(2, 2)
-    body2 = world.new_body().dynamic().position(0, 2).build().add_box(2, 2)
+    world.new_body().dynamic().position(0, 0).build().add_box(2, 2)
+    world.new_body().dynamic().position(0, 2).build().add_box(2, 2)
 
     world.step(1 / 60)  # Let them collide
     world.draw(debug_draw)
@@ -137,7 +136,7 @@ def test_color_parsing():
 
 
 def test_drawing_bounds_round_trips():
-    from box2d import AABB, DebugDraw, Vec2
+    from box2d import AABB, DebugDraw
 
     draw = DebugDraw()
     assert draw.drawing_bounds.upper.x > 1e30, "unset means draw everything"
@@ -155,7 +154,7 @@ def test_drawing_bounds_culls_what_is_off_screen():
     This was left at the float range, so the testbed drew every shape in the
     world however far outside the view it was.
     """
-    from box2d import AABB, DebugDraw, Vec2, World
+    from box2d import AABB, DebugDraw, World
 
     class Counter(DebugDraw):
         def __init__(self):

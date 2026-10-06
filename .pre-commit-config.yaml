@@ -1,5 +1,7 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 23.9.1  # Use the latest version
+  # Keep rev in step with the ruff pin in pyproject.toml's dev extra.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
     hooks:
-      - id: black
+      - id: ruff-check
+      - id: ruff-format

@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from box2d import RevoluteJointDef, Vec2, World
+from box2d import RevoluteJointDef, World
 
 
 @pytest.fixture

@@ -1,6 +1,5 @@
 # src/tests/test_body.py
 import pytest
-import box2d
 from box2d import World, Vec2, Box, Circle
 from box2d._box2d import lib
 from pytest import approx
@@ -162,7 +161,7 @@ def test_restitution_and_sensors():
     ball.add_circle(0.5, restitution=0.8)  # High restitution
 
     # Create static ground
-    ground = world.new_body().static().position(0, 0).build().add_box(10, 1)
+    world.new_body().static().position(0, 0).build().add_box(10, 1)
 
     # Simulate drop
     y_positions = []
@@ -203,9 +202,12 @@ def test_shape_removal():
     assert lib.b2Body_GetShapeCount(body._body_id) == 2
 
     # Remove one shape
-    body.remove_shape(body._shapes[0])
+    removed = body.shapes[0]
+    body.remove_shape(removed)
 
     assert lib.b2Body_GetShapeCount(body._body_id) == 1
+    assert removed not in body.shapes
+    assert not removed.is_valid(), "the same as removed.destroy()"
 
 
 def test_body_damping():
@@ -257,7 +259,7 @@ def test_body_bullet_property():
 def test_gravity_scale_effect():
     world = World(gravity=(0, -10))
     body = world.new_body().dynamic().gravity_scale(0.5).build()
-    box = body.add_box(1, 1, density=1)
+    body.add_box(1, 1, density=1)
 
     initial_y = body.position.y
     world.step(1 / 60, 6)
@@ -265,7 +267,7 @@ def test_gravity_scale_effect():
 
     world.gravity = (0, -10)
     body2 = world.new_body().dynamic().gravity_scale(2.0).build()
-    box = body2.add_box(1, 1, density=1)
+    body2.add_box(1, 1, density=1)
     world.step(1 / 60, 6)
     delta_scaled = body2.position.y - initial_y
 

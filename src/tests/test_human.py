@@ -6,7 +6,6 @@ out in full. Here they are a table and one loop, so the tests below check the
 table against what actually gets built as much as they check behaviour.
 """
 
-import math
 import random
 
 import pytest
@@ -50,9 +49,9 @@ def test_parents_are_defined_before_their_children():
     seen = set()
     for definition in BONES:
         if definition.parent is not None:
-            assert (
-                definition.parent in seen
-            ), f"{definition.name} is built before its parent {definition.parent}"
+            assert definition.parent in seen, (
+                f"{definition.name} is built before its parent {definition.parent}"
+            )
         seen.add(definition.name)
 
 

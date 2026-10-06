@@ -1,8 +1,7 @@
 # tests/test_joints.py
 
 import pytest
-from box2d import World, Vec2, MouseJoint, WeldJoint, RevoluteJoint
-from box2d._box2d import lib
+from box2d import World, Vec2, MouseJoint, RevoluteJoint
 from pytest import approx
 
 
