@@ -44,8 +44,9 @@ class Shape(FixedAttributes):
     #: nothing, so setting an unknown one raises instead.
     user_data = None
 
-    def __init__(self, body: "Body"):
+    def __init__(self, body: "Body", user_data=None):
         self._body = body
+        self.user_data = user_data
 
     def _set_handle(self):
         """Set the handle for the shape."""
@@ -498,7 +499,7 @@ class Circle(Shape):
         """
         Initialize a Circle shape from a body a ShapeDef and a CircleDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCircleShape(
             body._body_id, ffi.addressof(sd), circledef.b2Circle
@@ -563,7 +564,7 @@ class Capsule(Shape):
         """
         Initialize a Capsule shape from a body and a CapsuleDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateCapsuleShape(
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
@@ -641,7 +642,7 @@ class Segment(Shape):
         """
         Initialize a Segment shape from a body and a SegmentDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         self._shape_id = lib.b2CreateSegmentShape(
             body._body_id, ffi.addressof(sd), segmentdef.b2Segment
@@ -706,7 +707,7 @@ class Polygon(Shape):
         """
         Initialize a Polygon shape from a body and a PolygonDef instance.
         """
-        super().__init__(body)
+        super().__init__(body, shapedef.user_data)
         sd = shapedef.b2ShapeDef
         pd = polygondef.b2Polygon
         self._shape_id = lib.b2CreatePolygonShape(
@@ -862,6 +863,7 @@ class Chain(FixedAttributes):
 
     def __init__(self, body: "Body", chaindef: ChainDef):
         self._body = body
+        self.user_data = chaindef.user_data
         self._is_loop = chaindef.is_loop
         cd = chaindef.b2ChainDef
         self._chain_id = lib.b2CreateChain(body._body_id, ffi.addressof(cd))
@@ -893,6 +895,7 @@ class Chain(FixedAttributes):
         rolling_resistance=None,
         tangent_speed=None,
         custom_color=None,
+        user_data=None,
     ):
         """
         Create and attach a chain shape to a body.
@@ -914,6 +917,7 @@ class Chain(FixedAttributes):
             ghost2=ghost2,
             filter=filter,
             materials=materials,
+            user_data=user_data,
         )
         return cls(body, shapedef)
 

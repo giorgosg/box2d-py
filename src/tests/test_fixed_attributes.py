@@ -105,3 +105,80 @@ def test_a_subclass_of_yours_can_add_attributes(world):
 
     with pytest.raises(AttributeError):
         world.score = 0
+
+
+@pytest.mark.parametrize(
+    "kind, method",
+    [
+        ("world", "enable_sse2_fallback"),
+        ("body", "wake_touching"),
+        ("body", "destroy"),
+        ("joint", "wake_bodies"),
+    ],
+)
+def test_a_method_cannot_be_assigned_over(objects, kind, method):
+    """``world.enable_sse2_fallback = True`` reads like a setting and would
+    silently hide the method instead."""
+    obj = objects[kind]
+    with pytest.raises(AttributeError, match="is a method"):
+        setattr(obj, method, True)
+    assert method not in vars(obj)
+
+
+@pytest.mark.parametrize(
+    "kind, wrong, candidates",
+    [
+        ("body", "velocity", ["angular_velocity", "linear_velocity"]),
+        ("joint", "limit", ["lower_limit", "upper_limit"]),
+    ],
+)
+def test_every_plausible_name_is_offered(objects, kind, wrong, candidates):
+    """With more than one fit, picking one would mislead as often as help."""
+    with pytest.raises(AttributeError, match="Did you mean one of") as raised:
+        setattr(objects[kind], wrong, 1.0)
+    for name in candidates:
+        assert repr(name) in str(raised.value)
+
+
+def test_a_one_letter_name_gets_no_guess(objects):
+    """``body.x`` is not a misspelt ``lock_x``."""
+    with pytest.raises(AttributeError) as raised:
+        objects["body"].x = 1.0
+    assert "Did you mean" not in str(raised.value)
+
+
+def test_an_empty_name_raises_attribute_error(objects):
+    with pytest.raises(AttributeError):
+        setattr(objects["body"], "", 1)
+
+
+# --- user_data at creation ----------------------------------------------------
+# Box2D's own userData slot holds the handle that maps an id back to its Python
+# object, so user_data given at creation is kept on the object instead. For
+# shapes and chains it used to go into that slot: anything but a C pointer
+# raised, and anything else was overwritten by the handle straight after.
+
+
+@pytest.mark.parametrize(
+    "add",
+    [
+        lambda body: body.add_circle(radius=0.5, user_data="tag"),
+        lambda body: body.add_box(1, 1, user_data="tag"),
+        lambda body: body.add_capsule((0, 0), (0, 1), 0.25, user_data="tag"),
+        lambda body: body.add_segment((0, 0), (1, 0), user_data="tag"),
+        lambda body: body.add_polygon([(0, 0), (1, 0), (0, 1)], user_data="tag"),
+        lambda body: body.add_chain([(0, 0), (1, 0), (2, 0)], user_data="tag"),
+    ],
+    ids=["circle", "box", "capsule", "segment", "polygon", "chain"],
+)
+def test_user_data_given_at_creation_is_kept(world, add):
+    body = world.new_body().dynamic().build()
+    assert add(body).user_data == "tag"
+
+
+def test_user_data_through_the_builder(world):
+    body = world.new_body().dynamic().circle(0.5, user_data={"id": 7}).build()
+    assert body.shapes[0].user_data == {"id": 7}
+    # The shape still maps back to itself, so queries find the same object.
+    found = world.query_circle((0, 0), 0.1)
+    assert found[0] is body.shapes[0]
