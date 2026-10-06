@@ -3,6 +3,7 @@ This module defines the ShapeDef class for configuring shapes in Box2D.
 A shape definition is used to create shapes with specific properties.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
@@ -310,9 +311,9 @@ def _compute_hull(vertices: Sequence[VectorLike]):
         - more than B2_MAX_POLYGON_VERTICES points
         This welds close points and removes collinear points.
     """
+    # The vertex count is Box2D's to judge too: it returns an empty hull for
+    # fewer than 3 or more than B2_MAX_POLYGON_VERTICES points.
     count = len(vertices)
-    if count < 3 or count > 8:
-        raise ValueError("Polygon must have at least 3 vertices and at most 8 vertices")
     b2_points = ffi.new("b2Vec2[]", count)
     for i, vertex in enumerate(vertices):
         b2_points[i].x, b2_points[i].y = Vec2(vertex)
@@ -388,6 +389,35 @@ class PolygonDef:
         """Convert all vertices to Vec2 objects"""
         self.vertices = [Vec2(v) for v in self.vertices]
         super().__post_init__() if hasattr(super(), "__post_init__") else None
+
+    @property
+    def is_valid(self) -> bool:
+        """
+        Whether Box2D can build a polygon from this definition.
+
+        Box2D makes a polygon from the convex hull of the vertices, and there
+        is no hull when there are fewer than 3 or more than 8 of them, or when
+        they are so nearly collinear, or so close together, that fewer than
+        three corners survive Box2D merging points within its linear slop.
+        Those limits are Box2D's, and are asked of it rather than repeated
+        here. The rounding radius must also be finite and not negative. The
+        offset and rotation only place the polygon, so they are not checked.
+
+        Returns:
+            bool: True if the polygon can be built, False if adding it to a
+            body would raise :class:`ValueError`.
+
+        Example:
+            >>> PolygonDef([(0, 0), (1, 0), (0, 1)]).is_valid
+            True
+            >>> PolygonDef([(0, 0), (1, 0), (2, 0)]).is_valid
+            False
+        """
+        radius = self.radius if self.radius is not None else 0.0
+        # b2CreatePolygonShape checks the radius; the hull check never sees it.
+        if not (math.isfinite(radius) and radius >= 0.0):
+            return False
+        return _compute_hull(self.vertices).count > 0
 
     @property
     def b2Polygon(self):

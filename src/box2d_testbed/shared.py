@@ -1,5 +1,4 @@
-from box2d import Vec2, BodyBuilder, World
-from box2d.shapedef import PolygonDef
+from box2d import Vec2, BodyBuilder, PolygonDef, World
 import random, math
 from itertools import pairwise
 
@@ -15,13 +14,11 @@ def create_random_polygon(self, extent, **kwargs):
     # Random points are occasionally degenerate (collinear, or duplicated) and
     # have no convex hull. BodyBuilder.polygon only queues the shape -- the hull
     # is not computed until build() -- so the fallback has to be chosen here,
-    # by building the def eagerly, rather than by catching around the queueing.
-    try:
-        _ = PolygonDef(vertices, radius).b2Polygon
-    except ValueError:
-        self.box(extent, extent, radius, **kwargs)
-    else:
+    # by asking up front, rather than by catching around the queueing.
+    if PolygonDef(vertices, radius).is_valid:
         self.polygon(vertices, radius, **kwargs)
+    else:
+        self.box(extent, extent, radius, **kwargs)
     return self
 
 

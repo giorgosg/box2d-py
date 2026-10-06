@@ -7,10 +7,8 @@ import random
 
 # imported for the side effect of extending BodyBuilder with the method
 from .shared import create_random_polygon  # noqa: F401
-from box2d import Vec2, Color
+from box2d import CapsuleDef, Color, PolygonDef, SegmentDef, SurfaceMaterial, Vec2
 from box2d.shape import Circle, Capsule, Segment, Polygon
-from box2d.shapedef import CapsuleDef, SegmentDef, PolygonDef
-from box2d.material import SurfaceMaterial
 
 
 class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
