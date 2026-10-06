@@ -185,3 +185,49 @@ def test_the_torque_slider_reaches_a_car_being_driven(world):
     test.torque = 8.0
 
     assert test.car.rear_axle.max_motor_torque == pytest.approx(8.0)
+
+
+def drive_target(test):
+    """The speed and torque the car's motors are set to, front and rear alike."""
+    rear, front = test.car.rear_axle, test.car.front_axle
+    assert (rear.motor_speed, rear.max_motor_torque) == (
+        front.motor_speed,
+        front.max_motor_torque,
+    )
+    return rear.motor_speed, rear.max_motor_torque
+
+
+def test_the_speed_slider_reaches_a_car_being_driven(world):
+    test = scenario(world, "Driving")
+    test.on_key_down("d")
+    test.speed = 50.0
+
+    # Negative turns the wheels clockwise, which drives right.
+    assert drive_target(test) == (pytest.approx(-50.0), pytest.approx(test.torque))
+
+
+def test_letting_go_of_one_of_two_drive_keys_keeps_the_other(world):
+    test = scenario(world, "Driving")
+    test.on_key_down("d")
+    test.on_key_down("a")
+    assert drive_target(test)[0] == pytest.approx(test.speed), "A, pressed last"
+
+    test.on_key_up("a")
+
+    assert drive_target(test) == (
+        pytest.approx(-test.speed),
+        pytest.approx(test.torque),
+    ), "D is still held, so the car drives right"
+
+
+def test_braking_while_driving_and_letting_go_of_the_brake(world):
+    test = scenario(world, "Driving")
+    test.on_key_down("d")
+    test.on_key_down("s")
+    assert drive_target(test) == (0.0, pytest.approx(test.torque)), "braking"
+
+    test.on_key_up("s")
+    assert drive_target(test)[0] == pytest.approx(-test.speed), "driving again"
+
+    test.on_key_up("d")
+    assert drive_target(test) == (0.0, 0.0), "coasting: no motor, no brake"

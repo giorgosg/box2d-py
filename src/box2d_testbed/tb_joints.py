@@ -371,13 +371,16 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     The car is two wheel joints: each wheel slides on a spring along the
     chassis's up axis, which is the suspension, and turns on a motor, which
     is the drive. Hold A to drive left or D to drive right; hold S to brake.
-    Letting go takes the motor off, and the car rolls freely.
+    With more than one held, the last pressed wins. Letting go of them all
+    takes the motors off, and the car rolls freely. Box2D's sample latches
+    the last key instead, so its car never coasts.
 
     The sliders set the suspension's stiffness and damping, and the speed and
-    torque the motors drive at. Torque is what climbs: at 1 the car stalls on
-    the first big hill, at the default 5 it gets as far as the steep ramp
-    near the end, and at 10 it jumps the ramp and reaches the wall. The
-    camera follows the car.
+    torque the motors drive at, all of them at once -- though a coasting car
+    has no motor for speed or torque to change. Torque is what climbs: at 1
+    the car stalls on the first big hill, at the default 5 it gets as far as
+    the steep ramp near the end, and at 10 it jumps the ramp and reaches the
+    wall. The camera follows the car.
     """
 
     camera_center = (0.0, 0.0)
@@ -473,9 +476,32 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             damping_ratio=self.damping,
             torque=self.torque,
         )
+        # The drive keys being held, oldest first. The last one pressed
+        # drives; let go of it and the one before takes over.
+        self.held = []
         # The car starts with its motors on at zero speed: parked, brake on.
-        # Letting go of a key takes them off, and the car rolls freely.
-        self.motors_on = True
+        # The first key takes the brake off for good.
+        self.parked = True
+
+    #: Box2D's throttle for each key: +1 drives left, -1 right, 0 brakes.
+    THROTTLE = {"a": 1.0, "s": 0.0, "d": -1.0}
+
+    def drive(self):
+        """Set the motors from the keys held, as Box2D's sample does from its
+        throttle: speed is throttle times the Speed slider. Positive turns
+        the wheels anticlockwise, which rolls the car left, and a throttle of
+        zero is a motor holding the wheels still, which is the brake.
+        """
+        if self.held:
+            self.car.set_torque(self.torque)
+            self.car.set_speed(self.THROTTLE[self.held[-1]] * self.speed)
+        elif self.parked:
+            self.car.set_torque(self.torque)
+            self.car.set_speed(0.0)
+        else:
+            # Coasting: no torque, so the motors neither drive nor brake.
+            self.car.set_torque(0.0)
+            self.car.set_speed(0.0)
 
     @hertz.callback
     def on_hertz_change(self, key, value):
@@ -485,28 +511,21 @@ class Driving(BaseTest, category="Joints", name="Driving"):
     def on_damping_change(self, key, value):
         self.car.set_damping_ratio(value)
 
+    @speed.callback
     @torque.callback
-    def on_torque_change(self, key, value):
-        # Only while the motors are on. Giving a coasting car torque would
-        # turn its motors on at zero speed, which is the brake.
-        if self.motors_on:
-            self.car.set_torque(value)
+    def on_drive_change(self, key, value):
+        self.drive()
 
     def on_key_down(self, key):
-        # Positive motor speed turns the wheels anticlockwise, which rolls
-        # the car left. Braking is a motor told to hold the wheels still.
-        # Speed is read here, so the Speed slider takes effect on the next key.
-        speeds = {"a": self.speed, "s": 0.0, "d": -self.speed}
-        if key in speeds:
-            self.motors_on = True
-            self.car.set_torque(self.torque)
-            self.car.set_speed(speeds[key])
+        if key in self.THROTTLE and key not in self.held:
+            self.held.append(key)
+            self.parked = False
+            self.drive()
 
     def on_key_up(self, key):
-        if key in ("a", "s", "d"):
-            self.motors_on = False
-            self.car.set_torque(0.0)
-            self.car.set_speed(0.0)
+        if key in self.held:
+            self.held.remove(key)
+            self.drive()
 
     def after_step(self, dt):
         position = self.car.chassis.position
