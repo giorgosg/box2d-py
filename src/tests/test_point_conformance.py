@@ -171,6 +171,19 @@ ENTRY_POINTS = {
     "World.add_motor_joint.linear_velocity": lambda w, bs, p: w.add_motor_joint(
         *bs, linear_velocity=p
     ),
+    "World.add_mover_joint.linear_velocity": lambda w, bs, p: w.add_mover_joint(
+        *bs, linear_velocity=p
+    ),
+    "World.add_mover_joint.max_velocity_force": lambda w, bs, p: w.add_mover_joint(
+        *bs, max_velocity_force=p
+    ),
+    "World.add_pogo_joint.normal": lambda w, bs, p: w.add_pogo_joint(*bs, normal=p),
+    "World.add_pogo_joint.local_anchor_a": lambda w, bs, p: w.add_pogo_joint(
+        *bs, local_anchor_a=p
+    ),
+    "World.add_pogo_joint.local_anchor_b": lambda w, bs, p: w.add_pogo_joint(
+        *bs, local_anchor_b=p
+    ),
     "World.add_mouse_joint.target": lambda w, bs, p: w.add_mouse_joint(bs[0], p),
     # World anchors: resolved through Transform.inverse rather than passed straight
     # to the joint, so they exercise a different conversion path.

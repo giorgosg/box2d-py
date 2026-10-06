@@ -283,6 +283,59 @@ class MotorJointDef(JointDef):
 
 
 @dataclass
+class MoverJointDef(JointDef):
+    """Drives a dynamic character body at a commanded velocity.
+
+    See :class:`.MoverJoint`. body_a is the reference, usually static, and
+    body_b the character.
+
+    Attributes:
+        linear_velocity: Desired velocity of body_b relative to body_a.
+        max_velocity_force: Force cap for each axis, as a vector-like. An axis
+            with zero force is not driven.
+    """
+
+    linear_velocity: Optional[VectorLike] = None
+    max_velocity_force: Optional[VectorLike] = None
+
+    def joint_arguments(self):
+        """The mover joint drives velocity only, so it has no anchors."""
+        arguments = super().joint_arguments()
+        arguments.pop("local_anchor_a", None)
+        arguments.pop("local_anchor_b", None)
+        return arguments
+
+
+@dataclass
+class PogoJointDef(JointDef):
+    """A spring holding a character up off the ground. See :class:`.PogoJoint`.
+
+    body_a is the ground and body_b the character. local_anchor_a is where the
+    spring touches the ground and local_anchor_b where it meets the character.
+
+    Attributes:
+        normal: The ground normal at the contact, in world coordinates.
+            Defaults to straight up.
+        hertz: Spring frequency.
+        damping_ratio: Spring damping ratio.
+        rest_length: Length the spring settles at.
+        max_tension_force: How hard the spring may pull the character down.
+        max_compression_force: How hard the spring may push the character up.
+        impulse: Starting impulse, from the previous step's pogo.
+        velocity: Starting spring velocity, from the previous step's pogo.
+    """
+
+    normal: Optional[VectorLike] = None
+    hertz: Optional[float] = None
+    damping_ratio: Optional[float] = None
+    rest_length: Optional[float] = None
+    max_tension_force: Optional[float] = None
+    max_compression_force: Optional[float] = None
+    impulse: Optional[float] = None
+    velocity: Optional[float] = None
+
+
+@dataclass
 class MouseJointDef:
     """Drags one body toward a moving world-space target.
 
@@ -326,6 +379,8 @@ def _bind_joint_classes():
         (WheelJointDef, "WheelJoint"),
         (DistanceJointDef, "DistanceJoint"),
         (MotorJointDef, "MotorJoint"),
+        (MoverJointDef, "MoverJoint"),
+        (PogoJointDef, "PogoJoint"),
         (MouseJointDef, "MouseJoint"),
     ):
         definition.joint_class = getattr(joint, name)

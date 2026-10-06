@@ -8,6 +8,15 @@ from ._box2d import lib, ffi
 #: Whether this build carries the enkiTS task scheduler. A build made without
 #: it runs Box2D single threaded, which is every target that has no threads.
 HAS_THREADS = hasattr(lib, "setup_threadpool")
+
+_version = lib.b2GetVersion()
+#: The version of the Box2D library this binding was built against.
+BOX2D_VERSION = (_version.major, _version.minor, _version.revision)
+del _version
+
+#: Whether Box2D's AVX2 contact solver is in use. It is compiled in on x86 and
+#: chosen at runtime when the CPU supports it; otherwise SSE2 or NEON is used.
+HAS_AVX2 = bool(lib.b2IsAVX2Available())
 from .body import BodyBuilder, Body
 from .joint import (
     FilterJoint,
@@ -18,6 +27,8 @@ from .joint import (
     WheelJoint,
     DistanceJoint,
     MotorJoint,
+    MoverJoint,
+    PogoJoint,
 )
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
@@ -42,6 +53,8 @@ from .jointdef import (
     WheelJointDef,
     DistanceJointDef,
     MotorJointDef,
+    MoverJointDef,
+    PogoJointDef,
     MouseJointDef,
 )
 from .debug_draw import DebugDraw
@@ -249,6 +262,7 @@ class World:
         angular_damping: float = None,
         gravity_scale: float = None,
         sleep_threshold: float = None,
+        safety_factor: float = None,
         name: str = None,
         user_data=None,
         enable_sleep: bool = None,
@@ -281,6 +295,8 @@ class World:
             angular_damping: Angular damping, reducing angular velocity. May exceed 1.
             gravity_scale: Scale applied to gravity for this body.
             sleep_threshold: Sleep speed threshold in meters per second.
+            safety_factor: Continuous collision safety factor, from 0.01 to
+                0.5. See :attr:`.Body.safety_factor`.
             name: Optional name for debugging, up to 31 characters.
             user_data: Any Python object to associate with the body. Readable
                 afterwards as ``body.user_data``.
@@ -326,6 +342,8 @@ class World:
             body_def.gravity_scale = gravity_scale
         if sleep_threshold is not None:
             body_def.sleep_threshold = sleep_threshold
+        if safety_factor is not None:
+            body_def.safety_factor = safety_factor
         if name is not None:
             body_def.name = name
         if user_data is not None:
@@ -471,6 +489,14 @@ class World:
     def add_motor_joint(self, body_a, body_b, **kwargs) -> "MotorJoint":
         """Drive the relative motion of two bodies. See :class:`.MotorJointDef`."""
         return self.add_joint(MotorJointDef(body_a, body_b, **kwargs))
+
+    def add_mover_joint(self, body_a, body_b, **kwargs) -> "MoverJoint":
+        """Drive a character body at a commanded velocity. See :class:`.MoverJointDef`."""
+        return self.add_joint(MoverJointDef(body_a, body_b, **kwargs))
+
+    def add_pogo_joint(self, body_a, body_b, **kwargs) -> "PogoJoint":
+        """Hold a character up on a spring. See :class:`.PogoJointDef`."""
+        return self.add_joint(PogoJointDef(body_a, body_b, **kwargs))
 
     def _track_body(self, body: "Body"):
         """Internal method to track body references. Called automatically during body creation.
@@ -1372,6 +1398,34 @@ class World:
         lib.b2World_SetRestitutionThreshold(self._world_id, float(value))
 
     @property
+    def restitution_iterations(self) -> int:
+        """Iterations of the restitution solver, which applies bounce.
+
+        More iterations resolve bounces through a stack or a pile more fully,
+        and keep bouncing boxes from picking up spin. Capped by Box2D at
+        ``B2_MAX_RESTITUTION_ITERATIONS`` (63).
+        """
+        return lib.b2World_GetRestitutionIterations(self._world_id)
+
+    @restitution_iterations.setter
+    def restitution_iterations(self, value: int):
+        lib.b2World_SetRestitutionIterations(self._world_id, int(value))
+
+    @property
+    def enable_restitution_propagation(self) -> bool:
+        """Whether a bounce propagates fully through every touching contact.
+
+        Off by default because it is expensive. On, a ball dropped onto a row
+        of touching balls passes its bounce along the row, Newton's cradle
+        style, instead of the first contact absorbing most of it.
+        """
+        return bool(lib.b2World_IsRestitutionPropagationEnabled(self._world_id))
+
+    @enable_restitution_propagation.setter
+    def enable_restitution_propagation(self, value: bool):
+        lib.b2World_EnableRestitutionPropagation(self._world_id, bool(value))
+
+    @property
     def hit_event_threshold(self) -> float:
         """Minimum collision speed to trigger hit events (m/s).
 
@@ -1564,6 +1618,28 @@ class World:
     @enable_warm_starting.setter
     def enable_warm_starting(self, value: bool):
         lib.b2World_EnableWarmStarting(self._world_id, bool(value))
+
+    @property
+    def state_hash(self) -> int:
+        """A deterministic hash of the simulation state, as an int.
+
+        Covers body transforms and velocities, contact and joint impulses, and
+        the bookkeeping that drives the solve, so two worlds that simulate
+        identically always agree -- whatever their thread counts. This is how
+        a desync is caught, in rollback networking for instance, without
+        comparing snapshots byte for byte.
+        """
+        return int(lib.b2World_GetStateHash(self._world_id))
+
+    def enable_sse2_fallback(self, value: bool):
+        """Use the SSE2 contact solver even on a CPU that has AVX2.
+
+        Box2D picks the AVX2 solver at runtime when the CPU supports it. This
+        forces the older SSE2 path instead, for comparing the two. Box2D marks
+        it as testing only and offers no getter, so it is a method rather than
+        a property.
+        """
+        lib.b2World_EnableSSE2Fallback(self._world_id, bool(value))
 
     def rebuild_static_tree(self):
         """Rebuild the static broad-phase tree from scratch.
