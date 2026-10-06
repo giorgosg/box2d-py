@@ -351,11 +351,11 @@ class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
     @spring_hertz.callback
     @spring_damping.callback
     def on_change(self, key, value):
-        self.joint.limit_enabled = self.enable_limit
-        self.joint.motor_enabled = self.enable_motor
+        self.joint.enable_limit = self.enable_limit
+        self.joint.enable_motor = self.enable_motor
         self.joint.max_motor_force = self.max_force
         self.joint.motor_speed = self.motor_speed
-        self.joint.spring_enabled = self.enable_spring
+        self.joint.enable_spring = self.enable_spring
         self.joint.spring_damping_ratio = self.spring_damping
         self.joint.spring_hertz = self.spring_hertz
         self.body.awake = True
@@ -377,8 +377,8 @@ class PrismaticJointTest(BaseTest, category="Joints", name="Prismatic Joint"):
             max_motor_force=self.max_force,
             motor_speed=self.motor_speed,
             enable_spring=self.enable_spring,
-            damping_ratio=self.spring_damping,
-            hertz=self.spring_hertz,
+            spring_damping_ratio=self.spring_damping,
+            spring_hertz=self.spring_hertz,
         )
         self.body = body
 
@@ -468,8 +468,8 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             anchor=teeter_pos,
             enable_limit=True,
             collide_connected=False,
-            lower_angle=math.radians(-18),
-            upper_angle=math.radians(18),
+            lower_limit=math.radians(-18),
+            upper_limit=math.radians(18),
         )
         # Create bridge
         bridge_count = 20
@@ -573,8 +573,8 @@ class DistanceJoints(BaseTest, category="Joints", name="Distance Joint"):
 
         # Configure distance joint parameters
         joint_params = {
-            "hertz": self.hertz,
-            "damping_ratio": self.damping_ratio,
+            "spring_hertz": self.hertz,
+            "spring_damping_ratio": self.damping_ratio,
             "length": self.length,
             "min_length": self.min_length,
             "max_length": self.max_length,
@@ -622,8 +622,8 @@ class DistanceJoints(BaseTest, category="Joints", name="Distance Joint"):
     def on_joint_change(self, key, value):
         """Update joint properties when toggles change."""
         for joint in self.joints:
-            joint.spring_enabled = self.enable_spring
-            joint.limit_enabled = self.enable_limit
+            joint.enable_spring = self.enable_spring
+            joint.enable_limit = self.enable_limit
             joint.length = self.length
             joint.min_length = self.min_length
             joint.max_length = self.max_length
@@ -797,8 +797,8 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
             enable_spring=True,
             spring_hertz=1.0,
             spring_damping_ratio=0.7,
-            lower_translation=-1.0,
-            upper_translation=1.0,
+            lower_limit=-1.0,
+            upper_limit=1.0,
             enable_limit=True,
             enable_motor=True,
             max_motor_torque=10.0,
@@ -1024,7 +1024,7 @@ class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
     @motor.callback
     def on_motor_change(self, key, value):
         if hasattr(self, "lift_joint"):
-            self.lift_joint.motor_enabled = value
+            self.lift_joint.enable_motor = value
             self.lift_joint.wake_bodies()
 
     @motor_force.callback

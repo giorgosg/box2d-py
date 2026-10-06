@@ -133,7 +133,12 @@ def test_distance_joint_reports_its_spring_force(world):
     weight = world.add_body(body_type="dynamic", position=(3, 0))
     weight.add_circle(radius=0.25)
     joint = world.add_distance_joint(
-        anchor, weight, length=1, enable_spring=True, hertz=2, damping_ratio=0.5
+        anchor,
+        weight,
+        length=1,
+        enable_spring=True,
+        spring_hertz=2,
+        spring_damping_ratio=0.5,
     )
     world.step(STEP, 4)
     assert joint.spring_force < 0

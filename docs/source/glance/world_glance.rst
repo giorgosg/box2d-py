@@ -97,8 +97,8 @@ Adding joints:
         ground, pendulum, 
         anchor=(0, 10),
         enable_limit=True,
-        lower_angle=-0.5,
-        upper_angle=0.5
+        lower_limit=-0.5,
+        upper_limit=0.5
     )
 
 Spatial queries:

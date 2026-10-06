@@ -86,14 +86,14 @@ def test_definition_settings_reach_the_joint(world, bodies):
             max_motor_torque=100.0,
             motor_speed=2.0,
             enable_limit=True,
-            lower_angle=-1.0,
-            upper_angle=1.0,
+            lower_limit=-1.0,
+            upper_limit=1.0,
         )
     )
-    assert joint.motor_enabled is True
+    assert joint.enable_motor is True
     assert joint.max_motor_torque == pytest.approx(100.0)
     assert joint.motor_speed == pytest.approx(2.0)
-    assert joint.limit_enabled is True
+    assert joint.enable_limit is True
 
 
 def test_a_definition_can_build_several_joints(world):
@@ -117,8 +117,8 @@ def test_a_definition_can_build_several_joints(world):
 def test_unset_fields_leave_box2d_defaults(world, bodies):
     """A field left as None is omitted rather than passed as None."""
     bare = world.add_joint(RevoluteJointDef(*bodies, anchor=(1, 0)))
-    assert bare.motor_enabled is False
-    assert bare.limit_enabled is False
+    assert bare.enable_motor is False
+    assert bare.enable_limit is False
 
 
 # --- the checks that used to be copied into every factory -------------------
@@ -190,17 +190,17 @@ def test_revolute_runtime_surface_matches_the_other_joints(world, bodies):
     """RevoluteJoint could be created with a motor but never toggled after."""
     joint = world.add_joint(RevoluteJointDef(*bodies, anchor=(1, 0)))
 
-    joint.motor_enabled = True
-    joint.limit_enabled = True
-    joint.spring_enabled = True
+    joint.enable_motor = True
+    joint.enable_limit = True
+    joint.enable_spring = True
     joint.spring_hertz = 3.0
     joint.spring_damping_ratio = 0.5
     joint.target_angle = math.pi / 8
     world.step(1 / 60, 4)
 
-    assert joint.motor_enabled is True
-    assert joint.limit_enabled is True
-    assert joint.spring_enabled is True
+    assert joint.enable_motor is True
+    assert joint.enable_limit is True
+    assert joint.enable_spring is True
     assert joint.spring_hertz == pytest.approx(3.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(math.pi / 8)
@@ -279,17 +279,24 @@ def test_filter_joint_can_be_destroyed(world):
 # --- conformance with Box2D's own definitions -------------------------------
 
 #: Where our field name differs from the C one by choice rather than omission.
+_SPRING = {"hertz": "spring_hertz", "dampingRatio": "spring_damping_ratio"}
 _DEF_ALIASES = {
+    "RevoluteJointDef": {
+        **_SPRING,
+        "lowerAngle": "lower_limit",
+        "upperAngle": "upper_limit",
+    },
     "PrismaticJointDef": {
+        **_SPRING,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
     "WheelJointDef": {
-        "hertz": "spring_hertz",
-        "dampingRatio": "spring_damping_ratio",
-        "lowerTranslation": "lower_translation",
-        "upperTranslation": "upper_translation",
+        **_SPRING,
+        "lowerTranslation": "lower_limit",
+        "upperTranslation": "upper_limit",
     },
+    "DistanceJointDef": _SPRING,
 }
 
 
@@ -363,13 +370,13 @@ def test_revolute_spring_reaches_the_joint():
             arm,
             anchor=(0, 0),
             enable_spring=True,
-            hertz=4.0,
-            damping_ratio=0.5,
+            spring_hertz=4.0,
+            spring_damping_ratio=0.5,
             target_angle=0.25 * math.pi,
         )
     )
 
-    assert joint.spring_enabled is True
+    assert joint.enable_spring is True
     assert joint.spring_hertz == pytest.approx(4.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(0.25 * math.pi)
@@ -397,8 +404,8 @@ def test_revolute_spring_pulls_towards_its_target():
                 arm,
                 anchor=(0, 0),
                 enable_spring=enable_spring,
-                hertz=3.0,
-                damping_ratio=0.8,
+                spring_hertz=3.0,
+                spring_damping_ratio=0.8,
                 target_angle=0.0,
             )
         )
@@ -412,3 +419,131 @@ def test_revolute_spring_pulls_towards_its_target():
     sprung, free = lowest_point(True), lowest_point(False)
     assert sprung > -0.3, f"the sprung arm should barely dip, got {sprung:.2f}"
     assert free < -0.9, f"the free arm should swing right down, got {free:.2f}"
+
+
+# --- one name per setting ---------------------------------------------------
+
+#: Definition fields with no property of the same name, and why.
+_CREATION_ONLY = {
+    "body",  # the body a mouse joint drags, fixed for the joint's life
+    # These become the rotation of the joint's local frames, and are changed
+    # later through local_frame_a and local_frame_b.
+    "axis",
+    "reference_angle",
+    # A pogo joint is rebuilt every step rather than changed, and Box2D has
+    # no setter for any of these.
+    "normal",
+    "max_tension_force",
+    "max_compression_force",
+    # A pogo's starting state, carried over from the previous pogo. PogoJoint
+    # reads them back, but only to pass them on.
+    "impulse",
+    "velocity",
+}
+
+
+def _joint_definitions():
+    from dataclasses import is_dataclass
+
+    import box2d.jointdef as jointdef
+
+    return [
+        value
+        for value in vars(jointdef).values()
+        if isinstance(value, type)
+        and is_dataclass(value)
+        and getattr(value, "joint_class", None) is not None
+    ]
+
+
+@pytest.mark.parametrize("definition", _joint_definitions(), ids=lambda d: d.__name__)
+def test_a_joint_is_changed_by_the_names_it_was_made_with(definition):
+    """Every setting a joint can change later is a property named as at creation.
+
+    A joint made with enable_motor= used to be changed with motor_enabled,
+    made with hertz= changed with spring_hertz, made with lower_angle= changed
+    with lower_limit. Two testbed controls set a name the joint did not have
+    because of it.
+    """
+    import inspect
+    from dataclasses import fields
+
+    from box2d.jointdef import JointDef
+
+    common = {field.name for field in fields(JointDef)}
+    joint_class = definition.joint_class
+    for field in fields(definition):
+        if field.name in common or field.name in _CREATION_ONLY:
+            continue
+        attribute = inspect.getattr_static(joint_class, field.name, None)
+        # Having __set__ is not enough: a read-only accessor has one too, and
+        # it raises. No attribute at all is not settable either.
+        if isinstance(attribute, property):
+            settable = attribute.fset is not None
+        else:
+            settable = getattr(attribute, "settable", False)
+        assert settable, (
+            f"{definition.__name__}.{field.name} has no settable "
+            f"{joint_class.__name__}.{field.name}"
+        )
+
+
+# --- limits stay ordered ----------------------------------------------------
+# Box2D asserts lower <= upper only in debug builds; release builds swap the
+# two, so setting one bound past the other silently moved the other one.
+
+_LIMITED = {
+    "revolute": RevoluteJointDef,
+    "prismatic": PrismaticJointDef,
+    "wheel": WheelJointDef,
+}
+
+
+@pytest.fixture(params=list(_LIMITED), ids=list(_LIMITED))
+def limited_joint(request, world, bodies):
+    return world.add_joint(_LIMITED[request.param](*bodies, anchor=(1, 0)))
+
+
+def test_each_limit_can_be_set_on_its_own(limited_joint):
+    limited_joint.set_limits(-1.0, 1.0)
+    limited_joint.lower_limit = -0.5
+    limited_joint.upper_limit = 0.75
+    assert limited_joint.lower_limit == pytest.approx(-0.5)
+    assert limited_joint.upper_limit == pytest.approx(0.75)
+
+
+def test_limits_that_cross_are_refused(limited_joint):
+    limited_joint.set_limits(-1.0, 1.0)
+    with pytest.raises(ValueError, match="lower 2.0 is above upper 1.0"):
+        limited_joint.set_limits(2.0, 1.0)
+    with pytest.raises(ValueError, match="above upper"):
+        limited_joint.lower_limit = 1.5
+    with pytest.raises(ValueError, match="above upper"):
+        limited_joint.upper_limit = -1.5
+    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (-1.0, 1.0)
+
+
+@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+def test_a_joint_cannot_be_made_with_crossed_limits(world, bodies, definition):
+    crossed = definition(*bodies, anchor=(1, 0), lower_limit=1.0, upper_limit=-1.0)
+    with pytest.raises(ValueError, match="above upper"):
+        world.add_joint(crossed)
+
+
+def test_a_limit_can_be_set_equal_to_the_other(limited_joint):
+    """Box2D stores limits as 32-bit floats, so the bound read back is not
+    the 0.1 that was set; equal bounds must still be accepted."""
+    limited_joint.set_limits(0.1, 0.2)
+    limited_joint.upper_limit = 0.1
+    limited_joint.lower_limit = 0.1
+    assert limited_joint.upper_limit == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+def test_one_limit_alone_is_checked_against_the_others_default(
+    world, bodies, definition
+):
+    """Box2D defaults both limits to zero, so a lower limit of 0.5 given alone
+    crosses an upper limit nobody set -- the error has to say so."""
+    with pytest.raises(ValueError, match="a limit not given is 0"):
+        world.add_joint(definition(*bodies, anchor=(1, 0), lower_limit=0.5))

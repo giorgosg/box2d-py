@@ -193,8 +193,8 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             enable_motor=True,
             max_motor_torque=10.0,
             enable_spring=True,
-            hertz=3.0,
-            damping_ratio=0.8,
+            spring_hertz=3.0,
+            spring_damping_ratio=0.8,
         )
         previous = west
         for i in range(count):
