@@ -211,7 +211,9 @@ def test_the_readme_example_runs(world):
     import re
 
     readme = pathlib.Path(__file__).parents[2] / "README.md"
-    section = readme.read_text().split("### What a scenario looks like", 1)[1]
+    section = readme.read_text(encoding="utf-8").split(
+        "### What a scenario looks like", 1
+    )[1]
     source = re.search(r"```python\n(.*?)```", section, re.S).group(1)
 
     namespace = {}
