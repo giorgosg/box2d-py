@@ -1,12 +1,10 @@
 recursive-include box2d *
-recursive-include enkits *
 
-# The submodules are swept in wholesale. Builds now keep their CMake trees in
-# build/cmake, but a checkout that built before that may still have them in
-# the submodules -- object files and a CMakeCache.txt full of local absolute
-# paths -- so they stay excluded.
+# The submodule is swept in wholesale. Builds now keep their CMake trees in
+# build/cmake, but a checkout that built before that may still have one in
+# box2d/build -- object files and a CMakeCache.txt full of local absolute
+# paths -- so it stays excluded.
 prune box2d/build
-prune enkits/build
 
 # setup.py builds the extension from this, and src/tools is not a package.
 include src/tools/build_cffi.py
@@ -14,5 +12,3 @@ include src/tools/build_cffi.py
 include LICENSE
 include LICENSE-Box2D
 include README.md
-
-recursive-include src/tasks *

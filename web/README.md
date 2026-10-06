@@ -14,7 +14,7 @@ page and serves the directory.
 | | |
 |---|---|
 | a **Python 3.13** interpreter | `pyodide xbuildenv` 0.29.4 is a 3.13 environment and refuses another host version. A distro Python 3.12 will not do; `uv python install 3.13` is the easy way. |
-| the submodules, CMake, a C compiler | the same as a native build -- Box2D and enkiTS are compiled from source, here by emscripten. |
+| the submodules, CMake, a C compiler | the same as a native build -- Box2D is compiled from source, here by emscripten. |
 | ~1.5 GB of disk | emsdk and the cross-build environment, cached under `~/.cache/pyodide-build`. |
 | node (optional) | only for `build_wasm.sh`, which runs the test suite inside WebAssembly. `pyodide build` does not need it. |
 
@@ -113,9 +113,9 @@ Bumping Pyodide means bumping all four together.
 
 ## Differences from the native testbed
 
-- **One thread.** This build has no enkiTS scheduler, so the panel shows
-  "Threads: 1 (this build has no scheduler)" and `box2d.HAS_THREADS` is false.
-  The testbed defaults to one thread when there is no scheduler, which
+- **One thread.** Box2D is built without threads here, so the panel shows
+  "Threads: 1 (this build has no threads)" and `box2d.HAS_THREADS` is false.
+  The testbed defaults to one thread when there are none, which
   `wasm_testbed_check.py` asserts.
 - **The imgui renderer, not OpenGL.** There is no PyOpenGL in the browser, so
   `index.html` sets `BOX2D_TESTBED_RENDERER=imgui` before importing anything;

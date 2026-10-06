@@ -111,7 +111,7 @@ class TestbedData:
         self.center = (0, 0)  # Center at origin
         self.scale = 20
         self.gravity = (0, -10)
-        # A build without the task scheduler cannot honour more than one,
+        # A build without threads cannot honour more than one,
         # and asking anyway raises rather than degrading -- which is what a
         # WebAssembly build is, so defaulting to 4 made the testbed
         # unstartable in a browser.

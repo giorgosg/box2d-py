@@ -116,7 +116,7 @@ print(
 from box2d_testbed.testbed_state import state  # noqa: E402
 
 print(f"default threads         : {state.threads} (HAS_THREADS={box2d.HAS_THREADS})")
-assert state.threads == 1, "a build with no scheduler must default to one thread"
+assert state.threads == 1, "a build with no threads must default to one"
 box2d.World(threads=state.threads).destroy()
 print("a world builds with the testbed's default settings")
 

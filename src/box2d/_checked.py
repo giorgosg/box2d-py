@@ -106,10 +106,9 @@ def _checked(function, name):
 class _CheckedLib:
     """Stands in for the cffi ``lib``, wrapping the functions that check input.
 
-    Everything else -- constants, global variables, the task scheduler's
-    function pointers -- is the library's own object. Wrapped functions are
-    cached on first use; nothing else is, so a global variable is always read
-    fresh.
+    Everything else -- constants, global variables, functions that cannot
+    fail a check -- is the library's own object. Wrapped functions are cached
+    on first use; nothing else is, so a global variable is always read fresh.
     """
 
     def __getattr__(self, name):

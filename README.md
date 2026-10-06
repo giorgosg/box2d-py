@@ -30,8 +30,8 @@ pip install box2d-python[testbed]
 
 ## Building from source
 
-Box2D and enkiTS are compiled from source as part of the build, so it needs
-git, a C compiler and CMake 3.22 or newer. Everything on the Python side
+Box2D is compiled from source as part of the build, so it needs git, a C
+compiler and CMake 3.22 or newer. Everything on the Python side
 comes out of `uv.lock`.
 
 ```bash
@@ -40,8 +40,7 @@ cd box2d-py
 uv sync --python 3.13 --extra dev --extra testbed
 ```
 
-That creates `.venv`, builds Box2D and enkiTS with CMake, compiles the CFFI
-module, and installs the package in editable mode -- `src/` is what gets
+That creates `.venv`, builds Box2D with CMake, compiles the CFFI module, and installs the package in editable mode -- `src/` is what gets
 imported, so Python edits take effect with no reinstall.
 
 The CMake builds live in `build/cmake/<platform>`, so rebuilding after a change
