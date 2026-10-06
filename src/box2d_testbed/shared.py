@@ -78,8 +78,10 @@ def donut(world: World, position, radius, segments=10, hertz=5.0, damping_ratio=
     delta_angle = 2 * math.pi / segments
     # The capsules are the sides of a regular polygon with its corners on the
     # circle, so each sits a little inside it, at the apothem. That way the
-    # welds already meet when the ring is built, rather than snapping it
-    # inwards on the first step.
+    # welds already meet when the ring is built. This deliberately differs
+    # from Box2D's donut.cpp, which centres its capsules on the circle and
+    # sizes them by arc length, so its welds start slightly apart and the
+    # first steps pull them together.
     half_length = radius * math.sin(math.pi / segments)
     apothem = radius * math.cos(math.pi / segments)
     center = Vec2(position)
@@ -164,22 +166,21 @@ class Car:
             .build()
         )
 
-        wheel = (
+        wheel_builder = (
             world.new_body()
             .dynamic()
             .circle(0.4 * scale, density=2.0 / scale, friction=1.5)
         )
-        self.rear_wheel = wheel.position(x - scale, y + 0.35 * scale).build()
-        self.front_wheel = wheel.position(x + scale, y + 0.4 * scale).build()
+        self.rear_wheel = wheel_builder.position(x - scale, y + 0.35 * scale).build()
+        self.front_wheel = wheel_builder.position(x + scale, y + 0.4 * scale).build()
 
-        axle = {
+        axle_def = {
             "axis": (0, 1),
             # A motor held at zero speed resists the wheel turning, up to its
             # torque: that is the brake, and the car starts with it on.
             "enable_motor": True,
             "motor_speed": 0,
             "max_motor_torque": torque,
-            # How far a wheel may travel up or down before the suspension stops it.
             "enable_limit": True,
             "lower_limit": -0.25 * scale,
             "upper_limit": 0.25 * scale,
@@ -188,10 +189,10 @@ class Car:
             "spring_damping_ratio": damping_ratio,
         }
         self.rear_axle = world.add_wheel_joint(
-            self.chassis, self.rear_wheel, anchor=self.rear_wheel.position, **axle
+            self.chassis, self.rear_wheel, anchor=self.rear_wheel.position, **axle_def
         )
         self.front_axle = world.add_wheel_joint(
-            self.chassis, self.front_wheel, anchor=self.front_wheel.position, **axle
+            self.chassis, self.front_wheel, anchor=self.front_wheel.position, **axle_def
         )
 
     def destroy(self):
