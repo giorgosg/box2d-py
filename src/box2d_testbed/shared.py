@@ -222,3 +222,53 @@ class Car:
         """
         self.rear_axle.spring_damping_ratio = damping_ratio
         self.front_axle.spring_damping_ratio = damping_ratio
+
+
+def parse_svg_path(path, offset=(0.0, 0.0), scale=1.0, slop=0.005):
+    """Turn an SVG path into chain points, the way Box2D's samples do.
+
+    Handles the line commands an editor like Inkscape writes for a polyline --
+    M/L, H, V and their relative forms -- including a command left implied
+    before a run of coordinates. SVG's y axis points down, so it is flipped,
+    after the offset is added and before scaling. A closing point that lands
+    back on the first is dropped, since a chain loop closes itself.
+
+    Args:
+        path: The SVG path data, the ``d`` attribute.
+        offset: Added to every point before scaling, in SVG units.
+        scale: World units per SVG unit.
+        slop: How close the last point must be to the first to be dropped.
+
+    Returns:
+        list[Vec2]: The points, in world coordinates.
+    """
+    commands = "MLHVmlhv"
+    x = y = 0.0
+    command = None
+    points = []
+    for token in path.split():
+        if token[0] in commands:
+            command = token[0]
+            continue
+        if token[0] in "zZ":
+            break
+        if command in "ML":
+            x, y = (float(v) for v in token.split(","))
+        elif command in "ml":
+            dx, dy = (float(v) for v in token.split(","))
+            x, y = x + dx, y + dy
+        elif command == "H":
+            x = float(token)
+        elif command == "h":
+            x += float(token)
+        elif command == "V":
+            y = float(token)
+        elif command == "v":
+            y += float(token)
+        else:
+            raise ValueError(f"unsupported SVG path command {command!r}")
+        points.append(Vec2(scale * (x + offset[0]), -scale * (y + offset[1])))
+
+    if len(points) > 2 and (points[0] - points[-1]).length <= slop:
+        points.pop()
+    return points
