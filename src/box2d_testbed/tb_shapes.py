@@ -182,7 +182,8 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
                 (half_width, -half_height),
                 (half_width, half_height),
                 (-half_width, half_height),
-            ]
+            ],
+            radius=0.0,
         )
 
     def add_shape(self, geometry):
@@ -195,7 +196,7 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
             )
         if isinstance(geometry, SegmentDef):
             return self.platform.add_segment(geometry.vertex1, geometry.vertex2)
-        return self.platform.add_polygon(geometry.vertices)
+        return self.platform.add_polygon(geometry.vertices, geometry.radius)
 
     @shape.callback
     @scale.callback

@@ -8,7 +8,7 @@ boxes that had come to rest sitting still on a running belt.
 
 import pytest
 
-from box2d import World
+from box2d import PolygonDef, World
 from box2d_testbed import tb_shapes  # noqa: F401  (registers the scenarios)
 from box2d_testbed.base_test import BaseTest
 
@@ -102,3 +102,12 @@ def test_the_opening_view_shows_the_ground_and_the_drop(world, name, top):
     # zoom is half the visible height.
     assert center.y - zoom <= 0.0, "the ground is below the view"
     assert center.y + zoom >= top, "the bodies start above the view"
+
+
+def test_a_new_platform_shape_keeps_the_geometry_it_was_given(world):
+    test = scenario(world, "Modify Geometry")
+    square = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+
+    shape = test.add_shape(PolygonDef(square, radius=0.25))
+
+    assert shape.radius == pytest.approx(0.25), "the rounding was dropped"
