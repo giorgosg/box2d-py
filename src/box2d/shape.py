@@ -282,7 +282,7 @@ class Shape(ABC):
         Args:
             update_body_mass: Recompute the body's mass from its remaining
                 shapes. Pass False when removing several shapes at once and
-                call body.apply_mass_from_shapes() when done.
+                call body.update_mass_from_shapes() when done.
         """
         raw = raw_id(self, "_shape_id")
         if raw is None:
@@ -506,7 +506,7 @@ class Circle(Shape):
         Get or set this shape's geometry as a CircleDef.
 
         Setting geometry does not update the body's mass properties; call
-        body.apply_mass_from_shapes() if you need them recomputed.
+        body.update_mass_from_shapes() if you need them recomputed.
         """
         return CircleDef.from_b2Circle(lib.b2Shape_GetCircle(self._shape_id))
 
@@ -571,7 +571,7 @@ class Capsule(Shape):
         Get or set this shape's geometry as a CapsuleDef.
 
         Setting geometry does not update the body's mass properties; call
-        body.apply_mass_from_shapes() if you need them recomputed.
+        body.update_mass_from_shapes() if you need them recomputed.
         """
         return CapsuleDef.from_b2Capsule(lib.b2Shape_GetCapsule(self._shape_id))
 
@@ -649,7 +649,7 @@ class Segment(Shape):
         Get or set this shape's geometry as a SegmentDef.
 
         Setting geometry does not update the body's mass properties; call
-        body.apply_mass_from_shapes() if you need them recomputed.
+        body.update_mass_from_shapes() if you need them recomputed.
         """
         return SegmentDef.from_b2Segment(lib.b2Shape_GetSegment(self._shape_id))
 
@@ -717,7 +717,7 @@ class Polygon(Shape):
         Get or set this shape's geometry as a PolygonDef.
 
         Setting geometry does not update the body's mass properties; call
-        body.apply_mass_from_shapes() if you need them recomputed.
+        body.update_mass_from_shapes() if you need them recomputed.
         """
         return PolygonDef.from_b2Polygon(lib.b2Shape_GetPolygon(self._shape_id))
 
@@ -858,6 +858,8 @@ class Chain:
         body,
         vertices: Sequence[VectorLike],
         loop=False,
+        ghost1=None,
+        ghost2=None,
         filter=None,
         materials=None,
         friction=None,
@@ -879,7 +881,14 @@ class Chain:
                     custom_color=custom_color,
                 )
             ]
-        shapedef = ChainDef(vertices, loop, filter=filter, materials=materials)
+        shapedef = ChainDef(
+            vertices,
+            loop,
+            ghost1=ghost1,
+            ghost2=ghost2,
+            filter=filter,
+            materials=materials,
+        )
         return cls(body, shapedef)
 
     @property
@@ -910,46 +919,23 @@ class Chain:
             raise ValueError("World data is NULL")
         return ffi.from_handle(world_data)
 
-    @property
-    def surface_material_count(self) -> int:
-        """Whether this chain has one shared material or one per segment.
-
-        Reads 1 when a single material covers every segment, otherwise the
-        number of points the chain was built from. Which of the two a chain
-        has is fixed when it is created.
-
-        This is Box2D's raw count and is *not* the number of segments: an open
-        chain of n points has n - 3 segments, because its first and last points
-        are ghost vertices. Index materials by segment through
-        :meth:`get_surface_material` and :meth:`set_surface_material` rather
-        than against this number.
-        """
-        return lib.b2Chain_GetSurfaceMaterialCount(self._chain_id)
-
-    @property
-    def has_per_segment_materials(self) -> bool:
-        """True if each segment carries its own material rather than sharing one."""
-        return self.surface_material_count > 1
-
     def get_surface_material(self, segment_index: int = 0) -> SurfaceMaterial:
-        """Read the material a segment is actually using.
+        """Read the material a segment is using.
 
         Args:
             segment_index: Index into :attr:`.segments`.
 
         Returns:
             SurfaceMaterial: A copy, so changing it does not affect the chain.
-
-        Note:
-            This reads the segment rather than the chain's material array.
-            The two disagree on an open chain: Box2D offsets by one when it
-            builds the chain, so ``b2Chain_GetSurfaceMaterial(i)`` returns the
-            material belonging to segment ``i - 1``.
         """
         self._check_segment_index(segment_index)
-        return self.segments[segment_index].surface_material
+        return SurfaceMaterial.from_b2SurfaceMaterial(
+            lib.b2Chain_GetSurfaceMaterial(self._chain_id, segment_index)
+        )
 
-    def set_surface_material(self, material: SurfaceMaterial, segment_index: int = 0):
+    def set_surface_material(
+        self, material: SurfaceMaterial, segment_index: Optional[int] = None
+    ):
         """Change the material on one segment, or on all of them.
 
         This is how a chain's friction is varied along its length -- an icy
@@ -957,24 +943,23 @@ class Chain:
 
         Args:
             material: The material to apply.
-            segment_index: Which segment to change. Ignored on a chain with a
-                single shared material, where every segment changes at once.
+            segment_index: Which segment to change, as an index into
+                :attr:`.segments`. Omit it to change every segment at once.
         """
-        self._check_segment_index(segment_index)
         c_material = material.b2SurfaceMaterial
+        if segment_index is None:
+            lib.b2Chain_SetAllSurfaceMaterials(
+                self._chain_id, ffi.addressof(c_material)
+            )
+            return
+        self._check_segment_index(segment_index)
         lib.b2Chain_SetSurfaceMaterial(
-            self._chain_id,
-            ffi.addressof(c_material),
-            0 if self.surface_material_count == 1 else segment_index,
+            self._chain_id, ffi.addressof(c_material), segment_index
         )
 
     def _check_segment_index(self, index):
-        """Bound by segments, not by surface_material_count.
-
-        Box2D asserts the setter's index against its material count but then
-        uses it to index the shorter segment array, so on an open chain any
-        index at or past the segment count reads out of bounds -- a segfault
-        in a release build, where the assert is compiled out.
+        """Box2D only asserts the index, and asserts are compiled out of a
+        release build, so an index past the end would read out of bounds.
         """
         count = len(self.segments)
         if not 0 <= index < count:

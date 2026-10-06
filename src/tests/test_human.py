@@ -275,25 +275,25 @@ def test_a_dropped_figure_lands_and_settles(world):
 
 
 def test_a_stiff_figure_folds_less_than_a_limp_one(world):
-    """What the friction control is for."""
+    """What the friction control is for: joints that resist bending."""
 
-    def spread_after_landing(friction):
+    def bending_after_landing(friction):
         world = World()
         ground = world.add_body(position=(0, 0))
         ground.add_segment((-40, 0), (40, 0))
-        random.seed(5)
         human = Human(world, (0, 8), friction_torque=friction)
+        joints = [bone.joint for bone in human.bones if bone.joint is not None]
+        start = [joint.angle for joint in joints]
         for _ in range(500):
             world.step(1 / 60, 4)
-        head = human.head.position
-        feet = human.bone("lower_left_leg").body.position
-        distance = math.hypot(head.x - feet.x, head.y - feet.y)
+        bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
         world.destroy()
-        return distance
+        return bent
 
-    # A stiff figure keeps its head further from its feet: it stays extended
-    # rather than crumpling into a pile.
-    assert spread_after_landing(1.0) > spread_after_landing(0.0)
+    # Measured on the joints rather than on where the head ends up: a limp
+    # figure may crumple into a pile or fall flat depending on how it lands,
+    # and Box2D 3.2's contact changes moved it from one to the other.
+    assert bending_after_landing(50.0) < 0.5 * bending_after_landing(0.0)
 
 
 # --- resizing ----------------------------------------------------------------

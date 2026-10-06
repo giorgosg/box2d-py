@@ -125,7 +125,7 @@ def solve_planes(target_delta, planes: List[CollisionPlane]) -> MoverResult:
         plane.push = array[i].push
 
     return MoverResult(
-        translation=Vec2(result.translation.x, result.translation.y),
+        translation=Vec2(result.delta.x, result.delta.y),
         iterations=result.iterationCount,
     )
 

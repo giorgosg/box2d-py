@@ -85,7 +85,6 @@ class TestbedSimulation:
             state.enable_continuous,
             state.enable_sleep,
             state.enable_warm_starting,
-            state.enable_speculative,
             state.maximum_linear_speed,
             state.contact_recycle_distance,
         )
@@ -101,8 +100,6 @@ class TestbedSimulation:
         self.world.enable_warm_starting = state.enable_warm_starting
         self.world.maximum_linear_speed = state.maximum_linear_speed
         self.world.contact_recycle_distance = state.contact_recycle_distance
-        # No getter for this one, so it is written rather than compared.
-        self.world.enable_speculative(state.enable_speculative)
         self._applied_settings = self.world_settings()
 
     def reset_view(self):

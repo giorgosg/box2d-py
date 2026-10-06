@@ -43,7 +43,7 @@ class Profile:
     solve_impulses: float = 0.0
     integrate_positions: float = 0.0
     relax_impulses: float = 0.0
-    apply_restitution: float = 0.0
+    restitution: float = 0.0
     store_impulses: float = 0.0
     split_islands: float = 0.0
     transforms: float = 0.0

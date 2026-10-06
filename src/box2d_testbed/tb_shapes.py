@@ -148,7 +148,7 @@ class ModifyGeometry(BaseTest, category="Shapes", name="Modify Geometry"):
         else:
             self.shape_obj = self._recreate(body, scale)
 
-        body.apply_mass_from_shapes()
+        body.update_mass_from_shapes()
 
     def _recreate(self, body, scale):
         """Attach a fresh shape of the selected type, dropping the old one."""
@@ -497,16 +497,20 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     grippy_friction = UI.float(0.9, min=0.0, max=1.0)
     drop = UI.button("Drop a box")
 
-    # A downhill run in three stretches, with a ghost point at each end.
-    # Wound right-to-left: a chain collides on one side only, and this is the
-    # order that puts the solid side up.
-    POINTS = [(30, 4), (22, 0), (8, 0), (-6, 2), (-20, 16), (-30, 24)]
+    # A downhill run in three stretches. Wound right-to-left: a chain collides
+    # on one side only, and this is the order that puts the solid side up.
+    POINTS = [(22, 0), (8, 0), (-6, 2), (-20, 16)]
+    # Where the slope would carry on past each end.
+    GHOST1 = (30, 4)
+    GHOST2 = (-30, 24)
 
     def setup(self):
         self.ground_body = self.world.new_body().static().build()
         self.chain = self.ground_body.add_chain(
             self.POINTS,
-            materials=[SurfaceMaterial(friction=0.9) for _ in self.POINTS],
+            ghost1=self.GHOST1,
+            ghost2=self.GHOST2,
+            materials=[SurfaceMaterial(friction=0.9) for _ in self.POINTS[1:]],
         )
         self.boxes = []
         self.apply_materials()
@@ -530,8 +534,8 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
             self.drop_box()
 
     def drop_box(self):
-        # Above the first *real* segment: the chain's end points are ghosts,
-        # so anything dropped beyond them falls straight past the ground.
+        # Above the uphill end of the ground; anything dropped past either end
+        # falls straight past it.
         box = self.world.add_body(body_type="dynamic", position=(-16, 18))
         box.add_box(1.2, 1.2, friction=0.3)
         self.boxes.append(box)
@@ -542,7 +546,7 @@ class ChainMaterials(BaseTest, category="Shapes", name="Chain Materials"):
     def debug_draw(self, debug_draw):
         for index, segment in enumerate(self.chain.segments):
             label = "icy" if index == 1 else "grippy"
-            midpoint = (Vec2(self.POINTS[index + 1]) + Vec2(self.POINTS[index + 2])) / 2
+            midpoint = (Vec2(self.POINTS[index]) + Vec2(self.POINTS[index + 1])) / 2
             debug_draw.draw_string(
                 midpoint + Vec2(0, 1),
                 f"{label} {segment.friction:.2f}",

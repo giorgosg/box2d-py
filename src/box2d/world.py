@@ -23,7 +23,7 @@ from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane, MoverResult, Plane, clip_vector, solve_planes
 from .query import ShapeProxy
 from .diagnostics import Counters, Profile
-from .dataclasses import BodyDef, BodyType
+from .dataclasses import BodyDef, BodyType, Manifold
 from .events import (
     BodyMoveEvent,
     Contact,
@@ -187,6 +187,7 @@ class World:
         # Callbacks, with the cffi trampolines that must outlive them.
         self._custom_filter = self._custom_filter_trampoline = None
         self._pre_solve = self._pre_solve_trampoline = None
+        self._pre_continuous = self._pre_continuous_trampoline = None
         self._friction_mixer = self._friction_trampoline = None
         self._restitution_mixer = self._restitution_trampoline = None
 
@@ -1014,32 +1015,81 @@ class World:
 
     @property
     def pre_solve(self):
-        """Get or set a callback run just before each contact is solved.
+        """Get or set a callback run on each contact just before it is solved.
 
-        Called as ``fn(shape_a, shape_b, point, normal)`` returning False to
-        disable that contact for this step. Only for shapes created with
-        ``enable_pre_solve_events=True``, and never for sensors.
+        Called as ``fn(shape_a, shape_b, manifold)`` with the contact's
+        :class:`.Manifold`, after collision has updated it. Edits to the
+        manifold are written back: change its normal, or empty its ``points``
+        to disable the contact for this step. The return value is ignored.
+        Only for shapes created with ``enable_pre_solve_events=True``, and
+        never for sensors or sleeping bodies.
 
         Assign None to remove it. This is how one-way platforms are built: let
-        a body through when it is moving upward, block it otherwise.
+        a body through when it is moving upward, block it otherwise. A fast
+        body can still be stopped by continuous collision before any contact
+        exists, which :attr:`pre_continuous` decides.
 
         Note:
             Box2D may call this from worker threads when the world has more
             than one, so the callback must not touch shared state unguarded.
+            The manifold's impulses are not reliable at this point.
         """
         return self._pre_solve
 
     @pre_solve.setter
     def pre_solve(self, function):
         if function is None:
-            lib.b2World_SetPreSolveCallback(self._world_id, ffi.NULL, ffi.NULL)
             self._pre_solve = self._pre_solve_trampoline = None
+            self._register_pre_solve()
             return
 
         resolve = self._shape_from_id
 
-        # As above: a callback that raises keeps the contact rather than
-        # silently dropping it, which would look like objects falling through.
+        # A callback that raises leaves the contact as it was rather than
+        # dropping it, which would look like objects falling through.
+        @ffi.callback("void(b2ShapeId, b2ShapeId, b2Manifold*, void*)")
+        def trampoline(shape_id_a, shape_id_b, c_manifold, _context):
+            try:
+                manifold = Manifold.from_b2Manifold(c_manifold)
+                function(resolve(shape_id_a), resolve(shape_id_b), manifold)
+                manifold._write_to(c_manifold)
+            except Exception:
+                traceback.print_exc()
+
+        self._pre_solve = function
+        self._pre_solve_trampoline = trampoline
+        self._register_pre_solve()
+
+    @property
+    def pre_continuous(self):
+        """Get or set a callback that can veto a continuous collision.
+
+        Continuous collision stops a fast body at the first shape it would
+        pass through within a step, before any contact exists for
+        :attr:`pre_solve` to see. This is called as
+        ``fn(shape_a, shape_b, point, normal)`` at that time of impact, and
+        returning False lets the body carry on through. Same shape flag as
+        pre-solve: ``enable_pre_solve_events=True``.
+
+        A one-way platform needs both callbacks: pre-solve for bodies that
+        reach it slowly, this for ones that arrive fast enough to tunnel.
+
+        Note:
+            Box2D may call this from worker threads when the world has more
+            than one, so the callback must not touch shared state unguarded.
+        """
+        return self._pre_continuous
+
+    @pre_continuous.setter
+    def pre_continuous(self, function):
+        if function is None:
+            self._pre_continuous = self._pre_continuous_trampoline = None
+            self._register_pre_solve()
+            return
+
+        resolve = self._shape_from_id
+
+        # As above: a callback that raises keeps the collision.
         @ffi.callback("bool(b2ShapeId, b2ShapeId, b2Vec2, b2Vec2, void*)")
         def trampoline(shape_id_a, shape_id_b, point, normal, _context):
             try:
@@ -1055,9 +1105,18 @@ class World:
                 traceback.print_exc()
                 return True
 
-        self._pre_solve = function
-        self._pre_solve_trampoline = trampoline
-        lib.b2World_SetPreSolveCallback(self._world_id, trampoline, ffi.NULL)
+        self._pre_continuous = function
+        self._pre_continuous_trampoline = trampoline
+        self._register_pre_solve()
+
+    def _register_pre_solve(self):
+        """Box2D sets both callbacks in one call, so either setter sends both."""
+        lib.b2World_SetPreSolveCallback(
+            self._world_id,
+            self._pre_solve_trampoline or ffi.NULL,
+            self._pre_continuous_trampoline or ffi.NULL,
+            ffi.NULL,
+        )
 
     @property
     def friction_mixer(self):
@@ -1505,16 +1564,6 @@ class World:
     @enable_warm_starting.setter
     def enable_warm_starting(self, value: bool):
         lib.b2World_EnableWarmStarting(self._world_id, bool(value))
-
-    def enable_speculative(self, value: bool):
-        """Turn speculative contacts on or off.
-
-        Speculative contacts let the solver see a collision before it happens,
-        which is how fast objects stop cleanly instead of overshooting. Box2D
-        marks this as internal testing and offers no getter, so it is a method
-        rather than a property.
-        """
-        lib.b2World_EnableSpeculative(self._world_id, bool(value))
 
     def rebuild_static_tree(self):
         """Rebuild the static broad-phase tree from scratch.

@@ -445,8 +445,10 @@ class Driving(BaseTest, category="Joints", name="Driving"):
             ]
         )
 
-        # Create chain shape for ground
-        ground = ground.chain(points[::-1]).build()
+        # Reversed so the solid side faces up. The end points only steer
+        # collision at the ends, so they become the ghosts.
+        points = points[::-1]
+        ground = ground.chain(points[1:-1], ghost1=points[0], ghost2=points[-1]).build()
 
         # Create teeter platform
         teeter_pos = Vec2(140.0, 1.0)

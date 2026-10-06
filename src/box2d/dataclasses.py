@@ -118,6 +118,19 @@ class ManifoldPoint:
             persisted=bool(manifold_point.persisted),
         )
 
+    def _write_to(self, c_point):
+        """Copy this point back into a b2ManifoldPoint."""
+        c_point.anchorA = self.anchor_a.b2Vec2[0]
+        c_point.anchorB = self.anchor_b.b2Vec2[0]
+        c_point.separation = self.separation
+        c_point.baseSeparation = self.base_separation
+        c_point.normalImpulse = self.normal_impulse
+        c_point.tangentImpulse = self.tangent_impulse
+        c_point.totalNormalImpulse = self.total_normal_impulse
+        c_point.normalVelocity = self.normal_velocity
+        c_point.id = self.id
+        c_point.persisted = self.persisted
+
 
 @dataclass
 class Manifold:
@@ -143,6 +156,19 @@ class Manifold:
             for i in range(manifold.pointCount)
         ]
         return cls(normal=normal, rolling_impulse=rolling_impulse, points=points)
+
+    def _write_to(self, c_manifold):
+        """Copy this manifold back into a b2Manifold, as pre-solve edits it.
+
+        Points can be removed but not added: a b2Manifold holds two at most.
+        """
+        if len(self.points) > 2:
+            raise ValueError("a manifold holds at most 2 points")
+        c_manifold.normal = Vec2(self.normal).b2Vec2[0]
+        c_manifold.rollingImpulse = self.rolling_impulse
+        for i, point in enumerate(self.points):
+            point._write_to(c_manifold.points[i])
+        c_manifold.pointCount = len(self.points)
 
 
 @dataclass

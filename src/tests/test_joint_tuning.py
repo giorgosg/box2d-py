@@ -227,28 +227,32 @@ def chain_body(world):
     return body
 
 
-def test_a_chain_has_one_shared_material_by_default(chain_body):
+def test_an_open_chain_has_a_segment_between_each_pair_of_points(chain_body):
     chain = chain_body.add_chain([(-15, 0), (-5, -1), (5, -1), (15, 0)])
-    assert chain.has_per_segment_materials is False
+    assert len(chain.segments) == 3
 
 
-def test_a_chain_can_have_one_material_per_segment(chain_body):
-    """Box2D takes one material or one per point, nothing between."""
-    materials = [SurfaceMaterial(friction=f) for f in (0.1, 0.5, 0.9, 0.2)]
-    chain = chain_body.add_chain(
-        [(-10, 0), (-3, -6), (3, -6), (10, 0)], loop=True, materials=materials
-    )
-    assert chain.has_per_segment_materials is True
+def test_a_loop_also_joins_its_last_point_to_its_first(chain_body):
+    chain = chain_body.add_chain([(-10, 0), (-3, -6), (3, -6), (10, 0)], loop=True)
     assert len(chain.segments) == 4
 
 
-def test_a_loop_rejects_the_wrong_number_of_materials(chain_body):
-    """This validation demanded points + 1 for a loop, which Box2D rejects."""
+def test_a_chain_can_have_one_material_per_segment(chain_body):
+    frictions = (0.1, 0.5, 0.9, 0.2)
+    materials = [SurfaceMaterial(friction=f) for f in frictions]
+    chain = chain_body.add_chain(
+        [(-10, 0), (-3, -6), (3, -6), (10, 0)], loop=True, materials=materials
+    )
+    assert [segment.friction for segment in chain.segments] == [
+        pytest.approx(f) for f in frictions
+    ]
+
+
+def test_a_chain_rejects_the_wrong_number_of_materials(chain_body):
+    """Box2D takes one material or one per segment, nothing between."""
     points = [(-10, 0), (-3, -6), (3, -6), (10, 0)]
-    with pytest.raises(ValueError, match="one per point"):
-        chain_body.add_chain(
-            points, loop=True, materials=[SurfaceMaterial() for _ in range(5)]
-        )
+    with pytest.raises(ValueError, match="one per segment"):
+        chain_body.add_chain(points, materials=[SurfaceMaterial() for _ in range(4)])
 
 
 def test_material_round_trips_through_the_chain(chain_body):
@@ -270,13 +274,10 @@ def test_setting_a_shared_material_reaches_every_segment(chain_body):
 
 def test_one_segment_can_be_made_slippery(chain_body):
     """Per-segment materials: an icy patch on otherwise grippy ground."""
-    # An open chain uses its end points as ghosts, so six points make three
-    # real segments while Box2D still wants six materials.
-    materials = [SurfaceMaterial(friction=0.9) for _ in range(6)]
+    materials = [SurfaceMaterial(friction=0.9) for _ in range(3)]
     chain = chain_body.add_chain(
-        [(-25, 0), (-15, 0), (-5, 0), (5, 0), (15, 0), (25, 0)], materials=materials
+        [(-15, 0), (-5, 0), (5, 0), (15, 0)], materials=materials
     )
-    assert len(chain.segments) == 3
 
     chain.set_surface_material(SurfaceMaterial(friction=0.0), 1)
 
@@ -284,32 +285,22 @@ def test_one_segment_can_be_made_slippery(chain_body):
     assert frictions == [pytest.approx(0.9), pytest.approx(0.0), pytest.approx(0.9)]
 
 
-def test_reading_a_material_matches_the_segment_not_the_chain_array(chain_body):
-    """Box2D's own getter is off by one on an open chain, so this reads the
-    segment instead. Comparing the two is the whole reason it does."""
-    from box2d._box2d import lib
-
-    materials = [SurfaceMaterial(friction=round(0.1 * (i + 1), 1)) for i in range(6)]
+def test_reading_a_material_matches_the_segment(chain_body):
+    materials = [SurfaceMaterial(friction=f) for f in (0.1, 0.2, 0.3)]
     chain = chain_body.add_chain(
-        [(-25, 0), (-15, 0), (-5, 0), (5, 0), (15, 0), (25, 0)], materials=materials
+        [(-15, 0), (-5, 0), (5, 0), (15, 0)], materials=materials
     )
 
     for index, segment in enumerate(chain.segments):
         assert chain.get_surface_material(index).friction == pytest.approx(
             segment.friction
         )
-        raw = lib.b2Chain_GetSurfaceMaterial(chain._chain_id, index)
-        assert raw.friction != pytest.approx(segment.friction), "off by one"
 
 
 def test_a_bad_segment_index_raises_rather_than_segfaulting(chain_body):
-    """Box2D bounds the setter by its material count but indexes the shorter
-    segment array, so an unguarded index past the segments crashes."""
-    materials = [SurfaceMaterial(friction=0.9) for _ in range(6)]
-    chain = chain_body.add_chain(
-        [(-25, 0), (-15, 0), (-5, 0), (5, 0), (15, 0), (25, 0)], materials=materials
-    )
-    assert chain.surface_material_count == 6, "more materials than segments"
+    """Box2D only asserts the index, and asserts are compiled out of a release
+    build, so an unguarded index past the segments reads out of bounds."""
+    chain = chain_body.add_chain([(-15, 0), (-5, 0), (5, 0), (15, 0)])
 
     for bad_index in (3, 5, -1):
         with pytest.raises(IndexError, match="out of range"):

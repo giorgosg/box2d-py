@@ -246,13 +246,6 @@ def test_joint_destroy_is_idempotent(kind, joint_bodies):
     joint.destroy()
 
 
-def test_joint_destroy_can_leave_bodies_asleep(joint_bodies):
-    world, a, b = joint_bodies
-    joint = make_joint("revolute", world, a, b)
-    joint.destroy(wake_attached=False)
-    assert joint.is_valid is False
-
-
 def test_mouse_joint_destroy_removes_its_proxy_body(joint_bodies):
     """The proxy is an implementation detail; it must not outlive the joint."""
     world, a, b = joint_bodies

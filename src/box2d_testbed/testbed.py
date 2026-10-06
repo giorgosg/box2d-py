@@ -507,9 +507,6 @@ class TestbedApp:
             "Start the solver from last step's impulses.\n"
             "Turning it off costs stability and buys nothing; it is here to see that."
         )
-        _, state.enable_speculative = imgui.checkbox(
-            "Speculative contacts", state.enable_speculative
-        )
 
         imgui.separator()
         imgui.text_disabled("P pause   O step   R reset   Home view   [ ] prev/next")
