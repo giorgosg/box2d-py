@@ -5,8 +5,7 @@ from itertools import product
 import math
 import random
 
-# imported for the side effect of extending BodyBuilder with the method
-from .shared import create_random_polygon  # noqa: F401
+from .shared import random_polygon
 from box2d import CapsuleDef, Color, PolygonDef, SegmentDef, SurfaceMaterial, Vec2
 from box2d.shape import Circle, Capsule, Segment, Polygon
 
@@ -26,11 +25,12 @@ class RoundedShapes(BaseTest, category="Shapes", name="Rounded"):
         xstart, ystart = -5, 2
 
         for x, y in product(range(xcount), range(ycount)):
+            polygon = random_polygon(0.5)
             (
                 self.world.new_body()
                 .dynamic()
                 .position(xstart + x, ystart + y)
-                .create_random_polygon(0.5)
+                .polygon(polygon.vertices, polygon.radius)
                 .build()
             )
 
@@ -81,7 +81,10 @@ class Restitution(BaseTest, category="Shapes", name="Restitution"):
             elif shape == "box":
                 builder.box(1.0, 1.0, restitution=r, density=1.0)
             elif shape == "polygon":
-                builder.create_random_polygon(0.5, restitution=r, density=1.0)
+                polygon = random_polygon(0.5)
+                builder.polygon(
+                    polygon.vertices, polygon.radius, restitution=r, density=1.0
+                )
             elif shape == "capsule":
                 builder.capsule(
                     (0, -0.5), (0, 0.5), radius=0.5, restitution=r, density=1.0
