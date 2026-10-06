@@ -50,8 +50,8 @@ class BallAndChain(BaseTest, category="Joints", name="Ball and Chain"):
             .circle(radius=radius, density=20.0)
             .build()
         )
-        # A motor held at zero speed resists turning up to its torque: joint
-        # friction.
+        # A motor held at zero speed resists turning, up to its maximum
+        # torque: that is how a joint is given friction.
         self.world.add_revolute_joint(
             previous,
             ball,
@@ -180,8 +180,6 @@ class Bridge(BaseTest, category="Joints", name="Bridge"):
             for i in range(count)
         ]
 
-        # A motor held at zero speed resists turning up to its torque: joint
-        # friction.
         friction = {"enable_motor": True, "max_motor_torque": 200}
         for i, (left, right) in enumerate(pairwise(planks)):
             pin = (left_end + (i + 1) * plank_width, y)
