@@ -226,9 +226,14 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
         self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 
         # The belt can only pull as hard as friction allows, hence grippy.
+        # Box2D reuses a contact that has barely moved without reading the
+        # shapes' materials again, so a box at rest on the belt would never
+        # see a new speed. Not recycling the belt's contacts makes them read
+        # it every step.
         self.belt = (
             self.world.new_body()
             .static()
+            .enable_contact_recycling(False)
             .position(-5, 5)
             .box(20, 0.5, radius=0.25, friction=0.8, tangent_speed=self.tangent_speed)
             .build()
@@ -242,6 +247,8 @@ class ConveyorBelt(BaseTest, category="Shapes", name="Conveyor Belt"):
     def on_speed_change(self, key, value):
         for shape in self.belt.shapes:
             shape.tangent_speed = value
+        # Boxes at rest on a still belt fall asleep, and would not notice.
+        self.belt.wake_touching()
 
 
 class CustomFilter(BaseTest, category="Shapes", name="Custom Filter"):
