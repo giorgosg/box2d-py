@@ -8,7 +8,7 @@ boxes that had come to rest sitting still on a running belt.
 
 import pytest
 
-from box2d import PolygonDef, World
+from box2d import Polygon, PolygonDef, World
 from box2d_testbed import tb_shapes  # noqa: F401  (registers the scenarios)
 from box2d_testbed.base_test import BaseTest
 
@@ -81,6 +81,7 @@ def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
 
     platform = next(body for body in world.bodies if body.type == "kinematic")
     (shape,) = platform.shapes
+    assert isinstance(shape, Polygon), f"the platform is a {type(shape).__name__}"
     # Box2D's sample makes the polygon a box 0.5 by 0.75 from its centre.
     corners = {(round(v.x, 6), round(v.y, 6)) for v in shape.vertices}
     assert corners == {(-1.0, -1.5), (1.0, -1.5), (1.0, 1.5), (-1.0, 1.5)}
