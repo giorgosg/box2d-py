@@ -75,3 +75,15 @@ def test_a_motor_too_weak_to_hold_the_box_up_lets_it_land_on_the_platform(world)
 
     # Resting on the platform, whose top is y = 0; the box is 0.5 tall.
     assert motor_box(test).position.y == pytest.approx(0.25, abs=0.05)
+
+
+def test_collide_connected_changes_the_cantilever_without_rebuilding_it(world):
+    test = scenario(world, "Cantilever")
+    run(test, 1.0)
+    sagging = test.status()
+    assert sagging != "tip y = 0.00"
+
+    test.collide_connected = True
+
+    assert test.status() == sagging, "the beam was rebuilt straight"
+    assert all(joint.collide_connected for joint in test.joints)

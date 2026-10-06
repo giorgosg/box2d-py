@@ -1039,7 +1039,11 @@ class Cantilever(BaseTest, category="Joints", name="Cantilever"):
 
     @collide_connected.callback
     def on_collide_change(self, key, value):
-        self.rebuild()
+        # Neighbouring capsules overlap at the welds, so with this on they
+        # push each other apart as well as being held together.
+        for joint in self.joints:
+            joint.collide_connected = value
+            joint.wake_bodies()
 
     def status(self):
         return f"tip y = {self.tip.position.y:.2f}"
