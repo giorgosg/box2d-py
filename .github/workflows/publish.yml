@@ -1,11 +1,12 @@
 name: Publish to PyPI
 
+# A published release builds and uploads. Running it by hand builds and tests
+# every wheel and the sdist but uploads nothing: a dry run of a release.
+# (It used to also run on 'released' and on tag pushes, so one release
+# started up to three uploads, which --skip-existing papered over.)
 on:
   release:
-    types: [published, released]
-  push:
-    tags:
-      - 'v*'
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -40,9 +41,19 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    
+        include:
+          - os: ubuntu-latest  # x86_64 and i686, glibc and musl
+            archs: auto
+          - os: ubuntu-24.04-arm  # aarch64, glibc and musl
+            archs: auto
+          - os: windows-latest
+            archs: AMD64
+          # Apple silicon natively, and Intel cross-compiled on the same runner.
+          - os: macos-latest
+            archs: arm64 x86_64
+
     steps:
     - uses: actions/checkout@v7
       with:
@@ -63,10 +74,22 @@ jobs:
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
-        CIBW_BUILD: cp312-* cp313-*
-        CIBW_SKIP: "*-win32 pp*"  # Skip 32-bit Windows builds and PyPy
-        CIBW_BEFORE_BUILD: pip install cffi>=1.16.0
-        CIBW_ARCHS_WINDOWS: AMD64  # Only build for 64-bit Windows
+        # The extension is built against the stable ABI, so one cp312-abi3
+        # wheel per platform serves CPython 3.12 and every later version.
+        CIBW_BUILD: cp312-*
+        CIBW_ARCHS: ${{ matrix.archs }}
+        # Each wheel is tested once built. The suite reads a few files from
+        # the repository, so it runs from the checkout, but imports the
+        # installed wheel: nothing puts src/ on the path.
+        CIBW_TEST_REQUIRES: pytest
+        CIBW_TEST_COMMAND: >-
+          cd {project} && python -m pytest src/tests -q -p no:cacheprovider
+          --ignore=src/tests/test_build_config.py
+        # cmd's cd does not change drive without /d, and cibuildwheel tests
+        # from a temporary directory on C: while the checkout is on D:.
+        CIBW_TEST_COMMAND_WINDOWS: >-
+          cd /d {project} && python -m pytest src/tests -q -p no:cacheprovider
+          --ignore=src/tests/test_build_config.py
 
     - name: Upload wheels
       uses: actions/upload-artifact@v7
@@ -76,6 +99,7 @@ jobs:
 
   publish:
     needs: [build-source, build-wheels]
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts

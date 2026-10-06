@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75.8.0", "cffi>=1.16.0", "wheel"]
+requires = ["setuptools>=75.8.0", "cffi>=1.16.0", "pcpp>=1.30", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -33,6 +33,7 @@ testbed = [
 ]
 dev = [
     "black",
+    "pcpp>=1.30",
     "setuptools>=75.8.0",
     "pre-commit",
     "pytest",
@@ -45,7 +46,7 @@ box2d-testbed = "box2d_testbed:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["box2d*", "box2d_testbed*", "tools"]
+include = ["box2d*", "box2d_testbed*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs"]

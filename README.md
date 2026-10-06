@@ -44,6 +44,10 @@ That creates `.venv`, builds Box2D and enkiTS with CMake, compiles the CFFI
 module, and installs the package in editable mode -- `src/` is what gets
 imported, so Python edits take effect with no reinstall.
 
+The CMake builds live in `build/cmake/<platform>`, so rebuilding after a change
+only recompiles what changed. Delete `build/` to start from scratch, which is
+also how to switch compilers: CMake keeps the one it found first.
+
 Then the testbed and the tests:
 
 ```bash

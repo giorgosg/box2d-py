@@ -3,12 +3,12 @@
 
 The build has three shapes now -- native with threads, native without, and
 cross-compiled to WebAssembly -- and which one you get is decided by
-environment variables read at import time. That is easy to get subtly wrong
+environment variables read when the build script is imported. That is easy to get subtly wrong
 in a way no other test would notice, because the wrong choice still produces
 a working extension, just not the one you asked for.
 
 These import the build script fresh under each environment and check what it
-decided. They do not build anything.
+decided. They do not build anything, and importing the script must not either.
 """
 
 import importlib
@@ -99,15 +99,14 @@ def test_emscripten_implies_no_threads():
 def test_a_threadless_build_links_only_box2d():
     """No enkiTS, and no C++ runtime -- enkiTS was the only C++ in the build."""
     build = load_build_module({"BOX2D_PY_NO_THREADS": "1"})
-    config = build.get_platform_specific_config()
+    config = build.link_config()
 
     assert config["libraries"] == ["box2d"]
-    assert not any("enkits" in path.lower() for path in config["library_dirs"])
 
 
 def test_a_threaded_build_links_the_scheduler():
     build = load_build_module({})
-    config = build.get_platform_specific_config()
+    config = build.link_config()
 
     assert "box2d" in config["libraries"]
     assert "enkiTS" in config["libraries"]
@@ -121,11 +120,11 @@ def test_the_scheduler_is_declared_only_when_it_is_built():
     that simply has no threads.
     """
     threaded = load_build_module({})
-    headers = threaded.process_headers()
+    headers = threaded.cdef_source()
     assert "setup_threadpool" in headers
 
     threadless = load_build_module({"BOX2D_PY_NO_THREADS": "1"})
-    headers = threadless.process_headers()
+    headers = threadless.cdef_source()
     assert "setup_threadpool" not in headers
     assert "c_enqueue_tasks" not in headers
     # The Box2D API is still all there.
@@ -139,3 +138,45 @@ def test_has_threads_matches_what_was_built():
     from box2d._box2d import lib
 
     assert HAS_THREADS is hasattr(lib, "setup_threadpool")
+
+
+def test_importing_the_build_script_builds_nothing(tmp_path, monkeypatch):
+    """setup.py imports it for every command, metadata included.
+
+    It used to preprocess the headers and compile the task scheduler with gcc
+    as a side effect of being imported.
+    """
+    import subprocess
+
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a))
+    build = load_build_module({})
+    assert calls == []
+    assert callable(build.ffibuilder)
+
+
+def test_cdef_has_no_assert_hook():
+    """The library is a release build, so b2InternalAssert is not in it.
+
+    The headers declare it only when assertions are on; declaring it here
+    would make the extension reference a symbol the library does not have.
+    """
+    headers = load_build_module({}).cdef_source()
+    assert "b2InternalAssert" not in headers
+    assert "b2GetTicks" in headers
+
+
+def test_cmake_trees_are_kept_per_target():
+    """A native and a WebAssembly build must not share a CMake cache."""
+    native = load_build_module({})
+    wasm = load_build_module({"BOX2D_PY_EMSCRIPTEN": "1"})
+    assert native.LIBRARY_DIR != wasm.LIBRARY_DIR
+    assert "emscripten" in wasm.LIBRARY_DIR
+
+
+def test_macos_architectures_come_from_archflags(monkeypatch):
+    build = load_build_module({})
+    monkeypatch.setenv("ARCHFLAGS", "-arch x86_64 -arch arm64")
+    assert build._macos_architectures() == ["x86_64", "arm64"]
+    monkeypatch.setenv("ARCHFLAGS", "")
+    assert build._macos_architectures() == []

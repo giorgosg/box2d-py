@@ -1,18 +1,35 @@
-# build_cffi.py
-import os
-import subprocess
-import sys
-from cffi import FFI
-import re
-import platform
+"""
+Builds the box2d._box2d CFFI extension.
 
-# Set up directories
+setup.py uses two things from here, and importing the module does nothing else:
+
+- ``build_dependencies()``, which build_ext runs first: Box2D, and enkiTS for
+  threaded builds, compiled as static libraries with CMake;
+- ``ffibuilder()``, which cffi calls for the FFI: the declarations read from
+  Box2D's public headers, plus the extension's own sources and link settings.
+
+Nothing here needs a particular compiler. The headers are preprocessed in
+Python with pcpp, and the task scheduler glue is compiled by setuptools along
+with the extension, so a Windows build needs only Visual Studio and CMake.
+
+There are three shapes of build: native with threads, native without
+(BOX2D_PY_NO_THREADS=1), and cross-compiled to WebAssembly by pyodide build,
+which has no thread pool to give and so is always threadless.
+"""
+
+import io
+import os
+import platform
+import re
+import subprocess
+import sysconfig
+
+from cffi import FFI
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BOX2D_DIR = os.path.join(PROJECT_ROOT, "box2d")
 ENKITS_DIR = os.path.join(PROJECT_ROOT, "enkits")
-BOX2D_BUILD_DIR = os.path.join(BOX2D_DIR, "build")
-ENKITS_BUILD_DIR = os.path.join(ENKITS_DIR, "build")
-TEMP_DIR = os.path.join(PROJECT_ROOT, "build", "cffi_temp")
+TASKS_DIR = os.path.join(PROJECT_ROOT, "src", "tasks")
 
 
 def _targeting_emscripten():
@@ -38,9 +55,68 @@ EMSCRIPTEN = _targeting_emscripten()
 WITH_THREADS = os.environ.get("BOX2D_PY_NO_THREADS", "") == "" and not EMSCRIPTEN
 
 
-def ensure_temp_dir():
-    """Ensure the temporary directory exists."""
-    os.makedirs(TEMP_DIR, exist_ok=True)
+# --- the C libraries ----------------------------------------------------------
+
+
+def _target_name():
+    """A directory name for the platform being built for.
+
+    CMake trees are kept per target, so a native build and a WebAssembly one,
+    or two macOS architectures, never share a CMake cache.
+    sysconfig.get_platform() follows _PYTHON_HOST_PLATFORM, which is how
+    cibuildwheel announces a cross-compile.
+    """
+    if EMSCRIPTEN:
+        return "emscripten"
+    return re.sub(r"[^\w.-]", "_", sysconfig.get_platform())
+
+
+def _cmake_dir(*parts):
+    return os.path.join(PROJECT_ROOT, "build", "cmake", _target_name(), *parts)
+
+
+#: Where both static libraries land, whatever the generator.
+LIBRARY_DIR = _cmake_dir("lib")
+
+
+def _macos_architectures():
+    """The architectures to build for on macOS, from cibuildwheel's ARCHFLAGS.
+
+    Without this CMake builds for the machine it runs on, and an x86_64 wheel
+    cross-compiled on Apple silicon links arm64 libraries -- which fails.
+    """
+    return re.findall(r"-arch\s+(\S+)", os.environ.get("ARCHFLAGS", ""))
+
+
+def _cmake_args():
+    """Configure arguments shared by Box2D and enkiTS."""
+    args = [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        # A Visual Studio generator puts Release builds in a Release
+        # subdirectory, so the per-config variable is the one that counts.
+        f"-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY={LIBRARY_DIR}",
+        f"-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE={LIBRARY_DIR}",
+    ]
+    if EMSCRIPTEN:
+        args.append(f"-DCMAKE_TOOLCHAIN_FILE={_emscripten_toolchain_file()}")
+        # Box2D has to be compiled with the same flags as the extension that
+        # links it -- wasm exceptions and longjmp support in particular, since
+        # mixing those is a link error rather than a warning.
+        args.append(f"-DCMAKE_C_FLAGS={os.environ.get('CFLAGS_BASE', '')}")
+    elif platform.system() == "Darwin":
+        architectures = _macos_architectures()
+        if architectures:
+            args.append(f"-DCMAKE_OSX_ARCHITECTURES={';'.join(architectures)}")
+        if os.environ.get("MACOSX_DEPLOYMENT_TARGET"):
+            target = os.environ["MACOSX_DEPLOYMENT_TARGET"]
+            args.append(f"-DCMAKE_OSX_DEPLOYMENT_TARGET={target}")
+    # The Visual Studio generator is left to CMake, which picks the newest
+    # installed: pinning one broke the build when GitHub's image moved on. Its
+    # default runtime is the release DLL one (/MD), which the extension uses
+    # too, so that needs no flag either.
+    return args
 
 
 def _emscripten_toolchain_file():
@@ -60,124 +136,58 @@ def _emscripten_toolchain_file():
     return toolchain
 
 
-def _windows_cmake_args():
-    """CMake arguments for a Windows build.
-
-    The generator is deliberately not pinned. It used to say "Visual Studio 17
-    2022", which stopped existing on GitHub's windows-latest image and failed
-    the build outright with "could not find any instance of Visual Studio".
-    CMake's default on Windows is the newest Visual Studio installed, which is
-    what we want and keeps working as images move on.
-
-    The architecture is left to the generator too: a Visual Studio generator
-    defaults to the host, and naming x64 explicitly only helps when
-    cross-compiling, which this does not.
-
-    /MD matters and stays: the extension links the release CRT, and mixing
-    runtimes is a link error.
-    """
-    return ["-DCMAKE_CXX_FLAGS_RELEASE=/MD"]
+def _cmake(source_dir, name, extra_args):
+    """Configure and build one project. Both steps are incremental."""
+    build_dir = _cmake_dir(name)
+    subprocess.run(
+        ["cmake", "-S", source_dir, "-B", build_dir, *_cmake_args(), *extra_args],
+        check=True,
+    )
+    subprocess.run(
+        ["cmake", "--build", build_dir, "--config", "Release", "--parallel"],
+        check=True,
+    )
 
 
 def build_dependencies():
-    """Build Box2D and enkiTS using CMake"""
-    # Always start with clean build directories to avoid CMake cache issues
-    import shutil
-
-    if os.path.exists(BOX2D_BUILD_DIR):
-        print(f"Removing existing build directory: {BOX2D_BUILD_DIR}")
-        shutil.rmtree(BOX2D_BUILD_DIR)
-    os.makedirs(BOX2D_BUILD_DIR, exist_ok=True)
-
-    if WITH_THREADS:
-        if os.path.exists(ENKITS_BUILD_DIR):
-            print(f"Removing existing build directory: {ENKITS_BUILD_DIR}")
-            shutil.rmtree(ENKITS_BUILD_DIR)
-        os.makedirs(ENKITS_BUILD_DIR, exist_ok=True)
-
-    # Build Box2D
-    print("Building Box2D...")
-    box2d_cmake_args = [
-        "cmake",
-        "-S",
-        BOX2D_DIR,
-        "-B",
-        BOX2D_BUILD_DIR,
-        "-DBOX2D_BUILD_DOCS=OFF",
+    """Build Box2D, and enkiTS for a threaded build, as static libraries."""
+    print(f"Building Box2D in {_cmake_dir('box2d')}")
+    box2d_args = [
         "-DBOX2D_SAMPLES=OFF",
         "-DBOX2D_UNIT_TESTS=OFF",
-        "-DBUILD_SHARED_LIBS=OFF",
-        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBOX2D_BENCHMARKS=OFF",
+        "-DBOX2D_DOCS=OFF",
     ]
-
-    if EMSCRIPTEN:
-        # Cross-compile with the toolchain pyodide ships, rather than relying
-        # on emcmake being on PATH. Box2D's own CMake has an Emscripten branch
-        # that turns on SIMD128; its pthread block only applies to the samples
-        # and tests, which are off here, so the library itself needs no
-        # threads.
-        # Box2D has to be compiled with the same flags as the extension that
-        # links it -- wasm exceptions and longjmp support in particular, since
-        # mixing those is a link error rather than a warning.
-        box2d_cmake_args.extend(
-            [
-                f"-DCMAKE_TOOLCHAIN_FILE={_emscripten_toolchain_file()}",
-                "-DBOX2D_BENCHMARKS=OFF",
-                f"-DCMAKE_C_FLAGS={os.environ.get('CFLAGS_BASE', '')}",
-            ]
-        )
-    elif platform.system() == "Windows":
-        box2d_cmake_args.extend(_windows_cmake_args())
-
-    subprocess.run(box2d_cmake_args, check=True)
-    subprocess.run(
-        ["cmake", "--build", BOX2D_BUILD_DIR, "--config", "Release"], check=True
-    )
+    _cmake(BOX2D_DIR, "box2d", box2d_args)
 
     if not WITH_THREADS:
         print("Skipping enkiTS: building without thread support")
         return
-
-    # Build enkiTS
-    print("Building enkiTS...")
-    enkits_cmake_args = [
-        "cmake",
-        "-S",
+    print(f"Building enkiTS in {_cmake_dir('enkits')}")
+    _cmake(
         ENKITS_DIR,
-        "-B",
-        ENKITS_BUILD_DIR,
-        "-DENKITS_BUILD_EXAMPLES=OFF",
-        "-DENKITS_BUILD_SHARED=OFF",
-        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-        "-DCMAKE_BUILD_TYPE=Release",
-    ]
-
-    if platform.system() == "Windows":
-        enkits_cmake_args.extend(_windows_cmake_args())
-
-    subprocess.run(enkits_cmake_args, check=True)
-    subprocess.run(
-        ["cmake", "--build", ENKITS_BUILD_DIR, "--config", "Release"], check=True
+        "enkits",
+        ["-DENKITS_BUILD_EXAMPLES=OFF", "-DENKITS_BUILD_SHARED=OFF"],
     )
+
+
+# --- the declarations -----------------------------------------------------------
 
 
 def strip_inline_definitions(text):
     """Remove inline function definitions, which cdef() cannot parse.
 
     cdef() accepts declarations only, so any function carrying a body has to go.
-    Box2D marks these with its B2_INLINE macro in most headers but writes plain
-    'static inline' in id.h, and the bodies contain brace initializers such as
-    ``b2WorldId id = { ... };``, so this counts braces rather than matching a
-    pattern -- a regex cannot handle the nesting, and matching only B2_INLINE
-    silently let id.h's definitions through.
+    After preprocessing every Box2D inline -- B2_INLINE, B2_ID_INLINE,
+    B2_FORCE_INLINE -- starts with 'static inline'. Their bodies contain brace
+    initializers such as ``b2WorldId id = { ... };``, so this counts braces
+    rather than matching a pattern, which cannot handle the nesting.
     """
-    markers = ("B2_INLINE", "static inline")
     lines = text.splitlines(keepends=True)
     kept = []
     i = 0
     while i < len(lines):
-        if not lines[i].lstrip().startswith(markers):
+        if not lines[i].lstrip().startswith("static inline"):
             kept.append(lines[i])
             i += 1
             continue
@@ -194,186 +204,86 @@ def strip_inline_definitions(text):
     return "".join(kept)
 
 
-def process_headers():
-    """Process Box2D headers for CFFI"""
-    ensure_temp_dir()
+def _preprocess_box2d_headers():
+    """box2d.h with its own includes expanded and its macros applied.
 
-    # Add missing function declarations
-    extra_declarations = """
+    pcpp is a C preprocessor written in Python, which is what keeps the build
+    free of any particular compiler. System headers are skipped rather than
+    expanded: cdef() knows stdint.h's types already, and could not parse a
+    libc's headers anyway.
     """
+    import pcpp
 
-    # Each header is preprocessed on its own, with its includes stripped, so
-    # the order here has to satisfy the dependencies by hand: math_types.h
-    # holds b2Vec2 and friends, which everything after it uses.
-    headers = [
-        "base.h",
-        "math_types.h",
-        "constants.h",
-        "math_functions.h",
-        "collision.h",
-        "id.h",
-        "types.h",
-        "box2d.h",
-    ]
+    class Preprocessor(pcpp.Preprocessor):
+        def on_include_not_found(self, is_malformed, is_system, curdir, path):
+            raise pcpp.OutputDirective(pcpp.Action.IgnoreAndRemove)
 
-    combined_header = extra_declarations
-    cdef_dir = os.path.join(BOX2D_DIR, "include", "box2d")
+        def on_comment(self, token):
+            return False
 
-    for header in headers:
-        with open(os.path.join(cdef_dir, header), "r") as f:
-            filetext = "".join(
-                [
-                    line
-                    for line in f
-                    if (
-                        ("#include" not in line)
-                        and ("b2GetTicks" not in line)
-                        and ("b2Internal" not in line)
-                    )
-                ]
-            )
-        command = ["gcc", "-E", "-P", "-D__linux__", "-"]
-        filetext = subprocess.run(
-            command, text=True, input=filetext, stdout=subprocess.PIPE
-        ).stdout
-        # BOX2D_EXPORT is defined in base.h, so it survives preprocessing of
-        # every other header -- on b2_lengthUnitsPerMeter, for one.
-        filetext = filetext.replace("B2_API", "").replace("BOX2D_EXPORT", "")
-        filetext = strip_inline_definitions(filetext)
-        filetext = "\n".join(
-            [line for line in filetext.splitlines() if not line.startswith("#")]
-        )
-        temp_filename = os.path.join(TEMP_DIR, os.path.basename(header) + ".cffi")
-        with open(temp_filename, "w") as outfile:
-            outfile.write(filetext)
+    preprocessor = Preprocessor()
+    preprocessor.line_directive = None
+    preprocessor.add_path(os.path.join(BOX2D_DIR, "include"))
+    # The library is a static release build: no export decoration, and no
+    # assertions, so b2InternalAssert -- declared only when they are on -- is
+    # not in it to be declared.
+    preprocessor.define("BOX2D_EXPORT")
+    preprocessor.define("NDEBUG")
+    preprocessor.parse('#include "box2d/box2d.h"\n', "<box2d-py>")
 
-        combined_header += filetext + "\n"
+    output = io.StringIO()
+    preprocessor.write(output)
+    if preprocessor.return_code:
+        raise RuntimeError("preprocessing Box2D's headers failed")
+    return output.getvalue()
 
-    # Add task scheduler definitions, when there is a scheduler to declare.
+
+def cdef_source():
+    """Everything the extension declares to cffi."""
+    text = strip_inline_definitions(_preprocess_box2d_headers())
+    # Pragmas and the like are left by the preprocessor; cdef() wants none.
+    text = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
     if WITH_THREADS:
-        with open(os.path.join("src", "tasks", "task_scheduler.cffi")) as f:
-            combined_header += f.read()
-
-    return combined_header
-
-
-def compile_task_scheduler():
-    """Compile task_scheduler.c into an object file with PIC."""
-    ensure_temp_dir()
-
-    ts_c_path = os.path.join(PROJECT_ROOT, "src", "tasks", "task_scheduler.c")
-    ts_obj = os.path.join(TEMP_DIR, "task_scheduler.o")
-    enkits_include = os.path.join(ENKITS_DIR, "src")
-    box2d_include = os.path.join(BOX2D_DIR, "include")
-    compile_cmd = [
-        "gcc",
-        "-fPIC",
-        "-c",
-        ts_c_path,
-        "-I",
-        enkits_include,
-        "-I",
-        box2d_include,
-        "-o",
-        ts_obj,
-    ]
-    print("Compiling task_scheduler.c...")
-    subprocess.run(compile_cmd, check=True)
-    return ts_obj
+        with open(os.path.join(TASKS_DIR, "task_scheduler.cffi")) as f:
+            text += "\n" + f.read()
+    return text
 
 
-def get_platform_specific_config():
-    """Get platform-specific build configuration."""
-    import platform
-
-    if not WITH_THREADS:
-        # Box2D alone. No enkiTS, and no C++ runtime, since enkiTS was the
-        # only C++ in the build.
-        return {
-            "libraries": ["box2d"],
-            "extra_compile_args": [],
-            "extra_link_args": [],
-            "library_dirs": [os.path.join(BOX2D_BUILD_DIR, "src")],
-        }
-
-    if platform.system() == "Windows":
-        return {
-            "libraries": ["box2d", "enkiTS"],  # Use box2dd.lib on Windows
-            "extra_compile_args": ["/MD", "/O2"],  # Use release runtime
-            "extra_link_args": [
-                "/NODEFAULTLIB:LIBCMTD",
-                "/NODEFAULTLIB:MSVCRTD",
-            ],  # Ignore debug runtime
-            "library_dirs": [
-                os.path.join(BOX2D_BUILD_DIR, "src", "Release"),  # Updated path
-                os.path.join(ENKITS_BUILD_DIR, "Release"),
-            ],
-        }
-    else:
-        return {
-            "libraries": ["box2d", "enkiTS", "stdc++"],
-            "extra_compile_args": [],
-            "extra_link_args": [],
-            "library_dirs": [
-                os.path.join(BOX2D_BUILD_DIR, "src"),
-                ENKITS_BUILD_DIR,
-            ],
-        }
+# --- the extension --------------------------------------------------------------
 
 
-def create_ffibuilder():
-    """Create and configure the FFI builder."""
-    ffibuilder = FFI()
-
-    # Process headers and set up CFFI builder
-    ffibuilder.cdef(process_headers())
-
-    # Compile the task_scheduler.c and get the object file
-    task_scheduler_obj = compile_task_scheduler() if WITH_THREADS else None
-
-    # Configure CFFI builder
-    platform_config = get_platform_specific_config()
-    source = '#include "box2d/box2d.h"'
+def link_config():
+    """The libraries the extension links, and where they are."""
+    libraries = ["box2d"]
     if WITH_THREADS:
-        source += """
-        #include "TaskScheduler_c.h"
-        #include "tasks/task_scheduler.h"
-        """
-    ffibuilder.set_source(
+        libraries.append("enkiTS")
+        # enkiTS is C++, and the extension is linked as C. MSVC links its C++
+        # runtime by itself; elsewhere it has to be named.
+        if platform.system() == "Darwin":
+            libraries.append("c++")
+        elif platform.system() != "Windows":
+            libraries.append("stdc++")
+    return {"libraries": libraries, "library_dirs": [LIBRARY_DIR]}
+
+
+def ffibuilder():
+    """The FFI for box2d._box2d. cffi's setuptools hook calls this."""
+    ffi = FFI()
+    ffi.cdef(cdef_source())
+
+    source = '#include "box2d/box2d.h"\n'
+    sources = []
+    include_dirs = [os.path.join(BOX2D_DIR, "include")]
+    if WITH_THREADS:
+        source += '#include "TaskScheduler_c.h"\n#include "task_scheduler.h"\n'
+        sources.append(os.path.relpath(os.path.join(TASKS_DIR, "task_scheduler.c")))
+        include_dirs += [os.path.join(ENKITS_DIR, "src"), TASKS_DIR]
+
+    ffi.set_source(
         "box2d._box2d",
         source,
-        include_dirs=[
-            os.path.join(BOX2D_DIR, "include"),
-            os.path.join(BOX2D_DIR, "src"),
-            os.path.join(ENKITS_DIR, "src"),
-            os.path.join(PROJECT_ROOT, "src", "tasks"),
-            "src",
-        ],
-        library_dirs=platform_config["library_dirs"],  # Use platform-specific paths
-        libraries=platform_config["libraries"],
-        extra_objects=[task_scheduler_obj] if task_scheduler_obj else [],
-        extra_compile_args=platform_config["extra_compile_args"],
-        extra_link_args=platform_config["extra_link_args"],
+        sources=sources,
+        include_dirs=include_dirs,
+        **link_config(),
     )
-
-    return ffibuilder
-
-
-ffibuilder = create_ffibuilder()
-
-
-def build(build_target=None):
-    """Build the entire project."""
-    # Build dependencies first
-    build_dependencies()
-
-    # Create FFI builder and compile
-    # ffibuilder = create_ffibuilder()
-    if build_target:
-        ffibuilder.compile(target=build_target, verbose=True)
-    else:
-        ffibuilder.compile(verbose=True)
-
-
-if __name__ == "__main__":
-    build()
+    return ffi
