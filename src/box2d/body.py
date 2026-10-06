@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Sequence, List
 from .dataclasses import MassData, ContactData, BodyDef
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live
+from ._fixed_attributes import FixedAttributes
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .world import World
@@ -528,7 +529,7 @@ class BodyBuilder:
         return body
 
 
-class Body:
+class Body(FixedAttributes):
     """Represents a rigid body in the 2D physics simulation.
 
     Bodies can be dynamic, kinematic, or static, and can have various forces,
@@ -542,6 +543,14 @@ class Body:
     }
 
     _body_id = IdRef(lib.b2Body_IsValid, "body")
+
+    #: The world this body belongs to.
+    world: "World" = None
+
+    #: Any Python object the application wants kept with this body. Other
+    #: attributes cannot be added: a misspelt property would silently do
+    #: nothing, so setting an unknown one raises instead.
+    user_data = None
 
     def __init__(self, world: "World", body_def: BodyDef):
         """

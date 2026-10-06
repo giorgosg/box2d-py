@@ -46,7 +46,7 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
             self.move = 0
 
     def after_step(self, dt):
-        self.player.apply_force(self.move * Vec2(50, 0), (0, 0), True)
+        self.player.apply_force((50 * self.move, 0))
         sensorevents = self.world.get_sensor_events()
         self.overlap_count += len(sensorevents.begin) - len(sensorevents.end)
 

@@ -203,6 +203,17 @@ def test_friction_torque_is_scaled_per_joint(world):
     assert human.bone("head").joint.max_motor_torque == pytest.approx(0.5)
 
 
+def test_resizing_keeps_the_friction_set_since(world):
+    """set_scale scales the figure's friction torque, so it has to be the one
+    last set rather than the one the figure was built with."""
+    human = Human(world, (0, 0), scale=1.0, friction_torque=0.05)
+    human.set_joint_friction_torque(1.0)
+    human.set_scale(2.0)
+
+    # The head's share (0.25) of 1.0, times the cube of the size change.
+    assert human.bone("head").joint.max_motor_torque == pytest.approx(0.25 * 8)
+
+
 def test_zero_hertz_turns_the_springs_off(world):
     human = Human(world, (0, 0), hertz=4.0, damping_ratio=0.5)
     human.set_joint_spring_hertz(0.0)

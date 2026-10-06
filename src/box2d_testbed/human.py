@@ -399,6 +399,9 @@ class Human:
         Zero switches the motors off, which is the difference between a body
         that folds under its own weight and one that holds a pose.
         """
+        # Kept so a later set_scale scales this torque, not the one the
+        # figure was built with.
+        self.friction_torque = torque
         for bone in self.bones:
             if bone.joint is None:
                 continue

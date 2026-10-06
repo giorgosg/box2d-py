@@ -389,6 +389,28 @@ def test_scenario_ui_controls_work(world, scenario):
         test.after_step(1 / 60)
 
 
+# Two controls set a property under a name the joint does not have. Python
+# took each as a new attribute on the joint object, so the control moved and
+# the simulation did not. Joints now refuse unknown names, which is what lets
+# the test above catch this; these two pin the ones that were wrong.
+
+
+def test_the_prismatic_spring_slider_reaches_the_joint(world):
+    test = BaseTest.registry["Joints"]["Prismatic Joint"](world)
+    test.setup()
+    test.spring_hertz = 7.0
+    assert test.joint.spring_hertz == pytest.approx(7.0)
+
+
+def test_the_scissor_lift_motor_checkbox_reaches_the_joint(world):
+    test = BaseTest.registry["Joints"]["Scissor Lift"](world)
+    test.setup()
+    test.motor = True
+    assert test.lift_joint.motor_enabled is True
+    test.motor = False
+    assert test.lift_joint.motor_enabled is False
+
+
 @pytest.mark.parametrize("scenario", scenarios())
 def test_scenario_input_handlers_are_safe(world, scenario):
     """Keys and mouse events must not raise, whether the scenario uses them or not."""

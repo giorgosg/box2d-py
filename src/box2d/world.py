@@ -62,6 +62,7 @@ from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
 from .lifetime import IdRef, raw_id, is_live
+from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
 
 
@@ -135,7 +136,7 @@ def make_overlap_callback(results: list, max_results: int = None):
     return overlap_callback
 
 
-class World:
+class World(FixedAttributes):
     """2D physics world containing bodies, joints, and simulation parameters.
 
     Manages Box2D world state and provides body creation through a builder pattern.
@@ -147,6 +148,11 @@ class World:
         >>> for _ in range(60):
         ...     world.step(1/60, 4)
     """
+
+    #: Any Python object the application wants kept with this world. Other
+    #: attributes cannot be added: a misspelt property would silently do
+    #: nothing, so setting an unknown one raises instead.
+    user_data = None
 
     _world_id = IdRef(lib.b2World_IsValid, "world")
 
