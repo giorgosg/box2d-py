@@ -20,8 +20,17 @@ class Compound(BaseTest, category="Benchmark", name="Compound"):
     valley to match. It rebuilds the scene.
     """
 
-    camera_center = (0, 27)
-    camera_zoom = 28.5
+    # The camera follows Count, so that the bodies and the valley are in
+    # view whatever its size: from the valley's floor to the top of the
+    # highest body, 50 + 1.5 Count m up. Reset View frames the scene again
+    # after Count changes.
+    @property
+    def camera_center(self):
+        return (0, (50 + 1.5 * self.count) / 2)
+
+    @property
+    def camera_zoom(self):
+        return (50 + 1.5 * self.count) / 2 + 1.5
 
     #: The valley's friction. The pile ends up much the same at the 0.6 the
     #: bodies have, Box2D's default.
@@ -88,8 +97,16 @@ class Pyramid(BaseTest, category="Benchmark", name="Pyramid"):
     pyramid.
     """
 
-    camera_center = (0, 10)
-    camera_zoom = 12.0
+    # The camera follows Base Count, so the whole pyramid is in view whatever
+    # its size: as tall as it is wide, with a fifth more around it. Reset
+    # View frames it again after Base Count changes.
+    @property
+    def camera_center(self):
+        return (0, self.base_count / 2)
+
+    @property
+    def camera_zoom(self):
+        return 0.6 * self.base_count
 
     base_count = UI.int(20, min=5, max=100)
 
@@ -114,11 +131,19 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
     Grid sets how many pyramids there are, Grid by Grid, rebuilding them.
     """
 
-    camera_center = (0, 27)
-    camera_zoom = 30.0
-
     #: How many boxes wide each pyramid is at the bottom.
     PYRAMID_BASE = 10
+
+    # The camera follows Grid, so every pyramid is in view whatever its
+    # size: from the bottom shelf to the top of the highest pyramids, with
+    # 3 m to spare. Reset View frames them again after Grid changes.
+    @property
+    def camera_center(self):
+        return (0, ((self.PYRAMID_BASE + 1) * self.grid - 1) / 2)
+
+    @property
+    def camera_zoom(self):
+        return ((self.PYRAMID_BASE + 1) * self.grid - 1) / 2 + 3
 
     grid = UI.int(5, min=2, max=10)
 

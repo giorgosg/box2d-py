@@ -217,9 +217,22 @@ def test_the_tumbling_boxes_never_fall_asleep(world):
 
 
 @pytest.mark.parametrize(
-    "name", ["Compound", "Pyramid", "Many Pyramids", "Spinner", "Tumbler"]
+    "name, control",
+    [
+        ("Compound", None),
+        ("Compound", "count"),
+        ("Pyramid", None),
+        ("Pyramid", "base_count"),
+        ("Many Pyramids", None),
+        ("Many Pyramids", "grid"),
+        ("Spinner", None),
+        ("Tumbler", None),
+    ],
 )
-def test_the_view_takes_in_the_scene_as_it_opens(world, name):
+def test_the_view_takes_in_the_scene_however_big(world, name, control):
     test = scenario(world, "Benchmark", name)
+    if control is not None:
+        # The biggest scene the control builds.
+        setattr(test, control, getattr(type(test), control).max_value)
 
     assert_view_takes_in_moving_bodies(test)
