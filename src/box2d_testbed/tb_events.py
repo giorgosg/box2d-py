@@ -4,6 +4,10 @@ from .base_test import UI, BaseTest
 from .human import Human
 from .shared import donut
 
+#: The keys that walk a character, and which way: the arrows, or A and D as
+#: in Box2D's samples.
+WALK_KEYS = {"left": -1, "a": -1, "right": 1, "d": 1}
+
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
     """A sensor at a character's feet, telling it when it stands on something.
@@ -67,14 +71,15 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
         self.held = set()
 
     def on_key_down(self, key):
-        self.held.add(key)
+        if key in WALK_KEYS:
+            self.held.add(key)
 
     def on_key_up(self, key):
         self.held.discard(key)
 
     def after_step(self, dt):
         # Holding both ways pushes both ways, and the player stands still.
-        direction = bool(self.held & {"right", "d"}) - bool(self.held & {"left", "a"})
+        direction = sum({WALK_KEYS[key] for key in self.held})
         self.player.apply_force((self.FORCE * direction, 0))
 
         events = self.world.get_sensor_events()
@@ -411,15 +416,14 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         elif self.moving_platform.position.x < -8:
             self.moving_platform.linear_velocity = (2, 0)
 
-        if self.held & {"left", "a"}:
-            self.player.apply_force((-self.force, 0))
-        if self.held & {"right", "d"}:
-            self.player.apply_force((self.force, 0))
+        # One push each way at most, however many keys point that way.
+        for direction in sorted({WALK_KEYS[key] for key in self.held}):
+            self.player.apply_force((direction * self.force, 0))
 
     def on_key_down(self, key):
-        if key != "space":
+        if key in WALK_KEYS:
             self.held.add(key)
-        elif self.standing_on is not None:
+        elif key == "space" and self.standing_on is not None:
             self.player.apply_linear_impulse((0, self.jump_impulse))
 
     def on_key_up(self, key):
