@@ -39,15 +39,19 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
         self.platform = (
             self.world.new_body()
             .kinematic()
-            .position(-4, 5)
+            .position(0, 5)
             .linear_velocity(self.PATROL_SPEED, 0)
             .box(8, 1, friction=self.FRICTION)
             .build()
         )
         self.platform.type = self.body_type
 
+        # Four boxes dropped on it, half a metre apart. Any wider and the
+        # outer ones come off: the platform moves on 1.3 m while they fall,
+        # and at either end it turns round so sharply that a box skids about
+        # as far along it before friction catches it up.
         cargo = self.world.new_body().dynamic().box(1, 1, friction=self.FRICTION)
-        self.cargo = [cargo.position(-5 + 2 * i, 8).build() for i in range(4)]
+        self.cargo = [cargo.position(-2.25 + 1.5 * i, 8).build() for i in range(4)]
 
     def after_step(self, dt):
         # Only a kinematic platform is driven. Its velocity is all there is to
