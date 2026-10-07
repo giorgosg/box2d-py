@@ -201,17 +201,21 @@ class SettlingPyramid(BaseTest, category="Events", name="Body Move"):
         self.world.new_body().static().segment((-15, 0), (15, 0)).build()
 
         builder = self.world.new_body().dynamic().box(0.8, 0.8, friction=0.6)
-        self.boxes = [
+        self.boxes = {
             builder.position(-3 + column + 0.5 * row, 0.5 + row).build()
             for row in range(6)
             for column in range(6 - row)
-        ]
+        }
 
         self.moved = 0
         self.sleeping = set()
 
     def after_step(self, dt):
-        events = self.world.get_body_events()
+        # Only the pile: dragging a box adds the kinematic body the mouse
+        # joint pulls from, and that moves too.
+        events = [
+            event for event in self.world.get_body_events() if event.body in self.boxes
+        ]
         self.moved = len(events)
         for event in events:
             if event.fell_asleep:

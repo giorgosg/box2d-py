@@ -89,6 +89,20 @@ def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
     assert test.asleep == len(boxes)
 
 
+def test_dragging_a_box_counts_only_the_boxes_as_moving(world):
+    test = scenario(world, "Events", "Body Move")
+    boxes = [body for body in world.bodies if body.type == "dynamic"]
+    top = max(boxes, key=lambda box: box.position.y)
+    test.on_mouse_down(top.position)
+    assert test.mouse_joint is not None, "the top box should be held"
+
+    for _ in range(HERTZ):
+        test.on_mouse_drag(top.position + Vec2(0, 2), Vec2(0, 0))
+        run(test, 1 / HERTZ)
+        assert test.moved <= len(boxes)
+        assert test.asleep <= len(boxes)
+
+
 @pytest.fixture(
     params=[
         pytest.param(1, id="1 thread"),
