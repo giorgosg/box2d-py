@@ -103,7 +103,7 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
 
     Eight boxes are launched to the right together, each 5 degrees steeper
     than the one before, from 30 to 65 degrees, and spinning. Once every box
-    has landed they are launched again from where they lie.
+    has landed they are put back where they started and launched again.
 
     Speed, in m/s, and Spin, in rad/s, take effect at the next launch. The
     status line counts the launches.
@@ -123,15 +123,19 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
     def setup(self):
         self.world.new_body().static().segment((-40, 0), (40, 0)).build()
 
+        self.starts = [(-15 + 3 * i, 2) for i in range(8)]
         boxes = self.world.new_body().dynamic().box(1, 0.4)
-        self.boxes = [boxes.position(-15 + 3 * i, 2).build() for i in range(8)]
+        self.boxes = [boxes.position(*start).build() for start in self.starts]
         self.launches = 0
         self.launch()
 
     def launch(self):
-        # A body given a velocity is woken, so a box that has fallen asleep
-        # since it landed goes too.
-        for i, box in enumerate(self.boxes):
+        # From where they started, or each launch would carry them further
+        # right, until they went off the end of the ground. A body given a
+        # velocity is woken, so a box that has fallen asleep goes too.
+        for i, (box, start) in enumerate(zip(self.boxes, self.starts)):
+            box.position = start
+            box.rotation = 0.0
             angle = math.radians(self.FIRST_ANGLE + self.ANGLE_STEP * i)
             box.linear_velocity = (
                 self.speed * math.cos(angle),

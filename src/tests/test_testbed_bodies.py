@@ -7,7 +7,7 @@ boxes of cargo missed the platform it was meant to ride.
 """
 
 from box2d_testbed import tb_bodies  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import press, run, scenario
+from testbed_scenarios import HERTZ, press, run, scenario
 
 
 def test_all_the_cargo_lands_on_a_static_platform(world):
@@ -90,3 +90,18 @@ def test_enable_sleep_lets_cargo_at_rest_sleep_again(world):
     test.enable_sleep = True
     run(test, 3.0)
     assert not any(box.awake for box in test.cargo)
+
+
+def test_every_launch_starts_from_where_the_first_did(world):
+    test = scenario(world, "Bodies", "Set Velocity")
+    starts = [tuple(box.position) for box in test.boxes]
+    assert test.launches == 1
+
+    for launch in range(2, 7):
+        # At 12 m/s a launch lands within about three seconds.
+        for _ in range(10 * HERTZ):
+            run(test, 1 / HERTZ)
+            if test.launches == launch:
+                break
+        assert test.launches == launch, f"launch {launch} never came"
+        assert [tuple(box.position) for box in test.boxes] == starts
