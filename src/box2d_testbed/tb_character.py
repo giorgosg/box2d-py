@@ -15,8 +15,9 @@ class Mover(BaseTest, category="Character", name="Mover"):
     position is up against, works out the movement closest to the one it
     wants that clears all of them at once, and trims the parts of its
     velocity that point into them. No solver is involved, so nothing pushes
-    it back or tips it over: it stops dead against the wall and walks
-    straight up the ramp. It turns green while it stands on something.
+    it back or tips it over: it stops dead against the side of the ledge,
+    stands on top once it has jumped up, and walks straight up the ramp. It
+    turns green while it stands on something.
 
     Move with the left and right arrow keys, or A and D, and jump with space
     from the ground. Speed is how fast it walks and Jump Speed how fast a jump leaves
@@ -44,7 +45,7 @@ class Mover(BaseTest, category="Character", name="Mover"):
         terrain = self.world.new_body().static()
         terrain.segment((-20, 0), (8.5, 0))  # ground, from wall to wall
         terrain.box(1, 6, offset=(9, 3))  # wall on the right
-        terrain.box(6, 0.5, offset=(-8, 3))  # a ledge to land on
+        terrain.box(6, 0.5, offset=(-8, 1))  # a ledge, low enough to jump onto
         terrain.box(5, 0.3, offset=(3, 0.9), angle=math.radians(20))  # a ramp up
         # A wall on the left too: without it the character walks off the end
         # of the ground and falls for ever.
