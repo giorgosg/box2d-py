@@ -8,7 +8,7 @@ quick and occasionally terrible is not the same as a steadily mediocre one
 and the mean hides which you have.
 
     python src/tools/bench_render.py --scenario Benchmark/"Many Pyramids" \
-        --set gridcount=10 --frames 400
+        --set grid=10 --frames 400
 
 It also counts the drawing primitives submitted per frame. That number is a
 property of the scene rather than the renderer, so it should be identical
