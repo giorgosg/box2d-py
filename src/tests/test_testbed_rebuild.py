@@ -26,7 +26,7 @@ from box2d_testbed import (  # noqa: F401  (registers the scenarios)
     tb_stacking,
 )
 from box2d_testbed.base_test import BaseTest
-from testbed_scenarios import run, scenario
+from testbed_scenarios import every_scenario, run, scenario
 
 #: Enough for every scene to have collided, stacked or swung: an id order
 #: that matters has diverged by then.
@@ -35,14 +35,6 @@ SECONDS = 2.0
 #: Several scenarios build from Python's random numbers, so both builds of a
 #: scene draw the same ones.
 SEED = 1234
-
-
-def every_scenario():
-    return [
-        pytest.param(category, name, id=f"{category}-{name}".replace(" ", "-"))
-        for category, tests in sorted(BaseTest.registry.items())
-        for name in sorted(tests)
-    ]
 
 
 @pytest.fixture(autouse=True)

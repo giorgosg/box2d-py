@@ -5,10 +5,26 @@ testbed does, through the scenario's own controls and its after_step hook.
 The world they run in comes from the ``world`` fixture in conftest.py.
 """
 
+import pytest
+
 from box2d_testbed.base_test import BaseTest
 
 #: Steps per simulated second, as the testbed runs by default.
 HERTZ = 60
+
+
+def every_scenario():
+    """Every registered scenario, as (category, name) pytest params.
+
+    Only the scenarios whose modules have been imported are registered, so a
+    test module imports them all before calling this. Sorted, so the ids and
+    the order the tests run in do not depend on the order of those imports.
+    """
+    return [
+        pytest.param(category, name, id=f"{category}-{name}".replace(" ", "-"))
+        for category, tests in sorted(BaseTest.registry.items())
+        for name in sorted(tests)
+    ]
 
 
 def scenario(world, category, name):
