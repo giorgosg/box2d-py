@@ -6,8 +6,18 @@ shows the wrong thing passes both, which is how one of Body Type's four
 boxes of cargo missed the platform it was meant to ride.
 """
 
+import math
+
+import pytest
+
 from box2d_testbed import tb_bodies  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import HERTZ, press, run, scenario
+from testbed_scenarios import (
+    HERTZ,
+    assert_view_takes_in_moving_bodies,
+    press,
+    run,
+    scenario,
+)
 
 
 def test_all_the_cargo_lands_on_a_static_platform(world):
@@ -139,3 +149,69 @@ def test_at_the_fastest_speed_every_box_lands_on_the_ground_in_view(world):
     # zoom is half the visible height; the view is at least 1.6 times as wide.
     assert highest < center.y + zoom
     assert furthest < center.x + 1.6 * zoom
+
+
+def test_the_kinematic_platform_patrols_from_end_to_end(world):
+    test = scenario(world, "Bodies", "Body Type")
+
+    xs = []
+    for _ in range(20 * HERTZ):
+        run(test, 1 / HERTZ)
+        xs.append(test.platform.position.x)
+
+    # Out to 6 m either side and back, a step past at most, and level.
+    limit, step = test.PATROL_LIMIT, test.PATROL_SPEED / HERTZ
+    assert limit < max(xs) <= limit + step
+    assert -limit - step <= min(xs) < -limit
+    assert test.platform.position.y == 5.0
+    assert test.platform.rotation == 0.0
+
+
+def test_a_platform_made_static_stops_where_it_is(world):
+    test = scenario(world, "Bodies", "Body Type")
+    run(test, 1.0)
+    where = test.platform.position
+
+    test.body_type = "static"
+    run(test, 2.0)
+
+    assert test.platform.position == where
+    assert tuple(test.platform.linear_velocity) == (0, 0)
+
+
+def test_a_platform_made_dynamic_falls_to_the_ground_with_its_cargo(world):
+    test = scenario(world, "Bodies", "Body Type")
+    run(test, 1.0)
+
+    test.body_type = "dynamic"
+    run(test, 3.0)
+
+    # Resting on the ground, half its 1 m thickness up, and the boxes down
+    # with it: on it, or slid off it onto the ground.
+    assert abs(test.platform.position.y - 0.5) < 0.05
+    assert all(box.position.y < 1.55 for box in test.cargo)
+
+
+def test_speed_and_spin_take_effect_at_the_next_launch(world):
+    test = scenario(world, "Bodies", "Set Velocity")
+    test.speed = 8.0
+    test.spin = -5.0
+
+    for _ in range(10 * HERTZ):
+        run(test, 1 / HERTZ)
+        if test.launches == 2:
+            break
+    assert test.launches == 2
+
+    # Each 5 degrees steeper than the one before, from 30.
+    for i, box in enumerate(test.boxes):
+        angle = math.radians(30 + 5 * i)
+        assert box.linear_velocity.x == pytest.approx(8.0 * math.cos(angle))
+        assert box.linear_velocity.y == pytest.approx(8.0 * math.sin(angle))
+        assert box.angular_velocity == pytest.approx(-5.0)
+
+
+@pytest.mark.parametrize("name", ["Body Type", "Set Velocity"])
+def test_the_view_takes_in_the_scene(world, name):
+    test = scenario(world, "Bodies", name)
+    assert_view_takes_in_moving_bodies(test)

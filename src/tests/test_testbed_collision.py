@@ -10,7 +10,7 @@ import random
 
 import pytest
 
-from box2d import Vec2, World
+from box2d import DebugDraw, ShapeProxy, Vec2, World
 from box2d_testbed import tb_collision  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import press, scenario
 
@@ -108,3 +108,99 @@ def test_pressing_starts_a_new_cast_where_the_mouse_is(world, name, start, end):
     test.on_mouse_release(Vec2(5, 1))
     assert getattr(test, start) == Vec2(2, 3)
     assert getattr(test, end) == Vec2(5, 1)
+
+
+class Drawn(DebugDraw):
+    """Keeps the points drawn, and the circles: what the scenarios mark hits
+    and the circle mover with."""
+
+    def __init__(self):
+        super().__init__()
+        self.points = []
+        self.circles = []
+
+    def draw_point(self, p, size, color):
+        self.points.append(Vec2(p))
+
+    def draw_circle(self, center, radius, color):
+        self.circles.append((Vec2(center), radius))
+
+    def draw_segment(self, p1, p2, color):
+        pass
+
+    def draw_solid_capsule(self, p1, p2, radius, color):
+        pass
+
+
+def test_ray_cast_marks_the_hits_the_query_returns(world):
+    test = scenario(world, "Collision", "Ray Cast")
+    test.max_hits = 4
+
+    drawn = Drawn()
+    test.debug_draw(drawn)
+
+    hits = world.ray_cast(test.ray_start, test.ray_end - test.ray_start)
+    assert drawn.points == [hit.point for hit in hits[:4]]
+
+
+def test_shape_cast_draws_the_mover_where_the_first_hit_stops_it(world):
+    test = scenario(world, "Collision", "Shape Cast")
+    test.size = 1.5
+    test.all_hits = True
+
+    drawn = Drawn()
+    test.debug_draw(drawn)
+
+    translation = test.cast_end - test.cast_start
+    hits = world.cast_shape(ShapeProxy.circle(1.5, test.cast_start), translation)
+    # Through the gap the circle would touch the lower wall, the upper one
+    # and a post beyond it, and it stops at the first.
+    assert len(hits) == 3
+    assert drawn.points == [hit.point for hit in hits]
+    (start, _), (stopped, radius) = drawn.circles
+    assert start == test.cast_start
+    # Stopped touching the wall where it hit, on the line of the cast.
+    assert radius == 1.5
+    assert (stopped - hits[0].point).length == pytest.approx(1.5, abs=0.01)
+    assert (stopped - test.cast_start).cross(translation) == pytest.approx(0, abs=1e-4)
+
+
+def test_shape_cast_draws_a_clear_mover_at_the_end(world):
+    test = scenario(world, "Collision", "Shape Cast")
+
+    drawn = Drawn()
+    test.debug_draw(drawn)
+
+    assert drawn.points == []
+    assert drawn.circles == [(test.cast_start, 0.5), (test.cast_end, 0.5)]
+
+
+@pytest.mark.parametrize(
+    "name, start, end",
+    [("Ray Cast", "ray_start", "ray_end"), ("Shape Cast", "cast_start", "cast_end")],
+)
+def test_reset_puts_the_first_cast_back(world, name, start, end):
+    test = scenario(world, "Collision", name)
+    first = getattr(test, start), getattr(test, end)
+    test.on_mouse_down(Vec2(1, 1))
+    test.on_mouse_release(Vec2(2, 2))
+
+    press(test, "reset")
+
+    assert (getattr(test, start), getattr(test, end)) == first
+
+
+@pytest.mark.parametrize(
+    "name, start, end",
+    [("Ray Cast", "ray_start", "ray_end"), ("Shape Cast", "cast_start", "cast_end")],
+)
+def test_the_view_takes_in_the_shapes_and_the_first_cast(world, name, start, end):
+    test = scenario(world, "Collision", name)
+    center, zoom = test.view()
+    bounds = world.bounds
+    xs = [bounds.lower.x, bounds.upper.x, getattr(test, start).x, getattr(test, end).x]
+    ys = [bounds.lower.y, bounds.upper.y, getattr(test, start).y, getattr(test, end).y]
+
+    # zoom is half the visible height; the view is at least 1.6 times as wide.
+    assert center.y - zoom <= min(ys) and max(ys) <= center.y + zoom
+    assert center.x - 1.6 * zoom <= min(xs) and max(xs) <= center.x + 1.6 * zoom
