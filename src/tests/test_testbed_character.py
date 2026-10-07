@@ -29,3 +29,14 @@ def test_the_mover_walks_with_a_and_d_too(world, key, direction):
 
     # 8 m/s for half a second, along flat ground either way.
     assert (test.position.x - start.x) * direction == pytest.approx(4.0, abs=0.2)
+
+
+def test_the_mover_cannot_walk_off_the_left_end(world):
+    test = mover(world)
+
+    # Long enough to reach the end at 8 m/s, and stand there.
+    test.on_key_down("left")
+    run(test, 3.0)
+
+    assert test.on_ground
+    assert test.position.x > -20.0

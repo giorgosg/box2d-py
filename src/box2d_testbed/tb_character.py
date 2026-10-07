@@ -46,6 +46,9 @@ class Mover(BaseTest, category="Character", name="Mover"):
         terrain.box(1, 6, offset=(9, 3))  # wall on the right
         terrain.box(6, 0.5, offset=(-8, 3))  # a ledge to land on
         terrain.box(5, 0.3, offset=(3, 0.9), angle=math.radians(20))  # a ramp up
+        # A wall on the left too: without it the character walks off the end
+        # of the ground and falls for ever.
+        terrain.box(1, 6, offset=(-20.5, 3))
         terrain.build()
 
         # The character's own state. Nothing here is a Box2D body.
