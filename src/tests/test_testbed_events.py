@@ -12,7 +12,7 @@ import pytest
 
 from box2d import HAS_THREADS, Vec2, World
 from box2d_testbed import tb_events  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import HERTZ, run, scenario
+from testbed_scenarios import HERTZ, dynamic_bodies, run, scenario
 
 
 def test_the_foot_sensor_player_walks_with_the_arrow_keys(world):
@@ -42,8 +42,8 @@ def test_the_foot_counts_the_ground_it_overlaps_until_the_player_walks_off(world
     test = scenario(world, "Events", "Foot Sensor")
     test.on_key_down("right")
     counts = []
-    for _ in range(3 * 60):
-        run(test, 1 / 60)
+    for _ in range(3 * HERTZ):
+        run(test, 1 / HERTZ)
         counts.append((test.overlaps, len(test.foot.sensor_overlaps)))
 
     events, overlaps = zip(*counts)
@@ -67,7 +67,8 @@ def test_the_touching_count_keeps_the_ground_when_a_box_bounces_off_it(world):
     # The boxes bounce, so each leaves the ground and lands again, while the
     # ground's other contacts carry on. By 8 s they have settled.
     run(test, 8.0)
-    floor = world.bodies[0].shapes[0]
+    (pit,) = (body for body in world.bodies if body.type == "static")
+    (floor,) = (shape for shape in pit.shapes if shape.point1.y == shape.point2.y)
     assert floor in touching_shapes(world), "the boxes should be on the ground"
 
     assert len(test.touching) == len(touching_shapes(world))
@@ -75,13 +76,13 @@ def test_the_touching_count_keeps_the_ground_when_a_box_bounces_off_it(world):
 
 def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
     test = scenario(world, "Events", "Body Move")
-    boxes = [body for body in world.bodies if body.type == "dynamic"]
+    boxes = dynamic_bodies(world)
     run(test, 4.0)
     assert not any(box.awake for box in boxes), "the pyramid should have slept"
     assert test.asleep == len(boxes)
 
     boxes[0].awake = True
-    run(test, 1 / 60)
+    run(test, 1 / HERTZ)
     assert test.asleep == 0, "waking one box wakes the whole pile"
 
     run(test, 4.0)
@@ -91,7 +92,7 @@ def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
 
 def test_dragging_a_box_counts_only_the_boxes_as_moving(world):
     test = scenario(world, "Events", "Body Move")
-    boxes = [body for body in world.bodies if body.type == "dynamic"]
+    boxes = dynamic_bodies(world)
     top = max(boxes, key=lambda box: box.position.y)
     test.on_mouse_down(top.position)
     assert test.mouse_joint is not None, "the top box should be held"
@@ -144,8 +145,8 @@ def player_bottom(test):
 def test_the_player_jumps_up_through_a_platform_and_lands_on_it(threaded_world):
     test = jump_under_the_static_platform(threaded_world)
     highest = 0.0
-    for _ in range(60):
-        run(test, 1 / 60)
+    for _ in range(HERTZ):
+        run(test, 1 / HERTZ)
         highest = max(highest, player_bottom(test))
     assert highest > 6.5, "the platform stopped the player on the way up"
 
@@ -158,34 +159,42 @@ def test_the_player_jumps_up_through_a_platform_and_lands_on_it(threaded_world):
 def test_pre_solve_changes_nothing_but_the_contact(threaded_world):
     test = jump_under_the_static_platform(threaded_world)
     highest = 0.0
-    for _ in range(120):
+    gone = object()
+    for _ in range(2 * HERTZ):
         # Copies of the containers; anything else is replaced, not changed.
         before = {
             name: copy.copy(value) if isinstance(value, (set, list, dict)) else value
             for name, value in vars(test).items()
         }
-        threaded_world.step(1 / 60, 4)
-        changed = [name for name, value in vars(test).items() if before[name] != value]
+        threaded_world.step(1 / HERTZ, 4)
+        after = vars(test)
+        changed = [
+            name
+            for name in before.keys() | after.keys()
+            if before.get(name, gone) != after.get(name, gone)
+        ]
         assert not changed, "the scenario changed during the step, from pre-solve"
-        test.after_step(1 / 60)
+        test.after_step(1 / HERTZ)
         highest = max(highest, player_bottom(test))
 
     assert highest > 6.5, "pre-solve should have let the player through"
 
 
-def test_the_platformer_knows_what_the_player_stands_on(world):
-    test = scenario(world, "Events", "Platformer")
-    ground, platform = world.bodies[0], world.bodies[1]
-    run(test, 0.5)
-    assert test.standing_on is ground
+def surface(test, name):
+    """The Platformer's body that it calls ``name`` in its status line."""
+    (body,) = (body for body, called in test.surfaces.items() if called == name)
+    return body
 
-    test.player.position = (-6, 0.5)
-    test.on_key_down("space")
+
+def test_the_platformer_knows_what_the_player_stands_on(world):
+    test = jump_under_the_static_platform(world)
+    assert test.standing_on is surface(test, "the ground")
+
     run(test, 0.25)
     assert test.standing_on is None, "in the air"
 
     run(test, 2.0)
-    assert test.standing_on is platform
+    assert test.standing_on is surface(test, "the platform")
 
 
 def test_the_player_cannot_jump_again_in_mid_air(world):

@@ -26,3 +26,8 @@ def run(test, seconds):
     for _ in range(int(seconds * HERTZ)):
         test.world.step(1 / HERTZ, 4)
         test.after_step(1 / HERTZ)
+
+
+def dynamic_bodies(world):
+    """The world's dynamic bodies, in the order they were made."""
+    return [body for body in world.bodies if body.type == "dynamic"]
