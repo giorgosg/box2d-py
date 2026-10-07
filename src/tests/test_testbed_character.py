@@ -40,3 +40,15 @@ def test_the_mover_cannot_walk_off_the_left_end(world):
 
     assert test.on_ground
     assert test.position.x > -20.0
+
+
+def test_the_mover_stands_still_and_level_against_the_right_wall(world):
+    test = mover(world)
+
+    # Long enough to cross the ramp and reach the wall.
+    test.on_key_down("right")
+    run(test, 4.0)
+
+    assert test.on_ground
+    assert test.velocity.length < 0.01, "pressed against the wall, it stands still"
+    assert test.position.y == pytest.approx(0.8, abs=0.01), "on the ground, not in it"

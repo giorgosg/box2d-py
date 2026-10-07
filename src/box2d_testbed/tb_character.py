@@ -42,7 +42,7 @@ class Mover(BaseTest, category="Character", name="Mover"):
 
     def setup(self):
         terrain = self.world.new_body().static()
-        terrain.segment((-20, 0), (8, 0))  # ground
+        terrain.segment((-20, 0), (8.5, 0))  # ground, from wall to wall
         terrain.box(1, 6, offset=(9, 3))  # wall on the right
         terrain.box(6, 0.5, offset=(-8, 3))  # a ledge to land on
         terrain.box(5, 0.3, offset=(3, 0.9), angle=math.radians(20))  # a ramp up
