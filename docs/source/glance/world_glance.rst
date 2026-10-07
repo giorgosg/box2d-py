@@ -140,8 +140,8 @@ Event generated when a sensor shape begins or ends overlap with another shape.
 Properties
 ^^^^^^^^^^
 
-* ``sensor`` - The sensor shape that triggered the event
-* ``visitor`` - The shape that entered or left the sensor
+* ``sensor`` - The sensor shape that triggered the event, or None if destroyed
+* ``visitor`` - The shape that entered or left the sensor, or None if destroyed
 * ``begin`` - True for beginning overlap, False for ending overlap
 
 SensorEvents

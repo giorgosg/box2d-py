@@ -19,6 +19,8 @@ for as long as Box2D has it -- the world holds bodies and joints, a body its
 shapes and chains, a chain its segments -- and released when it is destroyed.
 """
 
+from ._checked import ffi
+
 
 class DestroyedError(RuntimeError):
     """Raised when a Box2D object is used after it has been destroyed.
@@ -94,3 +96,22 @@ def is_live(obj, name: str, is_valid) -> bool:
     """
     raw = raw_id(obj, name)
     return raw is not None and bool(is_valid(raw))
+
+
+def wrapper_for(object_id, is_valid, get_user_data):
+    """The wrapper an id Box2D reported belongs to, or None if it is gone.
+
+    Box2D's events are a record of the step that has finished, so they can
+    name an object destroyed since. Its wrapper has been released by then, and
+    following its handle would read freed memory, so the id is checked first.
+
+    Args:
+        object_id: The id, e.g. a ``b2BodyId`` from a move event.
+        is_valid: The Box2D validity function for this id type.
+        get_user_data: The matching user data getter, e.g.
+            ``lib.b2Body_GetUserData``.
+    """
+    if not is_valid(object_id):
+        return None
+    data = get_user_data(object_id)
+    return ffi.from_handle(data) if data != ffi.NULL else None

@@ -213,7 +213,94 @@ def test_joint_events_after_dropping_the_joint():
     assert out.strip() == "RevoluteJoint"
 
 
+@pytest.mark.parametrize(
+    "remove", ["joint.destroy()", "ball.destroy()", "ground.destroy()"]
+)
+def test_joint_events_after_the_joint_is_destroyed(remove):
+    """The events are Box2D's record of the last step, so they still name a
+    joint destroyed since. It is left out rather than resolved."""
+    out = run_isolated(
+        _REPORTING_JOINT,
+        f"""
+        world.step(1 / 60)
+        assert world.get_joint_events()
+        {remove}
+        del joint
+        FORGET()
+        print(world.get_joint_events())
+        """,
+    )
+    assert out.strip() == "[]"
+
+
+# --- bodies --------------------------------------------------------------------
+
+
+def test_body_events_after_the_body_is_destroyed():
+    out = run_isolated(
+        """
+        world = World()
+        ball = world.new_body().dynamic().position(0, 2).circle(0.5).build()
+        world.step(1 / 60)
+        assert world.get_body_events()
+        ball.destroy()
+        del ball
+        FORGET()
+        print(world.get_body_events())
+        """
+    )
+    assert out.strip() == "[]"
+
+
 # --- shapes --------------------------------------------------------------------
+
+#: A sensor with a ball sitting inside it, overlapping from the first step.
+_SENSED_BALL = """
+world = World(gravity=(0, 0))
+ground = world.new_body().static().build()
+sensor = ground.add_circle(radius=2, is_sensor=True)
+ball = world.new_body().dynamic().build()
+visitor = ball.add_circle(radius=0.5, enable_sensor_events=True)
+world.step(1 / 60)
+assert len(world.get_sensor_events().begin) == 1
+"""
+
+
+@pytest.mark.parametrize("remove", ["ball.destroy()", "visitor.destroy()"])
+def test_sensor_events_after_the_visitor_is_destroyed(remove):
+    """A destroyed shape reads as None, as it does in contact events: Box2D
+    reports the sensor losing it, and that is worth knowing."""
+    out = run_isolated(
+        _SENSED_BALL,
+        f"""
+        {remove}
+        del ball, visitor
+        FORGET()
+        begin = world.get_sensor_events().begin
+        print([(e.sensor is sensor, e.visitor) for e in begin])
+        world.step(1 / 60)
+        end = world.get_sensor_events().end
+        print([(e.sensor is sensor, e.visitor) for e in end])
+        """,
+    )
+    assert out.split("\n")[:2] == ["[(True, None)]", "[(True, None)]"]
+
+
+def test_sensor_events_after_the_sensor_is_destroyed():
+    out = run_isolated(
+        _SENSED_BALL,
+        """
+        sensor.destroy()
+        del sensor
+        FORGET()
+        begin = world.get_sensor_events().begin
+        print([(e.sensor, e.visitor is visitor) for e in begin])
+        world.step(1 / 60)
+        end = world.get_sensor_events().end
+        print([(e.sensor, e.visitor is visitor) for e in end])
+        """,
+    )
+    assert out.split("\n")[:2] == ["[(None, True)]", "[(None, True)]"]
 
 
 @pytest.mark.parametrize(
