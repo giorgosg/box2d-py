@@ -23,11 +23,16 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
     The red dots mark the hits: the closest at Max Hits 1, and at most that
     many otherwise. Press and drag to cast a ray from where you press to
     where you let go. The shapes are circles, boxes, segments and capsules,
-    on static bodies, so there is nothing to drag.
+    chosen at random but the same every time, on a static body, so there is
+    nothing to drag.
     """
 
     camera_center = (-1, -1)
     camera_zoom = 7.5
+
+    #: The shapes are laid out at random, but always from this seed, so the
+    #: scene is the same every time it is built: opened again, or Reset.
+    SEED = 1
 
     max_hits = UI.int(1, min=1, max=5)
 
@@ -36,16 +41,19 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
         self.ray_end = Vec2(6, 2)
 
         # One of the four kinds of shape at each place on a grid, chosen at
-        # random, and a box at a random angle.
+        # random, and a box at a random angle. From a generator of its own,
+        # rather than the random module's, which is shared: seeding that
+        # would reseed it for everything else too.
+        rng = random.Random(self.SEED)
         ground = self.world.new_body().static()
         for x in range(-6, 6, 2):
             for y in range(-6, 6, 2):
-                kind = random.choice(["circle", "box", "segment", "capsule"])
+                kind = rng.choice(["circle", "box", "segment", "capsule"])
                 if kind == "circle":
                     ground.circle(0.5, center=(x, y))
                 elif kind == "box":
                     ground.box(
-                        0.7, 0.5, offset=(x, y), angle=random.uniform(0, 2 * math.pi)
+                        0.7, 0.5, offset=(x, y), angle=rng.uniform(0, 2 * math.pi)
                     )
                 elif kind == "segment":
                     ground.segment((x - 0.5, y - 0.5), (x + 0.5, y + 0.5))
