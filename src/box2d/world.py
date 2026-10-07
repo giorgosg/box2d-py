@@ -248,12 +248,19 @@ class World(FixedAttributes):
             substep_count: Number of solver iterations (default 4)
                            Higher values improve stability at cost of performance
 
+        Raises:
+            RuntimeError: If called from a world callback during a step.
+
         Example:
             >>> world = World()
             >>> world.step(1/60)  # Default 4 substeps
             >>> world.step(0.016, 6)  # Custom substep count
         """
         world_id = self._world_id
+        if self._locked:
+            # Box2D would return at once, and this call's finally would then
+            # clear the lock while the outer step is still running.
+            raise RuntimeError("cannot step the world from a world callback")
         self._locked = True
         try:
             lib.b2World_Step(world_id, time_step, substep_count)

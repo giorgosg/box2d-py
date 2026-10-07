@@ -348,8 +348,9 @@ def test_a_shape_made_directly_belongs_to_its_body(world):
 
 #: A ball resting on the ground, with pre-solve events so a callback runs
 #: during the step, and a second body carrying one of everything: a shape, a
-#: chain, a joint to the ball and a drag. ``ACTION`` is attempted from inside
-#: the callback, once, and what happened is printed after the step.
+#: chain, a joint to the ball and a drag. Each statement in ``ACTIONS`` is
+#: attempted in turn from inside the first callback, and what happened to each
+#: is printed after the step, one line apiece.
 _DURING_A_STEP = """
 world = World()
 ground = world.new_body().static().build()
@@ -366,18 +367,24 @@ attempts = []
 def pre_solve(shape_a, shape_b, manifold):
     if attempts:
         return
-    try:
-        ACTION
-    except RuntimeError as error:
-        attempts.append(str(error))
-    else:
-        attempts.append("allowed")
+    for action in ACTIONS:
+        try:
+            exec(action, globals())
+        except RuntimeError as error:
+            attempts.append(str(error))
+        else:
+            attempts.append("allowed")
 
 world.pre_solve = pre_solve
 while not attempts:
     world.step(1 / 60)
-print(attempts[0])
+print("\\n".join(attempts))
 """
+
+
+def during_a_step(*actions: str) -> str:
+    """The scenario above, attempting ``actions`` from inside the step."""
+    return _DURING_A_STEP.replace("ACTIONS", repr(list(actions)))
 
 
 #: What each refused destroy is called, the lookups that would have followed
@@ -439,10 +446,29 @@ def test_destroying_during_a_step_is_refused(action):
     destroying the world mid-step frees it under the solver. Each is refused
     with an error that says what to do instead, and the object carries on."""
     what, then, found = _REFUSED[action]
-    out = run_isolated(_DURING_A_STEP.replace("ACTION", action), then)
+    out = run_isolated(during_a_step(action), then)
     assert out.splitlines()[:2] == [
         f"cannot destroy a {what} during a world callback; destroy it after the step",
         found,
+    ]
+
+
+def test_stepping_during_a_step_is_refused():
+    """Box2D returns from a nested step at once, and the nested call used to
+    clear the lock on its way out while the outer step was still running, so
+    a destroy after it got through."""
+    out = run_isolated(
+        during_a_step("world.step(1 / 60)", "joint.destroy()"),
+        """
+        del joint
+        FORGET()
+        print(sorted(type(j).__name__ for j in ball.joints))
+        """,
+    )
+    assert out.splitlines()[:3] == [
+        "cannot step the world from a world callback",
+        "cannot destroy a joint during a world callback; destroy it after the step",
+        "['DistanceJoint']",
     ]
 
 
