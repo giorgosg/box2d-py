@@ -106,8 +106,9 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
     has landed, or gone off the end of the ground, they are put back where
     they started and launched again.
 
-    Speed, in m/s, and Spin, in rad/s, take effect at the next launch. The
-    status line counts the launches.
+    Speed, in m/s, and Spin, in rad/s, take effect at the next launch. At
+    any speed every box lands on the ground, but spun hard backwards a box
+    can roll on off the end. The status line counts the launches.
     """
 
     camera_center = (0, 8)
@@ -118,7 +119,9 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
     FIRST_ANGLE = 30
     ANGLE_STEP = 5
 
-    speed = UI.float(12.0, min=1.0, max=40.0)
+    # Faster, and the furthest boxes land beyond the end of the ground and
+    # out of view.
+    speed = UI.float(12.0, min=1.0, max=16.0)
     spin = UI.float(8.0, min=-30.0, max=30.0)
 
     def setup(self):
