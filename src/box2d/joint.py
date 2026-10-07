@@ -67,14 +67,18 @@ class Joint(FixedAttributes):
     #: nothing, so setting an unknown one raises instead.
     user_data = None
 
-    def _set_userdata(self):
-        """Finalize joint creation in the physics simulation.
+    def _register(self):
+        """Hand Box2D a handle to this joint, and the world a reference to it.
 
-        Should be called after joint configuration is complete. Handles the
-        internal connection between the joint definition and simulation.
+        Called once the joint exists. The handle in Box2D's user data is how a
+        joint id read back from Box2D -- ``body.joints``, joint events --
+        becomes this object again. A handle does not keep its object alive,
+        and a joint whose wrapper was collected aborted the interpreter on the
+        next lookup, so the world holds every joint as it holds every body.
         """
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
+        self.world._joints[self._joint_id] = self
 
     def destroy(self):
         """Destroy the joint and remove it from the world.
@@ -88,7 +92,17 @@ class Joint(FixedAttributes):
         raw = raw_id(self, "_joint_id")
         if raw is not None and lib.b2Joint_IsValid(raw):
             lib.b2DestroyJoint(raw)
+        self._release()
         del self._joint_id
+
+    def _release(self):
+        """Let go of this joint once Box2D no longer has it.
+
+        Box2D's handle to the wrapper is gone with the joint, so the world's
+        reference is no longer needed. Called by :meth:`destroy`, and by
+        :meth:`.Body.destroy` for each joint Box2D takes down with the body.
+        """
+        self.world._joints.pop(raw_id(self, "_joint_id"), None)
 
     @property
     def is_valid(self):
@@ -296,10 +310,8 @@ class MouseJoint(Joint):
     what upstream's own samples now use for dragging: a kinematic proxy body at
     the target, joined to the dragged body by a motor joint with a linear
     spring. Moving the target moves the proxy, and the spring pulls the body
-    after it. The proxy is destroyed along with the joint by :meth:`destroy`.
-    A joint that Box2D takes down with the dragged body leaves the proxy behind
-    until :meth:`destroy` is called on it, which is safe once the joint is
-    gone.
+    after it. The proxy is destroyed along with the joint, whether by
+    :meth:`destroy` or by Box2D taking the joint down with the dragged body.
     """
 
     def __init__(
@@ -344,16 +356,24 @@ class MouseJoint(Joint):
         self._joint_id = lib.b2CreateMotorJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
         self.wake_bodies()
 
     def destroy(self):
         """Destroy the joint and the kinematic proxy body backing it."""
         super().destroy()
+
+    def _release(self):
+        """Release the joint, and destroy the proxy body only it was using.
+
+        This runs however the joint went -- destroyed, or taken down with the
+        dragged body or the proxy itself -- so the proxy never outlives it.
+        """
+        super()._release()
         proxy = getattr(self, "_proxy", None)
+        self._proxy = None
         if proxy is not None:
             proxy.destroy()
-            self._proxy = None
 
     @property
     def target(self):
@@ -378,8 +398,7 @@ class MouseJoint(Joint):
         """The proxy body, raising DestroyedError once the joint is gone.
 
         The target lives on the proxy rather than the joint, so the joint's own
-        check has to be made here: the proxy cannot tell, as it can outlive the
-        joint, and destroy() drops it.
+        check has to be made here: once the joint is gone, so is the proxy.
         """
         _ = self._joint_id  # raises if the joint is gone
         return self._proxy
@@ -433,7 +452,7 @@ class FilterJoint(Joint):
         self._joint_id = lib.b2CreateFilterJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
 
 class WeldJoint(Joint):
@@ -506,7 +525,7 @@ class WeldJoint(Joint):
         self._joint_id = lib.b2CreateWeldJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     linear_hertz = b2_float(
         lib.b2WeldJoint_GetLinearHertz,
@@ -640,7 +659,7 @@ class RevoluteJoint(Joint):
         self._joint_id = lib.b2CreateRevoluteJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     angle = b2_value(
         lib.b2RevoluteJoint_GetAngle,
@@ -851,7 +870,7 @@ class PrismaticJoint(Joint):
         self._joint_id = lib.b2CreatePrismaticJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     joint_translation = b2_value(
         lib.b2PrismaticJoint_GetTranslation,
@@ -1033,7 +1052,7 @@ class WheelJoint(Joint):
         self._joint_id = lib.b2CreateWheelJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     enable_spring = b2_bool(
         lib.b2WheelJoint_IsSpringEnabled,
@@ -1223,7 +1242,7 @@ class DistanceJoint(Joint):
         self._joint_id = lib.b2CreateDistanceJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     length = b2_float(
         lib.b2DistanceJoint_GetLength,
@@ -1442,7 +1461,7 @@ class MotorJoint(Joint):
         self._joint_id = lib.b2CreateMotorJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     @property
     def linear_velocity(self):
@@ -1549,7 +1568,7 @@ class MoverJoint(Joint):
         self._joint_id = lib.b2CreateMoverJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     @property
     def linear_velocity(self) -> Vec2:
@@ -1652,7 +1671,7 @@ class PogoJoint(Joint):
         self._joint_id = lib.b2CreatePogoJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     rest_length = b2_float(
         lib.b2PogoJoint_GetRestLength,

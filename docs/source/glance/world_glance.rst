@@ -21,7 +21,13 @@ Creation and Destruction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 * ``World(gravity=(0, -10), threads=1)`` - Create a world with specified gravity
-* ``world.destroy()`` - Clean up all resources
+* ``world.destroy()`` - Destroy the world and every body, shape and joint in it
+
+The world keeps what it contains: a body, shape or joint stays alive while it
+does, whether or not the caller kept the object that created it, and anything
+that hands it back -- ``body.joints``, a ray cast, an event -- returns that same
+object. Destroying a body takes its shapes and joints with it, a mouse joint's
+proxy body included; anything destroyed raises ``DestroyedError`` if used.
 
 Simulation Control
 ^^^^^^^^^^^^^^^^^^

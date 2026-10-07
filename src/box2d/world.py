@@ -197,7 +197,11 @@ class World(FixedAttributes):
         self._contact_damping_ratio = world_def.contactDampingRatio
         self._contact_push_velocity = world_def.contactSpeed
 
+        # Every live body and joint, keyed by id. Box2D's user data on each is
+        # a handle to its wrapper, which does not keep the wrapper alive; these
+        # do, until the object is destroyed.
         self._bodies = {}
+        self._joints = {}
 
         # Callbacks, with the cffi trampolines that must outlive them.
         self._custom_filter = self._custom_filter_trampoline = None
@@ -1338,6 +1342,9 @@ class World(FixedAttributes):
             if lib.b2World_IsValid(raw):
                 lib.b2DestroyWorld(raw)
             del self._world_id
+            # Box2D's handles went with the world, so nothing needs these kept.
+            self._bodies.clear()
+            self._joints.clear()
 
     def __del__(self):
         """Clean up world resources. Automatically called when instance is garbage collected.

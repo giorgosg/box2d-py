@@ -49,9 +49,24 @@ class Shape(FixedAttributes):
         self.user_data = user_data
 
     def _set_handle(self):
-        """Set the handle for the shape."""
+        """Hand Box2D a handle to this shape, through its user data.
+
+        That handle is how a shape id from Box2D -- a ray cast hit, an event --
+        becomes this object again. It does not keep the object alive, so
+        whatever calls this must also see that something holds the shape.
+        """
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
+
+    def _register(self):
+        """Set the handle, and have the body hold this shape until destroyed.
+
+        Done here rather than in ``body.add_*``, since ``Circle.create`` and
+        the rest make a shape without it, and a shape nothing held was
+        collected while Box2D still had its handle.
+        """
+        self._set_handle()
+        self._body._shapes.append(self)
 
     density = b2_float(
         lib.b2Shape_GetDensity,
@@ -504,7 +519,7 @@ class Circle(Shape):
         self._shape_id = lib.b2CreateCircleShape(
             body._body_id, ffi.addressof(sd), circledef.b2Circle
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> CircleDef:
@@ -569,7 +584,7 @@ class Capsule(Shape):
         self._shape_id = lib.b2CreateCapsuleShape(
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> CapsuleDef:
@@ -647,7 +662,7 @@ class Segment(Shape):
         self._shape_id = lib.b2CreateSegmentShape(
             body._body_id, ffi.addressof(sd), segmentdef.b2Segment
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> SegmentDef:
@@ -715,7 +730,7 @@ class Polygon(Shape):
             ffi.addressof(sd),
             ffi.addressof(pd),
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> PolygonDef:
@@ -826,6 +841,8 @@ class ChainSegment(Shape):
         self._shape_id = b2chainsegment
         self._parent_chain = chain
         super().__init__(chain.body)
+        # Held by the chain, in its segments, rather than by the body: the
+        # body's shapes leave chain segments out.
         self._set_handle()
 
     def destroy(self, update_body_mass: bool = True) -> None:
@@ -879,6 +896,9 @@ class Chain(FixedAttributes):
             ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
             for i in range(returned)
         ]
+        # The body holds the chain, and so its segments, until it is
+        # destroyed: Box2D has handles to the segments.
+        body._chains.append(self)
 
     @classmethod
     def create(

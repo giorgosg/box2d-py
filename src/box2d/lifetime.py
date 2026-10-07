@@ -11,6 +11,12 @@ the id is still live on each read and raises :class:`.DestroyedError` if it is
 not. Box2D's own ``b2*_IsValid`` functions are safe to call on stale ids,
 including ids whose world has already been destroyed, so this check never
 crashes on the values it is meant to reject.
+
+Going the other way, from an id Box2D hands back to the wrapper it belongs to,
+relies on the user data each wrapper gives Box2D: a cffi handle to itself. A
+handle does not keep its object alive, so every wrapper is held by its owner
+for as long as Box2D has it -- the world holds bodies and joints, a body its
+shapes and chains, a chain its segments -- and released when it is destroyed.
 """
 
 
