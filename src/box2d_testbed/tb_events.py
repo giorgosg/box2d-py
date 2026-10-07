@@ -525,7 +525,7 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
         self.elements = []
         self.spawned = 0
         self.side = -15.0
-        self.wait = 0.0
+        self.wait = self.SPAWN_INTERVAL
         self.delivered = 0
         self.spawn()
 

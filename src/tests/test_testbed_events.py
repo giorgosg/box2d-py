@@ -209,3 +209,15 @@ def test_ragdolls_in_the_funnel_together_never_share_a_group(world):
         groups = [figure.head.shapes[0].filter.group for figure in test.elements]
         assert len(set(groups)) == len(groups), sorted(groups)
     assert test.delivered > 5, "figures should have come and gone"
+
+
+def test_the_funnel_drops_one_figure_every_half_second_from_the_start(world):
+    test = scenario(world, "Events", "Sensor Funnel")
+    counts = [len(test.elements)]
+    run(test, 0.25)
+    for _ in range(3):
+        counts.append(len(test.elements))
+        run(test, 0.5)
+
+    # The first comes with the scene, then one at 0.5 s and one at 1 s.
+    assert counts == [1, 1, 2, 3]
