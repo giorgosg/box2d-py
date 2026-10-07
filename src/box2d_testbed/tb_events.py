@@ -397,12 +397,15 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         else:
             return True
 
+        # Box2D's sample counts only a normal within about 18 degrees of
+        # straight up as the player on top. A player rising past a
+        # platform's corner meets it at a slant, and is let through rather
+        # than caught on the edge.
         return sign * normal.y > 0.95
 
     def after_step(self, dt):
         self.standing_on = self.support()
 
-        # Turn the moving platform round at either end of its run.
         if self.moving_platform.position.x > 8:
             self.moving_platform.linear_velocity = (-2, 0)
         elif self.moving_platform.position.x < -8:
@@ -439,8 +442,10 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
                 other, up = contact.shape_a, contact.manifold.normal.y
             else:
                 other, up = contact.shape_b, -contact.manifold.normal.y
-            # Something to stand on is underneath, not beside the player.
-            if up > 0.7:
+            # Underneath the player rather than beside it, by the test Box2D's
+            # sample makes before a jump. Looser than pre-solve's 0.95, but
+            # every platform contact left here has passed that already.
+            if up > 0.9:
                 return other.body
         return None
 
