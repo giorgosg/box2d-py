@@ -44,9 +44,9 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
         self.ray_end = Vec2(8, 1.5)
 
         # One of the four kinds of shape at each place on a grid 2 m apart,
-        # chosen at random, and a box at a random angle. From a generator of its own,
-        # rather than the random module's, which is shared: seeding that
-        # would reseed it for everything else too.
+        # chosen at random, and a box at a random angle. From a generator of
+        # its own, rather than the random module's, which is shared: seeding
+        # that would reseed it for everything else too.
         rng = random.Random(self.SEED)
         ground = self.world.new_body().static()
         for x in range(-5, 6, 2):
@@ -103,14 +103,15 @@ class ShapeCast(BaseTest, category="Collision", name="Shape Cast"):
     will this fit, and where does it stop? The scene opens with the mover
     aimed through the gap in the wall: widen it, and it no longer fits.
 
-    The grey outline is the mover where the cast starts, the white one where
-    it stops, and the red dots and lines are the hits and their normals. A
-    hit is the shape run into, the point of contact, the normal, and the
-    fraction of the way along the cast that the mover got.
+    The grey mover is where the cast starts, the white one where it stops,
+    and the red dots and lines are the hits and their normals. A hit is the
+    shape run into, the point of contact, the normal, and the fraction of
+    the way along the cast that the mover got. A cast that starts inside a
+    shape stops there, at 0%.
 
     Mover picks the shape swept, and Size is its radius, or half its width
     for the box. A capsule stands upright, twice as tall as it is wide. Show
-    all hits draws every shape the sweep would touch over its whole length,
+    all hits marks every shape the sweep would touch over its whole length,
     as if nothing stopped it; the mover still stops at the first. Press and
     drag to cast from where you press to where you let go.
     """
