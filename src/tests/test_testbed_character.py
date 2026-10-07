@@ -8,7 +8,7 @@ and goes the wrong way, or off the end of the world, passes both.
 import pytest
 
 from box2d_testbed.tb_character import Mover
-from testbed_scenarios import run, scenario
+from testbed_scenarios import press, run, scenario
 
 
 def mover(world):
@@ -88,3 +88,15 @@ def in_view(test, body):
 def test_the_dynamic_mover_opens_on_its_character(world):
     test = scenario(world, "Character", "Dynamic Mover")
     assert in_view(test, test.mover.body)
+
+
+def test_a_reset_dynamic_mover_starts_with_the_sliders_settings(world):
+    test = scenario(world, "Character", "Dynamic Mover")
+    test.gravity_scale = 3.0
+    test.jump_speed = 12.0
+
+    press(test, "reset")
+
+    # Before the first step: it falls from the start at the gravity chosen.
+    assert test.mover.gravity_scale == pytest.approx(3.0)
+    assert test.mover.jump_speed == pytest.approx(12.0)

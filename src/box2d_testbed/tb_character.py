@@ -189,6 +189,7 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             position=self.START,
             filter=CollisionFilter(category=MOVER_BIT, mask=STATIC_BIT | DYNAMIC_BIT),
             enable_pre_solve_events=True,
+            **self.settings(),
         )
 
         west = (
@@ -328,19 +329,25 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             center = Vec2(self.app_state.center)
             self.app_state.center = Vec2(self.mover.position.x, center.y)
 
+    def settings(self):
+        """The sliders, by the names DynamicMover gives them."""
+        return dict(
+            jump_speed=self.jump_speed,
+            min_speed=self.min_speed,
+            max_speed=self.max_speed,
+            stop_speed=self.stop_speed,
+            accelerate=self.accelerate,
+            friction=self.friction,
+            gravity_scale=self.gravity_scale,
+            air_steer=self.air_steer,
+            pogo_hertz=self.pogo_hertz,
+            pogo_damping_ratio=self.pogo_damping,
+        )
+
     def apply_settings(self):
         """Hand the sliders to the controller, which reads them every update."""
-        mover = self.mover
-        mover.jump_speed = self.jump_speed
-        mover.min_speed = self.min_speed
-        mover.max_speed = self.max_speed
-        mover.stop_speed = self.stop_speed
-        mover.accelerate = self.accelerate
-        mover.friction = self.friction
-        mover.air_steer = self.air_steer
-        mover.pogo_hertz = self.pogo_hertz
-        mover.pogo_damping_ratio = self.pogo_damping
-        mover.gravity_scale = self.gravity_scale
+        for name, value in self.settings().items():
+            setattr(self.mover, name, value)
 
     def on_key_down(self, key):
         if key == "space":
