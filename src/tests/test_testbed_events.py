@@ -10,7 +10,7 @@ import copy
 
 import pytest
 
-from box2d import Vec2, World
+from box2d import HAS_THREADS, Vec2, World
 from box2d_testbed import tb_events  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import HERTZ, run, scenario
 
@@ -89,7 +89,18 @@ def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
     assert test.asleep == len(boxes)
 
 
-@pytest.fixture(params=[1, 4], ids=["1 thread", "4 threads"])
+@pytest.fixture(
+    params=[
+        pytest.param(1, id="1 thread"),
+        pytest.param(
+            4,
+            id="4 threads",
+            marks=pytest.mark.skipif(
+                not HAS_THREADS, reason="this build has no threads"
+            ),
+        ),
+    ]
+)
 def threaded_world(request):
     """A world stepped on one thread, and one stepped on four.
 
