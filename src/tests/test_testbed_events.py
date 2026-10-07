@@ -197,3 +197,15 @@ def test_a_figure_dragged_into_the_outlet_lets_go_of_the_mouse(world):
     test.on_mouse_drag(outlet, Vec2(0, 0))
     test.on_mouse_release(outlet)
     assert test.mouse_joint is None
+
+
+def test_ragdolls_in_the_funnel_together_never_share_a_group(world):
+    # A figure's bones share a negative group index, so that they pass
+    # through one another. Two figures with the same one would pass through
+    # each other too.
+    test = scenario(world, "Events", "Sensor Funnel")
+    for _ in range(20):
+        run(test, 1.0)
+        groups = [figure.head.shapes[0].filter.group for figure in test.elements]
+        assert len(set(groups)) == len(groups), sorted(groups)
+    assert test.delivered > 5, "figures should have come and gone"

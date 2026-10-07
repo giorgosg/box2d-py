@@ -523,6 +523,7 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
             sign = -sign
 
         self.elements = []
+        self.spawned = 0
         self.side = -15.0
         self.wait = 0.0
         self.delivered = 0
@@ -532,6 +533,7 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
         if len(self.elements) >= self.MAX_ELEMENTS:
             return
         position = (self.side, 29.5)
+        self.spawned += 1
 
         if self.shape == "human":
             element = Human(
@@ -541,7 +543,10 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
                 friction_torque=0.05,
                 hertz=6.0,
                 damping_ratio=0.5,
-                group_index=len(self.elements) + 1,
+                # A figure's bones share a negative group, so they pass
+                # through one another. Two figures sharing one would pass
+                # through each other too, so every figure gets its own.
+                group_index=self.spawned,
             )
             bodies = [bone.body for bone in element.bones]
         else:
