@@ -18,8 +18,8 @@ class Mover(BaseTest, category="Character", name="Mover"):
     it back or tips it over: it stops dead against the wall and walks
     straight up the ramp. It turns green while it stands on something.
 
-    Move with the left and right arrow keys, and jump with space from the
-    ground. Speed is how fast it walks and Jump Speed how fast a jump leaves
+    Move with the left and right arrow keys, or A and D, and jump with space
+    from the ground. Speed is how fast it walks and Jump Speed how fast a jump leaves
     the ground, both in m/s. Gravity is the character's own, in m/s^2: it is
     not a body, so the world's gravity never reaches it.
     """
@@ -60,12 +60,11 @@ class Mover(BaseTest, category="Character", name="Mover"):
         return (x, y - self.HALF_LENGTH), (x, y + self.HALF_LENGTH)
 
     def after_step(self, dt):
-        wanted = 0.0
-        if "left" in self.held:
-            wanted -= self.speed
-        if "right" in self.held:
-            wanted += self.speed
-        self.velocity = Vec2(wanted, self.velocity.y - self.gravity * dt)
+        # One way at most, however many keys point that way.
+        direction = sum({WALK_KEYS[key] for key in self.held})
+        self.velocity = Vec2(
+            direction * self.speed, self.velocity.y - self.gravity * dt
+        )
 
         point1, point2 = self.capsule()
         planes = self.world.collide_mover(point1, point2, self.RADIUS)
@@ -78,7 +77,7 @@ class Mover(BaseTest, category="Character", name="Mover"):
         self.velocity = clip_vector(self.velocity, planes)
 
     def on_key_down(self, key):
-        if key in ("left", "right"):
+        if key in WALK_KEYS:
             self.held.add(key)
         elif key == "space" and self.on_ground:
             self.velocity = Vec2(self.velocity.x, self.jump_speed)
