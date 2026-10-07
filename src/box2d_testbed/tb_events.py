@@ -93,15 +93,16 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
 
 
 class BouncingBoxes(BaseTest, category="Events", name="Contact"):
-    """Six bouncy boxes dropped into a walled pit, counted by contact events.
+    """Six bouncy boxes dropped into a walled pit, lit while they touch.
 
     Contact events are opt-in, and Box2D reports a contact if either of its
-    shapes asked, so only the boxes do. Begin and end events say when two
-    shapes start and stop touching, and the status line counts the shapes
-    touching something. Hit events are a separate opt-in, for contacts that
-    begin at speed: one fires only when the shapes close faster than the
-    world's hit threshold, so a box settling gently makes none. Each hit
-    flashes where it landed.
+    shapes asked, so only the boxes do. Begin and end events say when a
+    contact starts and stops touching, and the scene keeps the contacts
+    touching now: a box is lit while it is in one, and the status line
+    counts the shapes that are. Hit events are a separate opt-in, for
+    contacts that begin at speed: one fires only when the shapes close faster
+    than the world's hit threshold, so a box settling gently makes none. Each
+    hit flashes where it landed.
 
     Hit Threshold sets that speed, in m/s.
     """
@@ -137,7 +138,10 @@ class BouncingBoxes(BaseTest, category="Events", name="Contact"):
         for i in range(6):
             boxes.position(-5 + 2 * i, 6 + 1.5 * i).build()
 
-        self.touching = set()
+        # Touching contacts and their shapes. A shape can be in several at
+        # once -- the ground holds up every box -- so it stops touching when
+        # its last contact ends, not its first.
+        self.contacts = {}
         self.flashes = {}
         self.hit_count = 0
 
@@ -145,13 +149,9 @@ class BouncingBoxes(BaseTest, category="Events", name="Contact"):
         events = self.world.get_contact_events()
 
         for touch in events.begin:
-            self.touching.add(id(touch.shape_a))
-            self.touching.add(id(touch.shape_b))
+            self.contacts[touch.contact] = (touch.shape_a, touch.shape_b)
         for touch in events.end:
-            # A shape destroyed while touching still turns up here, as None.
-            for shape in (touch.shape_a, touch.shape_b):
-                if shape is not None:
-                    self.touching.discard(id(shape))
+            self.contacts.pop(touch.contact, None)
 
         # Each flash lasts twenty steps, fading as it goes.
         self.flashes = {k: v - 1 for k, v in self.flashes.items() if v > 1}
@@ -159,11 +159,21 @@ class BouncingBoxes(BaseTest, category="Events", name="Contact"):
             self.hit_count += 1
             self.flashes[(hit.point.x, hit.point.y)] = 20
 
+    @property
+    def touching(self):
+        """The shapes in a touching contact."""
+        return {shape for pair in self.contacts.values() for shape in pair}
+
     @hit_threshold.callback
     def on_threshold_change(self, key, value):
         self.world.hit_event_threshold = value
 
     def debug_draw(self, debug_draw):
+        for shape in self.touching:
+            if shape.body.type == "dynamic":
+                debug_draw.draw_polygon(
+                    shape.body.transform, shape.vertices, Color(80, 220, 120)
+                )
         for (x, y), life in self.flashes.items():
             debug_draw.draw_point((x, y), 4 + life, Color(255, 200, 0))
 

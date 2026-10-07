@@ -45,3 +45,24 @@ def test_the_foot_counts_the_ground_it_overlaps_until_the_player_walks_off(world
     assert events == overlaps, "the events lost track of the ground"
     assert 2 in events, "the foot should straddle two segments as it walks"
     assert events[-1] == 0, "the player should have run off the end"
+
+
+def touching_shapes(world):
+    """Every shape in a touching contact, as Box2D sees it."""
+    return {
+        shape
+        for body in world.bodies
+        for contact in body.contact_data
+        for shape in (contact.shape_a, contact.shape_b)
+    }
+
+
+def test_the_touching_count_keeps_the_ground_when_a_box_bounces_off_it(world):
+    test = scenario(world, "Events", "Contact")
+    # The boxes bounce, so each leaves the ground and lands again, while the
+    # ground's other contacts carry on. By 8 s they have settled.
+    run(test, 8.0)
+    floor = world.bodies[0].shapes[0]
+    assert floor in touching_shapes(world), "the boxes should be on the ground"
+
+    assert len(test.touching) == len(touching_shapes(world))
