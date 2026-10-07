@@ -151,12 +151,13 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
     over the ranges Box2D's sample gives them. Max Speed is the walking
     speed and Jump Speed how fast a jump leaves the ground, both in m/s, and
     Accelerate is how many times Max Speed the character gains per second,
-    Air Steer the share of that it keeps in the air. On the ground, Friction
-    takes off that many times its speed per second, or times Stop Speed when
-    it is slower than that, and below Min Speed it stops dead. Gravity Scale
-    multiplies the world's gravity for the character alone. Pogo Hertz and
-    Pogo Damping tune the spring holding it up, and Lock Camera keeps the
-    view on it.
+    Air Steer the share of that it keeps in the air -- up to about 0.2, past
+    which the mover joint's 20 N in the air is the limit, so 0.5 and 1 steer
+    alike. On the ground, Friction takes off that many times its speed per
+    second, or times Stop Speed when it is slower than that, and below Min
+    Speed it stops dead. Gravity Scale multiplies the world's gravity for
+    the character alone. Pogo Hertz and Pogo Damping tune the spring holding
+    it up, and Lock Camera keeps the view on it.
     """
 
     # On the character, where Lock Camera keeps the view from the first step.
