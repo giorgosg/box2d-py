@@ -6,6 +6,11 @@ and reports the wrong thing passes both, which is how the Contact scene's
 count of touching shapes lost the ground the first time a box bounced.
 """
 
+import copy
+
+import pytest
+
+from box2d import World
 from box2d_testbed import tb_events  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import run, scenario
 
@@ -82,3 +87,77 @@ def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
     run(test, 4.0)
     assert not any(box.awake for box in boxes), "and it settles again"
     assert test.asleep == len(boxes)
+
+
+@pytest.fixture(params=[1, 4], ids=["1 thread", "4 threads"])
+def threaded_world(request):
+    """A world stepped on one thread, and one stepped on four.
+
+    With more than one, Box2D runs pre-solve on its worker threads.
+    """
+    world = World(threads=request.param)
+    yield world
+    world.destroy()
+
+
+def jump_under_the_static_platform(world):
+    """The Platformer with its player stood under the left-hand platform,
+    whose top is at y = 6.5, and jumping."""
+    test = scenario(world, "Events", "Platformer")
+    test.player.position = (-6, 0.5)
+    run(test, 0.5)
+    test.on_key_down("space")
+    test.on_key_up("space")
+    return test
+
+
+def player_bottom(test):
+    # The capsule runs from y = 0 to 1 on the body, with radius 0.5.
+    return test.player.position.y - 0.5
+
+
+def test_the_player_jumps_up_through_a_platform_and_lands_on_it(threaded_world):
+    test = jump_under_the_static_platform(threaded_world)
+    highest = 0.0
+    for _ in range(60):
+        run(test, 1 / 60)
+        highest = max(highest, player_bottom(test))
+    assert highest > 6.5, "the platform stopped the player on the way up"
+
+    run(test, 2.0)
+
+    assert player_bottom(test) == pytest.approx(6.5, abs=0.05)
+    assert test.player.linear_velocity.length < 0.01
+
+
+def test_pre_solve_changes_nothing_but_the_contact(threaded_world):
+    test = jump_under_the_static_platform(threaded_world)
+    highest = 0.0
+    for _ in range(120):
+        # Copies of the containers; anything else is replaced, not changed.
+        before = {
+            name: copy.copy(value) if isinstance(value, (set, list, dict)) else value
+            for name, value in vars(test).items()
+        }
+        threaded_world.step(1 / 60, 4)
+        changed = [name for name, value in vars(test).items() if before[name] != value]
+        assert not changed, "the scenario changed during the step, from pre-solve"
+        test.after_step(1 / 60)
+        highest = max(highest, player_bottom(test))
+
+    assert highest > 6.5, "pre-solve should have let the player through"
+
+
+def test_the_platformer_knows_what_the_player_stands_on(world):
+    test = scenario(world, "Events", "Platformer")
+    ground, platform = world.bodies[0], world.bodies[1]
+    run(test, 0.5)
+    assert test.standing_on is ground
+
+    test.player.position = (-6, 0.5)
+    test.on_key_down("space")
+    run(test, 0.25)
+    assert test.standing_on is None, "in the air"
+
+    run(test, 2.0)
+    assert test.standing_on is platform

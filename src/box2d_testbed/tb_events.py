@@ -308,6 +308,15 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
     found and before it is solved. Emptying the manifold's points there drops
     the contact for that step; the callback's return value is ignored.
 
+    The callback only reads its arguments and edits the manifold. Box2D
+    calls it in the middle of the step, and with more than one thread on the
+    world, from its worker threads, several at once. Python's lock keeps
+    that from crashing, but not from losing updates: ``count += 1`` reads
+    and then writes, and another thread can write in between. So anything
+    the scene wants to know is worked out after the step instead, on the
+    main thread -- here, what the player is standing on, from the contacts
+    that survived pre-solve.
+
     Move with the left and right arrow keys, jump with space. Force is the
     push the arrows give, in N, and Jump Impulse the kick space gives, in N s.
     """
@@ -319,10 +328,10 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
     jump_impulse = UI.float(25.0, min=0.0, max=50.0)
 
     def setup(self):
-        self.world.new_body().static().segment((-20, 0), (20, 0)).build()
+        ground = self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 
         # Both platforms let contacts through from below.
-        (
+        platform = (
             self.world.new_body()
             .static()
             .position(-6, 6)
@@ -348,11 +357,16 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
             .build()
         )
         self.player_shape = self.player.shapes[0]
+        self.surfaces = {
+            ground: "the ground",
+            platform: "the platform",
+            self.moving_platform: "the moving platform",
+        }
 
         self.world.pre_solve = self.on_pre_solve
         self.world.pre_continuous = self.on_pre_continuous
         self.held = set()
-        self.dropped = 0
+        self.standing_on = None
 
     def on_pre_solve(self, shape_a, shape_b, manifold):
         """Drop the contact unless the player is on top of the platform."""
@@ -377,13 +391,12 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         else:
             return True
 
-        if sign * normal.y > 0.95:
-            return True
-        self.dropped += 1
-        return False
+        return sign * normal.y > 0.95
 
     def after_step(self, dt):
-        # Bounce the moving platform between two walls.
+        self.standing_on = self.support()
+
+        # Turn the moving platform round at either end of its run.
         if self.moving_platform.position.x > 8:
             self.moving_platform.linear_velocity = (-2, 0)
         elif self.moving_platform.position.x < -8:
@@ -403,8 +416,27 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
     def on_key_up(self, key):
         self.held.discard(key)
 
+    def support(self):
+        """The body the player is standing on, or None in the air.
+
+        Only touching contacts are listed, and a contact pre-solve dropped
+        is not touching, so a platform the player is passing up through
+        never shows here.
+        """
+        for contact in self.player.contact_data:
+            if contact.shape_b is self.player_shape:
+                other, up = contact.shape_a, contact.manifold.normal.y
+            else:
+                other, up = contact.shape_b, -contact.manifold.normal.y
+            # Something to stand on is underneath, not beside the player.
+            if up > 0.7:
+                return other.body
+        return None
+
     def status(self):
-        return f"contacts dropped: {self.dropped}"
+        if self.standing_on is None:
+            return "in the air"
+        return f"standing on {self.surfaces[self.standing_on]}"
 
 
 class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
