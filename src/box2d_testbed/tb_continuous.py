@@ -26,8 +26,9 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     then goes through anyway.
 
     Launch drops another box, and so does changing any control. Capsule
-    drops a capsule instead, Speed sets how fast, in m/s, and Random spin
-    sets it spinning at up to 50 rad/s either way.
+    drops a capsule instead. Speed sets how fast, in m/s, up to the 400 m/s
+    Box2D lets any body go. Random spin sets it spinning at up to 50 rad/s
+    either way.
     """
 
     camera_center = (1, 5)
@@ -43,7 +44,9 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
 
     continuous = UI.bool(True, label="World continuous")
     capsule = UI.bool(False)
-    speed = UI.float(300.0, min=50.0, max=600.0)
+    # Up to Box2D's maximum linear speed, 400 m/s by default: it holds any
+    # body to that, so a faster launch would fall no faster.
+    speed = UI.float(300.0, min=50.0, max=400.0)
     spin = UI.bool(True, label="Random spin")
     launch = UI.button("Launch")
 

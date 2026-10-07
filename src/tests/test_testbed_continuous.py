@@ -12,7 +12,7 @@ import pytest
 
 from box2d import Capsule
 from box2d_testbed.tb_continuous import SkinnyBox
-from testbed_scenarios import press, run, scenario
+from testbed_scenarios import HERTZ, press, run, scenario
 
 
 def test_the_pinball_flippers_rest_down_before_any_key_is_pressed(world):
@@ -132,3 +132,15 @@ def test_the_ragdolls_stay_in_the_bouncy_box(world):
 
     assert len(test.humans) == 5
     assert max(b.linear_velocity.length for b in bones) > 5.0, "they should fly"
+
+
+def test_the_fastest_speed_the_slider_allows_is_the_speed_the_box_falls(world):
+    test = scenario(world, "Continuous", "Skinny Box")
+    fastest = SkinnyBox.speed.max_value
+
+    test.speed = fastest
+    run(test, 1 / HERTZ)
+
+    # Still in the air: a step at 400 m/s takes it from 8 m to 1.3 m.
+    assert test.projectile.position.y > 1.0
+    assert test.projectile.linear_velocity.y == pytest.approx(-fastest, rel=1e-3)
