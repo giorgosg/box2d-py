@@ -180,9 +180,8 @@ class BaseTest:
         checks here rather than using a joint that would raise.
         """
         if self.mouse_joint is not None and not self.mouse_joint.is_valid:
-            # destroy() is safe on a joint Box2D has reclaimed, and still
-            # needed: the kinematic body the joint pulled from outlives it.
-            self.mouse_joint.destroy()
+            # Nothing to tidy: the kinematic body the joint pulled from went
+            # with it.
             self.mouse_joint = None
         return self.mouse_joint
 

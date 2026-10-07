@@ -21,7 +21,18 @@ Creation and Destruction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 * ``World(gravity=(0, -10), threads=1)`` - Create a world with specified gravity
-* ``world.destroy()`` - Clean up all resources
+* ``world.destroy()`` - Destroy the world and every body, shape and joint in it
+
+The world keeps what it contains: a body, shape or joint stays alive while it
+does, whether or not the caller kept the object that created it, and anything
+that hands it back -- ``body.joints``, a ray cast, an event -- returns that same
+object. Events describe the step that finished, so they can name something
+destroyed since: a sensor event gives None for a destroyed sensor or visitor,
+and body and joint events leave such objects out. Destroying a body takes its
+shapes and joints with it, a mouse joint's proxy body included; anything
+destroyed raises ``DestroyedError`` if used. Nothing can be created or
+destroyed from a callback during ``world.step()``, nor the world stepped again:
+each raises ``RuntimeError`` then, so do it after the step.
 
 Simulation Control
 ^^^^^^^^^^^^^^^^^^
@@ -134,8 +145,8 @@ Event generated when a sensor shape begins or ends overlap with another shape.
 Properties
 ^^^^^^^^^^
 
-* ``sensor`` - The sensor shape that triggered the event
-* ``visitor`` - The shape that entered or left the sensor
+* ``sensor`` - The sensor shape that triggered the event, or None if destroyed
+* ``visitor`` - The shape that entered or left the sensor, or None if destroyed
 * ``begin`` - True for beginning overlap, False for ending overlap
 
 SensorEvents

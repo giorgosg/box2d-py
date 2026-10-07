@@ -67,14 +67,28 @@ class Joint(FixedAttributes):
     #: nothing, so setting an unknown one raises instead.
     user_data = None
 
-    def _set_userdata(self):
-        """Finalize joint creation in the physics simulation.
+    def _join(self, world):
+        """Make this joint part of ``world``, before anything is built for it.
 
-        Should be called after joint configuration is complete. Handles the
-        internal connection between the joint definition and simulation.
+        Box2D creates nothing while the world is stepping, so that is refused
+        here, ahead of every joint's first call into Box2D -- a mouse joint
+        would otherwise make its proxy body first.
+        """
+        world._refuse_while_locked("joint", "create")
+        self.world = world
+
+    def _register(self):
+        """Hand Box2D a handle to this joint, and the world a reference to it.
+
+        Called once the joint exists. The handle in Box2D's user data is how a
+        joint id read back from Box2D -- ``body.joints``, joint events --
+        becomes this object again. A handle does not keep its object alive,
+        and a joint whose wrapper was collected aborted the interpreter on the
+        next lookup, so the world holds every joint as it holds every body.
         """
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
+        self.world._track_joint(self)
 
     def destroy(self):
         """Destroy the joint and remove it from the world.
@@ -82,13 +96,28 @@ class Joint(FixedAttributes):
         Both bodies it connected are woken, so they can react to losing the
         constraint. The joint raises :class:`.DestroyedError` if used
         afterwards. Destroying twice is a no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         # Read past the validity check so destroy stays callable on a joint
         # Box2D has already reclaimed, e.g. one whose bodies went first.
         raw = raw_id(self, "_joint_id")
         if raw is not None and lib.b2Joint_IsValid(raw):
+            self.world._refuse_while_locked("joint")
             lib.b2DestroyJoint(raw)
+        self._release()
         del self._joint_id
+
+    def _release(self):
+        """Let go of this joint once Box2D no longer has it.
+
+        Box2D's handle to the wrapper is gone with the joint, so the world's
+        reference is no longer needed. Called by :meth:`destroy`, and by
+        :meth:`.Body.destroy` for each joint Box2D takes down with the body.
+        """
+        self.world._untrack_joint(raw_id(self, "_joint_id"))
 
     @property
     def is_valid(self):
@@ -296,10 +325,8 @@ class MouseJoint(Joint):
     what upstream's own samples now use for dragging: a kinematic proxy body at
     the target, joined to the dragged body by a motor joint with a linear
     spring. Moving the target moves the proxy, and the spring pulls the body
-    after it. The proxy is destroyed along with the joint by :meth:`destroy`.
-    A joint that Box2D takes down with the dragged body leaves the proxy behind
-    until :meth:`destroy` is called on it, which is safe once the joint is
-    gone.
+    after it. The proxy is destroyed along with the joint, whether by
+    :meth:`destroy` or by Box2D taking the joint down with the dragged body.
     """
 
     def __init__(
@@ -321,7 +348,7 @@ class MouseJoint(Joint):
             damping_ratio: Spring damping
             hertz: Spring stiffness in Hz
         """
-        self.world = world
+        self._join(world)
         self._body = body
 
         # The kinematic proxy the spring pulls towards. It must not sleep, or
@@ -344,16 +371,31 @@ class MouseJoint(Joint):
         self._joint_id = lib.b2CreateMotorJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
         self.wake_bodies()
 
     def destroy(self):
-        """Destroy the joint and the kinematic proxy body backing it."""
+        """Destroy the joint and the kinematic proxy body backing it.
+
+        Destroying twice is a no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
+        """
         super().destroy()
+
+    def _release(self):
+        """Release the joint, and destroy the proxy body only it was using.
+
+        This runs however the joint went -- destroyed, or taken down with the
+        dragged body or the proxy itself -- so the proxy never outlives it.
+        """
+        super()._release()
         proxy = getattr(self, "_proxy", None)
+        self._proxy = None
         if proxy is not None:
             proxy.destroy()
-            self._proxy = None
 
     @property
     def target(self):
@@ -378,8 +420,7 @@ class MouseJoint(Joint):
         """The proxy body, raising DestroyedError once the joint is gone.
 
         The target lives on the proxy rather than the joint, so the joint's own
-        check has to be made here: the proxy cannot tell, as it can outlive the
-        joint, and destroy() drops it.
+        check has to be made here: once the joint is gone, so is the proxy.
         """
         _ = self._joint_id  # raises if the joint is gone
         return self._proxy
@@ -423,7 +464,7 @@ class FilterJoint(Joint):
             collide_connected: Ignored. A filter joint exists to stop these two
                 colliding, so honouring this would defeat it.
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultFilterJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -433,7 +474,7 @@ class FilterJoint(Joint):
         self._joint_id = lib.b2CreateFilterJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
 
 class WeldJoint(Joint):
@@ -479,7 +520,7 @@ class WeldJoint(Joint):
         self._angular_hertz = angular_hertz
         self._angular_damping_ratio = angular_damping_ratio
         self._reference_angle = reference_angle
-        self.world = world
+        self._join(world)
         defn = lib.b2DefaultWeldJointDef()
         defn.base.bodyIdA = body_a._body_id
         defn.base.bodyIdB = body_b._body_id
@@ -506,7 +547,7 @@ class WeldJoint(Joint):
         self._joint_id = lib.b2CreateWeldJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     linear_hertz = b2_float(
         lib.b2WeldJoint_GetLinearHertz,
@@ -583,6 +624,7 @@ class RevoluteJoint(Joint):
         Raises:
             ValueError: If lower_limit is above upper_limit.
         """
+        self._join(world)
         self._localAnchorA = Vec2(local_anchor_a)
         self._localAnchorB = Vec2(local_anchor_b)
         self._lower_limit = lower_limit
@@ -636,11 +678,10 @@ class RevoluteJoint(Joint):
             defn.targetAngle = target_angle
 
         self._def = defn
-        self.world = world
         self._joint_id = lib.b2CreateRevoluteJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     angle = b2_value(
         lib.b2RevoluteJoint_GetAngle,
@@ -805,7 +846,7 @@ class PrismaticJoint(Joint):
         self._enable_spring = enable_spring
         self._hertz = spring_hertz
         self._damping_ratio = spring_damping_ratio
-        self.world = world
+        self._join(world)
         defn = lib.b2DefaultPrismaticJointDef()
         defn.base.bodyIdA = body_a._body_id
         defn.base.bodyIdB = body_b._body_id
@@ -851,7 +892,7 @@ class PrismaticJoint(Joint):
         self._joint_id = lib.b2CreatePrismaticJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     joint_translation = b2_value(
         lib.b2PrismaticJoint_GetTranslation,
@@ -1006,7 +1047,7 @@ class WheelJoint(Joint):
         self._enable_spring = enable_spring
         self._spring_hertz = spring_hertz
         self._spring_damping_ratio = spring_damping_ratio
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultWheelJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1033,7 +1074,7 @@ class WheelJoint(Joint):
         self._joint_id = lib.b2CreateWheelJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     enable_spring = b2_bool(
         lib.b2WheelJoint_IsSpringEnabled,
@@ -1181,7 +1222,7 @@ class DistanceJoint(Joint):
         self._enable_motor = enable_motor
         self._motor_speed = motor_speed
         self._max_motor_force = max_motor_force
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultDistanceJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1223,7 +1264,7 @@ class DistanceJoint(Joint):
         self._joint_id = lib.b2CreateDistanceJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     length = b2_float(
         lib.b2DistanceJoint_GetLength,
@@ -1411,7 +1452,7 @@ class MotorJoint(Joint):
             max_spring_torque (float): Torque cap for the angular spring
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultMotorJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1442,7 +1483,7 @@ class MotorJoint(Joint):
         self._joint_id = lib.b2CreateMotorJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     @property
     def linear_velocity(self):
@@ -1534,7 +1575,7 @@ class MoverJoint(Joint):
                 newtons. An axis with zero force is not driven.
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultMoverJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1549,7 +1590,7 @@ class MoverJoint(Joint):
         self._joint_id = lib.b2CreateMoverJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     @property
     def linear_velocity(self) -> Vec2:
@@ -1627,7 +1668,7 @@ class PogoJoint(Joint):
             velocity (float): Starting spring velocity, from the previous pogo
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultPogoJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1652,7 +1693,7 @@ class PogoJoint(Joint):
         self._joint_id = lib.b2CreatePogoJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
-        self._set_userdata()
+        self._register()
 
     rest_length = b2_float(
         lib.b2PogoJoint_GetRestLength,

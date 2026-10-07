@@ -11,7 +11,17 @@ the id is still live on each read and raises :class:`.DestroyedError` if it is
 not. Box2D's own ``b2*_IsValid`` functions are safe to call on stale ids,
 including ids whose world has already been destroyed, so this check never
 crashes on the values it is meant to reject.
+
+Going the other way, from an id Box2D hands back to the wrapper it belongs to,
+relies on the user data each wrapper gives Box2D: a cffi handle to itself. A
+handle does not keep its object alive, so every wrapper is held by its owner
+for as long as Box2D has it -- the world holds bodies and joints, a body its
+shapes and chains, a chain its segments -- and released when it is destroyed.
 """
+
+from typing import Callable, Optional
+
+from ._checked import ffi
 
 
 class DestroyedError(RuntimeError):
@@ -88,3 +98,29 @@ def is_live(obj, name: str, is_valid) -> bool:
     """
     raw = raw_id(obj, name)
     return raw is not None and bool(is_valid(raw))
+
+
+def wrapper_for(
+    object_id,
+    is_valid: Callable[..., bool],
+    get_user_data: Callable[..., object],
+) -> Optional[object]:
+    """The wrapper an id Box2D reported belongs to, or None if it is gone.
+
+    Box2D's events are a record of the step that has finished, so they can
+    name an object destroyed since. Its wrapper has been released by then, and
+    following its handle would read freed memory, so the id is checked first.
+
+    Args:
+        object_id: The id, e.g. a ``b2ShapeId`` from a sensor event.
+        is_valid: The Box2D validity function for this id type.
+        get_user_data: The matching user data getter, e.g.
+            ``lib.b2Shape_GetUserData``.
+
+    Returns:
+        The wrapper, or None if the id is no longer valid or has no handle.
+    """
+    if not is_valid(object_id):
+        return None
+    data = get_user_data(object_id)
+    return ffi.from_handle(data) if data != ffi.NULL else None

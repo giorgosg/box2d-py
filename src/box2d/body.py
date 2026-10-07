@@ -564,7 +564,11 @@ class Body(FixedAttributes):
             world: The World instance in which this body exists.
             body_def: The body definition used to create this body. It is not
                 modified, so a definition may be reused to create many bodies.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step.
         """
+        world._refuse_while_locked("body", "create")
         self.world = world
         self._handle = ffi.new_handle(self)
 
@@ -941,7 +945,6 @@ class Body(FixedAttributes):
             angle,
             **shapedef_args,
         )
-        self._shapes.append(shape)
         return shape
 
     def add_circle(
@@ -967,7 +970,6 @@ class Body(FixedAttributes):
             center,
             **shapedef_args,
         )
-        self._shapes.append(shape)
         return shape
 
     def add_capsule(
@@ -996,7 +998,6 @@ class Body(FixedAttributes):
             radius,
             **shapedef_args,
         )
-        self._shapes.append(shape)
         return shape
 
     def add_polygon(
@@ -1022,7 +1023,6 @@ class Body(FixedAttributes):
             radius,
             **shapedef_args,
         )
-        self._shapes.append(shape)
         return shape
 
     def add_segment(
@@ -1048,7 +1048,6 @@ class Body(FixedAttributes):
             point2,
             **shapedef_args,
         )
-        self._shapes.append(shape)
         return shape
 
     def add_chain(
@@ -1074,7 +1073,6 @@ class Body(FixedAttributes):
             loop,
             **chaindef_args,
         )
-        self._chains.append(chain)
         return chain
 
     def remove_shape(self, shape):
@@ -1099,20 +1097,31 @@ class Body(FixedAttributes):
         """
         Destroy this body and remove it from the world.
 
-        Destroying a body also destroys its shapes. The body and its shapes
-        raise :class:`.DestroyedError` if used afterwards. Destroying twice is a
+        Destroying a body also destroys its shapes and every joint attached to
+        it. The body, its shapes and those joints raise
+        :class:`.DestroyedError` if used afterwards. Destroying twice is a
         no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         # Read past the validity check: the id is needed to deregister the body
         # even once Box2D no longer recognises it (e.g. the world went first).
         raw = raw_id(self, "_body_id")
         if raw is None:
             return
+        # Box2D destroys the attached joints with the body, so their wrappers
+        # are looked up first, while the ids still lead to them.
+        joints = []
         if lib.b2Body_IsValid(raw):
+            self.world._refuse_while_locked("body")
+            joints = self._read_joints()
             lib.b2DestroyBody(raw)
-        if hasattr(self.world, "_bodies"):
-            self.world._bodies.pop(raw, None)
+        self.world._untrack_body(raw)
         del self._body_id
+        for joint in joints:
+            joint._release()
 
     def get_local_point(self, world_point: VectorLike) -> Vec2:
         """Convert a point from world space to local body space.
@@ -1298,7 +1307,8 @@ class Body(FixedAttributes):
         """Get all joints attached to this body.
 
         Returns:
-            List of Joint objects attached to this body.
+            List of Joint objects attached to this body: the same objects the
+            ``add_*_joint`` methods returned, whether or not they were kept.
         """
         return self._read_joints()
 

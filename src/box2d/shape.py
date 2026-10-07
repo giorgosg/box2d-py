@@ -45,13 +45,30 @@ class Shape(FixedAttributes):
     user_data = None
 
     def __init__(self, body: "Body", user_data=None):
+        # Every shape's constructor comes here before asking Box2D for it.
+        body.world._refuse_while_locked("shape", "create")
         self._body = body
         self.user_data = user_data
 
     def _set_handle(self):
-        """Set the handle for the shape."""
+        """Hand Box2D a handle to this shape, through its user data.
+
+        That handle is how a shape id from Box2D -- a ray cast hit, an event --
+        becomes this object again. It does not keep the object alive, so
+        whatever calls this must also see that something holds the shape.
+        """
         self._handle = ffi.new_handle(self)
         lib.b2Shape_SetUserData(self._shape_id, self._handle)
+
+    def _register(self):
+        """Set the handle, and have the body hold this shape until destroyed.
+
+        Done here rather than in ``body.add_*``, since ``Circle.create`` and
+        the rest make a shape without it, and a shape nothing held was
+        collected while Box2D still had its handle.
+        """
+        self._set_handle()
+        self._body._shapes.append(self)
 
     density = b2_float(
         lib.b2Shape_GetDensity,
@@ -289,11 +306,16 @@ class Shape(FixedAttributes):
             update_body_mass: Recompute the body's mass from its remaining
                 shapes. Pass False when removing several shapes at once and
                 call body.update_mass_from_shapes() when done.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         raw = raw_id(self, "_shape_id")
         if raw is None:
             return
         if lib.b2Shape_IsValid(raw):
+            self._body.world._refuse_while_locked("shape")
             lib.b2DestroyShape(raw, bool(update_body_mass))
         body = getattr(self, "_body", None)
         if body is not None and self in getattr(body, "_shapes", ()):
@@ -504,7 +526,7 @@ class Circle(Shape):
         self._shape_id = lib.b2CreateCircleShape(
             body._body_id, ffi.addressof(sd), circledef.b2Circle
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> CircleDef:
@@ -569,7 +591,7 @@ class Capsule(Shape):
         self._shape_id = lib.b2CreateCapsuleShape(
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> CapsuleDef:
@@ -647,7 +669,7 @@ class Segment(Shape):
         self._shape_id = lib.b2CreateSegmentShape(
             body._body_id, ffi.addressof(sd), segmentdef.b2Segment
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> SegmentDef:
@@ -715,7 +737,7 @@ class Polygon(Shape):
             ffi.addressof(sd),
             ffi.addressof(pd),
         )
-        self._set_handle()
+        self._register()
 
     @property
     def geometry(self) -> PolygonDef:
@@ -826,6 +848,8 @@ class ChainSegment(Shape):
         self._shape_id = b2chainsegment
         self._parent_chain = chain
         super().__init__(chain.body)
+        # Held by the chain, in its segments, rather than by the body: the
+        # body's shapes leave chain segments out.
         self._set_handle()
 
     def destroy(self, update_body_mass: bool = True) -> None:
@@ -862,6 +886,7 @@ class Chain(FixedAttributes):
     user_data = None
 
     def __init__(self, body: "Body", chaindef: ChainDef):
+        body.world._refuse_while_locked("chain", "create")
         self._body = body
         self.user_data = chaindef.user_data
         self._is_loop = chaindef.is_loop
@@ -879,6 +904,9 @@ class Chain(FixedAttributes):
             ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
             for i in range(returned)
         ]
+        # The body holds the chain, and so its segments, until it is
+        # destroyed: Box2D has handles to the segments.
+        body._chains.append(self)
 
     @classmethod
     def create(
@@ -932,11 +960,16 @@ class Chain(FixedAttributes):
         The chain and its segments raise :class:`.DestroyedError` if used
         afterwards. Destroying twice is a no-op, as is destroying a chain whose
         body has already gone.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         raw = raw_id(self, "_chain_id")
         if raw is None:
             return
         if lib.b2Chain_IsValid(raw):
+            self._body.world._refuse_while_locked("chain")
             lib.b2DestroyChain(raw)
         chains = getattr(self._body, "_chains", ())
         if self in chains:
