@@ -221,3 +221,34 @@ def test_the_funnel_drops_one_figure_every_half_second_from_the_start(world):
 
     # The first comes with the scene, then one at 0.5 s and one at 1 s.
     assert counts == [1, 1, 2, 3]
+
+
+def test_raising_the_hit_threshold_above_any_landing_silences_the_hits(world):
+    test = scenario(world, "Events", "Contact")
+    # The boxes land at up to 16 m/s.
+    test.hit_threshold = 20.0
+    run(test, 8.0)
+
+    assert test.hit_count == 0
+
+
+def test_a_raised_threshold_reaches_the_links_already_built(world):
+    test = scenario(world, "Events", "Joint")
+    # At the default 2000 N every link breaks 0.75 s in.
+    test.threshold = 10000.0
+    run(test, 1.0)
+
+    assert test.broken == 0
+
+
+def test_choosing_donuts_empties_the_funnel_and_drops_donuts(world):
+    test = scenario(world, "Events", "Sensor Funnel")
+    run(test, 2.0)
+    heads = [figure.head for figure in test.elements]
+
+    test.shape = "donut"
+    run(test, 1.0)
+
+    assert not any(head.is_valid for head in heads), "the ragdolls should be gone"
+    assert test.elements, "donuts should be falling"
+    assert all(isinstance(element, list) for element in test.elements)
