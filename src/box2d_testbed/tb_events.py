@@ -2,11 +2,7 @@ from box2d import CollisionFilter, Color, SurfaceMaterial
 
 from .base_test import UI, BaseTest
 from .human import Human
-from .shared import donut
-
-#: The keys that walk a character, and which way: the arrows, or A and D as
-#: in Box2D's samples.
-WALK_KEYS = {"left": -1, "a": -1, "right": 1, "d": 1}
+from .shared import WALK_KEYS, donut, walk_direction
 
 
 class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
@@ -78,9 +74,8 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
         self.held.discard(key)
 
     def after_step(self, dt):
-        # Holding both ways pushes both ways, and the player stands still.
-        direction = sum({WALK_KEYS[key] for key in self.held})
-        self.player.apply_force((self.FORCE * direction, 0))
+        # Holding both ways, the pushes cancel and the player stands still.
+        self.player.apply_force((self.FORCE * walk_direction(self.held), 0))
 
         events = self.world.get_sensor_events()
         self.overlaps += sum(1 for event in events.begin if event.sensor is self.foot)

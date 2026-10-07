@@ -2,12 +2,15 @@
 
 import random
 
+import pytest
+
 from box2d import World
 
 from box2d_testbed import shared
 from box2d_testbed.shared import donut, random_polygon
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_random_polygon_is_one_box2d_can_build():
     random.seed(0)
     for _ in range(200):

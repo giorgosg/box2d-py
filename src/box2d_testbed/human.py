@@ -213,6 +213,13 @@ BONES: Tuple[BoneDef, ...] = (
 FOOT_POINTS = ((-0.03, -0.185), (0.11, -0.185), (0.11, -0.16), (-0.03, -0.14))
 FOOT_RADIUS = 0.015
 
+#: Friction of the bones and of the soles, which are slippery. Box2D's values.
+BONE_FRICTION = 0.2
+FOOT_FRICTION = 0.05
+#: Box2D's too: a bone may sleep once it is slower than 0.1 m/s, twice the
+#: default.
+SLEEP_THRESHOLD = 0.1
+
 
 @dataclass
 class Bone:
@@ -291,31 +298,33 @@ class Human:
         )
 
         for definition in BONES:
-            body = self.world.add_body(
-                body_type="dynamic",
-                position=position + Vec2(0.0, definition.y * scale),
-                linear_damping=definition.linear_damping,
-                sleep_threshold=0.1,
-                name=definition.name,
-                user_data=user_data,
-            )
-            body.add_capsule(
-                Vec2(definition.center1) * scale,
-                Vec2(definition.center2) * scale,
-                radius=definition.radius * scale,
-                friction=0.2,
-                filter=body_filter,
-                custom_color=colors[definition.color] if colorize else None,
+            builder = (
+                self.world.new_body()
+                .dynamic()
+                .position(position + Vec2(0.0, definition.y * scale))
+                .linear_damping(definition.linear_damping)
+                .sleep_threshold(SLEEP_THRESHOLD)
+                .name(definition.name)
+                .user_data(user_data)
+                .capsule(
+                    Vec2(definition.center1) * scale,
+                    Vec2(definition.center2) * scale,
+                    radius=definition.radius * scale,
+                    friction=BONE_FRICTION,
+                    filter=body_filter,
+                    custom_color=colors[definition.color] if colorize else None,
+                )
             )
             if definition.has_foot:
-                body.add_polygon(
+                builder.polygon(
                     [Vec2(point) * scale for point in FOOT_POINTS],
                     radius=FOOT_RADIUS * scale,
                     # A slippery, flat sole; feet also skip other ragdolls.
-                    friction=0.05,
+                    friction=FOOT_FRICTION,
                     filter=foot_filter,
                     custom_color=FOOT_COLOR if colorize else None,
                 )
+            body = builder.build()
 
             bone = Bone(definition.name, body, friction_scale=definition.friction_scale)
 
@@ -346,8 +355,9 @@ class Human:
     def destroy(self):
         """Remove the figure from the world.
 
-        Joints go first: destroying a body takes its joints with it, and
-        Box2D would then be handed ids it has already reclaimed.
+        Destroying a body takes its joints with it, so the bones alone would
+        do; the joints go first as in Box2D's ``DestroyHuman``. Anything
+        already gone, destroyed by hand or with its body, is skipped.
         """
         for bone in self.bones:
             if bone.joint is not None and bone.joint.is_valid:
@@ -396,7 +406,8 @@ class Human:
         """How hard the joints resist being moved.
 
         Zero switches the motors off, which is the difference between a body
-        that folds under its own weight and one that holds a pose.
+        that folds under its own weight and one that holds a pose. Like the
+        other joint setters, this wakes the figure.
         """
         # Kept so a later set_scale scales this torque, not the one the
         # figure was built with.
@@ -409,6 +420,7 @@ class Human:
             else:
                 bone.joint.enable_motor = True
                 bone.joint.max_motor_torque = self.scale * bone.friction_scale * torque
+        self._wake_retuned_joints()
 
     def set_joint_spring_hertz(self, hertz: float):
         """Spring frequency pulling joints back towards their rest pose."""
@@ -420,12 +432,25 @@ class Human:
             else:
                 bone.joint.enable_spring = True
                 bone.joint.spring_hertz = hertz
+        self._wake_retuned_joints()
 
     def set_joint_damping_ratio(self, damping_ratio: float):
         """Damping for the joint springs."""
         for bone in self.bones:
             if bone.joint is not None:
                 bone.joint.spring_damping_ratio = damping_ratio
+        self._wake_retuned_joints()
+
+    def _wake_retuned_joints(self):
+        """Wake the bodies of every joint, which the setters have just changed.
+
+        Box2D does not wake a body when one of its joints changes, so a figure
+        that had settled would sleep through a new friction or spring until
+        something touched it. Box2D's Ragdoll sample leaves it at that; here
+        the figure wakes, so a slider moved after it settles shows at once.
+        """
+        for joint in self.joints:
+            joint.wake_bodies()
 
     def set_scale(self, scale: float):
         """Resize the figure in place, keeping its pose.
