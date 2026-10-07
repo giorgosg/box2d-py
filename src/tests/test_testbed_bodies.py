@@ -62,3 +62,31 @@ def test_reset_with_dynamic_chosen_drops_the_platform_straight_down(world):
     # Down onto the ground, where landing nudges it a few millimetres.
     run(test, 1.0)
     assert abs(test.platform.position.x) < 0.05
+
+
+def test_enable_sleep_holds_for_the_scene_reset_builds(world):
+    test = scenario(world, "Bodies", "Body Type")
+    test.body_type = "static"
+    test.enable_sleep = False
+
+    press(test, "reset")
+    run(test, 3.0)
+
+    assert all(box.awake for box in test.cargo), "cargo at rest stays awake"
+    assert not any(body.enable_sleep for body in [test.platform, *test.cargo])
+
+
+def test_enable_sleep_lets_cargo_at_rest_sleep_again(world):
+    test = scenario(world, "Bodies", "Body Type")
+    test.body_type = "static"
+    run(test, 3.0)
+    assert not any(box.awake for box in test.cargo), "at rest, the cargo sleeps"
+
+    test.enable_sleep = False
+    assert all(box.awake for box in test.cargo), "and wakes when it may not"
+    run(test, 3.0)
+    assert all(box.awake for box in test.cargo)
+
+    test.enable_sleep = True
+    run(test, 3.0)
+    assert not any(box.awake for box in test.cargo)

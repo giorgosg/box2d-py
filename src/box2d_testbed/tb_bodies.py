@@ -40,6 +40,7 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
             self.world.new_body()
             .kinematic()
             .position(0, 5)
+            .enable_sleep(self.enable_sleep)
             .box(8, 1, friction=self.FRICTION)
             .build()
         )
@@ -49,7 +50,12 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
         # outer ones come off: the platform moves on 1.3 m while they fall,
         # and at either end it turns round so sharply that a box skids about
         # as far along it before friction catches it up.
-        cargo = self.world.new_body().dynamic().box(1, 1, friction=self.FRICTION)
+        cargo = (
+            self.world.new_body()
+            .dynamic()
+            .enable_sleep(self.enable_sleep)
+            .box(1, 1, friction=self.FRICTION)
+        )
         self.cargo = [cargo.position(-2.25 + 1.5 * i, 8).build() for i in range(4)]
 
     def after_step(self, dt):
