@@ -8,12 +8,26 @@ from .human import Human
 
 
 class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
-    """A thin box thrown down at a thin obstacle.
+    """A thin box thrown down at 300 m/s, at a floor with no thickness.
 
-    Fast, thin geometry is where discrete collision fails: between two steps
-    the box can pass clean through the post. Turning off continuous collision
-    for the world shows exactly that, and the bullet flag asks Box2D to sweep
-    the body against static geometry regardless.
+    At that speed the box covers 5 m a step, so a check for overlap after
+    each step would find it above the floor one step and below it the next.
+    Continuous collision sweeps its path between the two against the floor,
+    and stops it there. Box2D does that for every fast body against static
+    ones, so the floor needs nothing from the box: a bullet is only needed
+    against bodies that move, as in Vertical Stack. Untick World continuous,
+    which turns it off for the whole world as the testbed's Continuous
+    Collision setting does, and every box goes straight through.
+
+    A box that lands spinning can turn the spin into a skid: to the right
+    the post stops it, and to the left it can go off the end of the floor,
+    which the count leaves out. Spin is the hard case for the sweep, too: at
+    4 sub-steps a step rather than the testbed's 20, a spinning box now and
+    then goes through anyway.
+
+    Launch drops another box, and so does changing any control. Capsule
+    drops a capsule instead, Speed sets how fast, in m/s, and Random spin
+    sets it spinning at up to 50 rad/s either way.
     """
 
     camera_center = (1, 5)
@@ -23,15 +37,12 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     FLOOR_HALF_WIDTH = 10.0
 
     continuous = UI.bool(True, label="World continuous")
-    bullet = UI.bool(False)
     capsule = UI.bool(False)
     speed = UI.float(300.0, min=50.0, max=600.0)
     spin = UI.bool(True, label="Random spin")
     launch = UI.button("Launch")
 
     def setup(self):
-        # A thin floor is the case discrete collision misses: at 300 m/s a body
-        # moves 5 units per step and can start above it and end below it.
         (
             self.world.new_body()
             .static()
@@ -63,8 +74,6 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
             builder.capsule((0, -1.0), (0, 1.0), radius=0.1)
         else:
             builder.box(0.2, 2.0)
-        if self.bullet:
-            builder.bullet()
 
         self.projectile = builder.build()
         self.launches += 1
@@ -85,7 +94,6 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
             self.checked = True
 
     @launch.callback
-    @bullet.callback
     @capsule.callback
     @speed.callback
     @spin.callback

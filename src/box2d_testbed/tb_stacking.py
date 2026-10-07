@@ -214,13 +214,14 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
 
     The ball covers 6.7 m a step, more than a column and the gap to the
     next, so checking for overlap after each step would miss the boxes
-    altogether. It is a bullet, and Box2D sweeps a bullet's path against the
-    other dynamic bodies as well as the static ones, so it hits the first
-    column instead. A body that is not a bullet is swept against static
-    bodies only: it would pass every column and stop at the wall.
+    altogether. Box2D sweeps every fast body's path between steps against
+    static bodies, but only a bullet's against dynamic ones too. So a bullet
+    hits the first column, and a ball that is not one passes every column
+    and stops only at the wall.
 
-    Fire bullet fires the ball, replacing the last one. Columns and Rows set
-    the size of the stacks, rebuilding them.
+    Fire bullet fires the ball, replacing the last one, and Bullet decides
+    whether the next one is a bullet. Columns and Rows set the size of the
+    stacks, rebuilding them.
     """
 
     camera_center = (-7, 9)
@@ -228,6 +229,7 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
 
     columns = UI.int(5, min=1, max=10)
     rows = UI.int(12, min=1, max=30)
+    bullet = UI.bool(True)
     fire = UI.button("Fire bullet")
 
     def setup(self):
@@ -258,7 +260,7 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
         self.ball = (
             self.world.new_body()
             .dynamic()
-            .bullet()
+            .bullet(self.bullet)
             .position(-31, 5)
             .linear_velocity(400, 0)
             .circle(radius=0.25, density=4.0)
