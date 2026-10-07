@@ -365,7 +365,14 @@ class MouseJoint(Joint):
         self.wake_bodies()
 
     def destroy(self):
-        """Destroy the joint and the kinematic proxy body backing it."""
+        """Destroy the joint and the kinematic proxy body backing it.
+
+        Destroying twice is a no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
+        """
         super().destroy()
 
     def _release(self):
