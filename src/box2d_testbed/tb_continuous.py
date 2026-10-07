@@ -125,6 +125,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
 
         # Each flipper turns about its middle, which is on the wall, between
         # limits that leave its inner end down at rest and up when flipped.
+        # Its motor holds it down until its key is pressed.
         flippers = self.world.new_body().dynamic().enable_sleep(False).box(3.5, 0.4)
         self.left = flippers.position(-2, 0).build()
         self.right = flippers.position(2, 0).build()
@@ -139,7 +140,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_limit=True,
             lower_limit=-0.5,
             upper_limit=0.4,
-            motor_speed=0.0,
+            motor_speed=-self.RETURN_SPEED,
         )
         self.right_joint = self.world.add_revolute_joint(
             ground,
@@ -151,7 +152,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_limit=True,
             lower_limit=-0.4,
             upper_limit=0.5,
-            motor_speed=0.0,
+            motor_speed=self.RETURN_SPEED,
         )
 
         self.ball = None
