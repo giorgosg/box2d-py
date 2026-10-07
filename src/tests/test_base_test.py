@@ -121,6 +121,8 @@ def test_rebuild_lets_go_of_a_drag(world, scenario_class):
     scenario.rebuild()
 
     assert scenario.mouse_joint is None
+    assert len(world.bodies) == 2, "the drag's proxy body was left behind"
+    assert all(body.type != "kinematic" for body in world.bodies)
     scenario.on_mouse_release(scenario.crate.position)  # must not raise
 
 

@@ -170,7 +170,9 @@ class BaseTest:
             self.mouse_joint = None
 
     def _held_mouse_joint(self):
-        """The mouse joint, or None once it has gone.
+        """The mouse joint, destroying and dropping it if Box2D took it down.
+
+        Returns the joint while it is live, and None once it has gone.
 
         A scenario that destroys the body being dragged takes the joint with
         it -- Box2D destroys a body's joints along with the body -- and the

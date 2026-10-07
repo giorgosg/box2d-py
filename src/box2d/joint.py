@@ -296,9 +296,10 @@ class MouseJoint(Joint):
     what upstream's own samples now use for dragging: a kinematic proxy body at
     the target, joined to the dragged body by a motor joint with a linear
     spring. Moving the target moves the proxy, and the spring pulls the body
-    after it. The proxy is destroyed along with the joint by destroy(). A
-    joint that Box2D takes down with the dragged body leaves the proxy behind
-    until destroy() is called on it, which is safe once the joint is gone.
+    after it. The proxy is destroyed along with the joint by :meth:`destroy`.
+    A joint that Box2D takes down with the dragged body leaves the proxy behind
+    until :meth:`destroy` is called on it, which is safe once the joint is
+    gone.
     """
 
     def __init__(
