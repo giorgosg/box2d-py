@@ -247,7 +247,7 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
 
 
 class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
-    """A spinning drum, fed a box every step.
+    """A spinning drum 20 m across, fed a quarter-metre box every step.
 
     The drum is a kinematic body: it turns at the speed it is given, however
     hard the boxes push back, as if driven by a motor of unlimited torque.
@@ -260,22 +260,24 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
     lowering it stops the feed.
     """
 
+    # Takes in the drum's corners as it turns.
     camera_center = (0, 0)
-    camera_zoom = 15.0
+    camera_zoom = 16.0
 
     angular_speed = UI.float(25.0, min=-100.0, max=100.0, label="Speed (deg/s)")
     max_bodies = UI.int(400, min=10, max=2000)
 
     def setup(self):
-        # Four walls around the middle.
+        # Box2D's drum: 1 m walls round a space 19 m square, which 2000 of the
+        # boxes would fill only a third of.
         self.drum = (
             self.world.new_body()
             .kinematic()
             .angular_velocity(math.radians(self.angular_speed))
-            .box(0.5, 4.0, offset=(2.0, 0.0))
-            .box(0.5, 4.0, offset=(-2.0, 0.0))
-            .box(4.0, 0.5, offset=(0.0, 2.0))
-            .box(4.0, 0.5, offset=(0.0, -2.0))
+            .box(1.0, 20.0, offset=(10.0, 0.0))
+            .box(1.0, 20.0, offset=(-10.0, 0.0))
+            .box(20.0, 1.0, offset=(0.0, 10.0))
+            .box(20.0, 1.0, offset=(0.0, -10.0))
             .build()
         )
 
