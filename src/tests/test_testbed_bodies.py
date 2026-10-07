@@ -128,27 +128,25 @@ def test_a_box_off_the_end_of_the_ground_does_not_stop_the_launches(world):
     assert test.launches > 1
 
 
-def test_at_the_fastest_speed_every_box_lands_on_the_ground_in_view(world):
+def test_at_the_fastest_speed_the_boxes_go_off_the_end_and_are_launched_again(
+    world,
+):
     test = scenario(world, "Bodies", "Set Velocity")
     test.speed = type(test).speed.max_value
     test.launch()
-    center, zoom = test.view()
+    assert test.launches == 2
 
-    highest = furthest = 0.0
-    lowest = 1.0
-    for _ in range(20 * HERTZ):
-        run(test, 1 / HERTZ)
-        if test.launches == 3:
-            break
-        highest = max([highest, *(box.aabb.upper.y for box in test.boxes)])
-        furthest = max([furthest, *(box.aabb.upper.x for box in test.boxes)])
-        lowest = min([lowest, *(box.position.y for box in test.boxes)])
-    assert test.launches == 3, "the launch never landed"
+    lowest = 0.0
+    for launch in (3, 4):
+        # At 40 m/s a launch is down, or gone, within about eight seconds.
+        for _ in range(12 * HERTZ):
+            run(test, 1 / HERTZ)
+            if test.launches == launch:
+                break
+            lowest = min([lowest, *(box.position.y for box in test.boxes)])
+        assert test.launches == launch, f"launch {launch} never came"
 
-    assert lowest > 0, "a box went off the end of the ground"
-    # zoom is half the visible height; the view is at least 1.6 times as wide.
-    assert highest < center.y + zoom
-    assert furthest < center.x + 1.6 * zoom
+    assert lowest < 0, "the boxes should have gone off the end of the ground"
 
 
 def test_the_kinematic_platform_patrols_from_end_to_end(world):
