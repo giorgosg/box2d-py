@@ -1287,15 +1287,19 @@ class World(FixedAttributes):
             since the step is left out.
         """
         events = lib.b2World_GetBodyEvents(self._world_id)
+        # Bound once: looking a function up on lib costs more per event than
+        # the call itself, and there can be thousands of events.
+        is_valid, from_handle, null = lib.b2Body_IsValid, ffi.from_handle, ffi.NULL
         moves = []
         for i in range(events.moveCount):
             event = events.moveEvents[i]
-            body = wrapper_for(event.bodyId, lib.b2Body_IsValid, lib.b2Body_GetUserData)
-            if body is None:
+            # The event carries the body's handle, but a body destroyed since
+            # the step has had its wrapper released, so the id is checked first.
+            if not is_valid(event.bodyId) or event.userData == null:
                 continue
             moves.append(
                 BodyMoveEvent(
-                    body=body,
+                    body=from_handle(event.userData),
                     transform=Transform.from_b2Transform(event.transform),
                     fell_asleep=bool(event.fellAsleep),
                 )
@@ -1314,15 +1318,14 @@ class World(FixedAttributes):
             since the step, on its own or with one of its bodies, is left out.
         """
         events = lib.b2World_GetJointEvents(self._world_id)
+        # Bound once and checked as in get_body_events, for the same reasons.
+        is_valid, from_handle, null = lib.b2Joint_IsValid, ffi.from_handle, ffi.NULL
         reports = []
         for i in range(events.count):
-            joint = wrapper_for(
-                events.jointEvents[i].jointId,
-                lib.b2Joint_IsValid,
-                lib.b2Joint_GetUserData,
-            )
-            if joint is not None:
-                reports.append(JointEvent(joint=joint))
+            event = events.jointEvents[i]
+            if not is_valid(event.jointId) or event.userData == null:
+                continue
+            reports.append(JointEvent(joint=from_handle(event.userData)))
         return reports
 
     @property
