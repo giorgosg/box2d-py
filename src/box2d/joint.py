@@ -296,7 +296,10 @@ class MouseJoint(Joint):
     what upstream's own samples now use for dragging: a kinematic proxy body at
     the target, joined to the dragged body by a motor joint with a linear
     spring. Moving the target moves the proxy, and the spring pulls the body
-    after it. The proxy is destroyed along with the joint.
+    after it. The proxy is destroyed along with the joint by :meth:`destroy`.
+    A joint that Box2D takes down with the dragged body leaves the proxy behind
+    until :meth:`destroy` is called on it, which is safe once the joint is
+    gone.
     """
 
     def __init__(
@@ -359,7 +362,7 @@ class MouseJoint(Joint):
         Returns:
             Vec2: World coordinates of the drag target
         """
-        return self._proxy.position
+        return self._live_proxy().position
 
     @target.setter
     def target(self, value):
@@ -368,8 +371,18 @@ class MouseJoint(Joint):
         Args:
             value (tuple/Vec2): New target position in world coordinates
         """
-        self._proxy.position = Vec2(value)
+        self._live_proxy().position = Vec2(value)
         self.wake_bodies()
+
+    def _live_proxy(self):
+        """The proxy body, raising DestroyedError once the joint is gone.
+
+        The target lives on the proxy rather than the joint, so the joint's own
+        check has to be made here: the proxy cannot tell, as it can outlive the
+        joint, and destroy() drops it.
+        """
+        _ = self._joint_id  # raises if the joint is gone
+        return self._proxy
 
     max_force = b2_float(
         lib.b2MotorJoint_GetMaxSpringForce,

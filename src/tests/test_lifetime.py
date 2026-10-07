@@ -63,6 +63,47 @@ def test_joint_after_bodies_destroyed(world):
         joint.body_a
 
 
+def _mouse_joint_gone_with_its_body(world):
+    body = world.new_body().dynamic().circle(radius=1.0).build()
+    joint = world.add_mouse_joint(body, (0, 0))
+    body.destroy()
+    return joint
+
+
+def _mouse_joint_gone_with_its_body_then_destroyed(world):
+    joint = _mouse_joint_gone_with_its_body(world)
+    joint.destroy()  # what tidying up does; it removes the proxy body
+    return joint
+
+
+def _mouse_joint_destroyed(world):
+    body = world.new_body().dynamic().circle(radius=1.0).build()
+    joint = world.add_mouse_joint(body, (0, 0))
+    joint.destroy()
+    return joint
+
+
+@pytest.mark.parametrize(
+    "gone",
+    [
+        _mouse_joint_gone_with_its_body,
+        _mouse_joint_gone_with_its_body_then_destroyed,
+        _mouse_joint_destroyed,
+    ],
+)
+def test_mouse_joint_target_after_the_joint_is_gone(world, gone):
+    """The target lives on a proxy body rather than the joint, so it needs
+    the same check as everything else on a joint: it used to return the
+    position of a body nothing was joined to, or raise AttributeError once
+    destroy() had dropped the proxy."""
+    joint = gone(world)
+
+    with pytest.raises(DestroyedError):
+        joint.target
+    with pytest.raises(DestroyedError):
+        joint.target = (1, 1)
+
+
 def test_world_step_after_destroy(world):
     world.destroy()
 

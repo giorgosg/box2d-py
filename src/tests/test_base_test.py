@@ -121,7 +121,43 @@ def test_rebuild_lets_go_of_a_drag(world, scenario_class):
     scenario.rebuild()
 
     assert scenario.mouse_joint is None
+    assert len(world.bodies) == 2, "the drag's proxy body was left behind"
+    assert all(body.type != "kinematic" for body in world.bodies)
     scenario.on_mouse_release(scenario.crate.position)  # must not raise
+
+
+def test_a_drag_ends_when_the_scenario_destroys_the_dragged_body(world, scenario_class):
+    """Box2D takes the mouse joint down with the body. The testbed calls the
+    mouse handlers directly, so the drag and release that follow must cope."""
+    scenario = scenario_class(world)
+    scenario.setup()
+    grab = scenario.crate.position
+    scenario.on_mouse_down(grab)
+    assert scenario.mouse_joint is not None
+
+    scenario.crate.destroy()
+
+    scenario.on_mouse_drag(grab + (1, 1), (1, 1))
+    assert scenario.mouse_joint is None
+    scenario.on_mouse_release(grab + (1, 1))
+    assert scenario.mouse_joint is None
+    assert len(world.bodies) == 1, "the drag's proxy body was left behind"
+
+
+def test_a_press_after_the_dragged_body_went_grabs_again(world, scenario_class):
+    """The release can go unseen -- the testbed only reports it over the
+    simulation view -- so a dead joint must not block the next grab."""
+    scenario = scenario_class(world)
+    scenario.setup()
+    scenario.on_mouse_down(scenario.crate.position)
+    scenario.crate.destroy()
+    other = world.new_body().dynamic().position(3, 2).box(1, 1).build()
+
+    scenario.on_mouse_down(other.position)
+
+    assert scenario.mouse_joint is not None and scenario.mouse_joint.is_valid
+    assert scenario.mouse_joint.body_b is other
+    assert len(world.bodies) == 3, "ground, other, and one proxy body"
 
 
 def test_a_setup_that_raises_leaves_the_scenario_not_set_up(world):

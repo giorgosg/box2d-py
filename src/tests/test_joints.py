@@ -255,3 +255,17 @@ def test_mouse_joint_destroy_removes_its_proxy_body(joint_bodies):
 
     joint.destroy()
     assert len(world.bodies) == before
+
+
+def test_mouse_joint_gone_with_its_body_still_destroys_its_proxy(joint_bodies):
+    """Box2D takes the joint down with the dragged body but cannot know about
+    the proxy, so destroy() must still remove it once the joint is gone."""
+    world, a, b = joint_bodies
+    before = len(world.bodies)
+    joint = world.add_mouse_joint(a, (1, 1))
+
+    a.destroy()
+    assert not joint.is_valid
+    joint.destroy()
+
+    assert len(world.bodies) == before - 1, "only b is left"
