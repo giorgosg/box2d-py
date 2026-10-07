@@ -342,3 +342,131 @@ def test_a_shape_made_directly_belongs_to_its_body(world):
 
     assert body.shapes == [shape]
     assert body.chains == [chain]
+
+
+# --- destroying during a step ------------------------------------------------
+
+#: A ball resting on the ground, with pre-solve events so a callback runs
+#: during the step, and a second body carrying one of everything: a shape, a
+#: chain, a joint to the ball and a drag. ``ACTION`` is attempted from inside
+#: the callback, once, and what happened is printed after the step.
+_DURING_A_STEP = """
+world = World()
+ground = world.new_body().static().build()
+ground.add_box(10, 1, enable_pre_solve_events=True)
+ball = world.new_body().dynamic().position(0, 0.6).build()
+ball.add_circle(radius=0.5, enable_pre_solve_events=True)
+other = world.new_body().dynamic().position(5, 5).build()
+other_shape = other.add_circle(radius=0.3)
+chain = ground.add_chain([(-3, 3), (-4, 3), (-6, 3), (-7, 3)])  # faces up
+joint = world.add_distance_joint(other, ball)
+drag = world.add_mouse_joint(other, (5, 6))
+attempts = []
+
+def pre_solve(shape_a, shape_b, manifold):
+    if attempts:
+        return
+    try:
+        ACTION
+    except RuntimeError as error:
+        attempts.append(str(error))
+    else:
+        attempts.append("allowed")
+
+world.pre_solve = pre_solve
+while not attempts:
+    world.step(1 / 60)
+print(attempts[0])
+"""
+
+
+#: What each refused destroy is called, the lookups that would have followed
+#: a released wrapper's handle, and what they find instead.
+_REFUSED = {
+    "joint.destroy()": (
+        "joint",
+        """
+        del joint
+        FORGET()
+        print(sorted(type(j).__name__ for j in ball.joints))
+        """,
+        "['DistanceJoint']",
+    ),
+    "drag.destroy()": (
+        "joint",
+        """
+        del drag
+        FORGET()
+        print(sorted(type(j).__name__ for j in other.joints))
+        """,
+        "['DistanceJoint', 'MouseJoint']",
+    ),
+    "other.destroy()": (
+        "body",
+        """
+        del other, other_shape, joint, drag
+        FORGET()
+        print(sorted(type(j).__name__ for j in ball.joints))
+        """,
+        "['DistanceJoint']",
+    ),
+    "other_shape.destroy()": (
+        "shape",
+        """
+        del other_shape
+        FORGET()
+        print([type(s).__name__ for s in world.query_circle(other.position, 0.1)])
+        """,
+        "['Circle']",
+    ),
+    "chain.destroy()": (
+        "chain",
+        """
+        del chain
+        FORGET()
+        print([type(hit.shape).__name__ for hit in world.ray_cast((-5, 8), (0, -6))])
+        """,
+        "['ChainSegment']",
+    ),
+    "world.destroy()": ("world", "print(world.is_valid)", "True"),
+}
+
+
+@pytest.mark.parametrize("action", list(_REFUSED))
+def test_destroying_during_a_step_is_refused(action):
+    """Box2D ignores a destroy while the world is stepping, but the wrapper
+    used to be released regardless -- with Box2D still holding its handle. And
+    destroying the world mid-step frees it under the solver. Each is refused
+    with an error that says what to do instead, and the object carries on."""
+    what, then, found = _REFUSED[action]
+    out = run_isolated(_DURING_A_STEP.replace("ACTION", action), then)
+    assert out.splitlines()[:2] == [
+        f"cannot destroy a {what} during a world callback; destroy it after the step",
+        found,
+    ]
+
+
+def test_what_was_refused_during_a_step_can_be_destroyed_after_it(world):
+    ground = world.new_body().static().build()
+    ground.add_box(10, 1, enable_pre_solve_events=True)
+    ball = world.new_body().dynamic().position(0, 0.6).build()
+    ball.add_circle(radius=0.5, enable_pre_solve_events=True)
+    joint = world.add_mouse_joint(ball, (0, 2))
+    refused = []
+
+    def pre_solve(shape_a, shape_b, manifold):
+        for thing in (joint, ball):
+            try:
+                thing.destroy()
+            except RuntimeError:
+                refused.append(thing)
+
+    world.pre_solve = pre_solve
+    world.step(1 / 60)
+    world.pre_solve = None
+    assert refused and joint.is_valid and ball.is_valid
+
+    joint.destroy()
+    ball.destroy()
+
+    assert world.bodies == [ground]

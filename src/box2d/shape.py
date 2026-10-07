@@ -304,11 +304,16 @@ class Shape(FixedAttributes):
             update_body_mass: Recompute the body's mass from its remaining
                 shapes. Pass False when removing several shapes at once and
                 call body.update_mass_from_shapes() when done.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         raw = raw_id(self, "_shape_id")
         if raw is None:
             return
         if lib.b2Shape_IsValid(raw):
+            self._body.world._refuse_while_locked("shape")
             lib.b2DestroyShape(raw, bool(update_body_mass))
         body = getattr(self, "_body", None)
         if body is not None and self in getattr(body, "_shapes", ()):
@@ -952,11 +957,16 @@ class Chain(FixedAttributes):
         The chain and its segments raise :class:`.DestroyedError` if used
         afterwards. Destroying twice is a no-op, as is destroying a chain whose
         body has already gone.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         raw = raw_id(self, "_chain_id")
         if raw is None:
             return
         if lib.b2Chain_IsValid(raw):
+            self._body.world._refuse_while_locked("chain")
             lib.b2DestroyChain(raw)
         chains = getattr(self._body, "_chains", ())
         if self in chains:

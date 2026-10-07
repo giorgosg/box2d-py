@@ -1097,6 +1097,10 @@ class Body(FixedAttributes):
         it. The body, its shapes and those joints raise
         :class:`.DestroyedError` if used afterwards. Destroying twice is a
         no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         # Read past the validity check: the id is needed to deregister the body
         # even once Box2D no longer recognises it (e.g. the world went first).
@@ -1107,6 +1111,7 @@ class Body(FixedAttributes):
         # are looked up first, while the ids still lead to them.
         joints = []
         if lib.b2Body_IsValid(raw):
+            self.world._refuse_while_locked("body")
             joints = self._read_joints()
             lib.b2DestroyBody(raw)
         if hasattr(self.world, "_bodies"):

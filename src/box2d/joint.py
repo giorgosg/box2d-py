@@ -86,11 +86,16 @@ class Joint(FixedAttributes):
         Both bodies it connected are woken, so they can react to losing the
         constraint. The joint raises :class:`.DestroyedError` if used
         afterwards. Destroying twice is a no-op.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step. Box2D
+                cannot destroy anything then; destroy it after the step.
         """
         # Read past the validity check so destroy stays callable on a joint
         # Box2D has already reclaimed, e.g. one whose bodies went first.
         raw = raw_id(self, "_joint_id")
         if raw is not None and lib.b2Joint_IsValid(raw):
+            self.world._refuse_while_locked("joint")
             lib.b2DestroyJoint(raw)
         self._release()
         del self._joint_id

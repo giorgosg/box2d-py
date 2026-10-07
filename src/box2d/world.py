@@ -161,6 +161,11 @@ class World(FixedAttributes):
 
     _world_id = IdRef(lib.b2World_IsValid, "world")
 
+    #: True while Box2D is inside a step, which is when it calls the world's
+    #: callbacks. Box2D locks the world for that time and quietly ignores a
+    #: destroy, but has no getter for the lock, so it is mirrored here.
+    _locked = False
+
     def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
         """Initialize physics world with specified gravity vector.
 
@@ -247,7 +252,25 @@ class World(FixedAttributes):
             >>> world.step(1/60)  # Default 4 substeps
             >>> world.step(0.016, 6)  # Custom substep count
         """
-        lib.b2World_Step(self._world_id, time_step, substep_count)
+        world_id = self._world_id
+        self._locked = True
+        try:
+            lib.b2World_Step(world_id, time_step, substep_count)
+        finally:
+            self._locked = False
+
+    def _refuse_while_locked(self, what: str):
+        """Raise rather than destroy something while the world is stepping.
+
+        Box2D ignores the destroy, so going ahead would release a wrapper whose
+        handle Box2D still holds; destroying the world itself would free it
+        under the solver.
+        """
+        if self._locked:
+            raise RuntimeError(
+                f"cannot destroy a {what} during a world callback; "
+                f"destroy it after the step"
+            )
 
     def new_body(self):
         """Create BodyBuilder for constructing bodies. Entry point for body creation.
@@ -1000,8 +1023,10 @@ class World(FixedAttributes):
     # it on the World. Dropping the trampoline would let it be collected while
     # Box2D still holds the pointer, which crashes on the next step.
     #
-    # None of these may touch the world: Box2D calls them mid-solve, and
-    # creating or destroying anything from inside one corrupts the step.
+    # None of these may touch the world: Box2D calls them mid-solve, with the
+    # world locked. It ignores a destroy made then, so every destroy() raises
+    # instead -- going ahead would release a wrapper Box2D still has a handle
+    # to. Creating anything from inside one fails too.
 
     @property
     def custom_filter(self):
@@ -1013,6 +1038,10 @@ class World(FixedAttributes):
 
         Assign None to remove it. Use this for rules that categories and masks
         cannot express, such as "these two specific bodies never collide".
+
+        Nothing can be destroyed from inside it: ``destroy()`` raises
+        RuntimeError while the world is stepping. Note what should go, and
+        destroy it after :meth:`step` returns.
 
         Example:
             >>> world = World()
@@ -1064,6 +1093,9 @@ class World(FixedAttributes):
             Box2D may call this from worker threads when the world has more
             than one, so the callback must not touch shared state unguarded.
             The manifold's impulses are not reliable at this point.
+            Nothing can be destroyed from inside it: ``destroy()`` raises
+            RuntimeError while the world is stepping. Note what should go,
+            and destroy it after :meth:`step` returns.
         """
         return self._pre_solve
 
@@ -1108,6 +1140,9 @@ class World(FixedAttributes):
         Note:
             Box2D may call this from worker threads when the world has more
             than one, so the callback must not touch shared state unguarded.
+            Nothing can be destroyed from inside it: ``destroy()`` raises
+            RuntimeError while the world is stepping. Note what should go,
+            and destroy it after :meth:`step` returns.
         """
         return self._pre_continuous
 
@@ -1339,6 +1374,9 @@ class World(FixedAttributes):
         Destroying a world also destroys every body, shape and joint in it.
         Those objects raise :class:`.DestroyedError` if used afterwards.
 
+        Raises:
+            RuntimeError: If called from a callback during :meth:`step`.
+
         Example:
             >>> world = World()
             >>> world.destroy()
@@ -1348,6 +1386,7 @@ class World(FixedAttributes):
         raw = raw_id(self, "_world_id")
         if raw is not None:
             if lib.b2World_IsValid(raw):
+                self._refuse_while_locked("world")
                 lib.b2DestroyWorld(raw)
             del self._world_id
             # Box2D's handles went with the world, so nothing needs these kept.
