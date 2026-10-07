@@ -5,6 +5,8 @@ control, but only check that nothing raises. A stack that falls over, or a
 scene that never shows what its docstring promises, passes both.
 """
 
+import pytest
+
 from box2d_testbed import tb_stacking  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import dynamic_bodies, press, run, scenario
 
@@ -38,3 +40,17 @@ def test_the_bullet_hits_the_first_column(world):
 
     assert test.ball.position.x < 9.0, "the ball reached the wall"
     assert max(moved) > 0.5, "the ball should have knocked boxes about"
+
+
+@pytest.mark.parametrize("mirror", [False, True], ids=["right", "mirrored"])
+def test_every_body_on_the_cliff_goes_over_its_edge_to_the_ground(world, mirror):
+    test = scenario(world, "Stacking", "Cliff")
+    test.flip = mirror
+    bodies = dynamic_bodies(world)
+    # The circles, rolling furthest at the slowest, are down a little over
+    # 6 s in.
+    run(test, 8.0)
+
+    # The ledges' tops are 4 m up or more, and the ground's is at 0.
+    heights = [round(body.position.y, 2) for body in bodies]
+    assert all(height < 1.0 for height in heights), heights

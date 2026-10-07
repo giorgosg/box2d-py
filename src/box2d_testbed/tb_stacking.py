@@ -274,12 +274,15 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
 
 
 class Cliff(BaseTest, category="Stacking", name="Cliff"):
-    """Bodies teetering on the edges of three different ledges.
+    """Bodies sent sliding off the ends of three ledges.
 
-    Whether a body topples depends on where its centre of mass falls relative
-    to the edge it is on, so this is a compact test of mass properties: a
-    capsule, a rounded box and a plain box each hanging off a flat ledge, a
-    segment and a rounded one.
+    The ledges are a segment, a box and a capsule, and each has a capsule, a
+    box and a circle on it, all sent towards the same end: the capsule and
+    the box slide, almost without friction, and the circle rolls. Watch each
+    leave its ledge. It should tip over the edge and drop to the ground,
+    without catching on the corner or floating on past it.
+
+    Mirror sends them all the other way, rebuilding the scene.
     """
 
     camera_center = (0, 5)
@@ -297,32 +300,47 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
             .capsule((8.5, 4), (13.5, 4), radius=0.5)
             .build()
         )
+        # Where each ledge's middle is, and how high its top.
+        ledges = ((-11.0, 4.0), (0.0, 4.5), (11.0, 4.5))
 
+        # Box2D's speeds and frictions. Each capsule starts 2 m short of its
+        # ledge's end, each box in the middle and each circle 2 m further back.
         sign = -1.0 if self.flip else 1.0
+        capsule = (
+            self.world.new_body()
+            .dynamic()
+            .linear_velocity(2.0 * sign, 0)
+            .capsule((-0.25, 0), (0.25, 0), radius=0.25, friction=0.01)
+        )
+        for middle, top in ledges:
+            capsule.position(middle + 2.0 * sign, top + 0.25).build()
 
-        # A capsule, a rounded box and a box on each ledge -- the segment, the
-        # box and the capsule -- each further along than the last.
-        for base_x in (-11.0, 0.0, 11.0):
-            for i, overhang in enumerate((0.0, 0.6, 1.2)):
-                x = base_x + sign * (overhang - 1.0 + i * 0.1)
-                body = self.world.new_body().dynamic().position(x, 4.9)
-                if i == 0:
-                    body.capsule((-0.25, 0), (0.25, 0), radius=0.25)
-                elif i == 1:
-                    body.box(1.0, 0.5, radius=0.1)
-                else:
-                    body.box(1.0, 0.5)
-                body.build()
+        box = (
+            self.world.new_body()
+            .dynamic()
+            .linear_velocity(2.5 * sign, 0)
+            .box(1, 1, friction=0.01)
+        )
+        for middle, top in ledges:
+            box.position(middle, top + 0.5).build()
+
+        circle = (
+            self.world.new_body()
+            .dynamic()
+            .linear_velocity(1.5 * sign, 0)
+            .circle(0.5, friction=0.2)
+        )
+        for middle, top in ledges:
+            circle.position(middle - 2.0 * sign, top + 0.5).build()
 
     @flip.callback
     def on_flip(self, key, value):
         self.rebuild()
 
     def status(self):
-        fallen = sum(
-            1 for b in self.world.bodies if b.type == "dynamic" and b.position.y < 2
-        )
-        return f"toppled off: {fallen}"
+        bodies = [body for body in self.world.bodies if body.type == "dynamic"]
+        fallen = sum(1 for body in bodies if body.position.y < 2)
+        return f"on the ground: {fallen} of {len(bodies)}"
 
 
 class Confined(BaseTest, category="Stacking", name="Confined"):
