@@ -10,7 +10,7 @@ import random
 
 import pytest
 
-from box2d import DebugDraw, ShapeProxy, Vec2, World
+from box2d import Circle, DebugDraw, ShapeProxy, Vec2, World
 from box2d_testbed import tb_collision  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import press, scenario
 
@@ -204,3 +204,22 @@ def test_the_view_takes_in_the_shapes_and_the_first_cast(world, name, start, end
     # zoom is half the visible height; the view is at least 1.6 times as wide.
     assert center.y - zoom <= min(ys) and max(ys) <= center.y + zoom
     assert center.x - 1.6 * zoom <= min(xs) and max(xs) <= center.x + 1.6 * zoom
+
+
+def test_a_ray_from_inside_a_shape_is_reported_only_with_every_hit(world):
+    test = scenario(world, "Collision", "Ray Cast")
+    (ground,) = world.bodies
+    circle = next(shape for shape in ground.shapes if isinstance(shape, Circle))
+    inside = circle.aabb.center
+    test.on_mouse_down(inside)
+    test.on_mouse_release(inside + Vec2(8, 0.3))
+
+    test.max_hits = 2
+    first, beyond = test.cast()
+    assert first.shape is circle
+    assert first.fraction == 0
+    assert tuple(first.normal) == (0, 0)
+
+    # The closest-hit query passes over the shape it starts in.
+    test.max_hits = 1
+    assert test.cast() == [beyond]

@@ -20,6 +20,12 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
     for the first hit only, Box2D looks for the closest and nothing else;
     otherwise it reports every shape the ray crosses, nearest first.
 
+    The two differ for a ray that starts inside a shape. Every hit includes
+    that shape, at 0% of the way along, with a zero normal for a solid
+    shape; the closest hit leaves it out, and is the next shape along, if
+    there is one. So pressed inside a shape, Max Hits 1 can mark a
+    different shape from the first of Max Hits 2, or nothing at all.
+
     The red dots mark the hits: the closest at Max Hits 1, and at most that
     many otherwise. Press and drag to cast a ray from where you press to
     where you let go. The shapes are circles, boxes, segments and capsules,
