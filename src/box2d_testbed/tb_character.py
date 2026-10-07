@@ -20,9 +20,9 @@ class Mover(BaseTest, category="Character", name="Mover"):
     turns green while it stands on something.
 
     Move with the left and right arrow keys, or A and D, and jump with space
-    from the ground. Speed is how fast it walks and Jump Speed how fast a jump leaves
-    the ground, both in m/s. Gravity is the character's own, in m/s^2: it is
-    not a body, so the world's gravity never reaches it.
+    from the ground. Speed is how fast it walks and Jump Speed how fast a
+    jump leaves the ground, both in m/s. Gravity is the character's own, in
+    m/s^2: it is not a body, so the world's gravity never reaches it.
     """
 
     camera_center = (0, 5)
@@ -105,7 +105,7 @@ STATIC_BIT = 0x0001  # the default category, so the terrain needs no filter
 MOVER_BIT = 0x0002
 DYNAMIC_BIT = 0x0004
 
-# The two stretches of terrain, drawn in Inkscape and kept as SVG paths.
+# The two stretches of terrain in Box2D's Dynamic Mover sample, as SVG paths.
 TERRAIN_WEST = (
     "M -34.395834,201.08333 H 293.68751 v -47.625 h -2.64584 l -10.58333,7.9375 "
     "-13.22916,7.9375 -13.24648,5.29167 -31.73269,7.9375 -21.16667,2.64583 "
