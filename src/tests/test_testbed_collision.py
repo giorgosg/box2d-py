@@ -10,7 +10,7 @@ import random
 
 import pytest
 
-from box2d import World
+from box2d import Vec2, World
 from box2d_testbed import tb_collision  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import press, scenario
 
@@ -89,3 +89,22 @@ def test_shape_cast_opens_aimed_through_the_gap_in_the_wall(world, mover):
     # y = 2; nothing else is in the way.
     assert abs(hit.point.x) <= 0.3 + 1e-4 and abs(hit.point.y) >= 2 - 1e-4, hit
     assert 0 < hit.fraction < 1
+
+
+@pytest.mark.parametrize(
+    "name, start, end",
+    [("Ray Cast", "ray_start", "ray_end"), ("Shape Cast", "cast_start", "cast_end")],
+)
+def test_pressing_starts_a_new_cast_where_the_mouse_is(world, name, start, end):
+    test = scenario(world, "Collision", name)
+
+    # Before the mouse has moved, there is no cast to the old end.
+    test.on_mouse_down(Vec2(2, 3))
+    assert getattr(test, start) == Vec2(2, 3)
+    assert getattr(test, end) == Vec2(2, 3)
+    test.cast()
+
+    test.on_mouse_drag(Vec2(4, 1), Vec2(2, -2))
+    test.on_mouse_release(Vec2(5, 1))
+    assert getattr(test, start) == Vec2(2, 3)
+    assert getattr(test, end) == Vec2(5, 1)

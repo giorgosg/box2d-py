@@ -74,7 +74,8 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
         return hits[: self.max_hits]
 
     def on_mouse_down(self, pos):
-        self.ray_start = pos
+        # Both ends, or until the mouse moves the old end is still in use.
+        self.ray_start = self.ray_end = pos
 
     def on_mouse_drag(self, pos, rel):
         self.ray_end = pos
@@ -162,7 +163,8 @@ class ShapeCast(BaseTest, category="Collision", name="Shape Cast"):
         return self.cast_start + (self.cast_end - self.cast_start) * hits[0].fraction
 
     def on_mouse_down(self, pos):
-        self.cast_start = pos
+        # Both ends, or until the mouse moves the old end is still in use.
+        self.cast_start = self.cast_end = pos
 
     def on_mouse_drag(self, pos, rel):
         self.cast_end = pos
