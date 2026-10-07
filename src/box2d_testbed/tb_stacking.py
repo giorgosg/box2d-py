@@ -53,8 +53,8 @@ class CardHouse(BaseTest, category="Stacking", name="Card House"):
         # Box2D's layout, which it took from PEEL. A card leaning 25 degrees
         # has its centre 0.18 m up, and stands 0.175 m from the card before it,
         # so the two of a pair meet at the top. Each row is 0.37 m above the
-        # last, which stands its feet on the flat cards, and starts half a
-        # pair further in.
+        # last, which puts its feet on the flat cards, and starts half a pair
+        # further in.
         half_height = self.CARD_HEIGHT / 2
         spacing = 0.175
         y = half_height - 0.02
@@ -219,9 +219,9 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
     hits the first column, and a ball that is not one passes every column
     and stops only at the wall.
 
-    Fire bullet fires the ball, replacing the last one, and Bullet decides
-    whether the next one is a bullet. Columns and Rows set the size of the
-    stacks, rebuilding them.
+    Fire fires the ball, replacing the last one, and Bullet decides whether
+    the next one is a bullet. Columns and Rows set the size of the stacks,
+    rebuilding them.
     """
 
     camera_center = (-7, 9)
@@ -230,7 +230,7 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
     columns = UI.int(5, min=1, max=10)
     rows = UI.int(12, min=1, max=30)
     bullet = UI.bool(True)
-    fire = UI.button("Fire bullet")
+    fire = UI.button("Fire")
 
     def setup(self):
         (
@@ -348,8 +348,8 @@ class Confined(BaseTest, category="Stacking", name="Confined"):
     hold them.
 
     They start in a grid, overlapping their neighbours, and even packed as
-    tightly as circles go they would need a third more room than the box has,
-    so they can never all be clear of each other. With gravity off there is
+    tightly as circles go they would need two fifths more room than the box
+    has, so they can never all be clear of each other. With gravity off there is
     no floor to settle onto either. Box2D pushes overlapping shapes apart no
     faster than the world's contact push velocity, 3 m/s, so the overlap
     turns into a gentle shove rather than speed that would make the pile
@@ -438,8 +438,8 @@ class TiltedStack(BaseTest, category="Stacking", name="Tilted Stack"):
     below, so the columns lean.
 
     Whether a column stands is statics. The n boxes resting on any box have
-    their centre of mass (n + 1) / 2 leans out from its middle, and they
-    topple once that is past the edge of its flat top, 0.45 m out. At the
+    their centre of mass (n + 1) / 2 times the lean out from its middle, and
+    they topple once that is past the edge of its flat top, 0.45 m out. At the
     defaults the nine on the bottom box are 1 m out, so every column topples,
     about 1.7 s in. Ten rows stand at a lean of 0.08 m and fall at 0.09. The
     solver's part is to get that answer right: contact drift must neither

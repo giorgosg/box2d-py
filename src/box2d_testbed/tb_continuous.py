@@ -115,8 +115,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
     The ball is a bullet. Box2D sweeps every fast body's path against static
     bodies, so nothing passes through the walls, but only a bullet's against
     other dynamic bodies too: without the flag a fast enough ball could pass
-    through a flipper between two steps. The table is one chain loop, so the
-    ball runs along its walls without catching on the corners between them.
+    through a flipper between two steps.
 
     The left and right arrow keys work the flippers. Flipper Torque is the
     most torque each flipper's motor may use, in N m. Ball Speed is how fast
