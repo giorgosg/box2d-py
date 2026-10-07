@@ -49,6 +49,26 @@ def dynamic_bodies(world):
     return [body for body in world.bodies if body.type == "dynamic"]
 
 
+def moved_from_start(test, seconds):
+    """Run the scenario for ``seconds``: each dynamic body, and how far each
+    has moved from where it started."""
+    bodies = dynamic_bodies(test.world)
+    start = [body.position for body in bodies]
+    run(test, seconds)
+    return bodies, [(body.position - p).length for body, p in zip(bodies, start)]
+
+
+def assert_view_takes_in_moving_bodies(test):
+    """Check the scenario's camera has every body that can move in view."""
+    (left, bottom), (right, top) = test.moving_bounds()
+
+    center, zoom = test.view()
+
+    # zoom is half the visible height; the view is at least 1.6 times as wide.
+    assert center.y - zoom <= bottom and top <= center.y + zoom
+    assert center.x - 1.6 * zoom <= left and right <= center.x + 1.6 * zoom
+
+
 def press(test, button):
     """Press one of the scenario's buttons, the way its panel does."""
     setattr(test, button, (getattr(test, button) or 0) + 1)

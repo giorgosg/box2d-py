@@ -10,7 +10,14 @@ import math
 import pytest
 
 from box2d_testbed import tb_stacking  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import dynamic_bodies, press, run, scenario
+from testbed_scenarios import (
+    assert_view_takes_in_moving_bodies,
+    dynamic_bodies,
+    moved_from_start,
+    press,
+    run,
+    scenario,
+)
 
 
 def fire_into_the_vertical_stack(world, bullet):
@@ -63,15 +70,6 @@ def test_every_body_on_the_cliff_goes_over_its_edge_to_the_ground(world, mirror)
     assert all(sign * distance > 3.0 for distance in travelled), travelled
 
 
-def moved_from_start(world, seconds, test):
-    """Each dynamic body, and how far it is after ``seconds`` from where it
-    started."""
-    bodies = dynamic_bodies(world)
-    start = [body.position for body in bodies]
-    run(test, seconds)
-    return bodies, [(body.position - p).length for body, p in zip(bodies, start)]
-
-
 @pytest.mark.parametrize(
     "name, settling",
     [
@@ -86,7 +84,7 @@ def moved_from_start(world, seconds, test):
 def test_the_structure_stands(world, name, settling):
     test = scenario(world, "Stacking", name)
 
-    bodies, moved = moved_from_start(world, 3.0, test)
+    bodies, moved = moved_from_start(test, 3.0)
 
     assert max(moved) < settling
     assert not any(body.awake for body in bodies), "it should have come to rest"
@@ -95,20 +93,15 @@ def test_the_structure_stands(world, name, settling):
 def test_the_card_house_view_takes_in_the_tallest_house(world):
     test = scenario(world, "Stacking", "Card House")
     test.rows = type(test).rows.max_value
-    (left, bottom), (right, top) = test.moving_bounds()
 
-    center, zoom = test.view()
-
-    # zoom is half the visible height; the view is at least 1.6 times as wide.
-    assert center.y - zoom <= bottom and top <= center.y + zoom
-    assert center.x - 1.6 * zoom <= left and right <= center.x + 1.6 * zoom
+    assert_view_takes_in_moving_bodies(test)
 
 
 def test_a_card_house_of_three_rows_stands_too(world):
     test = scenario(world, "Stacking", "Card House")
     test.rows = 3
 
-    bodies, moved = moved_from_start(world, 3.0, test)
+    bodies, moved = moved_from_start(test, 3.0)
 
     # Two leaning cards a pair and a flat one between pairs: 6 + 2, 4 + 1, 2.
     assert len(bodies) == 15

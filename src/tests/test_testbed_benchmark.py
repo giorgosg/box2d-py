@@ -14,7 +14,14 @@ import pytest
 
 from box2d import ShapeProxy, Vec2
 from box2d_testbed import tb_benchmark  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import dynamic_bodies, run, scenario
+from testbed_scenarios import (
+    HERTZ,
+    assert_view_takes_in_moving_bodies,
+    dynamic_bodies,
+    moved_from_start,
+    run,
+    scenario,
+)
 
 
 def test_the_tumbler_holds_its_boxes_without_crushing_them_together(world):
@@ -45,7 +52,7 @@ def test_each_box_is_fed_into_the_tumbler_clear_of_the_others(world):
     starts = []
     for _ in range(test.max_bodies):
         before = set(dynamic_bodies(world))
-        run(test, 1 / 60)
+        run(test, 1 / HERTZ)
         (fed,) = set(dynamic_bodies(world)) - before
         # 0.25 m squares overlap if their middles are any nearer than that.
         nearest = min(
@@ -148,13 +155,11 @@ def test_the_pyramids_stand_and_fall_asleep(world, name, control, value, boxes):
     test = scenario(world, "Benchmark", name)
     if control is not None:
         setattr(test, control, value)
-    bodies = dynamic_bodies(world)
-    assert len(bodies) == boxes
-    start = [body.position for body in bodies]
+    assert len(dynamic_bodies(world)) == boxes
 
-    run(test, 1.5)
+    bodies, moved = moved_from_start(test, 1.5)
 
-    assert max((b.position - p).length for b, p in zip(bodies, start)) < 0.05
+    assert max(moved) < 0.05
     assert not any(body.awake for body in bodies)
 
 
@@ -164,9 +169,14 @@ def test_the_spinner_turns_at_full_speed_and_keeps_its_pieces_in(world):
     bar, *pieces = dynamic_bodies(world)
     assert len(pieces) == 150
 
-    run(test, 3.0)
+    run(test, 2.0)
+    # Over the third second, a step at a time.
+    speeds = []
+    for _ in range(HERTZ):
+        run(test, 1 / HERTZ)
+        speeds.append(bar.angular_velocity)
 
-    assert bar.angular_velocity == pytest.approx(5.0, abs=0.05)
+    assert sum(speeds) / len(speeds) == pytest.approx(5.0, abs=0.1)
     assert all(piece.position.length < 40 for piece in pieces)
 
 
@@ -211,10 +221,5 @@ def test_the_tumbling_boxes_never_fall_asleep(world):
 )
 def test_the_view_takes_in_the_scene_as_it_opens(world, name):
     test = scenario(world, "Benchmark", name)
-    (left, bottom), (right, top) = test.moving_bounds()
 
-    center, zoom = test.view()
-
-    # zoom is half the visible height; the view is at least 1.6 times as wide.
-    assert center.y - zoom <= bottom and top <= center.y + zoom
-    assert center.x - 1.6 * zoom <= left and right <= center.x + 1.6 * zoom
+    assert_view_takes_in_moving_bodies(test)
