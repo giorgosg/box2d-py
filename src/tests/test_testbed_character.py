@@ -326,3 +326,15 @@ def test_the_dynamic_mover_jumps_up_through_the_elevator_and_rides_it(world):
 
     assert test.mover.cast.shape.body is test.elevator, "standing on it"
     assert top > 14.0, "carried up to the top"
+
+
+def test_the_dynamic_mover_comes_to_rest_with_min_speed_at_zero(world):
+    test = dynamic_mover(world, min_speed=0.0)
+    test.on_key_down("d")
+    run(test, 0.5)
+    test.on_key_up("d")
+
+    # Friction brings it to an exact stop, which must not divide by zero.
+    run(test, 1.0)
+
+    assert test.mover.body.linear_velocity.x == pytest.approx(0.0, abs=1e-6)
