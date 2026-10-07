@@ -472,6 +472,37 @@ def test_stepping_during_a_step_is_refused():
     ]
 
 
+@pytest.mark.parametrize(
+    "action, what",
+    [
+        ("world.new_body().dynamic().position(1, 5).circle(0.2).build()", "body"),
+        ("world.add_body(body_type='dynamic')", "body"),
+        ("ball.add_circle(radius=0.2)", "shape"),
+        ("Circle.create(ball, radius=0.2)", "shape"),
+        ("Box.create(ball, 0.2, 0.2)", "shape"),
+        ("ground.add_chain([(1, 3), (2, 3), (3, 3), (4, 3)])", "chain"),
+        ("world.add_distance_joint(other, ball)", "joint"),
+        ("world.add_mouse_joint(ball, (0, 2))", "joint"),
+    ],
+)
+def test_creating_during_a_step_is_refused(action, what):
+    """Box2D creates nothing while the world is stepping and hands back a null
+    id, which surfaced as a DestroyedError for something never made. Each is
+    refused up front, leaving nothing half-made behind -- a mouse joint's
+    proxy body included."""
+    out = run_isolated(
+        during_a_step(action),
+        """
+        print(len(world.bodies), len(ball.shapes), len(ground.chains),
+              len(ball.joints))
+        """,
+    )
+    assert out.splitlines()[:2] == [
+        f"cannot create a {what} during a world callback; create it after the step",
+        "4 1 1 1",
+    ]
+
+
 def test_what_was_refused_during_a_step_can_be_destroyed_after_it(world):
     ground = world.new_body().static().build()
     ground.add_box(10, 1, enable_pre_solve_events=True)

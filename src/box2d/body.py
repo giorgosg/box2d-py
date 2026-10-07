@@ -564,7 +564,11 @@ class Body(FixedAttributes):
             world: The World instance in which this body exists.
             body_def: The body definition used to create this body. It is not
                 modified, so a definition may be reused to create many bodies.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step.
         """
+        world._refuse_while_locked("body", "create")
         self.world = world
         self._handle = ffi.new_handle(self)
 

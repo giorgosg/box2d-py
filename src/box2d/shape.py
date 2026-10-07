@@ -45,6 +45,8 @@ class Shape(FixedAttributes):
     user_data = None
 
     def __init__(self, body: "Body", user_data=None):
+        # Every shape's constructor comes here before asking Box2D for it.
+        body.world._refuse_while_locked("shape", "create")
         self._body = body
         self.user_data = user_data
 
@@ -884,6 +886,7 @@ class Chain(FixedAttributes):
     user_data = None
 
     def __init__(self, body: "Body", chaindef: ChainDef):
+        body.world._refuse_while_locked("chain", "create")
         self._body = body
         self.user_data = chaindef.user_data
         self._is_loop = chaindef.is_loop

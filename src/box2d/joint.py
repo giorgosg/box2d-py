@@ -67,6 +67,16 @@ class Joint(FixedAttributes):
     #: nothing, so setting an unknown one raises instead.
     user_data = None
 
+    def _join(self, world):
+        """Make this joint part of ``world``, the first thing each joint does.
+
+        Box2D creates nothing while the world is stepping, so that is refused
+        here, before anything is built -- a mouse joint would otherwise make
+        its proxy body first.
+        """
+        world._refuse_while_locked("joint", "create")
+        self.world = world
+
     def _register(self):
         """Hand Box2D a handle to this joint, and the world a reference to it.
 
@@ -338,7 +348,7 @@ class MouseJoint(Joint):
             damping_ratio: Spring damping
             hertz: Spring stiffness in Hz
         """
-        self.world = world
+        self._join(world)
         self._body = body
 
         # The kinematic proxy the spring pulls towards. It must not sleep, or
@@ -454,7 +464,7 @@ class FilterJoint(Joint):
             collide_connected: Ignored. A filter joint exists to stop these two
                 colliding, so honouring this would defeat it.
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultFilterJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -510,7 +520,7 @@ class WeldJoint(Joint):
         self._angular_hertz = angular_hertz
         self._angular_damping_ratio = angular_damping_ratio
         self._reference_angle = reference_angle
-        self.world = world
+        self._join(world)
         defn = lib.b2DefaultWeldJointDef()
         defn.base.bodyIdA = body_a._body_id
         defn.base.bodyIdB = body_b._body_id
@@ -667,7 +677,7 @@ class RevoluteJoint(Joint):
             defn.targetAngle = target_angle
 
         self._def = defn
-        self.world = world
+        self._join(world)
         self._joint_id = lib.b2CreateRevoluteJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
@@ -836,7 +846,7 @@ class PrismaticJoint(Joint):
         self._enable_spring = enable_spring
         self._hertz = spring_hertz
         self._damping_ratio = spring_damping_ratio
-        self.world = world
+        self._join(world)
         defn = lib.b2DefaultPrismaticJointDef()
         defn.base.bodyIdA = body_a._body_id
         defn.base.bodyIdB = body_b._body_id
@@ -1037,7 +1047,7 @@ class WheelJoint(Joint):
         self._enable_spring = enable_spring
         self._spring_hertz = spring_hertz
         self._spring_damping_ratio = spring_damping_ratio
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultWheelJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1212,7 +1222,7 @@ class DistanceJoint(Joint):
         self._enable_motor = enable_motor
         self._motor_speed = motor_speed
         self._max_motor_force = max_motor_force
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultDistanceJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1442,7 +1452,7 @@ class MotorJoint(Joint):
             max_spring_torque (float): Torque cap for the angular spring
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultMotorJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1565,7 +1575,7 @@ class MoverJoint(Joint):
                 newtons. An axis with zero force is not driven.
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultMoverJointDef()
         defn.base.bodyIdA = body_a._body_id
@@ -1658,7 +1668,7 @@ class PogoJoint(Joint):
             velocity (float): Starting spring velocity, from the previous pogo
             collide_connected (bool): Whether connected bodies can collide
         """
-        self.world = world
+        self._join(world)
 
         defn = lib.b2DefaultPogoJointDef()
         defn.base.bodyIdA = body_a._body_id

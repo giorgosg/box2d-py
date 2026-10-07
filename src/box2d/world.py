@@ -267,17 +267,22 @@ class World(FixedAttributes):
         finally:
             self._locked = False
 
-    def _refuse_while_locked(self, what: str):
-        """Raise rather than destroy something while the world is stepping.
+    def _refuse_while_locked(self, what: str, action: str = "destroy"):
+        """Raise rather than create or destroy something mid-step.
 
-        Box2D ignores the destroy, so going ahead would release a wrapper whose
-        handle Box2D still holds; destroying the world itself would free it
-        under the solver.
+        Box2D ignores a destroy while the world is locked, so going ahead would
+        release a wrapper whose handle Box2D still holds, and destroying the
+        world itself would free it under the solver. A create returns a null
+        id, which would surface later as a misleading DestroyedError.
+
+        Args:
+            what: What is being made or removed, e.g. ``"body"``.
+            action: ``"create"`` or ``"destroy"``.
         """
         if self._locked:
             raise RuntimeError(
-                f"cannot destroy a {what} during a world callback; "
-                f"destroy it after the step"
+                f"cannot {action} a {what} during a world callback; "
+                f"{action} it after the step"
             )
 
     def new_body(self):
@@ -1042,7 +1047,7 @@ class World(FixedAttributes):
     # None of these may touch the world: Box2D calls them mid-solve, with the
     # world locked. It ignores a destroy made then, so every destroy() raises
     # instead -- going ahead would release a wrapper Box2D still has a handle
-    # to. Creating anything from inside one fails too.
+    # to. Creating anything, or stepping again, raises in the same way.
 
     @property
     def custom_filter(self):
@@ -1055,9 +1060,10 @@ class World(FixedAttributes):
         Assign None to remove it. Use this for rules that categories and masks
         cannot express, such as "these two specific bodies never collide".
 
-        Nothing can be destroyed from inside it: ``destroy()`` raises
-        RuntimeError while the world is stepping. Note what should go, and
-        destroy it after :meth:`step` returns.
+        Nothing can be created or destroyed from inside it, and the world
+        cannot be stepped: each raises RuntimeError while the world is
+        stepping. Note what should change, and do it after :meth:`step`
+        returns.
 
         Example:
             >>> world = World()
@@ -1109,9 +1115,10 @@ class World(FixedAttributes):
             Box2D may call this from worker threads when the world has more
             than one, so the callback must not touch shared state unguarded.
             The manifold's impulses are not reliable at this point.
-            Nothing can be destroyed from inside it: ``destroy()`` raises
-            RuntimeError while the world is stepping. Note what should go,
-            and destroy it after :meth:`step` returns.
+            Nothing can be created or destroyed from inside it, and the
+            world cannot be stepped: each raises RuntimeError while the world
+            is stepping. Note what should change, and do it after
+            :meth:`step` returns.
         """
         return self._pre_solve
 
@@ -1156,9 +1163,10 @@ class World(FixedAttributes):
         Note:
             Box2D may call this from worker threads when the world has more
             than one, so the callback must not touch shared state unguarded.
-            Nothing can be destroyed from inside it: ``destroy()`` raises
-            RuntimeError while the world is stepping. Note what should go,
-            and destroy it after :meth:`step` returns.
+            Nothing can be created or destroyed from inside it, and the
+            world cannot be stepped: each raises RuntimeError while the world
+            is stepping. Note what should change, and do it after
+            :meth:`step` returns.
         """
         return self._pre_continuous
 

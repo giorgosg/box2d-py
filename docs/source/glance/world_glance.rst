@@ -30,9 +30,9 @@ object. Events describe the step that finished, so they can name something
 destroyed since: a sensor event gives None for a destroyed sensor or visitor,
 and body and joint events leave such objects out. Destroying a body takes its
 shapes and joints with it, a mouse joint's proxy body included; anything
-destroyed raises ``DestroyedError`` if used. Nothing can be destroyed from a
-callback during ``world.step()``: ``destroy()`` raises ``RuntimeError`` then,
-so destroy it after the step.
+destroyed raises ``DestroyedError`` if used. Nothing can be created or
+destroyed from a callback during ``world.step()``, nor the world stepped again:
+each raises ``RuntimeError`` then, so do it after the step.
 
 Simulation Control
 ^^^^^^^^^^^^^^^^^^
