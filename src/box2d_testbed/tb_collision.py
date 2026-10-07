@@ -27,27 +27,30 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
     nothing to drag.
     """
 
-    camera_center = (-1, -1)
+    camera_center = (0, 0)
     camera_zoom = 7.5
 
     #: The shapes are laid out at random, but always from this seed, so the
-    #: scene is the same every time it is built: opened again, or Reset.
-    SEED = 1
+    #: scene is the same every time it is built: opened again, or Reset. This
+    #: one puts all four kinds of shape across the first ray's path.
+    SEED = 10
 
     max_hits = UI.int(1, min=1, max=5)
 
     def setup(self):
-        self.ray_start = Vec2(-8, -2)
-        self.ray_end = Vec2(6, 2)
+        # Across the grid, close to the middles of a row of shapes, so it
+        # crosses all six of them and every Max Hits shows that many.
+        self.ray_start = Vec2(-8, 0.5)
+        self.ray_end = Vec2(8, 1.5)
 
-        # One of the four kinds of shape at each place on a grid, chosen at
-        # random, and a box at a random angle. From a generator of its own,
+        # One of the four kinds of shape at each place on a grid 2 m apart,
+        # chosen at random, and a box at a random angle. From a generator of its own,
         # rather than the random module's, which is shared: seeding that
         # would reseed it for everything else too.
         rng = random.Random(self.SEED)
         ground = self.world.new_body().static()
-        for x in range(-6, 6, 2):
-            for y in range(-6, 6, 2):
+        for x in range(-5, 6, 2):
+            for y in range(-5, 6, 2):
                 kind = rng.choice(["circle", "box", "segment", "capsule"])
                 if kind == "circle":
                     ground.circle(0.5, center=(x, y))

@@ -57,3 +57,20 @@ def test_ray_cast_leaves_pythons_random_numbers_alone(world):
     scenario(world, "Collision", "Ray Cast")
 
     assert random.getstate() == before
+
+
+def test_each_max_hits_shows_that_many_hits_along_the_first_ray(world):
+    test = scenario(world, "Collision", "Ray Cast")
+    control = type(test).max_hits
+
+    shown = {}
+    for max_hits in range(control.min_value, control.max_value + 1):
+        test.max_hits = max_hits
+        shown[max_hits] = test.cast()
+
+    assert {n: len(hits) for n, hits in shown.items()} == {1: 1, 2: 2, 3: 3, 4: 4, 5: 5}
+    # Each is the nearest that many: the closest alone, then one more each.
+    for n in range(2, 6):
+        assert shown[n][: n - 1] == shown[n - 1]
+    fractions = [hit.fraction for hit in shown[5]]
+    assert fractions == sorted(fractions)
