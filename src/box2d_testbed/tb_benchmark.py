@@ -78,9 +78,9 @@ class Pyramid(BaseTest, category="Benchmark", name="Pyramid"):
     """A pyramid of boxes, the classic stacking benchmark.
 
     Each box rests on two below it, so the whole pyramid is one island the
-    solver has to settle together every step: 210 boxes at the default, n (n
-    + 1) / 2 for a base of n. It settles within a second, and then falls
-    asleep, after which it costs next to nothing. Untick Sleep in the
+    solver has to settle together every step: 210 boxes at the default,
+    n(n + 1)/2 for a base of n. It settles at once, and falls asleep about
+    a second in, after which it costs next to nothing. Untick Sleep in the
     testbed's settings to keep it awake and measure the solve, as Box2D's
     own benchmark does; the Performance panel has the timings.
 
@@ -171,7 +171,8 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
     RING_FRICTION = 0.1
     BAR_FRICTION = 0.0
     #: How fast the motor turns the bar, in rad/s, and the most torque it may
-    #: use to, in N m.
+    #: use, in N m: plenty for the default heap, not for the biggest. Box2D's
+    #: sample once used 40000, and now lets the motor use any torque.
     MOTOR_SPEED = 5.0
     MAX_MOTOR_TORQUE = 50000.0
     #: The pieces' material: light, a little bouncy, and slippery. Box2D's
@@ -238,9 +239,11 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
         # as in Box2D's sample, taking the three kinds in turn. Each row runs
         # to within a metre of the ring, and leaves room for the bar, which
         # stands in the middle up to 0.2 m above the ring's centre.
+        reach = self.RING_RADIUS - 1
+
         def places():
             for y in itertools.count(-30.0):
-                half_width = math.floor(math.sqrt((self.RING_RADIUS - 1) ** 2 - y**2))
+                half_width = math.floor(math.sqrt(reach**2 - y**2))
                 for x in range(-half_width, half_width + 1):
                     if abs(x) <= 1 and y < 1:
                         continue
