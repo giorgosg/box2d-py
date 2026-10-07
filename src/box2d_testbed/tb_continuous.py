@@ -19,6 +19,9 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     camera_center = (1, 5)
     camera_zoom = 6.25
 
+    #: The floor runs this far either side of the origin, in m.
+    FLOOR_HALF_WIDTH = 10.0
+
     continuous = UI.bool(True, label="World continuous")
     bullet = UI.bool(False)
     capsule = UI.bool(False)
@@ -32,7 +35,9 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
         (
             self.world.new_body()
             .static()
-            .segment((-10, 0), (10, 0), friction=0.9)
+            .segment(
+                (-self.FLOOR_HALF_WIDTH, 0), (self.FLOOR_HALF_WIDTH, 0), friction=0.9
+            )
             .box(0.2, 2.0, offset=(3, 1), friction=0.9)
             .build()
         )
@@ -66,8 +71,16 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
         self.checked = False
 
     def after_step(self, dt):
-        # Below the ground means it tunnelled rather than landed.
-        if not self.checked and self.projectile.position.y < -1.0:
+        # Below the floor and still over it means the box went through it. A
+        # box can also go off the end: one that lands spinning can turn the
+        # spin into a skid, and that takes it past the end long before it has
+        # dropped a metre.
+        box = self.projectile
+        if (
+            not self.checked
+            and box.position.y < -1.0
+            and abs(box.position.x) < self.FLOOR_HALF_WIDTH
+        ):
             self.passed_through += 1
             self.checked = True
 

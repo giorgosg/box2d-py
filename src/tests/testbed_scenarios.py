@@ -31,3 +31,8 @@ def run(test, seconds):
 def dynamic_bodies(world):
     """The world's dynamic bodies, in the order they were made."""
     return [body for body in world.bodies if body.type == "dynamic"]
+
+
+def press(test, button):
+    """Press one of the scenario's buttons, the way its panel does."""
+    setattr(test, button, (getattr(test, button) or 0) + 1)
