@@ -1,24 +1,27 @@
-# tb_character.py
-
 import math
 
-from box2d import Vec2, Color, CollisionFilter, clip_vector, solve_planes
+from box2d import CollisionFilter, Color, Vec2, clip_vector, solve_planes
 
-from .base_test import BaseTest, UI
+from .base_test import UI, BaseTest
 from .dynamic_mover import DynamicMover
 from .shared import parse_svg_path
+from .tb_events import WALK_KEYS
 
 
 class Mover(BaseTest, category="Character", name="Mover"):
-    """A kinematic character controller built from the mover queries.
+    """A character that is not a body, moved with the mover queries.
 
-    The character is not a body. Each step it asks the world what a capsule at
-    its position would run into, works out the movement satisfying all of those
-    at once, and trims the parts of its velocity that point into them. That is
-    what lets it stop dead against a wall, walk up a slope, and stand on a
-    ledge without ever being tipped over by a solver.
+    Each step the character asks the world which surfaces a capsule at its
+    position is up against, works out the movement closest to the one it
+    wants that clears all of them at once, and trims the parts of its
+    velocity that point into them. No solver is involved, so nothing pushes
+    it back or tips it over: it stops dead against the wall and walks
+    straight up the ramp. It turns green while it stands on something.
 
-    Move with the arrow keys, jump with space.
+    Move with the left and right arrow keys, and jump with space from the
+    ground. Speed is how fast it walks and Jump Speed how fast a jump leaves
+    the ground, both in m/s. Gravity is the character's own, in m/s^2: it is
+    not a body, so the world's gravity never reaches it.
     """
 
     camera_center = (0, 5)
@@ -28,8 +31,16 @@ class Mover(BaseTest, category="Character", name="Mover"):
     jump_speed = UI.float(10.0, min=1.0, max=30.0)
     gravity = UI.float(30.0, min=0.0, max=60.0)
 
-    def setup(self):
+    START = (-14, 2)
+    #: The capsule: two centres 0.4 m above and below the position, and a
+    #: 0.4 m radius round them, so 1.6 m tall.
+    HALF_LENGTH = 0.4
+    RADIUS = 0.4
+    #: A surface whose normal points up at least this much is ground: slopes
+    #: up to about 45 degrees. Box2D's movers use the same number.
+    MIN_GROUND_NORMAL_Y = 0.7
 
+    def setup(self):
         terrain = self.world.new_body().static()
         terrain.segment((-20, 0), (8, 0))  # ground
         terrain.box(1, 6, offset=(9, 3))  # wall on the right
@@ -38,22 +49,17 @@ class Mover(BaseTest, category="Character", name="Mover"):
         terrain.build()
 
         # The character's own state. Nothing here is a Box2D body.
-        self.position = Vec2(-14, 2)
+        self.position = Vec2(self.START)
         self.velocity = Vec2(0, 0)
-        self.radius = 0.4
-        self.height = 0.8
         self.on_ground = False
         self.held = set()
 
-    def capsule(self, at=None):
-        """The character's capsule endpoints, about a position."""
-        at = self.position if at is None else at
-        return (at.x, at.y - self.height / 2), (at.x, at.y + self.height / 2)
+    def capsule(self):
+        """The character's capsule, as the world points of its two centres."""
+        x, y = self.position
+        return (x, y - self.HALF_LENGTH), (x, y + self.HALF_LENGTH)
 
     def after_step(self, dt):
-        if dt <= 0:
-            return
-
         wanted = 0.0
         if "left" in self.held:
             wanted -= self.speed
@@ -62,10 +68,10 @@ class Mover(BaseTest, category="Character", name="Mover"):
         self.velocity = Vec2(wanted, self.velocity.y - self.gravity * dt)
 
         point1, point2 = self.capsule()
-        planes = self.world.collide_mover(point1, point2, self.radius)
-
-        # Standing on something means one of the planes faces mostly upward.
-        self.on_ground = any(plane.plane.normal.y > 0.7 for plane in planes)
+        planes = self.world.collide_mover(point1, point2, self.RADIUS)
+        self.on_ground = any(
+            plane.plane.normal.y > self.MIN_GROUND_NORMAL_Y for plane in planes
+        )
 
         result = solve_planes(self.velocity * dt, planes)
         self.position = self.position + result.translation
@@ -83,13 +89,12 @@ class Mover(BaseTest, category="Character", name="Mover"):
     def debug_draw(self, debug_draw):
         colour = Color(80, 220, 120) if self.on_ground else Color(220, 180, 60)
         point1, point2 = self.capsule()
-        debug_draw.draw_solid_capsule(Vec2(point1), Vec2(point2), self.radius, colour)
-        debug_draw.draw_string(
-            (-15, 10),
-            f"arrows to move, space to jump   "
-            f"{'grounded' if self.on_ground else 'airborne'}   "
-            f"v=({self.velocity.x:.1f}, {self.velocity.y:.1f})",
-        )
+        debug_draw.draw_solid_capsule(Vec2(point1), Vec2(point2), self.RADIUS, colour)
+
+    def status(self):
+        where = "on the ground" if self.on_ground else "in the air"
+        velocity = self.velocity
+        return f"{where}   velocity ({velocity.x:.1f}, {velocity.y:.1f}) m/s"
 
 
 # Collision categories for the dynamic mover scene, as in Box2D's samples.
@@ -125,17 +130,32 @@ TERRAIN_EAST = (
 
 
 class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
-    """A physics-driven character, built on the mover and pogo joints.
+    """A character that is a dynamic body, driven by a mover and a pogo joint.
 
-    Unlike the Mover scenario's character, this one is a real dynamic body.
-    It knocks the balls and boxes about and is knocked back, rides the
-    elevator, and walks the swinging bridge. A mover joint drives it at the
-    speed it wants and a pogo spring, cast down from the capsule, holds it
-    off the ground -- so it glides up stairs it would otherwise catch on.
+    Unlike the Mover scenario's character this one is a real body: it knocks
+    the balls and boxes about and is knocked back, rides the elevator and
+    walks the swinging bridge. A mover joint drives it towards the speed it
+    wants, and a pogo joint -- a spring along a ray cast down from the
+    capsule -- holds it up off the ground, so it glides up steps it would
+    otherwise catch on. The grey line is that ray, its dot plum where it
+    found ground, and the line from the character is its velocity, orange
+    while it stands on the ground.
 
     The elevator is one-way: jump up through it from below and land on top.
+    Its pre-solve callback only reads the contact and empties the manifold,
+    since nothing may be created or destroyed from inside a step.
 
-    Move with A/D or the arrow keys, jump with space.
+    Move with A and D or the arrow keys, and jump with space; held in the
+    air, space jumps on landing. The sliders tune the controller as it runs,
+    over the ranges Box2D's sample gives them. Max Speed is the walking
+    speed and Jump Speed how fast a jump leaves the ground, both in m/s, and
+    Accelerate is how many times Max Speed the character gains per second,
+    Air Steer the share of that it keeps in the air. On the ground, Friction
+    takes off that many times its speed per second, or times Stop Speed when
+    it is slower than that, and below Min Speed it stops dead. Gravity Scale
+    multiplies the world's gravity for the character alone. Pogo Hertz and
+    Pogo Damping tune the spring holding it up, and Lock Camera keeps the
+    view on it.
     """
 
     camera_center = (20.0, 9.0)
@@ -153,24 +173,35 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
     pogo_damping = UI.float(0.8, min=0.0, max=4.0)
     lock_camera = UI.bool(True)
 
+    START = (0, 8)
+    #: The elevator rides up and down, 4 m either side of this point, once
+    #: every 2 pi seconds.
     ELEVATOR_BASE = Vec2(112.0, 10.0)
     ELEVATOR_AMPLITUDE = 4.0
 
     def setup(self):
         self.mover = DynamicMover(
             self.world,
-            position=(0, 8),
+            position=self.START,
             filter=CollisionFilter(category=MOVER_BIT, mask=STATIC_BIT | DYNAMIC_BIT),
             enable_pre_solve_events=True,
         )
 
-        west = self.world.new_body().static().name("terrain").build()
-        west.add_chain(
-            parse_svg_path(TERRAIN_WEST, offset=(-50, -200), scale=0.2), loop=True
+        west = (
+            self.world.new_body()
+            .static()
+            .name("terrain")
+            .chain(
+                parse_svg_path(TERRAIN_WEST, offset=(-50, -200), scale=0.2), loop=True
+            )
+            .build()
         )
-        east = self.world.new_body().static().position(98, 0).build()
-        east.add_chain(
-            parse_svg_path(TERRAIN_EAST, offset=(0, -200), scale=0.2), loop=True
+        east = (
+            self.world.new_body()
+            .static()
+            .position(98, 0)
+            .chain(parse_svg_path(TERRAIN_EAST, offset=(0, -200), scale=0.2), loop=True)
+            .build()
         )
 
         self.build_bridge(west, east)
@@ -188,6 +219,7 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
 
     def build_bridge(self, west, east):
         """Fifty planks on sprung hinges, slung between the two stretches."""
+        # Box2D's numbers: the gap runs from x = 48.7 to 98.7 at height 9.2.
         x_base, y_base, count = 48.7, 9.2, 50
         hinge = dict(
             enable_motor=True,
@@ -196,18 +228,14 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             spring_hertz=3.0,
             spring_damping_ratio=0.8,
         )
+        plank = self.world.new_body().dynamic().angular_damping(0.2).box(1.1, 0.25)
         previous = west
         for i in range(count):
-            plank = self.world.add_body(
-                body_type="dynamic",
-                position=(x_base + 0.5 + i, y_base),
-                angular_damping=0.2,
-            )
-            plank.add_box(1.1, 0.25)
+            body = plank.position(x_base + 0.5 + i, y_base).build()
             self.world.add_revolute_joint(
-                previous, plank, anchor=(x_base + i, y_base), **hinge
+                previous, body, anchor=(x_base + i, y_base), **hinge
             )
-            previous = plank
+            previous = body
         self.world.add_revolute_joint(
             previous, east, anchor=(x_base + count, y_base), **hinge
         )
@@ -216,24 +244,29 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
         """Things to bump into: bouncy balls, a stack, an elevator, a paddle."""
         props = CollisionFilter(category=DYNAMIC_BIT)
 
+        ball = (
+            self.world.new_body()
+            .dynamic()
+            .circle(0.25, filter=props, restitution=0.7, rolling_resistance=0.2)
+        )
         for i in range(5):
-            ball = self.world.add_body(body_type="dynamic", position=(7, 7 + 0.5 * i))
-            ball.add_circle(
-                radius=0.25, filter=props, restitution=0.7, rolling_resistance=0.2
-            )
+            ball.position(7, 7 + 0.5 * i).build()
 
-        start = self.ELEVATOR_BASE - (0, self.ELEVATOR_AMPLITUDE)
-        self.elevator = self.world.add_body(body_type="kinematic", position=start)
-        self.elevator.add_box(4.0, 0.2, filter=props)
+        self.elevator = (
+            self.world.new_body()
+            .kinematic()
+            .position(self.ELEVATOR_BASE - (0, self.ELEVATOR_AMPLITUDE))
+            .box(4.0, 0.2, filter=props)
+            .build()
+        )
 
+        box = self.world.new_body().dynamic().box(0.5, 0.5, filter=props)
         for i in range(10):
-            box = self.world.add_body(
-                body_type="dynamic", position=(140, (2 * i + 1) * 0.25 + 1)
-            )
-            box.add_box(0.5, 0.5, filter=props)
+            box.position(140, (2 * i + 1) * 0.25 + 1).build()
 
-        paddle = self.world.add_body(body_type="dynamic", position=(160, 4))
-        paddle.add_box(0.2, 8.0, density=1.0)
+        # A paddle turned round its top by a motor. It sweeps through the
+        # floor, which it is jointed to: a joint's two bodies do not collide.
+        paddle = self.world.new_body().dynamic().position(160, 4).box(0.2, 8.0).build()
         self.world.add_revolute_joint(
             east,
             paddle,
@@ -269,9 +302,6 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
     # --- per step ------------------------------------------------------------
 
     def after_step(self, dt):
-        if dt <= 0:
-            return
-
         self.time += dt
         height = self.ELEVATOR_AMPLITUDE * math.cos(self.time + math.pi)
         self.elevator.set_target_transform(
@@ -280,11 +310,8 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
 
         self.apply_settings()
 
-        throttle = 0.0
-        if self.held & {"a", "left"}:
-            throttle -= 1.0
-        if self.held & {"d", "right"}:
-            throttle += 1.0
+        # One way at most, however many keys point that way.
+        throttle = float(sum({WALK_KEYS[key] for key in self.held}))
 
         # A jump pressed in the air waits for the ground, as upstream's does,
         # but each press jumps only once.
@@ -298,6 +325,7 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             self.app_state.center = Vec2(self.mover.position.x, center.y)
 
     def apply_settings(self):
+        """Hand the sliders to the controller, which reads them every update."""
         mover = self.mover
         mover.jump_speed = self.jump_speed
         mover.min_speed = self.min_speed
@@ -308,13 +336,12 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
         mover.air_steer = self.air_steer
         mover.pogo_hertz = self.pogo_hertz
         mover.pogo_damping_ratio = self.pogo_damping
-        if mover.gravity_scale != self.gravity_scale:
-            mover.gravity_scale = self.gravity_scale
+        mover.gravity_scale = self.gravity_scale
 
     def on_key_down(self, key):
         if key == "space":
             self.jump_pending = True
-        else:
+        elif key in WALK_KEYS:
             self.held.add(key)
 
     def on_key_up(self, key):
@@ -334,14 +361,13 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
         colour = Color(255, 165, 0) if mover.on_ground else Color(127, 255, 212)
         debug_draw.draw_segment(position, position + mover.velocity, colour)
 
+    def status(self):
+        mover = self.mover
         normal_y = mover.cast.normal.y if mover.cast else 0.0
-        lines = [
-            "A/D or arrows to move, space to jump",
-            f"velocity {mover.velocity.x:.2f} {mover.velocity.y:.2f}",
-            f"pogo length {mover.pogo_length:.2f}/{mover.pogo_rest_length:.2f}, "
+        return [
+            f"velocity ({mover.velocity.x:.2f}, {mover.velocity.y:.2f}) m/s",
+            f"pogo length {mover.pogo_length:.2f}/{mover.pogo_rest_length:.2f} m, "
             f"impulse {mover.pogo_impulse:.3f}",
             f"on ground {mover.on_ground}, walkable {mover.walkable} "
-            f"(normal y {normal_y:.2f})",
+            f"(normal y {normal_y:.2f}), jumping {mover.jumping}",
         ]
-        for i, line in enumerate(lines):
-            debug_draw.draw_string(position + Vec2(-3, 4 - 0.6 * i), line)

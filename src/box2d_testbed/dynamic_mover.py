@@ -117,24 +117,27 @@ class DynamicMover:
 
         # The mover joint needs something to be relative to. An empty static
         # body of its own, so the character never depends on the scene's.
-        self.anchor = world.add_body(name="mover anchor")
-        self.body = world.add_body(
-            body_type="dynamic",
-            position=position,
-            gravity_scale=gravity_scale,
-            lock_rotation=True,
-            enable_sleep=False,
-            name="mover",
-        )
-        # The joints do all the moving, and surface friction would fight them.
-        self.body.add_capsule(
-            self.center1,
-            self.center2,
-            radius,
-            density=density,
-            friction=0.0,
-            filter=self.filter,
-            enable_pre_solve_events=enable_pre_solve_events,
+        self.anchor = world.new_body().static().name("mover anchor").build()
+        self.body = (
+            world.new_body()
+            .dynamic()
+            .position(position)
+            .gravity_scale(gravity_scale)
+            .lock_rotation()
+            .enable_sleep(False)
+            .name("mover")
+            # The joints do all the moving, and surface friction would fight
+            # them.
+            .capsule(
+                self.center1,
+                self.center2,
+                radius,
+                density=density,
+                friction=0.0,
+                filter=self.filter,
+                enable_pre_solve_events=enable_pre_solve_events,
+            )
+            .build()
         )
         self.mover_joint = world.add_mover_joint(
             self.anchor,
