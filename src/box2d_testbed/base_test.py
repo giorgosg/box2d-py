@@ -274,10 +274,21 @@ class BaseTest:
         built should call. Destroying the bodies takes their shapes and
         joints with them. Does nothing before the first setup, which will
         build the scene itself; after a setup that raised it tries again.
+
+        Built again in the same world, the scene is only the one first built
+        if Box2D numbers it the same way: it solves in id order, so a marginal
+        scene numbered differently comes out differently. Rebuilt before it
+        has run, the scene is the same exactly. Once it has run it may not
+        be: the new scene's contacts take the ids the old ones freed, in the
+        order those ended, and nothing here can put that order back.
         """
         if not self._setup_started:
             return
-        for body in list(self.world.bodies):
+        # Box2D hands back freed ids last-freed-first. Destroying the newest
+        # body first means setup gets the lowest back first, as from a new
+        # world: body ids, and with them the ids of each body's shapes, chains
+        # and broad-phase proxies.
+        for body in reversed(self.world.bodies):
             body.destroy()
         self.mouse_joint = None
         self.setup()
