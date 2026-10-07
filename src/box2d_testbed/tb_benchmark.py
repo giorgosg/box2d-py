@@ -32,8 +32,8 @@ class Compound(BaseTest, category="Benchmark", name="Compound"):
     def camera_zoom(self):
         return (50 + 1.5 * self.count) / 2 + 1.5
 
-    #: The valley's friction. The pile ends up much the same at the 0.6 the
-    #: bodies have, Box2D's default.
+    #: The valley's friction. Not Box2D's value: its sample leaves the
+    #: default, 0.6. Kept from the port.
     GROUND_FRICTION = 0.2
 
     count = UI.int(3, min=2, max=10)
@@ -174,8 +174,8 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
 class Spinner(BaseTest, category="Benchmark", name="Spinner"):
     """A long bar driven round inside a ring, churning a heap of small shapes.
 
-    The capsules, circles and boxes start in rows round the bar, in the
-    bottom half of the ring. A motor turns the bar at 5 rad/s, and it sweeps
+    The capsules, circles and boxes start in rows round the bar, from near
+    the bottom of the ring up. A motor turns the bar at 5 rad/s, and it sweeps
     through them and flings them about, so contacts keep starting and ending
     and nothing ever settles. The ring is a single looped chain, which only
     collides on its inner side. With more than a thousand or so pieces the
@@ -284,8 +284,10 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
     The drum is a kinematic body: it turns at the speed it is given, however
     hard the boxes push back, as if driven by a motor of unlimited torque.
     The boxes tumble against its walls and each other, so contacts keep
-    starting and ending, and none of them ever rests for long enough to fall
-    asleep.
+    starting and ending, and while the drum turns none of them rests for
+    long enough to fall asleep. Box2D's Many Tumblers spins its drums the
+    same way; its Tumbler, whose drum this is, drives a dynamic one with a
+    motor.
 
     Speed is how fast the drum turns, in degrees a second, and takes effect
     at once. Max Bodies is how many boxes are fed in; raising it feeds more,
@@ -303,8 +305,8 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
     max_bodies = UI.int(400, min=10, max=2000)
 
     def setup(self):
-        # Box2D's drum: 1 m walls round a space 19 m square, which 2000 of the
-        # boxes would fill only a third of.
+        # The drum of Box2D's Tumbler: 1 m walls round a space 19 m square,
+        # which 2000 of the boxes would fill only a third of.
         self.drum = (
             self.world.new_body()
             .kinematic()
@@ -317,21 +319,24 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
         )
 
         self.boxes = self.world.new_body().dynamic().box(0.25, 0.25)
-        self.count = 0
+        #: How many boxes have been fed in so far.
+        self.fed = 0
 
     def after_step(self, dt):
-        if self.count < self.max_bodies:
+        if self.fed < self.max_bodies:
             # Sixteen places half a metre apart across the middle, taken in
             # turn. By the time one comes round again, 16 steps on, the box
-            # fed there has fallen a third of a metre, clear of it.
-            place = self.count % self.FEED_PLACES
+            # fed there has fallen a third of a metre, clear of it. Past a
+            # thousand boxes or so the tumbling heap throws boxes through the
+            # middle too, and now and then one is fed in on top of those.
+            place = self.fed % self.FEED_PLACES
             x = 0.5 * (place - (self.FEED_PLACES - 1) / 2)
             self.boxes.position(x, 0).build()
-            self.count += 1
+            self.fed += 1
 
     @angular_speed.callback
     def on_speed_change(self, key, value):
         self.drum.angular_velocity = math.radians(value)
 
     def status(self):
-        return f"boxes: {self.count}"
+        return f"boxes: {self.fed}"
