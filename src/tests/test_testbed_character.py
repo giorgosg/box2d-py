@@ -184,6 +184,17 @@ def test_the_mover_holding_both_ways_stands_still(world):
     assert (test.position - start).length < 1e-6
 
 
+@pytest.fixture(autouse=True)
+def camera_left_as_it_was():
+    """Put the testbed camera back after the test.
+
+    Dynamic Mover's Lock Camera moves it, and it is shared by every test.
+    """
+    saved = state.center
+    yield
+    state.center = saved
+
+
 def dynamic_mover(world, **settings):
     """The Dynamic Mover scenario, its sliders set, its character landed."""
     test = scenario(world, "Character", "Dynamic Mover")
@@ -270,18 +281,64 @@ def test_space_held_in_the_air_jumps_once_on_landing(world):
     assert jumps == 1
 
 
-def test_with_air_steer_at_zero_the_dynamic_mover_cannot_steer_in_the_air(world):
-    def speed_gained_in_the_air(air_steer):
-        test = dynamic_mover(world, air_steer=air_steer)
-        test.on_key_down("space")
-        run(test, 2 / HERTZ)
-        test.on_key_down("d")
-        run(test, 0.2)
-        assert not test.mover.on_ground
-        return test.mover.body.linear_velocity.x
+def speed_gained_in_the_air(world, air_steer):
+    """Jump, then hold D for a fifth of a second: the speed gained, in m/s."""
+    test = dynamic_mover(world, air_steer=air_steer)
+    test.on_key_down("space")
+    run(test, 2 / HERTZ)
+    test.on_key_down("d")
+    run(test, 0.2)
+    assert not test.mover.on_ground
+    return test.mover.body.linear_velocity.x
 
-    assert speed_gained_in_the_air(0.5) > 2.0
-    assert speed_gained_in_the_air(0.0) == pytest.approx(0.0, abs=0.01)
+
+@pytest.mark.parametrize("air_steer, gained", [(0.0, 0.0), (0.05, 1.1), (0.1, 2.2)])
+def test_air_steer_sets_how_much_the_dynamic_mover_steers_in_the_air(
+    world, air_steer, gained
+):
+    # Air Steer times Accelerate times Max Speed per second: 0.1 m/s a step
+    # at 0.05, for the 11 steps D is held off the ground.
+    assert speed_gained_in_the_air(world, air_steer) == pytest.approx(gained, abs=0.05)
+
+
+def test_above_about_a_fifth_air_steer_is_capped_by_the_air_force(world):
+    # The mover joint's 20 N in the air, on a character of about 0.9 kg.
+    capped = speed_gained_in_the_air(world, 0.2)
+    assert capped == pytest.approx(4.15, abs=0.05)
+    assert speed_gained_in_the_air(world, 0.5) == pytest.approx(capped)
+    assert speed_gained_in_the_air(world, 1.0) == pytest.approx(capped)
+
+
+@pytest.mark.parametrize("key", ["left", "a"])
+def test_the_dynamic_mover_walks_left_too(world, key):
+    test = dynamic_mover(world)
+
+    test.on_key_down(key)
+    run(test, 0.6)
+
+    assert test.mover.body.linear_velocity.x == pytest.approx(-6.0)
+
+
+def slowest_before_stopping(world, min_speed):
+    """Walk, let go, and report the slowest the character moves before it
+    stops, in m/s."""
+    test = dynamic_mover(world, min_speed=min_speed)
+    test.on_key_down("d")
+    run(test, 0.5)
+    test.on_key_up("d")
+    speeds = []
+    for _ in range(HERTZ):
+        run(test, 1 / HERTZ)
+        speeds.append(abs(test.mover.body.linear_velocity.x))
+    assert speeds[-1] == 0.0, "it should have stopped"
+    return min(speed for speed in speeds if speed > 0.0)
+
+
+def test_below_min_speed_the_dynamic_mover_stops_dead(world):
+    # Below Stop Speed, friction takes 0.4 m/s off each step, so the speeds
+    # run ... 0.93, 0.53, 0.13 and then 0.
+    assert slowest_before_stopping(world, 0.1) < 0.2
+    assert slowest_before_stopping(world, 1.0) > 0.9
 
 
 def test_the_pogo_sliders_reach_the_spring_in_place(world):
@@ -313,8 +370,8 @@ def test_the_dynamic_mover_jumps_up_through_the_elevator_and_rides_it(world):
     test = scenario(world, "Character", "Dynamic Mover")
     test.mover.body.position = (112.0, 6.0)  # on the ground under the elevator
 
-    # The elevator comes back down to its lowest, just over the character's
-    # head, at 2 pi seconds.
+    # The elevator comes back down at 2 pi seconds, to its lowest, through
+    # the character's head: it lets the character through from below.
     run(test, 6.3)
     test.on_key_down("space")
     run(test, 0.1)

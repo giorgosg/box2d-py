@@ -13,6 +13,7 @@ from box2d_testbed import tb_joints  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import (
     HERTZ,
     assert_view_takes_in_moving_bodies,
+    dynamic_bodies,
     press,
     run,
     scenario,
@@ -257,7 +258,7 @@ def test_respawn_drops_a_fresh_ragdoll_from_the_top(world):
 
     assert not landed.hip.is_valid, "the old figure is gone"
     assert test.human.hip.position.y > 20.0
-    assert len([body for body in world.bodies if body.type == "dynamic"]) == 11
+    assert len(dynamic_bodies(world)) == 11
 
 
 @pytest.mark.parametrize("name", ["Ragdoll", "Scale Ragdoll"])
