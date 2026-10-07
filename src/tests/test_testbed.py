@@ -34,6 +34,7 @@ from box2d_testbed import (  # noqa: F401
     tb_continuous,
 )
 from box2d_testbed.base_test import BaseTest
+from testbed_scenarios import every_scenario
 
 #: These few reach into imgui or PyOpenGL; the rest of this module is
 #: scenarios, which need neither. Skipped rather than failed when the testbed
@@ -50,15 +51,6 @@ def world():
     world = World()
     yield world
     world.destroy()
-
-
-def scenarios():
-    """Every registered testbed scenario, as pytest params."""
-    return [
-        pytest.param(cls, id=f"{category}-{name}".replace(" ", "-"))
-        for category, tests in sorted(BaseTest.registry.items())
-        for name, cls in sorted(tests.items())
-    ]
 
 
 class RecordingDraw(DebugDraw):
@@ -103,12 +95,12 @@ def test_registry_is_populated():
     assert total >= 18, f"only {total} scenarios registered"
 
 
-@pytest.mark.parametrize("scenario", scenarios())
-def test_scenario_builds_and_steps(scenario):
+@pytest.mark.parametrize("category, name", every_scenario())
+def test_scenario_builds_and_steps(category, name):
     """Constructing and simulating a scenario must not raise."""
     world = World()
     try:
-        test = scenario(world)
+        test = BaseTest.registry[category][name](world)
         test.setup()
         for _ in range(30):
             world.step(1 / 60, 4)
@@ -117,12 +109,12 @@ def test_scenario_builds_and_steps(scenario):
         world.destroy()
 
 
-@pytest.mark.parametrize("scenario", scenarios())
-def test_scenario_draws(scenario):
+@pytest.mark.parametrize("category, name", every_scenario())
+def test_scenario_draws(category, name):
     """Each scenario must render something through the debug draw path."""
     world = World()
     try:
-        test = scenario(world)
+        test = BaseTest.registry[category][name](world)
         test.setup()
         world.step(1 / 60, 4)
 
@@ -416,8 +408,8 @@ def a_different_value(prop, current):
     return current
 
 
-@pytest.mark.parametrize("scenario", scenarios())
-def test_scenario_ui_controls_work(world, scenario):
+@pytest.mark.parametrize("category, name", every_scenario())
+def test_scenario_ui_controls_work(world, category, name):
     """Change every control the scenario declares, as the GUI would.
 
     Setting a UI property fires its callbacks, and those are where scenarios
@@ -426,12 +418,13 @@ def test_scenario_ui_controls_work(world, scenario):
     a shape swap, a conveyor's tangent speed and a whole drag cycle all reached
     the GUI broken.
     """
+    scenario = BaseTest.registry[category][name]
     test = scenario(world)
     test.setup()
     world.step(1 / 60, 4)
 
-    for name, prop in ui_properties(scenario):
-        setattr(test, name, a_different_value(prop, getattr(test, name)))
+    for control, prop in ui_properties(scenario):
+        setattr(test, control, a_different_value(prop, getattr(test, control)))
         # A control that rebuilds the scene must leave it usable.
         world.step(1 / 60, 4)
         test.after_step(1 / 60)
@@ -459,10 +452,10 @@ def test_the_scissor_lift_motor_checkbox_reaches_the_joint(world):
     assert test.lift_joint.enable_motor is False
 
 
-@pytest.mark.parametrize("scenario", scenarios())
-def test_scenario_input_handlers_are_safe(world, scenario):
+@pytest.mark.parametrize("category, name", every_scenario())
+def test_scenario_input_handlers_are_safe(world, category, name):
     """Keys and mouse events must not raise, whether the scenario uses them or not."""
-    test = scenario(world)
+    test = BaseTest.registry[category][name](world)
     test.setup()
     world.step(1 / 60, 4)
 
@@ -828,14 +821,7 @@ class _StrictRenderer(DebugDraw):
         transform.p.x
 
 
-@pytest.mark.parametrize(
-    "category,name",
-    [
-        (category, name)
-        for category, tests in BaseTest.registry.items()
-        for name in tests
-    ],
-)
+@pytest.mark.parametrize("category, name", every_scenario())
 def test_scenario_survives_being_drawn(category, name):
     """Run a scenario through a renderer as picky as the real one."""
     from box2d import World

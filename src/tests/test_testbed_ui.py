@@ -21,6 +21,7 @@ import pytest
 from box2d import DebugDraw, Vec2, World
 from box2d_testbed.base_test import BaseTest
 from box2d_testbed.testbed_state import DebugDrawSettings
+from testbed_scenarios import every_scenario
 
 # Imported for the side effect of registering every scenario.
 from box2d_testbed import (  # noqa: F401
@@ -34,10 +35,6 @@ from box2d_testbed import (  # noqa: F401
     tb_shapes,
     tb_stacking,
 )
-
-ALL_SCENARIOS = [
-    (category, name) for category, tests in BaseTest.registry.items() for name in tests
-]
 
 
 class Renderer(DebugDraw):
@@ -117,7 +114,7 @@ def run(test, steps, renderer):
     assert status is None or isinstance(status, (str, list, tuple))
 
 
-@pytest.mark.parametrize("category,name", ALL_SCENARIOS)
+@pytest.mark.parametrize("category, name", every_scenario())
 def test_every_control_of_every_scenario(category, name):
     """Set each control to each interesting value, simulating throughout."""
     world = World()
@@ -138,7 +135,7 @@ def test_every_control_of_every_scenario(category, name):
         world.destroy()
 
 
-@pytest.mark.parametrize("category,name", ALL_SCENARIOS)
+@pytest.mark.parametrize("category, name", every_scenario())
 def test_every_scenario_survives_a_reset_mid_flight(category, name):
     """Reset rebuilds the scene while the old one is still referenced."""
     world = World()
@@ -181,7 +178,7 @@ def test_switching_between_every_pair_of_scenarios():
     runs in the same process rather than in isolation.
     """
     renderer = Renderer()
-    ordered = ALL_SCENARIOS
+    ordered = [scenario.values for scenario in every_scenario()]
 
     for (category, name), (next_category, next_name) in itertools.pairwise(
         ordered + ordered[:1]
@@ -202,7 +199,7 @@ def test_switching_between_every_pair_of_scenarios():
 def test_every_scenario_declares_its_controls_with_labels():
     """A control with no label is invisible in the panel."""
     missing = []
-    for category, name in ALL_SCENARIOS:
+    for category, name in (scenario.values for scenario in every_scenario()):
         world = World()
         test = BaseTest.registry[category][name](world)
         for element_name, element in test.ui_elements:
