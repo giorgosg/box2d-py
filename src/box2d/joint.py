@@ -68,11 +68,11 @@ class Joint(FixedAttributes):
     user_data = None
 
     def _join(self, world):
-        """Make this joint part of ``world``, the first thing each joint does.
+        """Make this joint part of ``world``, before anything is built for it.
 
         Box2D creates nothing while the world is stepping, so that is refused
-        here, before anything is built -- a mouse joint would otherwise make
-        its proxy body first.
+        here, ahead of every joint's first call into Box2D -- a mouse joint
+        would otherwise make its proxy body first.
         """
         world._refuse_while_locked("joint", "create")
         self.world = world
@@ -624,6 +624,7 @@ class RevoluteJoint(Joint):
         Raises:
             ValueError: If lower_limit is above upper_limit.
         """
+        self._join(world)
         self._localAnchorA = Vec2(local_anchor_a)
         self._localAnchorB = Vec2(local_anchor_b)
         self._lower_limit = lower_limit
@@ -677,7 +678,6 @@ class RevoluteJoint(Joint):
             defn.targetAngle = target_angle
 
         self._def = defn
-        self._join(world)
         self._joint_id = lib.b2CreateRevoluteJoint(
             self.world._world_id, ffi.addressof(self._def)
         )
