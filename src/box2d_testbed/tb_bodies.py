@@ -66,7 +66,10 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
     def on_type_change(self, key, value):
         self.platform.type = value
         if value == "kinematic":
+            # A kinematic body keeps the velocity it had, and nothing slows it
+            # down: a platform switched while tumbling would turn forever.
             self.platform.linear_velocity = (self.PATROL_SPEED, 0)
+            self.platform.angular_velocity = 0.0
 
     @enable_sleep.callback
     def on_sleep_change(self, key, value):

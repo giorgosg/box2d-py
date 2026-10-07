@@ -33,3 +33,19 @@ def test_the_patrolling_platform_keeps_all_its_cargo(world):
     platform = test.platform.position
     heights = [box.position.y - platform.y for box in test.cargo]
     assert all(abs(height - 1.0) < 0.05 for height in heights), heights
+
+
+def test_a_platform_made_kinematic_while_turning_stops_turning(world):
+    test = scenario(world, "Bodies", "Body Type")
+    test.body_type = "dynamic"
+    run(test, 0.25)
+    # Tumbling, as it might be when it lands on the ground or the boxes.
+    test.platform.angular_velocity = 1.0
+
+    test.body_type = "kinematic"
+
+    # A kinematic body keeps whatever velocity it has, and nothing slows it.
+    turned = test.platform.rotation
+    run(test, 2.0)
+    assert test.platform.angular_velocity == 0.0
+    assert test.platform.rotation == turned
