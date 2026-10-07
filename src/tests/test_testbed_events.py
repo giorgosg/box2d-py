@@ -161,3 +161,18 @@ def test_the_platformer_knows_what_the_player_stands_on(world):
 
     run(test, 2.0)
     assert test.standing_on is platform
+
+
+def test_the_player_cannot_jump_again_in_mid_air(world):
+    test = scenario(world, "Events", "Platformer")
+    run(test, 0.5)
+    test.on_key_down("space")
+    test.on_key_up("space")
+    run(test, 0.25)
+    rising = test.player.linear_velocity.y
+    assert rising > 1.0, "the first jump should have left the ground"
+
+    test.on_key_down("space")
+    test.on_key_up("space")
+
+    assert test.player.linear_velocity.y == rising
