@@ -10,11 +10,7 @@ import pytest
 
 from box2d import Polygon, PolygonDef
 from box2d_testbed import tb_shapes  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import run, scenario
-
-
-def dynamic_bodies(world):
-    return [body for body in world.bodies if body.type == "dynamic"]
+from testbed_scenarios import dynamic_bodies, run, scenario
 
 
 def test_starting_the_conveyor_belt_moves_boxes_resting_on_it(world):
