@@ -8,6 +8,10 @@ These scenes are big, so the tests use the smaller ends of the controls
 where they can.
 """
 
+import math
+
+import pytest
+
 from box2d import ShapeProxy, Vec2
 from box2d_testbed import tb_benchmark  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import dynamic_bodies, run, scenario
@@ -94,3 +98,94 @@ def test_the_pyramid_stands_centred_on_the_origin(world):
     assert bottom == [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
     (top,) = (box.position for box in boxes if box.position.y > 5)
     assert tuple(top) == (0, 5.5)
+
+
+def test_the_compounds_land_in_the_valley_and_come_to_rest(world):
+    test = scenario(world, "Benchmark", "Compound")
+    compounds = dynamic_bodies(world)
+    # Three by three of them, each three boxes by three.
+    assert [len(body.shapes) for body in compounds] == [9] * 9
+
+    run(test, 9.0)
+
+    assert not any(body.awake for body in compounds)
+    # The valley's sides rise a metre a step from the middle, to 13.5 m.
+    assert all(abs(body.position.x) < body.position.y + 1.5 for body in compounds)
+    assert all(body.position.y < 14 for body in compounds)
+
+
+def test_compound_count_sets_how_many_bodies_there_are(world):
+    test = scenario(world, "Benchmark", "Compound")
+    test.count = 2
+    assert len(dynamic_bodies(world)) == 4
+
+
+@pytest.mark.parametrize(
+    "name, control, value, boxes",
+    [
+        # Twenty boxes along the bottom: 20 + 19 + ... + 1.
+        ("Pyramid", None, None, 210),
+        # Two by two pyramids of 55 boxes.
+        ("Many Pyramids", "grid", 2, 220),
+    ],
+)
+def test_the_pyramids_stand_and_fall_asleep(world, name, control, value, boxes):
+    test = scenario(world, "Benchmark", name)
+    if control is not None:
+        setattr(test, control, value)
+    bodies = dynamic_bodies(world)
+    assert len(bodies) == boxes
+    start = [body.position for body in bodies]
+
+    run(test, 1.5)
+
+    assert max((b.position - p).length for b, p in zip(bodies, start)) < 0.05
+    assert not any(body.awake for body in bodies)
+
+
+def test_the_spinner_turns_at_full_speed_and_keeps_its_pieces_in(world):
+    test = scenario(world, "Benchmark", "Spinner")
+    test.body_count = 150
+    bar, *pieces = dynamic_bodies(world)
+    assert len(pieces) == 150
+
+    run(test, 3.0)
+
+    assert bar.angular_velocity == pytest.approx(5.0, abs=0.05)
+    assert all(piece.position.length < 40 for piece in pieces)
+
+
+def test_the_tumbler_speed_turns_the_drum_at_once(world):
+    test = scenario(world, "Benchmark", "Tumbler")
+    assert test.drum.angular_velocity == pytest.approx(math.radians(25))
+
+    test.angular_speed = -60.0
+
+    assert test.drum.angular_velocity == pytest.approx(math.radians(-60))
+    run(test, 0.5)
+    assert test.drum.rotation == pytest.approx(math.radians(-30), abs=1e-3)
+
+
+def test_max_bodies_stops_and_restarts_the_tumbler_feed(world):
+    test = scenario(world, "Benchmark", "Tumbler")
+    test.max_bodies = 30
+    run(test, 1.0)
+    assert len(dynamic_bodies(world)) == 30
+
+    test.max_bodies = 40
+    run(test, 1.0)
+    assert len(dynamic_bodies(world)) == 40
+
+    # Lowering it feeds no more, and takes none out.
+    test.max_bodies = 10
+    run(test, 1.0)
+    assert len(dynamic_bodies(world)) == 40
+
+
+def test_the_tumbling_boxes_never_fall_asleep(world):
+    test = scenario(world, "Benchmark", "Tumbler")
+    test.max_bodies = 100
+
+    run(test, 10.0)
+
+    assert all(box.awake for box in dynamic_bodies(world))
