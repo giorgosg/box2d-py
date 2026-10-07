@@ -47,7 +47,7 @@ def test_the_bullet_hits_the_first_column(world):
 @pytest.mark.parametrize("mirror", [False, True], ids=["right", "mirrored"])
 def test_every_body_on_the_cliff_goes_over_its_edge_to_the_ground(world, mirror):
     test = scenario(world, "Stacking", "Cliff")
-    test.flip = mirror
+    test.mirror = mirror
     bodies = dynamic_bodies(world)
     start = [body.position.x for body in bodies]
     # The circles, rolling furthest at the slowest, are down a little over
@@ -165,7 +165,7 @@ def tilted_column(world, lean):
     """One ten-row column of the Tilted Stack, leaning ``lean`` m a row."""
     test = scenario(world, "Stacking", "Tilted Stack")
     test.columns = 1
-    test.offset = lean
+    test.lean = lean
     return test, dynamic_bodies(world)[-1]
 
 

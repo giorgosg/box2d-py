@@ -11,8 +11,7 @@ import random
 import pytest
 
 from box2d import Capsule
-
-from box2d_testbed import tb_continuous  # noqa: F401  (registers the scenarios)
+from box2d_testbed.tb_continuous import SkinnyBox
 from testbed_scenarios import press, run, scenario
 
 
@@ -35,9 +34,9 @@ def test_a_box_that_skids_off_the_end_of_the_floor_has_not_tunnelled(world):
     through = skidded = 0
     for _ in range(40):
         run(test, 1.0)
-        box = test.projectile
-        if box.position.y < -1.0:
-            if abs(box.position.x) > 10.0:
+        projectile = test.projectile
+        if projectile.position.y < -1.0:
+            if abs(projectile.position.x) > SkinnyBox.FLOOR_HALF_WIDTH:
                 skidded += 1
             else:
                 through += 1

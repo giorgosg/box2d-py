@@ -227,6 +227,19 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
     camera_center = (-7, 9)
     camera_zoom = 14.0
 
+    #: The boxes' friction, against the ground and each other.
+    BOX_FRICTION = 0.3
+    #: Where the ball is fired from: just past the end of the ground, level
+    #: with the fifth row.
+    BALL_START = (-31, 5)
+    #: The ball's speed, in m/s: Box2D's maximum linear speed, the fastest it
+    #: lets anything go.
+    BALL_SPEED = 400.0
+    #: The ball's radius, in m, and density, four times the boxes', so it
+    #: carries enough to knock a column about.
+    BALL_RADIUS = 0.25
+    BALL_DENSITY = 4.0
+
     columns = UI.int(5, min=1, max=10)
     rows = UI.int(12, min=1, max=30)
     bullet = UI.bool(True)
@@ -241,7 +254,7 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
             .build()
         )
 
-        boxes = self.world.new_body().dynamic().box(1, 1, density=1.0, friction=0.3)
+        boxes = self.world.new_body().dynamic().box(1, 1, friction=self.BOX_FRICTION)
         # Alternate rows sit 2 cm either side, so that a column is not
         # perfectly aligned, and 1 cm apart, so that each box drops onto the
         # one below.
@@ -261,9 +274,9 @@ class VerticalStack(BaseTest, category="Stacking", name="Vertical Stack"):
             self.world.new_body()
             .dynamic()
             .bullet(self.bullet)
-            .position(-31, 5)
-            .linear_velocity(400, 0)
-            .circle(radius=0.25, density=4.0)
+            .position(self.BALL_START)
+            .linear_velocity(self.BALL_SPEED, 0)
+            .circle(radius=self.BALL_RADIUS, density=self.BALL_DENSITY)
             .build()
         )
 
@@ -288,7 +301,17 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
     camera_center = (0, 5)
     camera_zoom = 12.5
 
-    flip = UI.bool(False, label="Mirror")
+    #: How fast each kind of body is sent towards the end of its ledge, in
+    #: m/s, and its friction. The capsules and boxes all but slide, so they
+    #: reach the edge however far back they start; the circles roll, and need
+    #: some grip to. Box2D's values.
+    CAPSULE_SPEED = 2.0
+    BOX_SPEED = 2.5
+    CIRCLE_SPEED = 1.5
+    SLIDING_FRICTION = 0.01
+    CIRCLE_FRICTION = 0.2
+
+    mirror = UI.bool(False)
 
     def setup(self):
         (
@@ -303,14 +326,14 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
         # Where each ledge's middle is, and how high its top.
         ledges = ((-11.0, 4.0), (0.0, 4.5), (11.0, 4.5))
 
-        # Box2D's speeds and frictions. Each capsule starts 2 m short of its
-        # ledge's end, each box in the middle and each circle 2 m further back.
-        sign = -1.0 if self.flip else 1.0
+        # Each capsule starts 2 m towards the end it is sent to, each box in
+        # the middle and each circle 2 m the other way.
+        sign = -1.0 if self.mirror else 1.0
         capsule = (
             self.world.new_body()
             .dynamic()
-            .linear_velocity(2.0 * sign, 0)
-            .capsule((-0.25, 0), (0.25, 0), radius=0.25, friction=0.01)
+            .linear_velocity(self.CAPSULE_SPEED * sign, 0)
+            .capsule((-0.25, 0), (0.25, 0), radius=0.25, friction=self.SLIDING_FRICTION)
         )
         for middle, top in ledges:
             capsule.position(middle + 2.0 * sign, top + 0.25).build()
@@ -318,8 +341,8 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
         box = (
             self.world.new_body()
             .dynamic()
-            .linear_velocity(2.5 * sign, 0)
-            .box(1, 1, friction=0.01)
+            .linear_velocity(self.BOX_SPEED * sign, 0)
+            .box(1, 1, friction=self.SLIDING_FRICTION)
         )
         for middle, top in ledges:
             box.position(middle, top + 0.5).build()
@@ -327,14 +350,14 @@ class Cliff(BaseTest, category="Stacking", name="Cliff"):
         circle = (
             self.world.new_body()
             .dynamic()
-            .linear_velocity(1.5 * sign, 0)
-            .circle(0.5, friction=0.2)
+            .linear_velocity(self.CIRCLE_SPEED * sign, 0)
+            .circle(0.5, friction=self.CIRCLE_FRICTION)
         )
         for middle, top in ledges:
             circle.position(middle - 2.0 * sign, top + 0.5).build()
 
-    @flip.callback
-    def on_flip(self, key, value):
+    @mirror.callback
+    def on_mirror(self, key, value):
         self.rebuild()
 
     def status(self):
@@ -452,9 +475,15 @@ class TiltedStack(BaseTest, category="Stacking", name="Tilted Stack"):
     camera_center = (9, 5)
     camera_zoom = 12.0
 
+    #: How far the corners of the boxes are rounded, in m. It takes 5 cm off
+    #: each side of the flat a box can rest on.
+    ROUNDING = 0.05
+    #: The boxes' friction, against the ground and each other.
+    FRICTION = 0.3
+
     rows = UI.int(10, min=2, max=20)
     columns = UI.int(4, min=1, max=8)
-    offset = UI.float(0.2, min=0.0, max=0.5, label="Lean per row")
+    lean = UI.float(0.2, min=0.0, max=0.5, label="Lean per row")
 
     def setup(self):
         self.world.new_body().static().position(0, -1).box(2000, 2).build()
@@ -464,17 +493,17 @@ class TiltedStack(BaseTest, category="Stacking", name="Tilted Stack"):
         boxes = (
             self.world.new_body()
             .dynamic()
-            .box(0.9, 0.9, radius=0.05, density=1.0, friction=0.3)
+            .box(0.9, 0.9, radius=self.ROUNDING, friction=self.FRICTION)
         )
         spacing = 5.0
         first_x = -0.5 * spacing * (self.columns - 1.0)
         for column in range(self.columns):
             x = first_x + column * spacing
             for row in range(self.rows):
-                boxes.position(x + self.offset * row, 0.5 + 1.0 * row).build()
+                boxes.position(x + self.lean * row, 0.5 + 1.0 * row).build()
 
     @rows.callback
     @columns.callback
-    @offset.callback
+    @lean.callback
     def on_change(self, key, value):
         self.rebuild()

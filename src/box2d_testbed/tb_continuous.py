@@ -35,6 +35,11 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
 
     #: The floor runs this far either side of the origin, in m.
     FLOOR_HALF_WIDTH = 10.0
+    #: The floor's friction, and the post's.
+    FRICTION = 0.9
+    #: The post to the right of the drop: its middle and its size, in m.
+    POST_CENTER = (3, 1)
+    POST_SIZE = (0.2, 2.0)
 
     continuous = UI.bool(True, label="World continuous")
     capsule = UI.bool(False)
@@ -47,9 +52,11 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
             self.world.new_body()
             .static()
             .segment(
-                (-self.FLOOR_HALF_WIDTH, 0), (self.FLOOR_HALF_WIDTH, 0), friction=0.9
+                (-self.FLOOR_HALF_WIDTH, 0),
+                (self.FLOOR_HALF_WIDTH, 0),
+                friction=self.FRICTION,
             )
-            .box(0.2, 2.0, offset=(3, 1), friction=0.9)
+            .box(*self.POST_SIZE, offset=self.POST_CENTER, friction=self.FRICTION)
             .build()
         )
 
@@ -77,21 +84,21 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
 
         self.projectile = builder.build()
         self.launches += 1
-        self.checked = False
+        self.counted = False
 
     def after_step(self, dt):
         # Below the floor and still over it means the box went through it. A
         # box can also go off the end: one that lands spinning can turn the
         # spin into a skid, and that takes it past the end long before it has
         # dropped a metre.
-        box = self.projectile
+        projectile = self.projectile
         if (
-            not self.checked
-            and box.position.y < -1.0
-            and abs(box.position.x) < self.FLOOR_HALF_WIDTH
+            not self.counted
+            and projectile.position.y < -1.0
+            and abs(projectile.position.x) < self.FLOOR_HALF_WIDTH
         ):
             self.passed_through += 1
-            self.checked = True
+            self.counted = True
 
     @launch.callback
     @capsule.callback
@@ -119,7 +126,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
 
     The left and right arrow keys work the flippers. Flipper Torque is the
     most torque each flipper's motor may use, in N m. Ball Speed is how fast
-    a ball is served, in m/s; changing it serves a new one, as Serve Ball
+    a ball is served, in m/s; changing it serves a new one, as Serve ball
     does.
     """
 
@@ -130,6 +137,10 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
     #: it is let go, in rad/s. Box2D's values.
     FLIP_SPEED = 20.0
     RETURN_SPEED = 10.0
+    #: How far a flipper's inner end turns down at rest, and up when flipped,
+    #: in rad.
+    FLIPPER_DOWN = 0.5
+    FLIPPER_UP = 0.4
 
     flipper_torque = UI.float(1000.0, min=100.0, max=5000.0)
     ball_speed = UI.float(20.0, min=5.0, max=60.0)
@@ -158,8 +169,8 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_motor=True,
             max_motor_torque=self.flipper_torque,
             enable_limit=True,
-            lower_limit=-0.5,
-            upper_limit=0.4,
+            lower_limit=-self.FLIPPER_DOWN,
+            upper_limit=self.FLIPPER_UP,
             motor_speed=-self.RETURN_SPEED,
         )
         self.right_joint = self.world.add_revolute_joint(
@@ -170,8 +181,8 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_motor=True,
             max_motor_torque=self.flipper_torque,
             enable_limit=True,
-            lower_limit=-0.4,
-            upper_limit=0.5,
+            lower_limit=-self.FLIPPER_UP,
+            upper_limit=self.FLIPPER_DOWN,
             motor_speed=self.RETURN_SPEED,
         )
 
