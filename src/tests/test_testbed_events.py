@@ -66,3 +66,19 @@ def test_the_touching_count_keeps_the_ground_when_a_box_bounces_off_it(world):
     assert floor in touching_shapes(world), "the boxes should be on the ground"
 
     assert len(test.touching) == len(touching_shapes(world))
+
+
+def test_body_move_counts_the_boxes_asleep_now_not_every_time_one_slept(world):
+    test = scenario(world, "Events", "Body Move")
+    boxes = [body for body in world.bodies if body.type == "dynamic"]
+    run(test, 4.0)
+    assert not any(box.awake for box in boxes), "the pyramid should have slept"
+    assert test.asleep == len(boxes)
+
+    boxes[0].awake = True
+    run(test, 1 / 60)
+    assert test.asleep == 0, "waking one box wakes the whole pile"
+
+    run(test, 4.0)
+    assert not any(box.awake for box in boxes), "and it settles again"
+    assert test.asleep == len(boxes)

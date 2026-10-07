@@ -188,8 +188,10 @@ class BodyMoveEvents(BaseTest, category="Events", name="Body Move"):
     moved -- every awake body -- with its new transform. That is cheaper than
     walking every body to refresh what you draw, since a body at rest costs
     nothing. The pyramid settles within a couple of seconds, Box2D puts it to
-    sleep, and the count drops to zero; the last event a body gets says it
-    fell asleep. Drag a box to wake the pile and watch it settle again.
+    sleep, and the count drops to zero. The last event a body gets says it
+    fell asleep, and any event after that means it woke, which is how the
+    scene counts the boxes asleep. Drag a box to wake the pile and watch it
+    settle again.
     """
 
     camera_center = (0, 6)
@@ -198,23 +200,34 @@ class BodyMoveEvents(BaseTest, category="Events", name="Body Move"):
     def setup(self):
         self.world.new_body().static().segment((-15, 0), (15, 0)).build()
 
-        boxes = self.world.new_body().dynamic().box(0.8, 0.8, friction=0.6)
-        for row in range(6):
-            for column in range(6 - row):
-                boxes.position(-3 + column + 0.5 * row, 0.5 + row).build()
+        builder = self.world.new_body().dynamic().box(0.8, 0.8, friction=0.6)
+        self.boxes = [
+            builder.position(-3 + column + 0.5 * row, 0.5 + row).build()
+            for row in range(6)
+            for column in range(6 - row)
+        ]
 
         self.moved = 0
-        self.asleep = 0
+        self.sleeping = set()
 
     def after_step(self, dt):
         events = self.world.get_body_events()
         self.moved = len(events)
-        self.asleep += sum(1 for event in events if event.fell_asleep)
+        for event in events:
+            if event.fell_asleep:
+                self.sleeping.add(event.body)
+            else:
+                self.sleeping.discard(event.body)
+
+    @property
+    def asleep(self):
+        """How many boxes are asleep now."""
+        return len(self.sleeping)
 
     def status(self):
         return (
-            f"moving this step: {self.moved} of {len(self.world.bodies)}"
-            f"   fell asleep: {self.asleep}"
+            f"moving this step: {self.moved} of {len(self.boxes)} boxes"
+            f"   asleep: {self.asleep}"
         )
 
 
