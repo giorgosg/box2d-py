@@ -13,15 +13,16 @@ class CardHouse(BaseTest, category="Stacking", name="Card House"):
     The cards are 2 mm thick, less than the half centimetre Box2D lets
     touching shapes overlap, and only friction stops them sliding, so the
     contacts have to hold exactly. The house settles within a second and
-    stands. How well the solver holds it depends on its sub-steps: lower the
-    testbed's Substeps from 20 to 4, the default in Box2D's own samples, and
-    a house of six rows or more falls.
+    stands. How well the solver holds it depends on its sub-steps: at 4, the
+    default in Box2D's own samples rather than the testbed's 20, a taller
+    house is on the edge and may fall.
 
     Rows sets how many rows the house has, rebuilding it.
     """
 
-    camera_center = (0.75, 0.9)
-    camera_zoom = 1.25
+    # Frames the tallest house Rows allows, eight rows and 3 m high.
+    camera_center = (1.3, 1.5)
+    camera_zoom = 1.7
 
     #: A card's height and thickness, in m.
     CARD_HEIGHT = 0.4
@@ -464,9 +465,12 @@ class TiltedStack(BaseTest, category="Stacking", name="Tilted Stack"):
     their centre of mass (n + 1) / 2 times the lean out from its middle, and
     they topple once that is past the edge of its flat top, 0.45 m out. At the
     defaults the nine on the bottom box are 1 m out, so every column topples,
-    about 1.7 s in. Ten rows stand at a lean of 0.08 m and fall at 0.09. The
-    solver's part is to get that answer right: contact drift must neither
-    hold up a column that should fall nor tip over one that should stand.
+    about 1.7 s in.
+
+    The solver gets close to that answer, and closer the shorter the column.
+    Five rows stand at 0.175 m and fall at 0.18, where statics puts the
+    limit. Ten rows, which statics holds up to 0.09 m, stand at 0.08 and fall
+    at 0.085, and twenty, held up to 0.045 m, already fall at 0.03.
 
     Rows and Columns set the size of the stacks, and Lean per row how far
     each box is set over, in m. All three rebuild the stacks.

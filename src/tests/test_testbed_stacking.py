@@ -92,6 +92,18 @@ def test_the_structure_stands(world, name, settling):
     assert not any(body.awake for body in bodies), "it should have come to rest"
 
 
+def test_the_card_house_view_takes_in_the_tallest_house(world):
+    test = scenario(world, "Stacking", "Card House")
+    test.rows = type(test).rows.max_value
+    (left, bottom), (right, top) = test.moving_bounds()
+
+    center, zoom = test.view()
+
+    # zoom is half the visible height; the view is at least 1.6 times as wide.
+    assert center.y - zoom <= bottom and top <= center.y + zoom
+    assert center.x - 1.6 * zoom <= left and right <= center.x + 1.6 * zoom
+
+
 def test_a_card_house_of_three_rows_stands_too(world):
     test = scenario(world, "Stacking", "Card House")
     test.rows = 3
@@ -169,7 +181,9 @@ def tilted_column(world, lean):
     return test, dynamic_bodies(world)[-1]
 
 
-@pytest.mark.parametrize("lean, falls", [(0.08, False), (0.09, True), (0.2, True)])
+@pytest.mark.parametrize(
+    "lean, falls", [(0.08, False), (0.085, True), (0.09, True), (0.2, True)]
+)
 def test_a_tilted_column_stands_only_while_it_leans_little_enough(world, lean, falls):
     test, top = tilted_column(world, lean)
     start = top.position
