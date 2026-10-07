@@ -295,3 +295,17 @@ def test_the_player_cannot_jump_again_the_step_after_taking_off(world):
 
     assert test.player.linear_velocity.y == rising
     assert test.standing_on is None, "it should not count as standing"
+
+
+def test_the_platformer_player_walks_with_a_and_d_too(world):
+    test = scenario(world, "Events", "Platformer")
+    run(test, 0.5)
+
+    test.on_key_down("d")
+    run(test, 0.5)
+    assert test.player.linear_velocity.x > 1.0
+
+    test.on_key_up("d")
+    test.on_key_down("a")
+    run(test, 1.0)
+    assert test.player.linear_velocity.x < -1.0

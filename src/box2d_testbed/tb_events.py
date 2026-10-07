@@ -321,9 +321,10 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
     main thread -- here, what the player is standing on, from the contacts
     that survived pre-solve.
 
-    Move with the left and right arrow keys, and jump with space from
-    anything you stand on. Force is the push the arrows give, in N, and Jump
-    Impulse the kick space gives, in N s.
+    Move with the left and right arrow keys, or A and D as in Box2D's
+    sample, and jump with space from anything you stand on. Force is the
+    push those keys give, in N, and Jump Impulse the kick space gives, in
+    N s.
     """
 
     camera_center = (0, 6)
@@ -407,15 +408,15 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
         elif self.moving_platform.position.x < -8:
             self.moving_platform.linear_velocity = (2, 0)
 
-        if "left" in self.held:
+        if self.held & {"left", "a"}:
             self.player.apply_force((-self.force, 0))
-        if "right" in self.held:
+        if self.held & {"right", "d"}:
             self.player.apply_force((self.force, 0))
 
     def on_key_down(self, key):
-        if key in ("left", "right"):
+        if key != "space":
             self.held.add(key)
-        elif key == "space" and self.standing_on is not None:
+        elif self.standing_on is not None:
             self.player.apply_linear_impulse((0, self.jump_impulse))
 
     def on_key_up(self, key):
