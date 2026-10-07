@@ -74,3 +74,18 @@ def test_each_max_hits_shows_that_many_hits_along_the_first_ray(world):
         assert shown[n][: n - 1] == shown[n - 1]
     fractions = [hit.fraction for hit in shown[5]]
     assert fractions == sorted(fractions)
+
+
+@pytest.mark.parametrize("mover", ["circle", "box", "capsule"])
+def test_shape_cast_opens_aimed_through_the_gap_in_the_wall(world, mover):
+    test = scenario(world, "Collision", "Shape Cast")
+    test.mover = mover
+
+    assert test.cast() == [], "at the size it opens with, it fits"
+
+    test.size = 1.5
+    (hit,) = test.cast()
+    # The wall is 0.6 m thick, standing on x = 0, with a gap from y = -2 to
+    # y = 2; nothing else is in the way.
+    assert abs(hit.point.x) <= 0.3 + 1e-4 and abs(hit.point.y) >= 2 - 1e-4, hit
+    assert 0 < hit.fraction < 1

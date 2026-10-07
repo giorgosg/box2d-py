@@ -99,8 +99,8 @@ class ShapeCast(BaseTest, category="Collision", name="Shape Cast"):
 
     A ray finds what a point would hit, so it slips through any gap. Sweeping
     a shape of real size answers the question a character controller asks:
-    will this fit, and where does it stop? Drag to aim, and widen the mover
-    until it no longer clears the gap in the wall.
+    will this fit, and where does it stop? The scene opens with the mover
+    aimed through the gap in the wall: widen it, and it no longer fits.
 
     The grey outline is the mover where the cast starts, the white one where
     it stops, and the red dots and lines are the hits and their normals. A
@@ -122,8 +122,11 @@ class ShapeCast(BaseTest, category="Collision", name="Shape Cast"):
     all_hits = UI.bool(False, label="Show all hits")
 
     def setup(self):
-        self.cast_start = Vec2(-9, 5)
-        self.cast_end = Vec2(9, -3)
+        # Diagonally through the gap, clear of the posts either side at any
+        # size. The circle fits through up to a size of 1.2, the box 0.84
+        # and the capsule 0.7; any bigger and it stops against the wall.
+        self.cast_start = Vec2(-3, -3)
+        self.cast_end = Vec2(3, 3)
 
         ground = self.world.new_body().static()
         # A wall with a gap, so the mover's width decides whether it passes.
