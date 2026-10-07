@@ -10,9 +10,9 @@ import copy
 
 import pytest
 
-from box2d import World
+from box2d import Vec2, World
 from box2d_testbed import tb_events  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import run, scenario
+from testbed_scenarios import HERTZ, run, scenario
 
 
 def test_the_foot_sensor_player_walks_with_the_arrow_keys(world):
@@ -176,3 +176,24 @@ def test_the_player_cannot_jump_again_in_mid_air(world):
     test.on_key_up("space")
 
     assert test.player.linear_velocity.y == rising
+
+
+def test_a_figure_dragged_into_the_outlet_lets_go_of_the_mouse(world):
+    test = scenario(world, "Events", "Sensor Funnel")
+    figure = test.elements[0]
+    head = figure.head
+    test.on_mouse_down(head.position)
+    assert test.mouse_joint is not None, "the figure should be held"
+
+    outlet = Vec2(0, -30.5)
+    for _ in range(5 * HERTZ):
+        test.on_mouse_drag(outlet, Vec2(0, 0))
+        run(test, 1 / HERTZ)
+        if figure not in test.elements:
+            break
+    assert figure not in test.elements, "the figure should have been delivered"
+
+    # The figure went, and the mouse joint with it.
+    test.on_mouse_drag(outlet, Vec2(0, 0))
+    test.on_mouse_release(outlet)
+    assert test.mouse_joint is None
