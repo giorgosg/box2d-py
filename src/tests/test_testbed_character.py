@@ -71,3 +71,20 @@ def test_the_mover_can_jump_up_onto_the_ledge(world):
     assert test.on_ground
     assert -11.0 < test.position.x < -5.0, "over the ledge"
     assert test.position.y > 1.5, "on top of it, not under it"
+
+
+def in_view(test, body):
+    """Whether the whole of a body is inside the scenario's opening view."""
+    center, zoom = test.view()
+    return all(
+        center.x - 1.6 * zoom <= shape.aabb.lower.x
+        and shape.aabb.upper.x <= center.x + 1.6 * zoom
+        and center.y - zoom <= shape.aabb.lower.y
+        and shape.aabb.upper.y <= center.y + zoom
+        for shape in body.shapes
+    )
+
+
+def test_the_dynamic_mover_opens_on_its_character(world):
+    test = scenario(world, "Character", "Dynamic Mover")
+    assert in_view(test, test.mover.body)

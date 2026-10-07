@@ -161,7 +161,8 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
     view on it.
     """
 
-    camera_center = (20.0, 9.0)
+    # On the character, where Lock Camera keeps the view from the first step.
+    camera_center = (0.0, 9.0)
     camera_zoom = 10.0
 
     jump_speed = UI.float(7.0, min=0.0, max=40.0)
