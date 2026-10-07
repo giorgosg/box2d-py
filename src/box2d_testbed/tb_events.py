@@ -609,6 +609,8 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
         # shapes the remaining events still refer to.
         arrived = []
         for event in self.world.get_sensor_events().begin:
+            if event.visitor is None:  # destroyed since the step
+                continue
             element = event.visitor.body.user_data
             if element is not None and element not in arrived:
                 arrived.append(element)

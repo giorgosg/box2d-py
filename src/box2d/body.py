@@ -1114,8 +1114,7 @@ class Body(FixedAttributes):
             self.world._refuse_while_locked("body")
             joints = self._read_joints()
             lib.b2DestroyBody(raw)
-        if hasattr(self.world, "_bodies"):
-            self.world._bodies.pop(raw, None)
+        self.world._untrack_body(raw)
         del self._body_id
         for joint in joints:
             joint._release()

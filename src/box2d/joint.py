@@ -78,7 +78,7 @@ class Joint(FixedAttributes):
         """
         self._joint_handle = ffi.new_handle(self)
         lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
-        self.world._joints[self._joint_id] = self
+        self.world._track_joint(self)
 
     def destroy(self):
         """Destroy the joint and remove it from the world.
@@ -107,7 +107,7 @@ class Joint(FixedAttributes):
         reference is no longer needed. Called by :meth:`destroy`, and by
         :meth:`.Body.destroy` for each joint Box2D takes down with the body.
         """
-        self.world._joints.pop(raw_id(self, "_joint_id"), None)
+        self.world._untrack_joint(raw_id(self, "_joint_id"))
 
     @property
     def is_valid(self):

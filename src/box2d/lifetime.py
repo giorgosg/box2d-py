@@ -19,6 +19,8 @@ for as long as Box2D has it -- the world holds bodies and joints, a body its
 shapes and chains, a chain its segments -- and released when it is destroyed.
 """
 
+from typing import Callable, Optional
+
 from ._checked import ffi
 
 
@@ -98,7 +100,11 @@ def is_live(obj, name: str, is_valid) -> bool:
     return raw is not None and bool(is_valid(raw))
 
 
-def wrapper_for(object_id, is_valid, get_user_data):
+def wrapper_for(
+    object_id,
+    is_valid: Callable[..., bool],
+    get_user_data: Callable[..., object],
+) -> Optional[object]:
     """The wrapper an id Box2D reported belongs to, or None if it is gone.
 
     Box2D's events are a record of the step that has finished, so they can
@@ -106,10 +112,13 @@ def wrapper_for(object_id, is_valid, get_user_data):
     following its handle would read freed memory, so the id is checked first.
 
     Args:
-        object_id: The id, e.g. a ``b2BodyId`` from a move event.
+        object_id: The id, e.g. a ``b2ShapeId`` from a sensor event.
         is_valid: The Box2D validity function for this id type.
         get_user_data: The matching user data getter, e.g.
-            ``lib.b2Body_GetUserData``.
+            ``lib.b2Shape_GetUserData``.
+
+    Returns:
+        The wrapper, or None if the id is no longer valid or has no handle.
     """
     if not is_valid(object_id):
         return None

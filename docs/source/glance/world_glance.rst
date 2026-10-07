@@ -26,8 +26,13 @@ Creation and Destruction
 The world keeps what it contains: a body, shape or joint stays alive while it
 does, whether or not the caller kept the object that created it, and anything
 that hands it back -- ``body.joints``, a ray cast, an event -- returns that same
-object. Destroying a body takes its shapes and joints with it, a mouse joint's
-proxy body included; anything destroyed raises ``DestroyedError`` if used.
+object. Events describe the step that finished, so they can name something
+destroyed since: a sensor event gives None for a destroyed sensor or visitor,
+and body and joint events leave such objects out. Destroying a body takes its
+shapes and joints with it, a mouse joint's proxy body included; anything
+destroyed raises ``DestroyedError`` if used. Nothing can be destroyed from a
+callback during ``world.step()``: ``destroy()`` raises ``RuntimeError`` then,
+so destroy it after the step.
 
 Simulation Control
 ^^^^^^^^^^^^^^^^^^

@@ -21,6 +21,7 @@ del _version
 HAS_AVX2 = bool(lib.b2IsAVX2Available())
 from .body import BodyBuilder, Body
 from .joint import (
+    Joint,
     FilterJoint,
     MouseJoint,
     WeldJoint,
@@ -533,12 +534,20 @@ class World(FixedAttributes):
         return self.add_joint(PogoJointDef(body_a, body_b, **kwargs))
 
     def _track_body(self, body: "Body"):
-        """Internal method to track body references. Called automatically during body creation.
-
-        Args:
-            body: Body instance to register in the world
-        """
+        """Hold a new body for as long as Box2D has it. Called by the Body."""
         self._bodies[body._body_id] = body
+
+    def _untrack_body(self, body_id):
+        """Let go of a body Box2D no longer has, by the id it was tracked under."""
+        self._bodies.pop(body_id, None)
+
+    def _track_joint(self, joint: "Joint"):
+        """Hold a new joint for as long as Box2D has it. Called by the Joint."""
+        self._joints[joint._joint_id] = joint
+
+    def _untrack_joint(self, joint_id):
+        """Let go of a joint Box2D no longer has, by the id it was tracked under."""
+        self._joints.pop(joint_id, None)
 
     @property
     def bodies(self):
