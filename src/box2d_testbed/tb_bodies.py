@@ -11,7 +11,8 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
     here it patrols left and right at 2 m/s, and the boxes on it are carried
     along by friction alone. A dynamic body is moved by forces and contacts
     like the boxes are, so with nothing holding it up the platform falls to
-    the ground, boxes and all.
+    the ground, usually with the boxes still on it. Switched before they
+    have landed, or as it turns round, it can lose one.
 
     Body Type switches the platform in place: the scene is not rebuilt, so
     what happens next starts from wherever things are. Enable Sleep turns
