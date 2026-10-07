@@ -1,6 +1,7 @@
 """Fixtures shared by the whole suite."""
 
 import os
+import random
 
 import pytest
 
@@ -39,3 +40,15 @@ def world():
     world = World()
     yield world
     world.destroy()
+
+
+@pytest.fixture
+def random_left_as_it_was():
+    """Put Python's random numbers back as they were after the test.
+
+    For tests that seed the random module, which is shared: left seeded, it
+    would hand every test after them the same numbers.
+    """
+    saved = random.getstate()
+    yield
+    random.setstate(saved)

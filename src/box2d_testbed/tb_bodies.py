@@ -1,115 +1,167 @@
-# tb_bodies.py
+import math
 
-
-from .base_test import BaseTest, UI
+from .base_test import UI, BaseTest
 
 
 class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
-    """Switch a platform between the three body types while it runs.
+    """A platform switched between the three body types, with boxes riding it.
 
-    A static platform never moves. A kinematic one moves under its own velocity
-    and is unaffected by what lands on it. A dynamic one is pushed around by
-    everything, including the boxes riding it.
+    A static body never moves, whatever lands on it. A kinematic body moves
+    at the velocity it is given, and nothing that touches it pushes it back:
+    here it patrols left and right at 2 m/s, and the boxes on it are carried
+    along by friction alone. A dynamic body is moved by forces and contacts
+    like the boxes are, so with nothing holding it up the platform falls to
+    the ground, usually with the boxes still on it. Switched before they
+    have landed, or as it turns round, it can lose one.
+
+    Body Type switches the platform in place: the scene is not rebuilt, so
+    what happens next starts from wherever things are. Enable Sleep turns
+    sleeping on or off for every body. The status line counts the boxes
+    asleep, which they never are on a moving platform.
     """
 
     camera_center = (0, 8)
     camera_zoom = 14.0
 
+    #: How fast the kinematic platform patrols, in m/s, and how far either
+    #: side of x = 0 its middle goes before it turns back, in m.
+    PATROL_SPEED = 2.0
+    PATROL_LIMIT = 6.0
+    #: Friction is what carries the boxes on a moving platform. Box2D's
+    #: default.
+    FRICTION = 0.6
+
     body_type = UI.select("kinematic", ["static", "kinematic", "dynamic"])
     enable_sleep = UI.bool(True)
 
     def setup(self):
+        self.world.new_body().static().segment((-20, 0), (20, 0)).build()
 
-        ground = self.world.new_body().static()
-        ground.segment((-20, 0), (20, 0))
-        ground.build()
-
-        # An attached platform that slides back and forth.
         self.platform = (
             self.world.new_body()
             .kinematic()
-            .position(-4, 5)
-            .linear_velocity(2, 0)
-            .box(8, 1, friction=0.6)
+            .position(0, 5)
+            .enable_sleep(self.enable_sleep)
+            .box(8, 1, friction=self.FRICTION)
             .build()
         )
-        self.platform.type = self.body_type
+        self.make_platform(self.body_type)
 
-        # Cargo riding on it, so the difference between the types is visible.
-        cargo = self.world.new_body().dynamic().box(1, 1, friction=0.6)
-        self.cargo = [cargo.position(-5 + 2 * i, 8).build() for i in range(4)]
+        # Four boxes dropped on it, half a metre apart. Any wider and the
+        # outer ones come off: the platform moves on 1.3 m while they fall,
+        # and at either end it turns round so sharply that a box skids about
+        # as far along it before friction catches it up.
+        cargo = (
+            self.world.new_body()
+            .dynamic()
+            .enable_sleep(self.enable_sleep)
+            .box(1, 1, friction=self.FRICTION)
+        )
+        self.cargo = [cargo.position(-2.25 + 1.5 * i, 8).build() for i in range(4)]
 
     def after_step(self, dt):
-        # Only a kinematic platform patrols; the others are left to physics.
+        # Only a kinematic platform is driven. Its velocity is all there is to
+        # it, so turning it round at either end is a matter of reversing that.
         if self.platform.type == "kinematic":
-            if self.platform.position.x > 6:
-                self.platform.linear_velocity = (-2, 0)
-            elif self.platform.position.x < -6:
-                self.platform.linear_velocity = (2, 0)
+            if self.platform.position.x > self.PATROL_LIMIT:
+                self.platform.linear_velocity = (-self.PATROL_SPEED, 0)
+            elif self.platform.position.x < -self.PATROL_LIMIT:
+                self.platform.linear_velocity = (self.PATROL_SPEED, 0)
+
+    def make_platform(self, body_type):
+        """Make the platform ``body_type``, setting off on patrol if kinematic."""
+        self.platform.type = body_type
+        if body_type == "kinematic":
+            # A kinematic body keeps the velocity it had, and nothing slows it
+            # down: a platform switched while tumbling would turn forever.
+            self.platform.linear_velocity = (self.PATROL_SPEED, 0)
+            self.platform.angular_velocity = 0.0
 
     @body_type.callback
     def on_type_change(self, key, value):
-        self.platform.type = value
-        self.platform.awake = True
-        if value == "kinematic":
-            self.platform.linear_velocity = (2, 0)
+        self.make_platform(value)
 
     @enable_sleep.callback
     def on_sleep_change(self, key, value):
-        for body in self.world.bodies:
+        # Turning sleep off wakes a body that is asleep.
+        for body in [self.platform, *self.cargo]:
             body.enable_sleep = value
-            if value is False:
-                body.awake = True
 
-    def debug_draw(self, debug_draw):
-        asleep = sum(1 for b in self.cargo if not b.awake)
-        debug_draw.draw_string(
-            (-12, 12),
-            f"platform is {self.platform.type}   cargo asleep: {asleep}/{len(self.cargo)}",
+    def status(self):
+        asleep = sum(1 for box in self.cargo if not box.awake)
+        return (
+            f"platform: {self.platform.type}   cargo asleep: {asleep}/{len(self.cargo)}"
         )
 
 
 class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
-    """Bodies launched by setting velocity directly rather than by forces.
+    """Boxes launched by setting their velocity, rather than by a force.
 
-    Assigning velocity overrides whatever the solver had planned, which is how
-    a projectile or a dash is usually implemented. The bodies are re-launched
-    whenever they fall out of view.
+    Setting a body's velocity gives it that motion at once, and gravity and
+    contacts carry on from there. There is no force or impulse to work out
+    from its mass first, which is why a jump, a dash or a projectile is
+    usually done this way.
+
+    Eight boxes are launched to the right together, each 5 degrees steeper
+    than the one before, from 30 to 65 degrees, and spinning. Once every box
+    has landed, or gone off the end of the ground, they are put back where
+    they started and launched again.
+
+    Speed, in m/s, and Spin, in rad/s, take effect at the next launch. From
+    about 16 m/s the boxes fly out of view, and from about 20 the furthest
+    come down beyond the end of the ground and fall on past it; at 40 m/s
+    they go 65 m up. Spun fast clockwise, a negative Spin, a box lands
+    rolling forwards and can roll on off the end. Either way, once the last
+    box is down or gone, they are launched again. The status line counts
+    the launches.
     """
 
     camera_center = (0, 8)
     camera_zoom = 20.0
 
+    #: The first box's launch angle, and how much steeper each next one is, in
+    #: degrees.
+    FIRST_ANGLE = 30
+    ANGLE_STEP = 5
+
     speed = UI.float(12.0, min=1.0, max=40.0)
     spin = UI.float(8.0, min=-30.0, max=30.0)
 
     def setup(self):
-
         self.world.new_body().static().segment((-40, 0), (40, 0)).build()
 
-        launcher = self.world.new_body().dynamic().box(1, 0.4, density=1.0)
-        self.bodies = [launcher.position(-15 + 3 * i, 2).build() for i in range(8)]
+        self.starts = [(-15 + 3 * i, 2) for i in range(8)]
+        boxes = self.world.new_body().dynamic().box(1, 0.4)
+        self.boxes = [boxes.position(*start).build() for start in self.starts]
+        self.launches = 0
         self.launch()
-        self.launches = 1
 
     def launch(self):
-        import math
-
-        for i, body in enumerate(self.bodies):
-            angle = math.radians(30 + 5 * i)
-            body.linear_velocity = (
+        # From where they started, or each launch would carry them further
+        # right, until they went off the end of the ground. A body given a
+        # velocity is woken, so a box that has fallen asleep goes too.
+        for i, (box, start) in enumerate(zip(self.boxes, self.starts)):
+            box.position = start
+            box.rotation = 0.0
+            angle = math.radians(self.FIRST_ANGLE + self.ANGLE_STEP * i)
+            box.linear_velocity = (
                 self.speed * math.cos(angle),
                 self.speed * math.sin(angle),
             )
-            body.angular_velocity = self.spin
-            body.awake = True
+            box.angular_velocity = self.spin
+        self.launches += 1
 
     def after_step(self, dt):
-        if all(
-            b.position.y < 1.0 and abs(b.linear_velocity.y) < 0.5 for b in self.bodies
-        ):
+        if all(self.landed(box) for box in self.boxes):
             self.launch()
-            self.launches += 1
 
-    def debug_draw(self, debug_draw):
-        debug_draw.draw_string((-18, 16), f"launches: {self.launches}")
+    def landed(self, box):
+        """Whether ``box`` is down: on the ground, or past the end of it."""
+        # Low as well as no longer rising or falling, because a box at the
+        # top of its arc is not rising or falling either. Below the ground,
+        # it has gone off the end, and will never be on it again.
+        y = box.position.y
+        return (y < 1.0 and abs(box.linear_velocity.y) < 0.5) or y < 0.0
+
+    def status(self):
+        return f"launches: {self.launches}"
