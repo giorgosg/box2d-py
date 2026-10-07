@@ -278,16 +278,19 @@ class BaseTest:
         Built again in the same world, the scene is only the one first built
         if Box2D numbers it the same way: it solves in id order, so a marginal
         scene numbered differently comes out differently. Rebuilt before it
-        has run, the scene is the same exactly. Once it has run it may not
-        be: the new scene's contacts take the ids the old ones freed, in the
-        order those ended, and nothing here can put that order back.
+        has run, and before the scenario has destroyed any bodies of its own,
+        the scene is the same exactly. After that it may not be: its contacts,
+        and bodies taking the place of ones the scenario destroyed, get the
+        ids the old ones freed in the order those went, and nothing here can
+        put that order back.
         """
         if not self._setup_started:
             return
         # Box2D hands back freed ids last-freed-first. Destroying the newest
         # body first means setup gets the lowest back first, as from a new
-        # world: body ids, and with them the ids of each body's shapes, chains
-        # and broad-phase proxies.
+        # world -- body ids, and with them the ids of each body's shapes,
+        # chains and broad-phase proxies. That holds while creation order is
+        # id order, which a scenario destroying bodies of its own undoes.
         for body in reversed(self.world.bodies):
             body.destroy()
         self.mouse_joint = None

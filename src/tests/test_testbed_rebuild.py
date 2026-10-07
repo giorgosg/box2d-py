@@ -3,8 +3,10 @@
 rebuild() builds the scene again inside the world it already lives in, since
 the testbed, its panel and the scenario all hold that world. Box2D reuses the
 ids it frees, and its solve order follows ids, so a scene rebuilt with its ids
-in another order is simulated differently: Ragdoll's Respawn used to drop the
-figure somewhere other than where it first landed.
+in another order is simulated differently: Ragdoll's Respawn, pressed as the
+first figure fell, dropped the next one somewhere a fresh one would not land.
+Pressed after the figure has landed it still does, because of the contact ids
+the first figure used, which BaseTest.rebuild explains.
 """
 
 import random
@@ -45,6 +47,7 @@ def every_scenario():
 
 @pytest.fixture(autouse=True)
 def random_left_as_it_was():
+    """These tests seed Python's random numbers; put them back afterwards."""
     saved = random.getstate()
     yield
     random.setstate(saved)
@@ -52,6 +55,7 @@ def random_left_as_it_was():
 
 @pytest.fixture
 def fresh_world():
+    """A second fresh world, for the scene built once, destroyed after the test."""
     world = World()
     yield world
     world.destroy()
@@ -85,10 +89,14 @@ def test_a_rebuilt_scene_runs_exactly_as_a_fresh_one(
     fresh = scenario(fresh_world, category, name)
     run(fresh, SECONDS)
 
-    random.seed(SEED)
+    # Seeded differently, so a scene with random parts that was never rebuilt
+    # would not match.
+    random.seed(SEED + 1)
     rebuilt = scenario(world, category, name)
+    first = world.bodies
     random.seed(SEED)
     rebuilt.rebuild()
+    assert not any(body.is_valid for body in first), "the first scene is gone"
     run(rebuilt, SECONDS)
 
     assert motion(world) == motion(fresh_world)
