@@ -251,7 +251,9 @@ class DynamicMover:
         if not self.on_ground:
             return
         speed = self.velocity.length
-        if speed < self.min_speed:
+        # Standing still counts too, for a Min Speed of zero: the scaling
+        # below divides by the speed. Box2D's C gets a NaN there instead.
+        if speed < self.min_speed or speed == 0.0:
             self.velocity = Vec2(0, self.velocity.y)
             return
         # Proportional above stop_speed, a fixed amount below it, so the
