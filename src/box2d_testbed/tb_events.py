@@ -591,10 +591,6 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
         else:
             for body in element:
                 body.destroy()
-        # A body takes its joints with it, the mouse joint included when the
-        # figure was being dragged; the drag ends there.
-        if self.mouse_joint is not None and not self.mouse_joint.is_valid:
-            self.mouse_joint = None
 
     @shape.callback
     def on_shape_change(self, key, value):

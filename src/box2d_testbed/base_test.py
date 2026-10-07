@@ -133,7 +133,7 @@ class BaseTest:
         Default mouse-down: if a shape is hit, create a mouse joint for dragging.
         pos: world coordinate (Vec2) of the mouse event.
         """
-        if self.mouse_joint is not None:
+        if self._held_mouse_joint() is not None:
             return
 
         shapes = self.world.query_circle(pos, 0.0001)
@@ -155,17 +155,34 @@ class BaseTest:
         pos: current world coordinate (Vec2)
         rel: delta movement.
         """
-        if self.mouse_joint is not None:
-            self.mouse_joint.target = (pos.x, pos.y)
+        joint = self._held_mouse_joint()
+        if joint is not None:
+            joint.target = (pos.x, pos.y)
 
     def on_mouse_release(self, pos):
         """
         Default mouse-release: destroy the active mouse joint.
         pos: world coordinate (Vec2) at release.
         """
-        if self.mouse_joint is not None:
+        joint = self._held_mouse_joint()
+        if joint is not None:
+            joint.destroy()
+            self.mouse_joint = None
+
+    def _held_mouse_joint(self):
+        """The mouse joint, or None once it has gone.
+
+        A scenario that destroys the body being dragged takes the joint with
+        it -- Box2D destroys a body's joints along with the body -- and the
+        testbed calls the mouse handlers directly, with no guard, so each one
+        checks here rather than using a joint that would raise.
+        """
+        if self.mouse_joint is not None and not self.mouse_joint.is_valid:
+            # destroy() is safe on a joint Box2D has reclaimed, and still
+            # needed: the kinematic body the joint pulled from outlives it.
             self.mouse_joint.destroy()
             self.mouse_joint = None
+        return self.mouse_joint
 
     def view(self):
         """Where the camera should sit for this scenario, as (center, zoom).
