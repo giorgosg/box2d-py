@@ -426,8 +426,13 @@ class Platformer(BaseTest, category="Events", name="Platformer"):
 
         Only touching contacts are listed, and a contact pre-solve dropped
         is not touching, so a platform the player is passing up through
-        never shows here.
+        never shows here. Those contacts were found before the step moved
+        the player, though, so for one step after a jump they still hold
+        the ground it left; a player on its way up is not standing, as in
+        Box2D's sample.
         """
+        if self.player.linear_velocity.y > 0.01:
+            return None
         for contact in self.player.contact_data:
             if contact.shape_b is self.player_shape:
                 other, up = contact.shape_a, contact.manifold.normal.y

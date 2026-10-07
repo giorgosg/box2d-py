@@ -277,3 +277,21 @@ def test_choosing_donuts_empties_the_funnel_and_drops_donuts(world):
     assert not any(head.is_valid for head in heads), "the ragdolls should be gone"
     assert test.elements, "donuts should be falling"
     assert all(isinstance(element, list) for element in test.elements)
+
+
+def test_the_player_cannot_jump_again_the_step_after_taking_off(world):
+    test = scenario(world, "Events", "Platformer")
+    run(test, 0.5)
+    test.on_key_down("space")
+    test.on_key_up("space")
+    # One step: the player has left the ground, but the contacts it stood on
+    # were found before the step moved it.
+    run(test, 1 / HERTZ)
+    rising = test.player.linear_velocity.y
+    assert rising > 1.0, "the first jump should have left the ground"
+
+    test.on_key_down("space")
+    test.on_key_up("space")
+
+    assert test.player.linear_velocity.y == rising
+    assert test.standing_on is None, "it should not count as standing"
