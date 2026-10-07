@@ -4,8 +4,7 @@ from box2d import CollisionFilter, Color, Vec2, clip_vector, solve_planes
 
 from .base_test import UI, BaseTest
 from .dynamic_mover import DynamicMover
-from .shared import parse_svg_path
-from .tb_events import WALK_KEYS
+from .shared import WALK_KEYS, parse_svg_path, walk_direction
 
 
 class Mover(BaseTest, category="Character", name="Mover"):
@@ -64,10 +63,9 @@ class Mover(BaseTest, category="Character", name="Mover"):
         return (x, y - self.HALF_LENGTH), (x, y + self.HALF_LENGTH)
 
     def after_step(self, dt):
-        # One way at most, however many keys point that way.
-        direction = sum({WALK_KEYS[key] for key in self.held})
         self.velocity = Vec2(
-            direction * self.speed, self.velocity.y - self.gravity * dt
+            walk_direction(self.held) * self.speed,
+            self.velocity.y - self.gravity * dt,
         )
 
         point1, point2 = self.capsule()
@@ -315,8 +313,7 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
 
         self.apply_settings()
 
-        # One way at most, however many keys point that way.
-        throttle = float(sum({WALK_KEYS[key] for key in self.held}))
+        throttle = float(walk_direction(self.held))
 
         # A jump pressed in the air waits for the ground, as upstream's does,
         # but each press jumps only once.
