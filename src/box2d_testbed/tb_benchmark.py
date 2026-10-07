@@ -14,7 +14,7 @@ class Compound(BaseTest, category="Benchmark", name="Compound"):
     here costs what a separate body would in finding contacts, and the
     valley, a staircase of 1 m boxes on a single static body, is a few
     hundred shapes more. The bodies fall about 40 m, land a little under 3 s
-    in, and pile up in the bottom of the valley, asleep 5 to 8 s in.
+    in, and pile up in the bottom of the valley, asleep 5 to 9 s in.
 
     Count sets how many bodies there are, Count by Count, and sizes the
     valley to match. It rebuilds the scene.
@@ -34,19 +34,14 @@ class Compound(BaseTest, category="Benchmark", name="Compound"):
         self.rebuild()
 
     def setup(self):
-        # Row i of each side of the valley starts i boxes out from the middle,
-        # so its floor is one box and its sides rise a box a step.
+        # A row of boxes along the bottom, and on it a side either way that
+        # steps out a box each row up, so the slopes are 45 degrees.
         size = self.count * 3 + 5
         ground = self.world.new_body().static()
-        for sign in (1, -1):
-            for row in range(size):
-                for column in range(row, size):
-                    ground.box(
-                        1.0,
-                        1.0,
-                        offset=(sign * column, row),
-                        friction=self.GROUND_FRICTION,
-                    )
+        for row in range(size):
+            for x in range(-(size - 1), size):
+                if abs(x) >= row:
+                    ground.box(1.0, 1.0, offset=(x, row), friction=self.GROUND_FRICTION)
         ground.build()
 
         # Three boxes by three, touching.

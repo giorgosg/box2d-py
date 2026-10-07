@@ -114,6 +114,21 @@ def test_the_compounds_land_in_the_valley_and_come_to_rest(world):
     assert all(body.position.y < 14 for body in compounds)
 
 
+def test_the_valley_has_one_box_in_each_place(world):
+    scenario(world, "Benchmark", "Compound")
+    (valley,) = (body for body in world.bodies if body.type == "static")
+
+    places = [
+        (round(shape.aabb.center.x, 3), round(shape.aabb.center.y, 3))
+        for shape in valley.shapes
+    ]
+
+    assert len(places) == len(set(places))
+    # Fourteen rows: 27 boxes along the bottom, and on it a side of 13 boxes
+    # either way, narrowing by one each row up.
+    assert len(places) == 27 + 2 * sum(range(1, 14))
+
+
 def test_compound_count_sets_how_many_bodies_there_are(world):
     test = scenario(world, "Benchmark", "Compound")
     test.count = 2
