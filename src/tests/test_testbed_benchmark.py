@@ -31,3 +31,21 @@ def test_the_tumbler_holds_its_boxes_without_crushing_them_together(world):
         if (a - b).length < 0.15
     )
     assert crushed == 0, f"{crushed} pairs of boxes overlap"
+
+
+def test_each_box_is_fed_into_the_tumbler_clear_of_the_others(world):
+    test = scenario(world, "Benchmark", "Tumbler")
+    test.max_bodies = 100
+
+    starts = []
+    for _ in range(test.max_bodies):
+        before = set(dynamic_bodies(world))
+        run(test, 1 / 60)
+        (fed,) = set(dynamic_bodies(world)) - before
+        # 0.25 m squares overlap if their middles are any nearer than that.
+        nearest = min(
+            ((box.position - fed.position).length for box in before), default=1.0
+        )
+        starts.append(round(nearest, 3))
+
+    assert min(starts) >= 0.25, starts

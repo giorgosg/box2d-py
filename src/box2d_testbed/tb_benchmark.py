@@ -264,6 +264,9 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
     camera_center = (0, 0)
     camera_zoom = 16.0
 
+    #: How many places across the middle the boxes are fed in at.
+    FEED_PLACES = 16
+
     angular_speed = UI.float(25.0, min=-100.0, max=100.0, label="Speed (deg/s)")
     max_bodies = UI.int(400, min=10, max=2000)
 
@@ -286,8 +289,12 @@ class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):
 
     def after_step(self, dt):
         if self.count < self.max_bodies:
-            # Four places a box apart, taken in turn.
-            self.boxes.position(0.25 * self.count % 1.0, 0).build()
+            # Sixteen places half a metre apart across the middle, taken in
+            # turn. By the time one comes round again, 16 steps on, the box
+            # fed there has fallen a third of a metre, clear of it.
+            place = self.count % self.FEED_PLACES
+            x = 0.5 * (place - (self.FEED_PLACES - 1) / 2)
+            self.boxes.position(x, 0).build()
             self.count += 1
 
     @angular_speed.callback
