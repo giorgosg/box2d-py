@@ -36,13 +36,8 @@ SECONDS = 2.0
 #: scene draw the same ones.
 SEED = 1234
 
-
-@pytest.fixture(autouse=True)
-def random_left_as_it_was():
-    """These tests seed Python's random numbers; put them back afterwards."""
-    saved = random.getstate()
-    yield
-    random.setstate(saved)
+# These tests seed Python's random numbers; put them back afterwards.
+pytestmark = pytest.mark.usefixtures("random_left_as_it_was")
 
 
 @pytest.fixture

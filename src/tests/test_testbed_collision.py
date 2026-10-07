@@ -15,14 +15,6 @@ from box2d_testbed import tb_collision  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import press, scenario
 
 
-@pytest.fixture(autouse=True)
-def random_left_as_it_was():
-    """Some tests seed Python's random numbers; put them back afterwards."""
-    saved = random.getstate()
-    yield
-    random.setstate(saved)
-
-
 def layout(world):
     """Every static shape, as its kind and where its bounding box is."""
     return [
@@ -36,6 +28,7 @@ def layout(world):
     ]
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_ray_cast_lays_out_the_same_shapes_every_time(world):
     random.seed(1)
     first = layout(scenario(world, "Collision", "Ray Cast").world)
