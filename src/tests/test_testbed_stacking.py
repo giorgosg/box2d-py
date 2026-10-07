@@ -5,6 +5,8 @@ control, but only check that nothing raises. A stack that falls over, or a
 scene that never shows what its docstring promises, passes both.
 """
 
+import math
+
 import pytest
 
 from box2d_testbed import tb_stacking  # noqa: F401  (registers the scenarios)
@@ -47,6 +49,7 @@ def test_every_body_on_the_cliff_goes_over_its_edge_to_the_ground(world, mirror)
     test = scenario(world, "Stacking", "Cliff")
     test.flip = mirror
     bodies = dynamic_bodies(world)
+    start = [body.position.x for body in bodies]
     # The circles, rolling furthest at the slowest, are down a little over
     # 6 s in.
     run(test, 8.0)
@@ -54,3 +57,123 @@ def test_every_body_on_the_cliff_goes_over_its_edge_to_the_ground(world, mirror)
     # The ledges' tops are 4 m up or more, and the ground's is at 0.
     heights = [round(body.position.y, 2) for body in bodies]
     assert all(height < 1.0 for height in heights), heights
+    # And each went the way it was sent, well past where it started.
+    travelled = [body.position.x - x for body, x in zip(bodies, start)]
+    sign = -1 if mirror else 1
+    assert all(sign * distance > 3.0 for distance in travelled), travelled
+
+
+def moved_from_start(world, seconds, test):
+    """Each dynamic body, and how far it is after ``seconds`` from where it
+    started."""
+    bodies = dynamic_bodies(world)
+    start = [body.position for body in bodies]
+    run(test, seconds)
+    return bodies, [(body.position - p).length for body, p in zip(bodies, start)]
+
+
+@pytest.mark.parametrize(
+    "name, settling",
+    [
+        # Cards pressed into the floor and the flat cards above.
+        ("Card House", 0.05),
+        # The keystone sinks under the load.
+        ("Arch", 0.35),
+        # Each box drops 1 cm onto the one below, so the top one 12 cm.
+        ("Vertical Stack", 0.2),
+    ],
+)
+def test_the_structure_stands(world, name, settling):
+    test = scenario(world, "Stacking", name)
+
+    bodies, moved = moved_from_start(world, 3.0, test)
+
+    assert max(moved) < settling
+    assert not any(body.awake for body in bodies), "it should have come to rest"
+
+
+def test_a_card_house_of_three_rows_stands_too(world):
+    test = scenario(world, "Stacking", "Card House")
+    test.rows = 3
+
+    bodies, moved = moved_from_start(world, 3.0, test)
+
+    # Two leaning cards a pair and a flat one between pairs: 6 + 2, 4 + 1, 2.
+    assert len(bodies) == 15
+    assert max(moved) < 0.05
+
+
+def test_the_capsules_stack_upright_and_come_to_rest(world):
+    test = scenario(world, "Stacking", "Capsule Stack")
+    capsules = dynamic_bodies(world)
+
+    run(test, 5.0)
+
+    assert not any(capsule.awake for capsule in capsules)
+    assert max(abs(capsule.position.x) for capsule in capsules) < 0.05
+    # Twenty capsules half a metre thick put the top one's middle at 9.75 m,
+    # less a few millimetres at each contact. One slipping out of the stack
+    # would take half a metre off.
+    assert capsules[-1].position.y > 9.5
+
+
+def test_rolling_resistance_reaches_every_capsule(world):
+    test = scenario(world, "Stacking", "Capsule Stack")
+    test.rolling_resistance = 0.2
+
+    shapes = [shape for body in dynamic_bodies(world) for shape in body.shapes]
+    assert len(shapes) == 20
+    assert all(shape.rolling_resistance == pytest.approx(0.2) for shape in shapes)
+
+
+def test_the_confined_circles_come_to_rest_inside_the_box(world):
+    test = scenario(world, "Stacking", "Confined")
+    circles = dynamic_bodies(world)
+
+    run(test, 3.0)
+
+    assert not any(circle.awake for circle in circles)
+    # The walls are capsules of radius 0.5 around x = +-10.5, y = 0 and 20.5.
+    assert all(-10 < c.position.x < 10 and 0.5 < c.position.y < 20 for c in circles)
+
+
+def test_the_dominoes_fall_once_leaning_and_again_flat(world):
+    test = scenario(world, "Stacking", "Double Domino")
+    first, *_, last = dominoes = dynamic_bodies(world)
+
+    run(test, 5.0)
+    # The first rests on the second, about 75 degrees over; the last has not
+    # been reached yet.
+    assert 1.2 < abs(first.rotation) < 1.45
+    assert abs(last.rotation) < 0.01
+
+    run(test, 7.0)
+    assert all(abs(abs(d.rotation) - math.pi / 2) < 0.02 for d in dominoes)
+
+
+def test_the_domino_controls_rebuild_the_row(world):
+    test = scenario(world, "Stacking", "Double Domino")
+    test.count = 30
+    assert len(dynamic_bodies(world)) == 30
+
+    test.nudge = 0.0
+    run(test, 3.0)
+    assert all(abs(d.rotation) < 0.01 for d in dynamic_bodies(world))
+
+
+def tilted_column(world, lean):
+    """One ten-row column of the Tilted Stack, leaning ``lean`` m a row."""
+    test = scenario(world, "Stacking", "Tilted Stack")
+    test.columns = 1
+    test.offset = lean
+    return test, dynamic_bodies(world)[-1]
+
+
+@pytest.mark.parametrize("lean, falls", [(0.08, False), (0.09, True), (0.2, True)])
+def test_a_tilted_column_stands_only_while_it_leans_little_enough(world, lean, falls):
+    test, top = tilted_column(world, lean)
+    start = top.position
+
+    run(test, 6.0)
+
+    assert ((top.position - start).length > 2.0) is falls

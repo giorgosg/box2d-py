@@ -10,6 +10,8 @@ import random
 
 import pytest
 
+from box2d import Capsule
+
 from box2d_testbed import tb_continuous  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import press, run, scenario
 
@@ -43,3 +45,91 @@ def test_a_box_that_skids_off_the_end_of_the_floor_has_not_tunnelled(world):
     assert skidded > 0, "no box went off the end, so this tested nothing"
 
     assert test.passed_through == through
+
+
+def test_each_arrow_key_works_its_own_flipper(world):
+    test = scenario(world, "Continuous", "Pinball")
+    left, right = test.left_joint, test.right_joint
+    run(test, 0.5)
+
+    test.on_key_down("left")
+    run(test, 0.25)
+    assert left.angle == pytest.approx(left.upper_limit, abs=0.01), "left is up"
+    assert right.angle == pytest.approx(right.upper_limit, abs=0.01), "right rests"
+
+    test.on_key_up("left")
+    test.on_key_down("right")
+    run(test, 0.25)
+    assert left.angle == pytest.approx(left.lower_limit, abs=0.01), "left rests"
+    assert right.angle == pytest.approx(right.lower_limit, abs=0.01), "right is up"
+
+
+def test_flipper_torque_reaches_both_flippers(world):
+    test = scenario(world, "Continuous", "Pinball")
+
+    test.flipper_torque = 3000.0
+
+    assert test.left_joint.max_motor_torque == pytest.approx(3000.0)
+    assert test.right_joint.max_motor_torque == pytest.approx(3000.0)
+
+
+def test_a_new_ball_speed_serves_a_ball_at_that_speed(world):
+    test = scenario(world, "Continuous", "Pinball")
+    run(test, 1.0)
+    first = test.ball
+
+    test.ball_speed = 40.0
+
+    assert not first.is_valid, "the old ball should be gone"
+    assert test.ball.linear_velocity.y == pytest.approx(-40.0)
+
+
+def test_with_continuous_collision_off_every_box_goes_through_the_floor(world):
+    random.seed(1)
+    test = scenario(world, "Continuous", "Skinny Box")
+    test.continuous = False
+    for _ in range(5):
+        run(test, 1.0)
+        assert test.projectile.position.y < -10.0
+        press(test, "launch")
+
+    assert not world.enable_continuous
+    # The first box, dropped with continuous collision on, is not counted.
+    assert test.passed_through == 5
+
+
+def test_with_continuous_collision_on_a_box_without_spin_lands(world):
+    test = scenario(world, "Continuous", "Skinny Box")
+    test.spin = False
+    for capsule in (False, True):
+        test.capsule = capsule
+        # It lands on its end and topples over.
+        run(test, 3.0)
+
+        box = test.projectile
+        assert box.linear_velocity.length < 0.1, "it should have come to rest"
+        assert box.position.y > 0.0
+    assert isinstance(box.shapes[0], Capsule)
+    assert test.passed_through == 0
+
+
+def test_speed_and_spin_set_the_next_box_going(world):
+    test = scenario(world, "Continuous", "Skinny Box")
+
+    test.speed = 100.0
+    assert test.projectile.linear_velocity.y == pytest.approx(-100.0)
+
+    test.spin = False
+    assert test.projectile.angular_velocity == 0.0
+
+
+def test_the_ragdolls_stay_in_the_bouncy_box(world):
+    test = scenario(world, "Continuous", "Bounce Humans")
+    for _ in range(20):
+        run(test, 1.0)
+        bones = [bone.body for human in test.humans for bone in human.bones]
+        # The walls are segments at +-10.
+        assert all(abs(b.position.x) < 10 and abs(b.position.y) < 10 for b in bones)
+
+    assert len(test.humans) == 5
+    assert max(b.linear_velocity.length for b in bones) > 5.0, "they should fly"
