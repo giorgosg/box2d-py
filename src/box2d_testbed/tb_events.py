@@ -181,7 +181,7 @@ class BouncingBoxes(BaseTest, category="Events", name="Contact"):
         return f"touching: {len(self.touching)}   hits: {self.hit_count}"
 
 
-class BodyMoveEvents(BaseTest, category="Events", name="Body Move"):
+class SettlingPyramid(BaseTest, category="Events", name="Body Move"):
     """A pyramid of boxes, and the move events Box2D reports for it.
 
     After each step Box2D hands back a move event for every body the step
