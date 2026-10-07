@@ -1,12 +1,10 @@
-# tb_continuous.py
-
+import math
 import random
 
+from box2d import Color, Vec2
 
-from .base_test import BaseTest, UI
+from .base_test import UI, BaseTest
 from .human import Human
-import math
-from box2d import Vec2, Color
 
 
 class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
@@ -19,7 +17,7 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     """
 
     camera_center = (1, 5)
-    camera_zoom = 25.0 * 0.25
+    camera_zoom = 6.25
 
     continuous = UI.bool(True, label="World continuous")
     bullet = UI.bool(False)
@@ -29,13 +27,15 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     launch = UI.button("Launch")
 
     def setup(self):
-
         # A thin floor is the case discrete collision misses: at 300 m/s a body
         # moves 5 units per step and can start above it and end below it.
-        ground = self.world.new_body().static()
-        ground.segment((-10, 0), (10, 0), friction=0.9)
-        ground.box(0.2, 2.0, offset=(3, 1), friction=0.9)  # a post to clip
-        self.ground = ground.build()
+        (
+            self.world.new_body()
+            .static()
+            .segment((-10, 0), (10, 0), friction=0.9)
+            .box(0.2, 2.0, offset=(3, 1), friction=0.9)
+            .build()
+        )
 
         self.world.enable_continuous = self.continuous
         self.projectile = None
@@ -44,11 +44,8 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
         self.do_launch()
 
     def do_launch(self):
-        # A control can be changed before setup has run, so this must not
-        # assume the previous projectile exists yet.
-        previous = getattr(self, "projectile", None)
-        if previous is not None and previous.is_valid:
-            previous.destroy()
+        if self.projectile is not None:
+            self.projectile.destroy()
 
         builder = (
             self.world.new_body()
@@ -70,7 +67,7 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
 
     def after_step(self, dt):
         # Below the ground means it tunnelled rather than landed.
-        if self.projectile and not self.checked and self.projectile.position.y < -1.0:
+        if not self.checked and self.projectile.position.y < -1.0:
             self.passed_through += 1
             self.checked = True
 
@@ -80,45 +77,54 @@ class SkinnyBox(BaseTest, category="Continuous", name="Skinny Box"):
     @speed.callback
     @spin.callback
     def on_relaunch(self, key, value):
-        if hasattr(self, "ground"):
-            self.do_launch()
+        self.do_launch()
 
     @continuous.callback
     def on_continuous_change(self, key, value):
         self.world.enable_continuous = value
-        if hasattr(self, "ground"):
-            self.do_launch()
+        self.do_launch()
 
-    def debug_draw(self, debug_draw):
-        debug_draw.draw_string(
-            (-5, 11),
-            f"launches: {self.launches}   tunnelled through: {self.passed_through}",
-        )
+    def status(self):
+        return f"launches: {self.launches}   tunnelled through: {self.passed_through}"
 
 
 class Pinball(BaseTest, category="Continuous", name="Pinball"):
-    """A ball in a pinball table, with flippers on the arrow keys.
+    """A ball in a pinball table, with a flipper on each arrow key.
 
-    The ball is a bullet and the table walls are a chain loop, which together
-    are what stop something small and fast escaping the table between steps.
+    The ball is a bullet. Box2D sweeps every fast body's path against static
+    bodies, so nothing passes through the walls, but only a bullet's against
+    other dynamic bodies too: without the flag a fast enough ball could pass
+    through a flipper between two steps. The table is one chain loop, so the
+    ball runs along its walls without catching on the corners between them.
+
+    The left and right arrow keys work the flippers. Flipper Torque is the
+    most torque each flipper's motor may use, in N m. Ball Speed is how fast
+    a ball is served, in m/s; changing it serves a new one, as Serve Ball
+    does.
     """
 
     camera_center = (0, 9)
-    camera_zoom = 25.0 * 0.5
+    camera_zoom = 12.5
+
+    #: How fast a flipper swings up while its key is held, and back down once
+    #: it is let go, in rad/s. Box2D's values.
+    FLIP_SPEED = 20.0
+    RETURN_SPEED = 10.0
 
     flipper_torque = UI.float(1000.0, min=100.0, max=5000.0)
     ball_speed = UI.float(20.0, min=5.0, max=60.0)
     serve = UI.button("Serve ball")
 
     def setup(self):
-
-        ground = self.world.new_body().static()
-        ground.chain(
-            [(-8, 6), (-8, 20), (8, 20), (8, 6), (0, -2)],
-            loop=True,
+        ground = (
+            self.world.new_body()
+            .static()
+            .chain([(-8, 6), (-8, 20), (8, 20), (8, 6), (0, -2)], loop=True)
+            .build()
         )
-        ground = ground.build()
 
+        # Each flipper turns about its middle, which is on the wall, between
+        # limits that leave its inner end down at rest and up when flipped.
         flippers = self.world.new_body().dynamic().enable_sleep(False).box(3.5, 0.4)
         self.left = flippers.position(-2, 0).build()
         self.right = flippers.position(2, 0).build()
@@ -152,9 +158,8 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
         self.serve_ball()
 
     def serve_ball(self):
-        previous = getattr(self, "ball", None)
-        if previous is not None and previous.is_valid:
-            previous.destroy()
+        if self.ball is not None:
+            self.ball.destroy()
         self.ball = (
             self.world.new_body()
             .dynamic()
@@ -165,56 +170,52 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             .build()
         )
 
-    def after_step(self, dt):
-        # A ball that escaped the table means continuous collision let it slip.
-        if self.ball and self.ball.is_valid and self.ball.position.y < -10:
-            self.serve_ball()
-
     def on_key_down(self, key):
+        # The left flipper swings up anticlockwise, the right one clockwise.
         if key == "left":
-            self.left_joint.motor_speed = 20.0
+            self.left_joint.motor_speed = self.FLIP_SPEED
         elif key == "right":
-            self.right_joint.motor_speed = -20.0
+            self.right_joint.motor_speed = -self.FLIP_SPEED
 
     def on_key_up(self, key):
         if key == "left":
-            self.left_joint.motor_speed = -10.0
+            self.left_joint.motor_speed = -self.RETURN_SPEED
         elif key == "right":
-            self.right_joint.motor_speed = 10.0
+            self.right_joint.motor_speed = self.RETURN_SPEED
 
     @serve.callback
     @ball_speed.callback
     def on_serve(self, key, value):
-        if hasattr(self, "left_joint"):
-            self.serve_ball()
+        self.serve_ball()
 
     @flipper_torque.callback
     def on_torque_change(self, key, value):
-        for joint in (
-            getattr(self, "left_joint", None),
-            getattr(self, "right_joint", None),
-        ):
-            if joint is not None:
-                joint.max_motor_torque = value
+        self.left_joint.max_motor_torque = value
+        self.right_joint.max_motor_torque = value
 
-    def debug_draw(self, debug_draw):
-        debug_draw.draw_string((-7, 19), "left and right arrows work the flippers")
+    def status(self):
+        return "left and right arrows work the flippers"
 
 
 class BounceHumans(BaseTest, category="Continuous", name="Bounce Humans"):
     """Ragdolls in a bouncy box, under gravity that swings around.
 
-    Every wall has a restitution above one and the middle post has two, so
-    nothing loses energy -- figures gain it on each bounce until the box is
-    chaos. Continuous collision is what keeps them inside it at those speeds.
+    The walls have a restitution of 1.3 and the post in the middle 2, so a
+    figure comes off every bounce faster than it hit, and only what its own
+    joints soak up holds it in check: the figures reach about 30 m/s.
+    Continuous collision is what keeps them in the box at those speeds --
+    turn off the testbed's Continuous Collision and a limb is through a wall
+    within seconds.
 
-    Gravity rotates rather than pointing down, tracing the white line from the
-    centre, so the pile never settles.
+    Gravity does not point down. It swings to and fro, in direction and in
+    strength, along the tip of the white line from the centre, so the pile
+    never settles. A figure drops in every two seconds, up to five.
     """
 
     camera_center = (0, 0)
     camera_zoom = 12.0
 
+    #: A new figure every two seconds, up to five.
     SPAWN_INTERVAL = 2.0
     MAX_HUMANS = 5
 
@@ -223,10 +224,8 @@ class BounceHumans(BaseTest, category="Continuous", name="Bounce Humans"):
         corners = [(-10, -10), (10, -10), (10, 10), (-10, 10)]
         for start, end in zip(corners, corners[1:] + corners[:1]):
             walls.segment(start, end, restitution=1.3, friction=0.1)
-        # The post is livelier than the walls, so a figure that finds it is
-        # thrown back harder than it arrived.
         walls.circle(2.0, center=(0, 0), restitution=2.0, friction=0.1)
-        self.walls = walls.build()
+        walls.build()
 
         self.humans = []
         self.time = 0.0
@@ -244,6 +243,8 @@ class BounceHumans(BaseTest, category="Continuous", name="Bounce Humans"):
                     friction_torque=0.0,
                     hertz=1.0,
                     damping_ratio=0.1,
+                    # Each figure its own group, so that they collide with
+                    # each other but not with themselves.
                     group_index=len(self.humans) + 1,
                 )
             )
@@ -254,7 +255,13 @@ class BounceHumans(BaseTest, category="Continuous", name="Bounce Humans"):
         self.world.gravity = self.gravity_direction() * 10.0
 
     def gravity_direction(self):
-        """A slow Lissajous figure, so the pull never repeats for a while."""
+        """The pull of gravity now, as a multiple of 10 m/s^2.
+
+        x is sin(t/2) and y is cos(t), which is 1 - 2x^2, so the tip runs to
+        and fro along a parabola: from straight up at full strength, round to
+        down and to the right at 1.4 times it, back up, round to down and to
+        the left, and up again, every 4 pi seconds.
+        """
         return Vec2(math.sin(0.5 * self.time), math.cos(self.time))
 
     def debug_draw(self, debug_draw):
