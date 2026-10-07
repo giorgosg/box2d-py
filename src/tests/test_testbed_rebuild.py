@@ -92,3 +92,21 @@ def test_a_rebuilt_scene_runs_exactly_as_a_fresh_one(
     run(rebuilt, SECONDS)
 
     assert motion(world) == motion(fresh_world)
+
+
+def test_compound_count_builds_the_scene_a_fresh_world_would(world, fresh_world):
+    """Count used to destroy and set up by hand, in creation order, so the
+    smaller scene it built came out in reverse id order."""
+    # The pieces fall a while before they land on each other.
+    seconds = 3.0
+
+    fresh = BaseTest.registry["Benchmark"]["Compound"](fresh_world)
+    fresh.count = 2
+    fresh.setup()
+    run(fresh, seconds)
+
+    changed = scenario(world, "Benchmark", "Compound")
+    changed.count = 2
+    run(changed, seconds)
+
+    assert motion(world) == motion(fresh_world)

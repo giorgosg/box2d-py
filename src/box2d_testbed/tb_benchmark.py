@@ -15,9 +15,7 @@ class BenchmarkCompound(BaseTest, category="Benchmark", name="Compound"):
 
     @count.callback
     def on_count_change(self, key, value):
-        for body in self.world.bodies:
-            body.destroy()
-        self.setup()
+        self.rebuild()
 
     def setup(self):
         grid = 1.0
