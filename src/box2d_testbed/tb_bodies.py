@@ -103,7 +103,8 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
 
     Eight boxes are launched to the right together, each 5 degrees steeper
     than the one before, from 30 to 65 degrees, and spinning. Once every box
-    has landed they are put back where they started and launched again.
+    has landed, or gone off the end of the ground, they are put back where
+    they started and launched again.
 
     Speed, in m/s, and Spin, in rad/s, take effect at the next launch. The
     status line counts the launches.
@@ -145,13 +146,16 @@ class SetVelocity(BaseTest, category="Bodies", name="Set Velocity"):
         self.launches += 1
 
     def after_step(self, dt):
-        # Landed: low, and no longer rising or falling. Low as well, because
-        # a box at the top of its arc is not rising or falling either.
-        if all(
-            box.position.y < 1.0 and abs(box.linear_velocity.y) < 0.5
-            for box in self.boxes
-        ):
+        if all(self.landed(box) for box in self.boxes):
             self.launch()
+
+    def landed(self, box):
+        """Whether ``box`` is down: on the ground, or past the end of it."""
+        # Low as well as no longer rising or falling, because a box at the
+        # top of its arc is not rising or falling either. Below the ground,
+        # it has gone off the end, and will never be on it again.
+        y = box.position.y
+        return (y < 1.0 and abs(box.linear_velocity.y) < 0.5) or y < 0.0
 
     def status(self):
         return f"launches: {self.launches}"

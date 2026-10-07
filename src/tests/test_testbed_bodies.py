@@ -105,3 +105,14 @@ def test_every_launch_starts_from_where_the_first_did(world):
                 break
         assert test.launches == launch, f"launch {launch} never came"
         assert [tuple(box.position) for box in test.boxes] == starts
+
+
+def test_a_box_off_the_end_of_the_ground_does_not_stop_the_launches(world):
+    test = scenario(world, "Bodies", "Set Velocity")
+    run(test, 0.5)
+    # Past the end of the ground, as a fast or spinning launch can take one.
+    test.boxes[-1].position = (45, 5)
+
+    run(test, 10.0)
+
+    assert test.launches > 1
