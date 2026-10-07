@@ -81,3 +81,16 @@ def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
         shape for shape in world.query_shape(bar_shape) if shape.body in pieces
     ]
     assert not in_the_bar, f"{len(in_the_bar)} pieces start inside the bar"
+
+
+def test_the_pyramid_stands_centred_on_the_origin(world):
+    test = scenario(world, "Benchmark", "Pyramid")
+    test.base_count = 6
+    boxes = dynamic_bodies(world)
+
+    # Six boxes along the bottom, five on them and so on up to one at the top.
+    assert len(boxes) == 21
+    bottom = sorted(box.position.x for box in boxes if box.position.y < 1)
+    assert bottom == [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
+    (top,) = (box.position for box in boxes if box.position.y > 5)
+    assert tuple(top) == (0, 5.5)

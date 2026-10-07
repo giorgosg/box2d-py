@@ -67,15 +67,16 @@ class Compound(BaseTest, category="Benchmark", name="Compound"):
 def pyramid(world, base_count, base_position):
     """Build a pyramid of 1 m boxes, ``base_count`` wide at the bottom.
 
-    The bottom row stands on ``base_position``, and runs half a box further
-    to the right of it than to the left.
+    Its bottom row stands centred on ``base_position``.
     """
     boxes = world.new_body().dynamic().box(1, 1)
-    top = base_position + Vec2(0, base_count + 0.5)
-    # Row r from the top has r boxes, each resting on two of the row below.
+    base = Vec2(base_position)
+    # From the top down: row r has r boxes, each resting on two of the row
+    # below, half a box in from either.
     for row in range(1, base_count + 1):
+        y = base.y + base_count - row + 0.5
         for column in range(row):
-            boxes.position(*(top - Vec2(column - row / 2, row))).build()
+            boxes.position(base.x + (row - 1) / 2 - column, y).build()
 
 
 class Pyramid(BaseTest, category="Benchmark", name="Pyramid"):
@@ -140,7 +141,7 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
             ground.segment((-width / 2, row * spacing), (width / 2, row * spacing))
         ground.build()
 
-        first_x = -self.grid / 2 * spacing + self.PYRAMID_BASE / 2
+        first_x = -(self.grid - 1) / 2 * spacing
         for column in range(self.grid):
             for row in range(self.grid):
                 pyramid(
