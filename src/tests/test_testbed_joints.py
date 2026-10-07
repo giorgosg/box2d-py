@@ -210,3 +210,18 @@ def test_braking_while_driving_and_letting_go_of_the_brake(world):
 
     test.on_key_up("d")
     assert drive_target(test) == (0.0, 0.0), "coasting: no motor, no brake"
+
+
+@pytest.mark.parametrize(
+    "control, value", [("friction", 0.0), ("hertz", 0.0), ("damping", 2.0)]
+)
+def test_the_ragdoll_sliders_wake_a_figure_that_has_settled(world, control, value):
+    test = scenario(world, "Joints", "Ragdoll")
+    # It lands by 2 s and is asleep by 5 s.
+    run(test, 8.0)
+    bones = [bone.body for bone in test.human.bones]
+    assert not any(body.awake for body in bones), "a settled figure goes to sleep"
+
+    setattr(test, control, value)
+
+    assert all(body.awake for body in bones), "asleep, it ignores the new joints"

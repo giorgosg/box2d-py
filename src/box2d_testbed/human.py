@@ -406,7 +406,8 @@ class Human:
         """How hard the joints resist being moved.
 
         Zero switches the motors off, which is the difference between a body
-        that folds under its own weight and one that holds a pose.
+        that folds under its own weight and one that holds a pose. Like the
+        other joint setters, this wakes the figure.
         """
         # Kept so a later set_scale scales this torque, not the one the
         # figure was built with.
@@ -419,6 +420,7 @@ class Human:
             else:
                 bone.joint.enable_motor = True
                 bone.joint.max_motor_torque = self.scale * bone.friction_scale * torque
+        self._wake_retuned_joints()
 
     def set_joint_spring_hertz(self, hertz: float):
         """Spring frequency pulling joints back towards their rest pose."""
@@ -430,12 +432,25 @@ class Human:
             else:
                 bone.joint.enable_spring = True
                 bone.joint.spring_hertz = hertz
+        self._wake_retuned_joints()
 
     def set_joint_damping_ratio(self, damping_ratio: float):
         """Damping for the joint springs."""
         for bone in self.bones:
             if bone.joint is not None:
                 bone.joint.spring_damping_ratio = damping_ratio
+        self._wake_retuned_joints()
+
+    def _wake_retuned_joints(self):
+        """Wake the bodies of every joint, which the setters have just changed.
+
+        Box2D does not wake a body when one of its joints changes, so a figure
+        that had settled would sleep through a new friction or spring until
+        something touched it. Box2D's Ragdoll sample leaves it at that; here
+        the figure wakes, so a slider moved after it settles shows at once.
+        """
+        for joint in self.joints:
+            joint.wake_bodies()
 
     def set_scale(self, scale: float):
         """Resize the figure in place, keeping its pose.
