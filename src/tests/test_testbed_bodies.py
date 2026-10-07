@@ -7,7 +7,7 @@ boxes of cargo missed the platform it was meant to ride.
 """
 
 from box2d_testbed import tb_bodies  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import run, scenario
+from testbed_scenarios import press, run, scenario
 
 
 def test_all_the_cargo_lands_on_a_static_platform(world):
@@ -49,3 +49,16 @@ def test_a_platform_made_kinematic_while_turning_stops_turning(world):
     run(test, 2.0)
     assert test.platform.angular_velocity == 0.0
     assert test.platform.rotation == turned
+
+
+def test_reset_with_dynamic_chosen_drops_the_platform_straight_down(world):
+    test = scenario(world, "Bodies", "Body Type")
+    test.body_type = "dynamic"
+
+    press(test, "reset")
+
+    assert test.platform.type == "dynamic"
+    assert tuple(test.platform.linear_velocity) == (0, 0)
+    # Down onto the ground, where landing nudges it a few millimetres.
+    run(test, 1.0)
+    assert abs(test.platform.position.x) < 0.05

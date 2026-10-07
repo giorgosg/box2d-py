@@ -40,11 +40,10 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
             self.world.new_body()
             .kinematic()
             .position(0, 5)
-            .linear_velocity(self.PATROL_SPEED, 0)
             .box(8, 1, friction=self.FRICTION)
             .build()
         )
-        self.platform.type = self.body_type
+        self.make_platform(self.body_type)
 
         # Four boxes dropped on it, half a metre apart. Any wider and the
         # outer ones come off: the platform moves on 1.3 m while they fall,
@@ -62,14 +61,18 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
             elif self.platform.position.x < -self.PATROL_LIMIT:
                 self.platform.linear_velocity = (self.PATROL_SPEED, 0)
 
-    @body_type.callback
-    def on_type_change(self, key, value):
-        self.platform.type = value
-        if value == "kinematic":
+    def make_platform(self, body_type):
+        """Make the platform ``body_type``, setting off on patrol if kinematic."""
+        self.platform.type = body_type
+        if body_type == "kinematic":
             # A kinematic body keeps the velocity it had, and nothing slows it
             # down: a platform switched while tumbling would turn forever.
             self.platform.linear_velocity = (self.PATROL_SPEED, 0)
             self.platform.angular_velocity = 0.0
+
+    @body_type.callback
+    def on_type_change(self, key, value):
+        self.make_platform(value)
 
     @enable_sleep.callback
     def on_sleep_change(self, key, value):
