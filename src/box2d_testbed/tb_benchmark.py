@@ -153,12 +153,15 @@ class ManyPyramids(BaseTest, category="Benchmark", name="Many Pyramids"):
 class Spinner(BaseTest, category="Benchmark", name="Spinner"):
     """A long bar driven round inside a ring, churning a heap of small shapes.
 
-    The bar is turned by a motor at 5 rad/s and sweeps the bottom half of the
-    ring, flinging capsules, circles and boxes about, so contacts keep
-    starting and ending and nothing ever settles. The ring is a single
-    looped chain, which only collides on its inner side.
+    The capsules, circles and boxes start in rows round the bar, in the
+    bottom half of the ring. A motor turns the bar at 5 rad/s, and it sweeps
+    through them and flings them about, so contacts keep starting and ending
+    and nothing ever settles. The ring is a single looped chain, which only
+    collides on its inner side. With more than a thousand or so pieces the
+    heap takes more torque than the motor has to keep the bar at full speed,
+    and it slows, with the most pieces at times to under half speed.
 
-    Body Count sets how many shapes are dropped in, rebuilding the scene.
+    Body Count sets how many pieces there are, rebuilding the scene.
     """
 
     camera_center = (0, 0)
@@ -235,15 +238,20 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
             self.world.new_body().dynamic().box(0.7, 0.7, **material),
         )
 
-        # Rows 1 m apart, of 49 pieces 1 m apart, taking the three kinds in
-        # turn.
-        x, y = -24, 2
-        for i in range(self.body_count):
-            pieces[i % 3].position(x, y).build()
-            x += 1.0
-            if x > 24.0:
-                x = -24.0
-                y += 1.0
+        # Rows of pieces 1 m apart, from 10 m above the bottom of the ring up,
+        # as in Box2D's sample, taking the three kinds in turn. Each row runs
+        # to within a metre of the ring, and leaves room for the bar, which
+        # stands in the middle up to 0.2 m above the ring's centre.
+        def places():
+            for y in itertools.count(-30.0):
+                half_width = math.floor(math.sqrt((self.RING_RADIUS - 1) ** 2 - y**2))
+                for x in range(-half_width, half_width + 1):
+                    if abs(x) <= 1 and y < 1:
+                        continue
+                    yield x, y
+
+        for i, place in zip(range(self.body_count), places()):
+            pieces[i % 3].position(*place).build()
 
 
 class Tumbler(BaseTest, category="Benchmark", name="Tumbler"):

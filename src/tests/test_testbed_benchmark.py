@@ -8,6 +8,7 @@ These scenes are big, so the tests use the smaller ends of the controls
 where they can.
 """
 
+from box2d import ShapeProxy, Vec2
 from box2d_testbed import tb_benchmark  # noqa: F401  (registers the scenarios)
 from testbed_scenarios import dynamic_bodies, run, scenario
 
@@ -49,3 +50,34 @@ def test_each_box_is_fed_into_the_tumbler_clear_of_the_others(world):
         starts.append(round(nearest, 3))
 
     assert min(starts) >= 0.25, starts
+
+
+def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
+    test = scenario(world, "Benchmark", "Spinner")
+    test.body_count = type(test).body_count.max_value
+
+    bar, *pieces = dynamic_bodies(world)
+    assert len(pieces) == test.body_count
+
+    # The ring is 40 m in radius, round the origin. The corners of a piece's
+    # AABB are further out than any part of it.
+    def reach(piece):
+        return max(
+            Vec2(x, y).length
+            for shape in piece.shapes
+            for x in (shape.aabb.lower.x, shape.aabb.upper.x)
+            for y in (shape.aabb.lower.y, shape.aabb.upper.y)
+        )
+
+    outside = [piece for piece in pieces if reach(piece) > 40.0]
+    assert not outside, f"{len(outside)} pieces start outside the ring"
+
+    # The bar is 0.8 m by 40 m, rounded by 0.2 m, and starts upright with
+    # its middle at (0, -20).
+    bar_shape = ShapeProxy.polygon(
+        [(-0.4, -40), (0.4, -40), (0.4, 0), (-0.4, 0)], radius=0.2
+    )
+    in_the_bar = [
+        shape for shape in world.query_shape(bar_shape) if shape.body in pieces
+    ]
+    assert not in_the_bar, f"{len(in_the_bar)} pieces start inside the bar"
