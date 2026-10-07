@@ -204,3 +204,17 @@ def test_the_tumbling_boxes_never_fall_asleep(world):
     run(test, 10.0)
 
     assert all(box.awake for box in dynamic_bodies(world))
+
+
+@pytest.mark.parametrize(
+    "name", ["Compound", "Pyramid", "Many Pyramids", "Spinner", "Tumbler"]
+)
+def test_the_view_takes_in_the_scene_as_it_opens(world, name):
+    test = scenario(world, "Benchmark", name)
+    (left, bottom), (right, top) = test.moving_bounds()
+
+    center, zoom = test.view()
+
+    # zoom is half the visible height; the view is at least 1.6 times as wide.
+    assert center.y - zoom <= bottom and top <= center.y + zoom
+    assert center.x - 1.6 * zoom <= left and right <= center.x + 1.6 * zoom
