@@ -1074,6 +1074,64 @@ def test_typing_carries_on_after_enter(scenario_dir):
     assert seen["typed_after"] == "world", "and what was typed next reached the prompt"
 
 
+def test_typing_in_the_console_does_not_reach_the_shortcuts(scenario_dir):
+    """A letter typed at the prompt is text, not a testbed shortcut.
+
+    It was both: "p" paused the simulation as it went into the prompt. The
+    shortcuts stand down while imgui says it wants the keyboard, but the
+    editor widget only says so while it draws, and the Simulation window,
+    drawn first, had already asked by then.
+    """
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed_state import state
+
+    seen = {}
+
+    def script(app, frame):
+        io = imgui.get_io()
+        if frame == 1:
+            # Simulation in front, or nothing draws its shortcuts at all: after
+            # a test that opens a scenario in the editor, the next run in the
+            # same process starts with the Simulation tab hidden, and this
+            # would pass without testing anything.
+            app.runner_params.docking_params.focus_dockable_window("Simulation")
+        elif frame == 3:
+            app.console._focus_input = True
+        elif frame == 6:
+            seen["paused_before"] = state.simulation_paused
+            # A real keypress is both: the key, which the shortcuts look at,
+            # and the character, which the prompt takes.
+            io.add_key_event(imgui.Key.p, True)
+            type_characters("p")
+        elif frame == 7:
+            io.add_key_event(imgui.Key.p, False)
+        elif frame == 10:
+            seen["paused_after"] = state.simulation_paused
+            seen["typed"] = app.console.input
+            # Then back to the simulation, where "p" is a shortcut again.
+            window = imgui.internal.find_window_by_name("Simulation")
+            io.add_mouse_pos_event(window.pos.x + 50, window.pos.y + 50)
+            io.add_mouse_button_event(0, True)
+        elif frame == 11:
+            io.add_mouse_button_event(0, False)
+        elif frame == 14:
+            io.add_key_event(imgui.Key.p, True)
+        elif frame == 15:
+            io.add_key_event(imgui.Key.p, False)
+        elif frame == 18:
+            seen["paused_in_simulation"] = state.simulation_paused
+
+    frames, _ = run_headless(20, script)
+
+    assert frames >= 20
+    assert seen["typed"] == "p", "the letter reached the prompt"
+    assert seen["paused_after"] == seen["paused_before"], "and did not pause"
+    assert seen["paused_in_simulation"] != seen["paused_before"], (
+        "but the shortcut still works once the simulation has the keyboard"
+    )
+
+
 def test_the_transcript_can_be_selected_and_copied(scenario_dir):
     """Output is a read-only editor, so it can be dragged over and copied.
 
