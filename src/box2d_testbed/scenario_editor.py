@@ -37,10 +37,20 @@ def modern_text_editor(editor) -> bool:
 
 
 def render_text_editor(editor, title: str, size, *, parent_is_focused: bool = False):
-    """Render with either the current or Pyodide-pinned call signature."""
+    """Render with either the current or Pyodide-pinned call signature.
+
+    While the editor has the keyboard, imgui is also told to want it next
+    frame. The widget only raises want_capture_keyboard while it draws, and the
+    next new_frame clears it -- so anything drawn earlier in the frame, like
+    the Simulation window's shortcuts, saw False and took the typing too.
+    """
     if modern_text_editor(editor):
-        return editor.render(title, size, window_flags=0)
-    return editor.render(title, parent_is_focused, size, False)
+        result = editor.render(title, size, window_flags=0)
+    else:
+        result = editor.render(title, parent_is_focused, size, False)
+    if imgui.is_window_focused(imgui.FocusedFlags_.root_and_child_windows):
+        imgui.set_next_frame_want_capture_keyboard(True)
+    return result
 
 
 def clear_editor_markers(editor) -> None:
