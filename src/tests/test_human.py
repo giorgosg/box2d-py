@@ -114,6 +114,7 @@ def test_springs_are_off_unless_asked_for(world):
     assert all(joint.spring_hertz == pytest.approx(4.0) for joint in sprung.joints)
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_joint_limits_hold_when_the_figure_lands(world):
     """The limits are what keep a fall looking like a body folding up."""
     random.seed(11)
@@ -240,6 +241,7 @@ def test_sensor_events_can_be_enabled(human):
     )
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_random_impulse_spins_the_torso(world):
     random.seed(3)
     human = Human(world, (0, 10))
@@ -286,6 +288,7 @@ def test_destroy_is_safe_after_the_world_took_the_bodies(world):
 # --- falling -----------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_a_dropped_figure_lands_and_settles(world):
     random.seed(7)
     human = Human(world, (0, 10), friction_torque=0.05)

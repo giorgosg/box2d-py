@@ -10,7 +10,14 @@ import pytest
 
 from box2d import World
 from box2d_testbed import tb_joints  # noqa: F401  (registers the scenarios)
-from testbed_scenarios import HERTZ, run, scenario
+from testbed_scenarios import (
+    HERTZ,
+    assert_view_takes_in_moving_bodies,
+    dynamic_bodies,
+    press,
+    run,
+    scenario,
+)
 
 
 def motor_box(test):
@@ -210,3 +217,53 @@ def test_braking_while_driving_and_letting_go_of_the_brake(world):
 
     test.on_key_up("d")
     assert drive_target(test) == (0.0, 0.0), "coasting: no motor, no brake"
+
+
+@pytest.mark.parametrize(
+    "control, value", [("friction", 0.0), ("hertz", 0.0), ("damping", 2.0)]
+)
+def test_the_ragdoll_sliders_wake_a_figure_that_has_settled(world, control, value):
+    test = scenario(world, "Joints", "Ragdoll")
+    # It lands by 2 s and is asleep by 5 s.
+    run(test, 8.0)
+    bones = [bone.body for bone in test.human.bones]
+    assert not any(body.awake for body in bones), "a settled figure goes to sleep"
+
+    setattr(test, control, value)
+
+    assert all(body.awake for body in bones), "asleep, it ignores the new joints"
+
+
+def test_resizing_a_settled_ragdoll_wakes_it_and_keeps_its_pose(world):
+    test = scenario(world, "Joints", "Scale Ragdoll")
+    run(test, 8.0)
+    bones = [bone.body for bone in test.human.bones]
+    assert not any(body.awake for body in bones), "a settled figure goes to sleep"
+    head = test.human.head.shapes[0].geometry.radius
+    angles = [body.rotation for body in bones]
+
+    test.scale = 2.0
+
+    assert all(body.awake for body in bones)
+    assert test.human.head.shapes[0].geometry.radius == pytest.approx(2 * head)
+    assert [body.rotation for body in bones] == pytest.approx(angles)
+
+
+def test_respawn_drops_a_fresh_ragdoll_from_the_top(world):
+    test = scenario(world, "Joints", "Ragdoll")
+    run(test, 3.0)
+    landed = test.human
+
+    press(test, "respawn")
+
+    assert not landed.hip.is_valid, "the old figure is gone"
+    assert test.human.hip.position.y > 20.0
+    assert len(dynamic_bodies(world)) == 11
+
+
+@pytest.mark.parametrize("name", ["Ragdoll", "Scale Ragdoll"])
+def test_each_ragdoll_scenario_opens_with_its_figure_in_view(world, name):
+    test = scenario(world, "Joints", name)
+    assert_view_takes_in_moving_bodies(test)
+    run(test, 5.0)
+    assert_view_takes_in_moving_bodies(test)

@@ -4,7 +4,8 @@ Helpers that more than one scenario builds from.
 ``random_polygon`` is Box2D's ``RandomPolygon``, from ``shared/utils.c``, and
 ``donut`` and ``Car`` are ported from the ``Donut`` and ``Car`` in Box2D's
 samples. ``parse_svg_path`` turns the terrain the character scenarios are
-drawn from into chain points.
+drawn from into chain points. ``WALK_KEYS`` and ``walk_direction`` are the
+keys every walking character takes.
 
 Scenarios of your own can import them too:
 ``from box2d_testbed.shared import donut``.
@@ -15,6 +16,20 @@ import random
 from itertools import pairwise
 
 from box2d import PolygonDef, Vec2, World
+
+#: The keys that walk a character, and which way: the arrows, or A and D as
+#: in Box2D's samples.
+WALK_KEYS = {"left": -1, "a": -1, "right": 1, "d": 1}
+
+
+def walk_direction(held):
+    """Which way a set of held keys walks: -1 for left, 1 for right, else 0.
+
+    One step each way at most, however many keys point that way, so holding
+    left and A walks no faster than either; holding both ways stands still.
+    Keys that do not walk are ignored.
+    """
+    return sum({WALK_KEYS[key] for key in held if key in WALK_KEYS})
 
 
 def random_polygon(extent):

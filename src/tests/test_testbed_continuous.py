@@ -26,6 +26,7 @@ def test_the_pinball_flippers_rest_down_before_any_key_is_pressed(world):
     assert right.angle == pytest.approx(right.upper_limit, abs=0.01)
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_a_box_that_skids_off_the_end_of_the_floor_has_not_tunnelled(world):
     # A box spinning as it lands can turn the spin into a skid fast enough to
     # take it off the end of the floor, and then it falls below it.
@@ -83,6 +84,7 @@ def test_a_new_ball_speed_serves_a_ball_at_that_speed(world):
     assert test.ball.linear_velocity.y == pytest.approx(-40.0)
 
 
+@pytest.mark.usefixtures("random_left_as_it_was")
 def test_with_continuous_collision_off_every_box_goes_through_the_floor(world):
     random.seed(1)
     test = scenario(world, "Continuous", "Skinny Box")
