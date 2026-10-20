@@ -32,6 +32,7 @@ from box2d_testbed import (  # noqa: F401
     tb_character,
     tb_bodies,
     tb_continuous,
+    tb_clock,
 )
 from box2d_testbed.base_test import BaseTest
 from testbed_scenarios import every_scenario
