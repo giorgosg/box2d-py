@@ -34,6 +34,7 @@ from box2d_testbed import (  # noqa: E402,F401
     tb_benchmark,
     tb_bodies,
     tb_character,
+    tb_clock,
     tb_collision,
     tb_continuous,
     tb_events,
