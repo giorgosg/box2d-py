@@ -123,14 +123,17 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
     down a little at every swing, the hands go round a step at a time, and
     the pendulum, not the weight, sets how fast.
 
-    Something has to keep the pendulum going, too, or friction and the
-    knocks of the teeth would stop it. A tooth leaving its pin slides along
-    under it on its sloping tip and so pushes the pin out of the way: a
-    shove in the direction the pendulum is already swinging. Those shoves
-    are where the weight's energy goes, and the swing settles where they
-    make up for what each swing loses. A heavier weight pushes harder and
-    the swing grows, but slowly: 2 kg swings it about 6 degrees either way,
-    and forty times that not quite twice as far.
+    The pendulum swings through air, which drags on it, so left to itself
+    it would die away in a couple of minutes. The escapement keeps it
+    going: a tooth leaving its pin slides along under it on its sloping tip
+    and so pushes the pin out of the way, a shove in the direction the
+    pendulum is already swinging. Those shoves are where the weight's
+    energy goes, and the swing settles where they make up for what the air
+    and the knocks of the teeth take. Push or drag the pendulum wider, and
+    it shrinks back. A heavier weight pushes harder and the swing grows,
+    but slowly: 10 kg swings it about 5 degrees either way, and 80 kg
+    about 10. Under about 6 kg it cannot make up the losses, and the
+    swing dies until the pins no longer let the teeth go.
 
     The red seconds hand is on the escape wheel, which turns a tooth for
     every two swings and so once every 30. The long minute hand is on the
@@ -141,13 +144,12 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
     about 2.6 s a swing, so the "minute" is nearly 80 seconds long.
 
     The weight falls 4.5 m in about an hour and a half, and then the clock
-    stops: the train can turn no further, and sooner or later the pendulum
-    is caught leaning on a tooth. Wind lifts the weight back to the top, as
-    winding a real clock would, and as with a real clock the pendulum then
-    wants a push to set it going: Push gives it one, or drag it. Weight is the
-    weight's mass, in kg. With none at all the train stops, and the
-    pendulum swings on by itself, a little less each time its pins brush
-    the teeth.
+    stops: the train can turn no further, and the pendulum, with nothing to
+    make up for the air, dies away and comes to rest against a tooth. Wind
+    lifts the weight back to the top, as winding a real clock would, and
+    the train pushing on that tooth usually sets the pendulum going again.
+    If it does not, Push gives it a shove, or drag it. Weight is the
+    weight's mass, in kg.
 
     Wheels that overlap sit in different planes, as in a real movement,
     and touch only where their teeth mesh.
@@ -169,9 +171,18 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
     #: radius, in m.
     PIN_RADIUS = 0.945
     PIN_SIZE = 0.04
-    #: Pivot to bob, in m, and the bob's radius.
+    #: Each tooth's sloping tip, as a fraction of the pitch. The wider it
+    #: is, the further the tooth pushes the pin, and the more of the
+    #: weight's energy reaches the pendulum rather than going on the drop.
+    IMPULSE_WIDTH = 0.25
+    #: Pivot to bob, in m, the bob's radius, and its density. Light, so the
+    #: air takes less from it in a swing than the escapement can give back.
     PENDULUM_LENGTH = 7.0
     BOB_RADIUS = 0.5
+    BOB_DENSITY = 2.5
+    #: The air's drag on the pendulum, as Box2D linear damping, per second.
+    #: Free, its swing shrinks to half in about half a minute.
+    DRAG = 0.05
     #: The pendulum starts this far over, in radians: a clock has to be set
     #: swinging.
     START_ANGLE = 0.1
@@ -187,7 +198,7 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
     #: there is to drive the clock.
     RACK_DENSITY = 0.05
 
-    weight = UI.float(25.0, min=0.0, max=80.0, label="Weight (kg)")
+    weight = UI.float(40.0, min=0.0, max=120.0, label="Weight (kg)")
     wind = UI.button("Wind")
     push = UI.button("Push")
 
@@ -217,6 +228,7 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
             .dynamic()
             .position(*self.pivot)
             .rotation(self.START_ANGLE)
+            .linear_damping(self.DRAG)
             .box(
                 0.05,
                 length,
@@ -227,7 +239,7 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
             .circle(
                 self.BOB_RADIUS,
                 center=(0, -length),
-                density=10.0,
+                density=self.BOB_DENSITY,
                 filter=decor(),
                 custom_color=BRASS,
             )
@@ -263,7 +275,7 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
         # Each tooth has a radial face on its clockwise side, which the pins
         # stop, and a tip sloping up from there, which pushes them out.
         teeth = meshing(ESCAPE_TEETH, PALLET)
-        root, tip = self.ESCAPE_ROOT, 0.2 * pitch
+        root, tip = self.ESCAPE_ROOT, self.IMPULSE_WIDTH * pitch
         for i in range(self.ESCAPE_TEETH):
             angle = i * pitch
             wheel.polygon(

@@ -6,7 +6,11 @@ swings on by itself and the wheels sit still. So these count teeth.
 
 import math
 
+import pytest
+
+from box2d import Vec2
 from box2d_testbed import tb_clock  # noqa: F401  (registers the scenario)
+from box2d_testbed.tb_clock import polar
 from testbed_scenarios import assert_view_takes_in_moving_bodies, press, run, scenario
 
 
@@ -56,6 +60,22 @@ def step_as_the_testbed_does(test, seconds):
         test.after_step(1 / 60)
 
 
+def mean_swing(test, swings):
+    """How far the pendulum swings either way over the next ``swings``
+    swings, on average, in degrees.
+
+    Averaged, because from one swing to the next it varies by a degree or
+    two, as the teeth happen to catch the pins.
+    """
+    total, last = 0.0, test.swings
+    for _ in range(swings):
+        while test.swings == last:
+            run(test, 1 / 60)
+        last = test.swings
+        total += math.degrees(test.amplitude)
+    return total / swings
+
+
 def test_the_escape_wheel_lets_one_tooth_go_every_two_swings(world):
     test = scenario(world, "Machines", "Pendulum Clock")
 
@@ -103,16 +123,51 @@ def test_the_weight_falls_as_the_train_turns(world):
     assert abs(test.fallen - rolled) < 0.03, (test.fallen, rolled)
 
 
-def test_with_no_weight_the_train_stops(world):
+def test_with_no_weight_the_pendulum_dies_away(world):
     test = scenario(world, "Machines", "Pendulum Clock")
     test.weight = 0.0
 
     run(test, 30)
-    (escape,) = run_counting(test, 60, test.escape_wheel)
+    (escape,) = run_counting(test, 90, test.escape_wheel)
 
     assert abs(escape.clockwise) < 0.02
-    # The pendulum swings on regardless.
-    assert math.degrees(test.amplitude) > 3.0
+    # The air drags on it and nothing makes that up: from 5.7 degrees it
+    # loses half its swing about every 30 seconds.
+    assert math.degrees(test.amplitude) < 1.5
+
+
+@pytest.mark.parametrize(
+    "kilograms, lowest, highest", [(10, 4.5, 6.0), (80, 9.0, 11.0)]
+)
+def test_the_weight_sets_how_far_the_pendulum_swings(world, kilograms, lowest, highest):
+    test = scenario(world, "Machines", "Pendulum Clock")
+    test.weight = kilograms
+    run(test, 200)
+
+    # It settles where the shoves make up for what the air takes: more
+    # weight, harder shoves, a wider swing.
+    assert lowest < mean_swing(test, 40) < highest
+
+
+def test_dragged_wider_the_swing_shrinks_back(world):
+    test = scenario(world, "Machines", "Pendulum Clock")
+    run(test, 200)
+    usual = mean_swing(test, 10)
+
+    # Dragged out to 20 degrees by its bob, and let go.
+    length = test.PENDULUM_LENGTH
+    bob = test.pendulum.get_world_point((0, -length))
+    test.on_mouse_down(bob)
+    for step in range(180):
+        angle = -math.pi / 2 + math.radians(20) * min(1, step / 120)
+        test.on_mouse_drag(test.pivot + polar(length, angle), Vec2(0, 0))
+        run(test, 1 / 60)
+    test.on_mouse_release(bob)
+    assert mean_swing(test, 2) > usual + 3
+
+    # The air takes the extra away, and the escapement does not put it back.
+    run(test, 60)
+    assert mean_swing(test, 10) < usual + 1.5
 
 
 def test_weight_sets_the_mass_of_the_weight(world):
@@ -170,25 +225,30 @@ def test_wound_and_pushed_a_stopped_clock_goes_again(world):
     assert abs(teeth - (test.swings - swings) / 2) < 1.5
 
 
-def test_push_starts_a_pendulum_caught_on_a_tooth(world):
-    """At the testbed's 20 sub-steps, a clock that runs down in full swing
-    ends up with its pendulum caught on the corner of a tooth, leaning out
-    from the middle. Pushed back towards the middle, it would only lean on
-    the tooth harder."""
+def test_once_the_weight_is_down_the_pendulum_dies_away(world):
     test = scenario(world, "Machines", "Pendulum Clock")
     step_as_the_testbed_does(test, 240)
     nearly_run_down(test)
-    step_as_the_testbed_does(test, 360)
-    assert not test.pendulum.awake, "the pendulum should have stopped"
 
-    press(test, "wind")
-    step_as_the_testbed_does(test, 30)
-    assert not test.pendulum.awake, "winding alone does not start it"
+    step_as_the_testbed_does(test, 420)
 
+    assert abs(test.fallen - test.RUN) < 0.05
+    assert math.degrees(test.amplitude) < 1.5
+
+
+def test_push_sets_a_stopped_pendulum_swinging(world):
+    test = scenario(world, "Machines", "Pendulum Clock")
+    test.weight = 0.0
+    run(test, 240)
+    assert math.degrees(test.amplitude) < 1.0
+
+    test.weight = 40.0
     press(test, "push")
     swings = test.swings
-    step_as_the_testbed_does(test, 60)
+    run(test, 60)
+
     assert test.swings - swings > 20
+    assert math.degrees(test.amplitude) > 6.0
 
 
 def test_the_view_takes_in_the_whole_clock(world):
