@@ -74,7 +74,9 @@ class RayCastResult:
 
     shape: "Shape"  # Shape that was hit
     point: Vec2  # Hit point in world coords
-    normal: Vec2  # Surface normal at hit point
+    # Surface normal at hit point. The zero vector when the cast started inside
+    # the shape, which is reported at fraction 0 with no surface to take one from.
+    normal: Vec2
     fraction: float  # Fraction along ray where hit occurred (0-1)
 
 
@@ -873,7 +875,9 @@ class World(FixedAttributes):
 
         A shape already overlapping the proxy at its starting position is
         reported at fraction 0, so a cast that starts inside geometry tells
-        you so rather than silently skipping it.
+        you so rather than silently skipping it. Such a hit has no surface to
+        take a normal from, so its normal is the zero vector -- check the
+        fraction before normalising it.
 
         Args:
             proxy: The shape to sweep, at its starting position.
