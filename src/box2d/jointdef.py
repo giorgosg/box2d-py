@@ -286,9 +286,9 @@ class MotorJointDef(JointDef):
 
     def joint_arguments(self):
         """The motor joint attaches at the bodies' origins, so it has no anchors."""
-        # Named, not super(): slots=True makes a new class that a bare
+        # super() with arguments: slots=True makes a new class that a bare
         # super() in a method of the old one cannot see before Python 3.14.
-        arguments = JointDef.joint_arguments(self)
+        arguments = super(MotorJointDef, self).joint_arguments()
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments
@@ -312,9 +312,9 @@ class MoverJointDef(JointDef):
 
     def joint_arguments(self):
         """The mover joint drives velocity only, so it has no anchors."""
-        # Named, not super(): slots=True makes a new class that a bare
+        # super() with arguments: slots=True makes a new class that a bare
         # super() in a method of the old one cannot see before Python 3.14.
-        arguments = JointDef.joint_arguments(self)
+        arguments = super(MoverJointDef, self).joint_arguments()
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments

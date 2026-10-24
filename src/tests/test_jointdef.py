@@ -546,6 +546,53 @@ def test_limits_that_cross_are_refused(limited_joint):
     assert (limited_joint.lower_limit, limited_joint.upper_limit) == (1.0, 3.0)
 
 
+# Box2D holds a distance joint's limits to at least its linear slop, 0.005 m,
+# and at most 100 km. The ordering check has to compare what it will store.
+_SLOP = 0.005
+
+
+def test_a_distance_limit_below_the_floor_is_raised_to_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies, upper_limit=0.003))
+    assert joint.lower_limit == pytest.approx(_SLOP)
+    assert joint.upper_limit == pytest.approx(_SLOP), "not left below the lower"
+
+
+def test_a_distance_upper_limit_below_the_floor_meets_the_default_lower(world, bodies):
+    """The lower defaults to the floor, so an upper below it is not crossed."""
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.upper_limit = 0.004
+    assert (joint.lower_limit, joint.upper_limit) == pytest.approx((_SLOP, _SLOP))
+
+
+def test_distance_limits_below_the_floor_both_become_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.set_limits(-2.0, -1.0)
+    assert (joint.lower_limit, joint.upper_limit) == pytest.approx((_SLOP, _SLOP))
+
+
+def test_crossed_distance_limits_are_reported_as_given(world, bodies):
+    """Even when one of them would be raised to the floor."""
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    with pytest.raises(ValueError, match="lower 3.0 is above upper -1.0"):
+        joint.set_limits(3.0, -1.0)
+    with pytest.raises(ValueError, match="lower 3.0 is above upper -1.0"):
+        world.add_joint(DistanceJointDef(*bodies, lower_limit=3.0, upper_limit=-1.0))
+
+
+def test_a_distance_limit_past_the_cap_is_lowered_to_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.set_limits(1.0, 1e9)
+    assert joint.upper_limit == pytest.approx(100_000.0)
+
+
+def test_an_infinite_distance_limit_is_still_refused(world, bodies):
+    from box2d import InvalidInputError
+
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    with pytest.raises(InvalidInputError):
+        joint.set_limits(1.0, math.inf)
+
+
 @pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
 def test_a_joint_cannot_be_made_with_crossed_limits(world, bodies, definition):
     crossed = definition(*bodies, anchor=(1, 0), lower_limit=1.0, upper_limit=-1.0)

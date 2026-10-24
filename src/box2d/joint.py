@@ -1,5 +1,7 @@
 # joint.py
 
+import math
+
 from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike
 from .accessors import b2_bool, b2_float, b2_value
@@ -48,6 +50,31 @@ def _ordered(lower, upper, what):
 #: limits to zero, so a lower limit given alone can be refused for crossing an
 #: upper limit nobody set.
 _UNSET_LIMITS = "joint limits (a limit not given is 0)"
+
+
+def _distance_limits(lower, upper):
+    """``(lower, upper)`` as Box2D will store a distance joint's limits.
+
+    Box2D holds each to at least its linear slop (0.005 m) and at most
+    B2_HUGE (100 km), so the ordering check compares those values: an upper
+    limit of 0.003 is no limit below the 0.005 lower default. The error,
+    though, names the values that were given. A value that is not finite is
+    passed through for Box2D to refuse.
+    """
+    floor = float(ffi.cast("float", 0.005 * lib.b2GetLengthUnitsPerMeter()))
+    default = lib.b2DefaultDistanceJointDef()
+    cap = default.maxLength  # B2_HUGE
+    given = float(lower), float(upper)
+    stored = tuple(
+        min(max(bound, floor), cap) if math.isfinite(bound) else bound
+        for bound in given
+    )
+    try:
+        return _ordered(*stored, "distance joint limits")
+    except ValueError:
+        raise ValueError(
+            f"distance joint limits: lower {given[0]} is above upper {given[1]}"
+        ) from None
 
 
 class Joint(FixedAttributes):
@@ -1271,7 +1298,9 @@ class DistanceJoint(Joint):
             defn.minLength = self._lower_limit
         if self._upper_limit is not None:
             defn.maxLength = self._upper_limit
-        _ordered(defn.minLength, defn.maxLength, "distance joint limits")
+        defn.minLength, defn.maxLength = _distance_limits(
+            defn.minLength, defn.maxLength
+        )
 
         defn.enableLimit = self._enable_limit
         defn.enableSpring = self._enable_spring
@@ -1384,7 +1413,8 @@ class DistanceJoint(Joint):
     def lower_limit(self):
         """The shortest the joint may get, in metres, when the limit is enabled.
 
-        Cannot be set above the upper.
+        At least 0.005 m (Box2D's linear slop), which is also the default; a
+        smaller value is raised to it. Cannot be set above the upper.
         """
         return lib.b2DistanceJoint_GetLowerLimit(self._joint_id)
 
@@ -1396,7 +1426,9 @@ class DistanceJoint(Joint):
     def upper_limit(self):
         """The longest the joint may get, in metres, when the limit is enabled.
 
-        Cannot be set below the lower.
+        Between 0.005 m (Box2D's linear slop) and 100 km, which is also the
+        default; a value outside that is moved to the nearer end. Cannot be
+        set below the lower.
         """
         return lib.b2DistanceJoint_GetUpperLimit(self._joint_id)
 
@@ -1407,7 +1439,9 @@ class DistanceJoint(Joint):
     def set_limits(self, lower, upper):
         """Set the shortest and longest the joint may get, in metres.
 
-        Box2D clamps both to at least its linear slop.
+        Box2D holds both between 0.005 m (its linear slop) and 100 km, and
+        so does the check that lower is not above upper: an upper below
+        0.005 m is raised to it rather than refused.
 
         Args:
             lower (float): Lower length limit
@@ -1416,7 +1450,7 @@ class DistanceJoint(Joint):
         Raises:
             ValueError: If lower is above upper.
         """
-        lower, upper = _ordered(lower, upper, "distance joint limits")
+        lower, upper = _distance_limits(lower, upper)
         lib.b2DistanceJoint_SetLimits(self._joint_id, lower, upper)
 
     enable_motor = b2_bool(
