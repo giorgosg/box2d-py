@@ -612,7 +612,7 @@ class RevoluteJoint(Joint):
             upper_limit (float, optional): Upper joint limit in radians.
             enable_limit (bool, optional): Whether to enable joint limits.
             target_motor_speed (float, optional): Desired motor speed in radians/sec.
-            max_motor_torque (float, optional): Maximum motor torque in newton-meters.
+            max_motor_torque (float, optional): Maximum motor torque in newton-metres.
             enable_motor (bool, optional): Whether to enable the joint motor.
             reference_angle (float, optional): Reference angle between the two bodies.
             enable_spring (bool, optional): Whether a spring pulls the joint
@@ -685,10 +685,12 @@ class RevoluteJoint(Joint):
 
     current_angle = b2_value(
         lib.b2RevoluteJoint_GetCurrentAngle,
-        doc="""The joint's angle right now, in radians.
+        doc="""The joint's angle right now, in radians, wrapped into [-pi, pi].
 
         The rotation of body_b's local frame relative to body_a's: body_b's
-        angle less body_a's, less the reference_angle the joint was made with.
+        angle less body_a's, less the difference between the two frames' own
+        rotations. That difference starts as the reference_angle the joint
+        was made with, and changes if local_frame_a or local_frame_b is set.
         """,
     )
     current_speed = b2_value(
@@ -713,7 +715,7 @@ class RevoluteJoint(Joint):
     max_motor_torque = b2_float(
         lib.b2RevoluteJoint_GetMaxMotorTorque,
         lib.b2RevoluteJoint_SetMaxMotorTorque,
-        doc="Maximum motor torque in newton-meters.",
+        doc="Maximum motor torque in newton-metres.",
     )
 
     @property
@@ -839,8 +841,8 @@ class PrismaticJoint(Joint):
             lower_limit (float): Lower translation limit
             upper_limit (float): Upper translation limit
             enable_limit (bool): Whether to enable joint limits
-            target_motor_speed (float): Desired motor speed in meters/sec
-            max_motor_force (float): Maximum motor force in N
+            target_motor_speed (float): Desired motor speed in metres per second
+            max_motor_force (float): Maximum motor force in newtons
             enable_motor (bool): Whether to enable the joint motor
             reference_angle (float): Reference angle between bodies
             enable_spring (bool): Enable spring behavior
@@ -979,7 +981,7 @@ class PrismaticJoint(Joint):
     max_motor_force = b2_float(
         lib.b2PrismaticJoint_GetMaxMotorForce,
         lib.b2PrismaticJoint_SetMaxMotorForce,
-        doc="Get maximum motor force in Newtons.",
+        doc="Get maximum motor force in newtons.",
     )
     current_motor_force = b2_value(
         lib.b2PrismaticJoint_GetCurrentMotorForce,
@@ -1054,7 +1056,7 @@ class WheelJoint(Joint):
             upper_limit (float): Upper translation limit
             enable_motor (bool): Enable the joint motor
             target_motor_speed (float): Motor speed in radians/second
-            max_motor_torque (float): Maximum motor torque in N-m
+            max_motor_torque (float): Maximum motor torque in newton-metres
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
@@ -1172,7 +1174,7 @@ class WheelJoint(Joint):
     max_motor_torque = b2_float(
         lib.b2WheelJoint_GetMaxMotorTorque,
         lib.b2WheelJoint_SetMaxMotorTorque,
-        doc="Get maximum motor torque in N-m.",
+        doc="Get maximum motor torque in newton-metres.",
     )
     current_motor_torque = b2_value(
         lib.b2WheelJoint_GetCurrentMotorTorque,
@@ -1231,8 +1233,8 @@ class DistanceJoint(Joint):
             spring_hertz (float): Spring oscillation frequency in Hz when enabled
             spring_damping_ratio (float): Spring damping ratio [0,1] when enabled
             enable_motor (bool): Enable the joint motor
-            target_motor_speed (float): Desired motor speed in meters/second
-            max_motor_force (float): Maximum motor force in Newtons
+            target_motor_speed (float): Desired motor speed in metres per second
+            max_motor_force (float): Maximum motor force in newtons
             lower_spring_force (float): Most the spring may pull, as a
                 negative force in newtons. At zero it only pushes, like a strut.
             upper_spring_force (float): Most the spring may push, in newtons.
@@ -1434,7 +1436,7 @@ class DistanceJoint(Joint):
     max_motor_force = b2_float(
         lib.b2DistanceJoint_GetMaxMotorForce,
         lib.b2DistanceJoint_SetMaxMotorForce,
-        doc="Get maximum motor force in Newtons.",
+        doc="Get maximum motor force in newtons.",
     )
     current_motor_force = b2_value(
         lib.b2DistanceJoint_GetCurrentMotorForce,

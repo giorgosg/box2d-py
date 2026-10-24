@@ -60,9 +60,9 @@ Joint Creation
 Spatial Queries
 ^^^^^^^^^^^^^^^
 
-* ``world.query_aabb(aabb, collision_filter=None, max_results=None)`` - Find shapes in a specified AABB
-* ``world.query_circle(position, radius, collision_filter=None, max_results=None)`` - Find shapes in a circular area
-* ``world.cast_ray(origin, translation, collision_filter=None, first_hit_only=False)`` - Find shapes along a ray path
+* ``world.query_aabb(aabb, filter=None, max_results=None)`` - Find shapes in a specified AABB
+* ``world.query_circle(position, radius, filter=None, max_results=None)`` - Find shapes in a circular area
+* ``world.cast_ray(origin, translation, filter=None, first_hit_only=False)`` - Find shapes along a ray path
 * ``world.get_sensor_events()`` - Get sensor overlap events from last simulation step
 
 Simulation Parameters

@@ -1,5 +1,7 @@
 # tests/test_joints.py
 
+import math
+
 import pytest
 from box2d import World, Vec2, MouseJoint, RevoluteJoint
 from pytest import approx
@@ -232,6 +234,30 @@ def test_revolute_joint_current_speed_is_read_only():
     _, _, _, joint = _driven_wheel(max_motor_torque=1000.0)
     with pytest.raises(AttributeError):
         joint.current_speed = 1.0
+
+
+def _free_pair():
+    """Two bodies on one pivot, no gravity, no motor."""
+    world = World(gravity=(0, 0))
+    a = world.new_body().dynamic().build()
+    a.add_circle(radius=1.0)
+    b = world.new_body().dynamic().build()
+    b.add_circle(radius=1.0)
+    joint = world.add_revolute_joint(a, b, local_anchor_a=(0, 0), local_anchor_b=(0, 0))
+    return world, a, b, joint
+
+
+def test_revolute_joint_current_speed_counts_both_bodies_turning():
+    _, a, b, joint = _free_pair()
+    a.angular_velocity = 1.0
+    b.angular_velocity = -2.0
+    assert joint.current_speed == pytest.approx(-3.0)
+
+
+def test_revolute_joint_current_angle_is_wrapped():
+    _, a, b, joint = _free_pair()
+    b.rotation = 3.5
+    assert joint.current_angle == pytest.approx(3.5 - 2 * math.pi, abs=1e-5)
 
 
 # --- destroying joints, which nothing exercised before ----------------------

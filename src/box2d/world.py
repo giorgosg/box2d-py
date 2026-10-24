@@ -929,10 +929,11 @@ class World(FixedAttributes):
             origin: Starting point of the ray (x,y)
             translation: The translation of the ray from the start point to the end point
             filter: Optional filter to control which shapes are tested
-            first_hit_only: If True, only return the first hit encountered
+            first_hit_only: If True, return only the hit closest to the origin
 
         Returns:
-            List of RayCastResult objects containing hit information
+            List of RayCastResult objects containing hit information, nearest
+            first
 
         Example:
             >>> world = World()
