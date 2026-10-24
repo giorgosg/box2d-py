@@ -142,7 +142,7 @@ def test_contacts_are_usable_as_dictionary_keys(world):
     ball.add_circle(radius=0.5, enable_contact_events=True)
 
     contact = collect_first_contact(world)
-    same = Contact(contact._contact_id, contact._world_id)
+    same = Contact(contact._contact_id, world)
 
     assert contact == same
     assert hash(contact) == hash(same)

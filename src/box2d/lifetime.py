@@ -16,8 +16,10 @@ They are not enough on their own, though. A body, shape, chain, joint or
 contact id names its world by the slot the world occupies, not by the world,
 and a world made after one is destroyed takes the freed slot -- where the old
 ids name the new world's objects, and Box2D calls them valid. So each wrapper
-also records its world's id, which does carry a generation, with
-:func:`join_world`, and is live only while that world is.
+also holds its world's liveness flag, with :func:`join_world`, and is live
+only while that world is. The flag is a plain Python one, which
+:meth:`.World.destroy` -- the only way a world goes -- turns off: asking Box2D
+about the world instead would cost a second call on every property read.
 
 Going the other way, from an id Box2D hands back to the wrapper it belongs to,
 relies on the user data each wrapper gives Box2D: a cffi handle to itself. A
@@ -28,13 +30,25 @@ shapes and chains, a chain its segments -- and released when it is destroyed.
 
 from typing import Callable, Optional
 
-from ._checked import ffi, lib
+from ._checked import ffi
 
-# Looked up once: IdRef calls it on every id read, the hot path.
-_world_is_valid = lib.b2World_IsValid
+#: Where a wrapper keeps its world's liveness flag. A World keeps its own
+#: there too, so its own IdRef reads it the same way.
+_WORLD_SLOT = "_world_alive"
 
-#: Where a wrapper keeps the id of the world it belongs to.
-_WORLD_SLOT = "_owner_world_id"
+#: The flag of an object that has no world to outlive. Every class with an
+#: IdRef starts with it, so the check is one attribute read, never a lookup
+#: with a fallback -- this runs on every property read.
+_NO_WORLD = (True,)
+
+
+def new_liveness():
+    """A world's liveness flag: a one-item list, True until it is destroyed.
+
+    A list rather than an attribute on the World so a wrapper can hold it
+    without holding the world, and read it with one index.
+    """
+    return [True]
 
 
 class DestroyedError(RuntimeError):
@@ -66,15 +80,9 @@ def join_world(obj, world) -> None:
 
     Args:
         obj: A body, shape, chain or joint wrapper.
-        world: Its :class:`.World`, which must be live.
+        world: Its :class:`.World`.
     """
-    setattr(obj, _WORLD_SLOT, world._world_id)
-
-
-def _world_live(obj) -> bool:
-    """Whether the world ``obj`` belongs to is live; True if it has none."""
-    world_id = getattr(obj, _WORLD_SLOT, None)
-    return world_id is None or bool(_world_is_valid(world_id))
+    setattr(obj, _WORLD_SLOT, world._world_alive)
 
 
 class IdRef:
@@ -99,18 +107,14 @@ class IdRef:
     def __set_name__(self, owner, name):
         self._name = name
         self._slot = f"_raw{name}"
+        if not hasattr(owner, _WORLD_SLOT):
+            setattr(owner, _WORLD_SLOT, _NO_WORLD)
 
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
         raw = getattr(obj, self._slot, None)
-        # _world_live inlined: this runs on every property read.
-        world_id = getattr(obj, _WORLD_SLOT, None)
-        if (
-            raw is None
-            or (world_id is not None and not _world_is_valid(world_id))
-            or not self._is_valid(raw)
-        ):
+        if raw is None or not obj._world_alive[0] or not self._is_valid(raw):
             raise DestroyedError(
                 f"This {self._label} has been destroyed and can no longer be used."
             )
@@ -136,7 +140,7 @@ def is_live(obj, name: str, is_valid) -> bool:
         it.
     """
     raw = raw_id(obj, name)
-    return raw is not None and _world_live(obj) and bool(is_valid(raw))
+    return raw is not None and obj._world_alive[0] and bool(is_valid(raw))
 
 
 def wrapper_for(
