@@ -199,3 +199,23 @@ def test_a_contact_from_a_destroyed_world_stays_gone_in_the_next():
         assert fresh.is_valid is True
     finally:
         new.destroy()
+
+
+def test_a_contact_keeps_its_own_id_when_later_events_arrive(world):
+    """The id was a view into Box2D's event array, which the next step
+    refills: the handle came to name whichever contact began later."""
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1, enable_contact_events=True)
+    for i in range(4):
+        ball = world.add_body(body_type="dynamic", position=(3 * i - 4, 2 + 2 * i))
+        ball.add_circle(radius=0.5, enable_contact_events=True)
+
+    first = collect_first_contact(world)
+    named = (first._contact_id.index1, first._contact_id.generation)
+    later = 0
+    for _ in range(300):
+        world.step(1 / 60, 4)
+        later += len(world.get_contact_events().begin)
+    assert later > 0, "other contacts began after the first"
+
+    assert (first._contact_id.index1, first._contact_id.generation) == named

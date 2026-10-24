@@ -20,7 +20,7 @@ Events are opt-in per shape, and Box2D defaults them off:
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 
-from ._checked import lib
+from ._checked import ffi, lib
 from .dataclasses import ContactData
 from .math import Transform, Vec2
 
@@ -42,7 +42,7 @@ class Contact:
     :attr:`is_valid` before reading :attr:`data`.
     """
 
-    __slots__ = ("_contact_id", "_world_id", "_key")
+    __slots__ = ("_id_copy", "_world_id", "_key")
 
     def __init__(self, contact_id, world_id):
         """
@@ -53,7 +53,10 @@ class Contact:
                 made reuses, so this is what tells a contact of a destroyed
                 world from one in the world that took its place.
         """
-        self._contact_id = contact_id
+        # A copy the handle owns. What Box2D reports is a view into its event
+        # array, which the next step refills with other contacts' ids, and
+        # which is freed with the world.
+        self._id_copy = ffi.new("b2ContactId *", contact_id)
         self._world_id = world_id
         # cdata structs are not hashable, so identity travels as a plain tuple.
         self._key = (
@@ -62,6 +65,11 @@ class Contact:
             world_id.generation,
             contact_id.generation,
         )
+
+    @property
+    def _contact_id(self):
+        """The contact's ``b2ContactId``."""
+        return self._id_copy[0]
 
     @property
     def is_valid(self) -> bool:
