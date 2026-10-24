@@ -1147,6 +1147,64 @@ def test_typing_carries_on_after_enter(scenario_dir):
     assert seen["typed_after"] == "world", "and what was typed next reached the prompt"
 
 
+def test_a_loop_typed_at_the_prompt_waits_for_its_blank_line(scenario_dir):
+    """Typed and entered a key at a time, as at any Python prompt.
+
+    The header waits for a body, the body line waits for another, and only the
+    blank line after it runs the loop. imgui_bundle 1.93's editor gives its
+    text back with a newline on the end, which is what a blank line looks like
+    to the rule deciding this -- so the loop ran on the Enter after its body
+    line, before there was a chance to type a second.
+
+    No brackets in what is typed: the editor closes one as it is opened, and
+    with a whole line arriving in one frame the closer lands in the wrong
+    place.
+    """
+    from imgui_bundle import imgui
+
+    seen = {}
+
+    def press_enter(frame, at):
+        if frame == at:
+            imgui.get_io().add_key_event(imgui.Key.enter, True)
+        elif frame == at + 1:
+            imgui.get_io().add_key_event(imgui.Key.enter, False)
+
+    def script(app, frame):
+        console = app.console
+        if frame == 3:
+            console.submit("xs = 1, 2, 3")
+            console.submit("total = 0")
+            console._focus_input = True
+            console.input = ""
+        elif frame == 5:
+            type_characters("for i in xs:")
+        press_enter(frame, 7)
+        if frame == 10:
+            seen["after_header"] = (console.input, console.locals["total"])
+            # The editor indents to match the line above, which for a header
+            # is no indent at all, so the body brings its own.
+            type_characters("    total += i")
+        press_enter(frame, 12)
+        if frame == 15:
+            seen["after_body"] = (console.input, console.locals["total"])
+        press_enter(frame, 17)
+        if frame == 20:
+            seen["after_blank"] = (console.input, console.locals["total"])
+
+    frames, _ = run_headless(22, script)
+
+    assert frames >= 22
+    header, total = seen["after_header"]
+    assert total == 0 and header.startswith("for i in xs:\n"), "the header waited"
+    body, total = seen["after_body"]
+    assert total == 0, f"the loop ran on its body line: {body!r}"
+    assert body.split("\n")[1].strip() == "total += i"
+    prompt, total = seen["after_blank"]
+    assert total == 6, "and ran on the blank line"
+    assert prompt == ""
+
+
 def test_typing_in_the_console_does_not_reach_the_shortcuts(scenario_dir):
     """A letter typed at the prompt is text, not a testbed shortcut.
 
