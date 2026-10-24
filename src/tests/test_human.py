@@ -303,23 +303,30 @@ def test_a_dropped_figure_lands_and_settles(world):
 def test_a_stiff_figure_folds_less_than_a_limp_one(world):
     """What the friction control is for: joints that resist bending."""
 
-    def bending_after_landing(friction):
+    def most_bent_while_landing(friction):
         world = World()
         ground = world.add_body(position=(0, 0))
         ground.add_segment((-40, 0), (40, 0))
         human = Human(world, (0, 8), friction_torque=friction)
         joints = [bone.joint for bone in human.bones if bone.joint is not None]
         start = [joint.angle for joint in joints]
+        most = 0.0
         for _ in range(500):
             world.step(1 / 60, 4)
-        bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
+            bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
+            most = max(most, bent)
         world.destroy()
-        return bent
+        return most
 
-    # Measured on the joints rather than on where the head ends up: a limp
-    # figure may crumple into a pile or fall flat depending on how it lands,
-    # and Box2D 3.2's contact changes moved it from one to the other.
-    assert bending_after_landing(50.0) < 0.5 * bending_after_landing(0.0)
+    # The most the figure folds at any point, not how bent it is once it
+    # settles. Lying on flat ground straightens a limp figure back out, so at
+    # rest it measured about the same as a stiff one, and the comparison came
+    # down to how the stiff figure happened to land a second time after
+    # bouncing -- which Box2D 3.2.0 changed by recycling the contacts of fast
+    # bodies too. The fold on impact is what the friction resists: dropped
+    # from anywhere between 0 and 8 m, a limp figure folds at least four
+    # times as far as a stiff one, on 3.2.0 and on the snapshot before it.
+    assert most_bent_while_landing(50.0) < 0.5 * most_bent_while_landing(0.0)
 
 
 # --- resizing ----------------------------------------------------------------
