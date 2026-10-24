@@ -126,7 +126,7 @@ def test_joint_limits_hold_when_the_figure_lands(world):
         world.step(1 / 60, 4)
         for definition, bone in zip(BONES[1:], human.bones[1:]):
             lower, upper = definition.limits
-            angle = bone.joint.angle
+            angle = bone.joint.current_angle
             worst = max(worst, lower - angle, angle - upper)
 
     # Box2D's limits are soft, so a hard landing overshoots a little; what
@@ -309,11 +309,13 @@ def test_a_stiff_figure_folds_less_than_a_limp_one(world):
         ground.add_segment((-40, 0), (40, 0))
         human = Human(world, (0, 8), friction_torque=friction)
         joints = [bone.joint for bone in human.bones if bone.joint is not None]
-        start = [joint.angle for joint in joints]
+        start = [joint.current_angle for joint in joints]
         largest = 0.0
         for _ in range(500):
             world.step(1 / 60, 4)
-            bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
+            bent = sum(
+                abs(joint.current_angle - angle) for joint, angle in zip(joints, start)
+            )
             largest = max(largest, bent)
         # The largest bend is only the whole story if nothing moves after the
         # last step. From some drop heights the stiff figure never settles --

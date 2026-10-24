@@ -130,7 +130,7 @@ def test_revolute_joint_creation(world_and_bodies):
         lower_limit=-0.5,
         upper_limit=0.5,
         enable_limit=True,
-        motor_speed=2.0,
+        target_motor_speed=2.0,
         max_motor_torque=10.0,
         enable_motor=True,
         reference_angle=0.0,
@@ -148,7 +148,7 @@ def test_revolute_joint_creation(world_and_bodies):
     # Verify limit and motor settings.
     assert revolute_joint.lower_limit == pytest.approx(-0.5)
     assert revolute_joint.upper_limit == pytest.approx(0.5)
-    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.target_motor_speed == pytest.approx(2.0)
     assert revolute_joint.max_motor_torque == pytest.approx(10.0)
 
 
@@ -164,7 +164,7 @@ def test_revolute_joint_via_world_method(world_and_bodies):
         lower_limit=-0.5,
         upper_limit=0.5,
         enable_limit=True,
-        motor_speed=2.0,
+        target_motor_speed=2.0,
         max_motor_torque=10.0,
         enable_motor=True,
         reference_angle=0.0,
@@ -184,7 +184,7 @@ def test_revolute_joint_via_world_method(world_and_bodies):
 
     assert revolute_joint.lower_limit == pytest.approx(-0.5)
     assert revolute_joint.upper_limit == pytest.approx(0.5)
-    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.target_motor_speed == pytest.approx(2.0)
     assert revolute_joint.max_motor_torque == pytest.approx(10.0)
 
 
@@ -209,7 +209,7 @@ def make_joint(kind, world, a, b):
     if kind == "weld":
         return world.add_weld_joint(a, b, **anchors)
     if kind == "distance":
-        return world.add_distance_joint(a, b, length=2.0, **anchors)
+        return world.add_distance_joint(a, b, rest_length=2.0, **anchors)
     if kind == "prismatic":
         return world.add_prismatic_joint(a, b, axis=(1, 0), **anchors)
     if kind == "wheel":

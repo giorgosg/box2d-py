@@ -256,7 +256,7 @@ def test_shape_introspection_properties(dynamic_body, world):
     assert shape.world == world
 
     # Test aabb property
-    aabb = shape.aabb
+    aabb = shape.bounds
     assert isinstance(aabb, AABB)
     assert aabb.lower.x < aabb.upper.x
     assert aabb.lower.y < aabb.upper.y
@@ -270,7 +270,7 @@ def test_shape_introspection_properties(dynamic_body, world):
 
 
 def test_shape_validity_and_collision_methods(dynamic_body):
-    """Test is_valid, test_point, ray_cast, get_closest_point methods"""
+    """Test is_valid, test_point, cast_ray, get_closest_point methods"""
     shape = dynamic_body.add_circle(radius=1.0, center=(0, 0))
 
     # Test is_valid
@@ -280,8 +280,8 @@ def test_shape_validity_and_collision_methods(dynamic_body):
     assert shape.test_point((0, 0)) is True  # Point at center should be inside
     assert shape.test_point((1.5, 0)) is False  # Point outside radius should be outside
 
-    # Test ray_cast
-    hit_result = shape.ray_cast(
+    # Test cast_ray
+    hit_result = shape.cast_ray(
         (-2, 0), (4, 0)
     )  # Ray from left to right through circle
     assert hit_result is not None
@@ -290,7 +290,7 @@ def test_shape_validity_and_collision_methods(dynamic_body):
     assert isinstance(hit_result.normal, Vec2)
     assert 0 < hit_result.fraction < 1
 
-    miss_result = shape.ray_cast((-2, 2), (4, 0))  # Ray above the circle
+    miss_result = shape.cast_ray((-2, 2), (4, 0))  # Ray above the circle
     assert miss_result is None
 
     # Test get_closest_point

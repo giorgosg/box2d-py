@@ -1644,7 +1644,7 @@ class World(FixedAttributes):
     # --- tuning -------------------------------------------------------------
 
     @property
-    def maximum_linear_speed(self) -> float:
+    def max_linear_speed(self) -> float:
         """Speed cap applied to every body, in m/s.
 
         Box2D clamps to this rather than letting a body move so far in one
@@ -1652,8 +1652,8 @@ class World(FixedAttributes):
         """
         return lib.b2World_GetMaxLinearSpeed(self._world_id)
 
-    @maximum_linear_speed.setter
-    def maximum_linear_speed(self, value: float):
+    @max_linear_speed.setter
+    def max_linear_speed(self, value: float):
         lib.b2World_SetMaxLinearSpeed(self._world_id, float(value))
 
     @property

@@ -225,7 +225,7 @@ class Shape(FixedAttributes):
         return getattr(self, "_parent_chain", None)
 
     @property
-    def aabb(self) -> AABB:
+    def bounds(self) -> AABB:
         """
         Get the current world AABB of this shape.
 
@@ -376,7 +376,7 @@ class Shape(FixedAttributes):
         """
         return lib.b2Shape_TestPoint(self._shape_id, Vec2(point).b2Vec2[0])
 
-    def ray_cast(
+    def cast_ray(
         self, origin: VectorLike, translation: VectorLike
     ) -> Union[CastResult, None]:
         """
@@ -387,7 +387,7 @@ class Shape(FixedAttributes):
             translation: The translation of the ray from the start point to the end point
 
         Returns:
-            A RayCastResult object containing hit information
+            A CastResult describing the hit, or None if the ray misses
         """
         # 3.2 takes the origin and translation directly rather than a
         # b2RayCastInput, and always casts the full translation.

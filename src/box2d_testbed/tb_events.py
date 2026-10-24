@@ -83,7 +83,7 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
 
     def debug_draw(self, debug_draw):
         for shape in self.foot.sensor_overlaps:
-            box = shape.aabb
+            box = shape.bounds
             middle = ((box.lower.x + box.upper.x) / 2, (box.lower.y + box.upper.y) / 2)
             debug_draw.draw_point(middle, 10, Color(255, 255, 255))
 
@@ -531,7 +531,7 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
                 paddle,
                 anchor=(0, y),
                 enable_motor=True,
-                motor_speed=2.0 * sign,
+                target_motor_speed=2.0 * sign,
                 max_motor_torque=200.0,
             )
             sign = -sign

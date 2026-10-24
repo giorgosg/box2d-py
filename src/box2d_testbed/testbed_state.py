@@ -122,7 +122,7 @@ class TestbedData:
         self.enable_sleep = True
         # Bound on World for a while, but reachable only from code until now.
         self.enable_warm_starting = True
-        self.maximum_linear_speed = 400.0
+        self.max_linear_speed = 400.0
         self.contact_recycle_distance = 0.05
         self.show_dd = DebugDrawSettings()
         self.simulation_paused = False

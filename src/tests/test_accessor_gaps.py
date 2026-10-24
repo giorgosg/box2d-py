@@ -59,12 +59,13 @@ def test_contact_tuning_is_still_cached(world):
 # --- body ------------------------------------------------------------------
 
 
-def test_body_enable_sleep(world):
+def test_body_enable_sleeping(world):
     body = world.add_body(body_type="dynamic")
-    body.enable_sleep = False
-    assert body.enable_sleep is False
-    body.enable_sleep = True
-    assert body.enable_sleep is True
+    body.enable_sleeping = False
+    assert body.enable_sleeping is False
+    assert body.is_sleeping_enabled() is False
+    body.enable_sleeping = True
+    assert body.enable_sleeping is True
 
 
 def test_clear_forces(world):

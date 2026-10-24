@@ -110,7 +110,7 @@ def test_pogo_joint_holds_a_body_at_its_rest_length(world):
 
     run(world, 180)
 
-    assert joint.length == pytest.approx(1.5, abs=0.02)
+    assert joint.current_length == pytest.approx(1.5, abs=0.02)
     assert body.position.y == pytest.approx(1.5, abs=0.02)
 
 
@@ -142,7 +142,7 @@ def test_pogo_joint_can_be_warm_started(world):
     for _ in range(180):
         joint = pogo(world, ground, body, impulse=impulse, velocity=velocity)
         world.step(STEP, SUBSTEPS)
-        impulse, velocity = joint.impulse, joint.velocity
+        impulse, velocity = joint.impulse, joint.current_speed
         joint.destroy()
     assert body.position.y == pytest.approx(1.5, abs=0.02)
 

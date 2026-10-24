@@ -76,8 +76,8 @@ def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
         return max(
             Vec2(x, y).length
             for shape in piece.shapes
-            for x in (shape.aabb.lower.x, shape.aabb.upper.x)
-            for y in (shape.aabb.lower.y, shape.aabb.upper.y)
+            for x in (shape.bounds.lower.x, shape.bounds.upper.x)
+            for y in (shape.bounds.lower.y, shape.bounds.upper.y)
         )
 
     outside = [piece for piece in pieces if reach(piece) > 40.0]
@@ -126,7 +126,7 @@ def test_the_valley_has_one_box_in_each_place(world):
     (valley,) = (body for body in world.bodies if body.type == "static")
 
     places = [
-        (round(shape.aabb.center.x, 3), round(shape.aabb.center.y, 3))
+        (round(shape.bounds.center.x, 3), round(shape.bounds.center.y, 3))
         for shape in valley.shapes
     ]
 

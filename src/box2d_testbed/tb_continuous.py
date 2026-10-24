@@ -174,7 +174,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_limit=True,
             lower_limit=-self.FLIPPER_DOWN,
             upper_limit=self.FLIPPER_UP,
-            motor_speed=-self.RETURN_SPEED,
+            target_motor_speed=-self.RETURN_SPEED,
         )
         self.right_joint = self.world.add_revolute_joint(
             ground,
@@ -186,7 +186,7 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
             enable_limit=True,
             lower_limit=-self.FLIPPER_UP,
             upper_limit=self.FLIPPER_DOWN,
-            motor_speed=self.RETURN_SPEED,
+            target_motor_speed=self.RETURN_SPEED,
         )
 
         self.ball = None
@@ -208,15 +208,15 @@ class Pinball(BaseTest, category="Continuous", name="Pinball"):
     def on_key_down(self, key):
         # The left flipper swings up anticlockwise, the right one clockwise.
         if key == "left":
-            self.left_joint.motor_speed = self.FLIP_SPEED
+            self.left_joint.target_motor_speed = self.FLIP_SPEED
         elif key == "right":
-            self.right_joint.motor_speed = -self.FLIP_SPEED
+            self.right_joint.target_motor_speed = -self.FLIP_SPEED
 
     def on_key_up(self, key):
         if key == "left":
-            self.left_joint.motor_speed = -self.RETURN_SPEED
+            self.left_joint.target_motor_speed = -self.RETURN_SPEED
         elif key == "right":
-            self.right_joint.motor_speed = self.RETURN_SPEED
+            self.right_joint.target_motor_speed = self.RETURN_SPEED
 
     @serve.callback
     @ball_speed.callback

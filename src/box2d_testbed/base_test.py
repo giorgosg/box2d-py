@@ -236,7 +236,7 @@ class BaseTest:
             if body.type == "static":
                 continue
             for shape in body.shapes:
-                aabb = shape.aabb
+                aabb = shape.bounds
                 points.append((aabb.lower.x, aabb.lower.y))
                 points.append((aabb.upper.x, aabb.upper.y))
         if not points:

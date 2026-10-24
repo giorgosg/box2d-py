@@ -60,7 +60,7 @@ def bodies(world):
         (lambda a, b: RevoluteJointDef(a, b, anchor=(1, 0)), RevoluteJoint),
         (lambda a, b: PrismaticJointDef(a, b, anchor=(1, 0)), PrismaticJoint),
         (lambda a, b: WheelJointDef(a, b, anchor=(1, 0)), WheelJoint),
-        (lambda a, b: DistanceJointDef(a, b, length=2.0), DistanceJoint),
+        (lambda a, b: DistanceJointDef(a, b, rest_length=2.0), DistanceJoint),
         (lambda a, b: MotorJointDef(a, b), MotorJoint),
     ],
     ids=["weld", "revolute", "prismatic", "wheel", "distance", "motor"],
@@ -84,7 +84,7 @@ def test_definition_settings_reach_the_joint(world, bodies):
             anchor=(1, 0),
             enable_motor=True,
             max_motor_torque=100.0,
-            motor_speed=2.0,
+            target_motor_speed=2.0,
             enable_limit=True,
             lower_limit=-1.0,
             upper_limit=1.0,
@@ -92,7 +92,7 @@ def test_definition_settings_reach_the_joint(world, bodies):
     )
     assert joint.enable_motor is True
     assert joint.max_motor_torque == pytest.approx(100.0)
-    assert joint.motor_speed == pytest.approx(2.0)
+    assert joint.target_motor_speed == pytest.approx(2.0)
     assert joint.enable_limit is True
 
 
@@ -174,9 +174,9 @@ def test_shorthand_matches_add_joint(world, bodies):
 
 
 def test_shorthand_accepts_positional_anchors(world, bodies):
-    joint = world.add_distance_joint(*bodies, (0, 0), (0, 0), length=2.0)
+    joint = world.add_distance_joint(*bodies, (0, 0), (0, 0), rest_length=2.0)
     assert isinstance(joint, DistanceJoint)
-    assert joint.length == pytest.approx(2.0)
+    assert joint.rest_length == pytest.approx(2.0)
 
 
 def test_prismatic_and_wheel_default_their_axis(world, bodies):
@@ -204,7 +204,7 @@ def test_revolute_runtime_surface_matches_the_other_joints(world, bodies):
     assert joint.spring_hertz == pytest.approx(3.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(math.pi / 8)
-    assert isinstance(joint.motor_torque, float)
+    assert isinstance(joint.current_motor_torque, float)
 
 
 # --- the filter joint, which had no binding at all --------------------------
@@ -279,24 +279,36 @@ def test_filter_joint_can_be_destroyed(world):
 # --- conformance with Box2D's own definitions -------------------------------
 
 #: Where our field name differs from the C one by choice rather than omission.
+#: Each is named as the joint property it sets, which Box2D 3.2 renamed in its
+#: functions but not in its definition structs.
 _SPRING = {"hertz": "spring_hertz", "dampingRatio": "spring_damping_ratio"}
+_MOTOR = {"motorSpeed": "target_motor_speed"}
 _DEF_ALIASES = {
     "RevoluteJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerAngle": "lower_limit",
         "upperAngle": "upper_limit",
     },
     "PrismaticJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
     "WheelJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
-    "DistanceJointDef": _SPRING,
+    "DistanceJointDef": {
+        **_SPRING,
+        **_MOTOR,
+        "length": "rest_length",
+        "minLength": "lower_limit",
+        "maxLength": "upper_limit",
+    },
 }
 
 

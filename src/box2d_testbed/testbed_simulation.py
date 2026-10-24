@@ -86,7 +86,7 @@ class TestbedSimulation:
             state.enable_continuous,
             state.enable_sleep,
             state.enable_warm_starting,
-            state.maximum_linear_speed,
+            state.max_linear_speed,
             state.contact_recycle_distance,
         )
 
@@ -99,7 +99,7 @@ class TestbedSimulation:
         self.world.enable_continuous = state.enable_continuous
         self.world.enable_sleep = state.enable_sleep
         self.world.enable_warm_starting = state.enable_warm_starting
-        self.world.maximum_linear_speed = state.maximum_linear_speed
+        self.world.max_linear_speed = state.max_linear_speed
         self.world.contact_recycle_distance = state.contact_recycle_distance
         self._applied_settings = self.world_settings()
 

@@ -120,7 +120,7 @@ def test_body_extents_describe_its_shapes(world):
 
     assert body.min_extent == pytest.approx(0.5, abs=1e-3)
     assert body.max_extent == pytest.approx(0.5, abs=1e-3)
-    assert body.max_extent_origin >= 2.5 - 1e-3
+    assert body.max_extent_from_origin >= 2.5 - 1e-3
 
 
 # --- distance joint spring force --------------------------------------------
@@ -135,7 +135,7 @@ def test_distance_joint_reports_its_spring_force(world):
     joint = world.add_distance_joint(
         anchor,
         weight,
-        length=1,
+        rest_length=1,
         enable_spring=True,
         spring_hertz=2,
         spring_damping_ratio=0.5,
@@ -148,6 +148,6 @@ def test_distance_joint_spring_force_is_zero_without_a_spring(world):
     anchor = world.add_body()
     weight = world.add_body(body_type="dynamic", position=(3, 0))
     weight.add_circle(radius=0.25)
-    joint = world.add_distance_joint(anchor, weight, length=1)
+    joint = world.add_distance_joint(anchor, weight, rest_length=1)
     world.step(STEP, 4)
     assert joint.spring_force == 0

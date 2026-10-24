@@ -126,7 +126,8 @@ class RevoluteJointDef(JointDef):
         lower_limit: Lower limit of rotation in radians.
         upper_limit: Upper limit of rotation in radians.
         enable_limit: Whether the angle limits are enforced.
-        motor_speed: Desired motor speed in radians per second.
+        target_motor_speed: The speed the motor drives towards, in radians per
+            second.
         max_motor_torque: Torque the motor may apply, in newton-metres.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Angle between the bodies at which the joint rests.
@@ -139,7 +140,7 @@ class RevoluteJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
@@ -158,7 +159,7 @@ class PrismaticJointDef(JointDef):
         lower_limit: Lower translation limit.
         upper_limit: Upper translation limit.
         enable_limit: Whether the translation limits are enforced.
-        motor_speed: Desired motor speed.
+        target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Not supported since Box2D 3.2, where the axis owns the
@@ -173,7 +174,7 @@ class PrismaticJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
@@ -193,7 +194,8 @@ class WheelJointDef(JointDef):
         lower_limit: Lower translation limit.
         upper_limit: Upper translation limit.
         enable_motor: Whether the motor drives the joint.
-        motor_speed: Desired motor speed in radians per second.
+        target_motor_speed: The speed the motor drives towards, in radians per
+            second.
         max_motor_torque: Torque the motor may apply.
         enable_spring: Whether the suspension spring is active.
         spring_hertz: Spring frequency.
@@ -205,7 +207,7 @@ class WheelJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_motor: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
     enable_spring: Optional[bool] = None
     spring_hertz: Optional[float] = None
@@ -217,15 +219,15 @@ class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
     Attributes:
-        length: The rest length between the anchors.
-        min_length: Lower length limit.
-        max_length: Upper length limit.
+        rest_length: The rest length between the anchors.
+        lower_limit: Lower length limit.
+        upper_limit: Upper length limit.
         enable_limit: Whether the length limits are enforced.
         enable_spring: Whether the joint behaves as a spring rather than a rod.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
         enable_motor: Whether the motor drives the length.
-        motor_speed: Desired motor speed.
+        target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         lower_spring_force: Most the spring may pull, as a negative force in
             newtons. At zero it only pushes, like a strut.
@@ -233,15 +235,15 @@ class DistanceJointDef(JointDef):
             like a rope.
     """
 
-    length: Optional[float] = None
-    min_length: Optional[float] = None
-    max_length: Optional[float] = None
+    rest_length: Optional[float] = None
+    lower_limit: Optional[float] = None
+    upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
     enable_spring: Optional[bool] = None
     spring_hertz: Optional[float] = None
     spring_damping_ratio: Optional[float] = None
     enable_motor: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
     lower_spring_force: Optional[float] = None
     upper_spring_force: Optional[float] = None

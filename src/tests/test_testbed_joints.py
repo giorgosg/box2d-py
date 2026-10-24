@@ -176,11 +176,11 @@ def test_the_torque_slider_reaches_a_car_being_driven(world):
 def drive_target(test):
     """The speed and torque the car's motors are set to, front and rear alike."""
     rear, front = test.car.rear_axle, test.car.front_axle
-    assert (rear.motor_speed, rear.max_motor_torque) == (
-        front.motor_speed,
+    assert (rear.target_motor_speed, rear.max_motor_torque) == (
+        front.target_motor_speed,
         front.max_motor_torque,
     )
-    return rear.motor_speed, rear.max_motor_torque
+    return rear.target_motor_speed, rear.max_motor_torque
 
 
 def test_the_speed_slider_reaches_a_car_being_driven(world):

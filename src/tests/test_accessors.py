@@ -89,8 +89,8 @@ def test_a_class_without_an_idref_is_rejected():
 
 def test_idref_is_found_through_the_base_class():
     """Joint subclasses declare accessors but inherit the IdRef from Joint."""
-    assert isinstance(RevoluteJoint.motor_speed, B2Accessor)
-    assert RevoluteJoint.motor_speed._id == "_joint_id"
+    assert isinstance(RevoluteJoint.target_motor_speed, B2Accessor)
+    assert RevoluteJoint.target_motor_speed._id == "_joint_id"
 
 
 def test_vector_accessor_round_trips():
@@ -136,11 +136,11 @@ def test_converted_joint_properties(world):
     b.add_circle(radius=1.0)
     joint = world.add_revolute_joint(a, b, anchor=(1, 0))
 
-    joint.motor_speed = 3.0
+    joint.target_motor_speed = 3.0
     joint.max_motor_torque = 40.0
     joint.enable_motor = True
 
-    assert joint.motor_speed == pytest.approx(3.0)
+    assert joint.target_motor_speed == pytest.approx(3.0)
     assert joint.max_motor_torque == pytest.approx(40.0)
     assert joint.enable_motor is True
 
@@ -151,7 +151,7 @@ def test_docstrings_survived_the_conversion():
         (Shape, "friction"),
         (Shape, "density"),
         (Body, "angular_velocity"),
-        (RevoluteJoint, "motor_speed"),
+        (RevoluteJoint, "target_motor_speed"),
     ):
         doc = getattr(owner, name).__doc__
         assert doc and doc.strip(), f"{owner.__name__}.{name} has no docstring"

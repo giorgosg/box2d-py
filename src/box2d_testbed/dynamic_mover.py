@@ -283,9 +283,9 @@ class DynamicMover:
         """Replace last step's pogo with one where the ray landed this step."""
         if self.pogo_joint is not None:
             if self.pogo_joint.is_valid:
-                self.pogo_length = self.pogo_joint.length
+                self.pogo_length = self.pogo_joint.current_length
                 self.pogo_impulse = self.pogo_joint.impulse
-                self.pogo_velocity = self.pogo_joint.velocity
+                self.pogo_velocity = self.pogo_joint.current_speed
                 self.pogo_joint.destroy()
             self.pogo_joint = None
 

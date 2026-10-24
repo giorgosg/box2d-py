@@ -85,7 +85,7 @@ class BodyTypes(BaseTest, category="Bodies", name="Body Type"):
     def on_sleep_change(self, key, value):
         # Turning sleep off wakes a body that is asleep.
         for body in [self.platform, *self.cargo]:
-            body.enable_sleep = value
+            body.enable_sleeping = value
 
     def status(self):
         asleep = sum(1 for box in self.cargo if not box.awake)
