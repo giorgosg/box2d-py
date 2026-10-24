@@ -36,7 +36,7 @@ from .joint import (
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane
 from .query import ShapeProxy
-from .diagnostics import Counters, Profile
+from .diagnostics import Capacity, Counters, Profile
 from .dataclasses import BodyDef, BodyType, Manifold
 from .events import (
     BodyMoveEvent,
@@ -169,7 +169,12 @@ class World(FixedAttributes):
     #: destroy, but has no getter for the lock, so it is mirrored here.
     _locked = False
 
-    def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
+    def __init__(
+        self,
+        gravity: VectorLike = (0, -10),
+        threads: int = 1,
+        capacity: Optional[Capacity] = None,
+    ):
         """Initialize physics world with specified gravity vector.
 
         Args:
@@ -177,6 +182,15 @@ class World(FixedAttributes):
             threads: How many threads to step on, the calling one included.
                 Above one, the world starts a thread pool of its own, which
                 it stops when destroyed. Worlds do not share threads.
+            capacity: Room to set aside up front, which helps the world
+                avoid allocating as the scene fills: typically another
+                world's :attr:`max_capacity` after running the same scene.
+                None leaves Box2D's small starting sizes.
+
+        Raises:
+            TypeError: If ``capacity`` is not a :class:`Capacity`, or one of
+                its fields is not an int.
+            ValueError: If one of its fields is negative or over its limit.
 
         Example:
             >>> world = World(gravity=(0, -9.8))
@@ -186,6 +200,12 @@ class World(FixedAttributes):
 
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
+        if capacity is not None:
+            if not isinstance(capacity, Capacity):
+                raise TypeError(
+                    f"capacity must be a Capacity, not {type(capacity).__name__}"
+                )
+            capacity._write_to(world_def.capacity)
         self._threads = threads
         if threads > 1:
             if not HAS_THREADS:
@@ -205,13 +225,6 @@ class World(FixedAttributes):
         # is destroyed: see box2d.lifetime.
         self._world_alive = new_liveness()
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
-
-        # Contact tuning is cached because Box2D has only a combined setter
-        # for the three values and no getter; everything else is read back
-        # from Box2D rather than mirrored here.
-        self._contact_hertz = world_def.contactHertz
-        self._contact_damping_ratio = world_def.contactDampingRatio
-        self._contact_push_velocity = world_def.contactSpeed
 
         # Every live body and joint, keyed by id. Box2D's user data on each is
         # a handle to its wrapper, which does not keep the wrapper alive; these
@@ -1535,71 +1548,79 @@ class World(FixedAttributes):
     def hit_event_threshold(self, value: float):
         lib.b2World_SetHitEventThreshold(self._world_id, float(value))
 
+    def _contact_tuning(self):
+        """Box2D's contact hertz, damping ratio and push speed, in that order."""
+        values = ffi.new("float[3]")
+        lib.b2World_GetContactTuning(self._world_id, values, values + 1, values + 2)
+        return tuple(values)
+
+    def _set_contact_tuning(self, index: int, value: float):
+        """Set one of the three, keeping the other two: Box2D sets them together."""
+        hertz, damping_ratio, push_speed = (
+            float(value) if i == index else current
+            for i, current in enumerate(self._contact_tuning())
+        )
+        lib.b2World_SetContactTuning(self._world_id, hertz, damping_ratio, push_speed)
+
     @property
     def contact_hertz(self) -> float:
-        """Contact constraint stiffness frequency (Hz).
+        """Contact stiffness, in cycles per second. Box2D's default is 30.
 
-        Higher values make contacts stiffer/more rigid.
+        Increasing this increases the speed of overlap recovery, but can
+        introduce jitter. Box2D clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_hertz = 30.0  # Softer contacts
+            >>> world.contact_hertz
+            30.0
+            >>> world.contact_hertz = 60.0  # Recover from overlap faster
         """
-        return self._contact_hertz
+        return self._contact_tuning()[0]
 
     @contact_hertz.setter
     def contact_hertz(self, value: float):
-        self._contact_hertz = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(0, value)
 
     @property
     def contact_damping_ratio(self) -> float:
-        """Contact constraint damping ratio (0-1).
+        """Contact bounciness, non-dimensional. Box2D's default is 10.
 
-        1.0 = critical damping (fastest oscillation reduction)
+        You can speed up overlap recovery by decreasing this, with the
+        trade-off that overlap resolution becomes more energetic. Box2D
+        clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_damping_ratio = 0.2  # Add some energy absorption
+            >>> world.contact_damping_ratio
+            10.0
+            >>> world.contact_damping_ratio = 5.0  # Faster, livelier recovery
         """
-        return self._contact_damping_ratio
+        return self._contact_tuning()[1]
 
     @contact_damping_ratio.setter
     def contact_damping_ratio(self, value: float):
-        self._contact_damping_ratio = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(1, value)
 
     @property
     def contact_push_velocity(self) -> float:
-        """Maximum velocity for pushing objects out of penetration (m/s).
+        """The fastest overlap is resolved, usually in m/s. Box2D's default
+        is 3.
 
-        Limits how fast contacts can separate penetrating bodies.
+        This only puts a cap on the resolution speed. The speed itself is
+        increased by increasing :attr:`contact_hertz` and/or decreasing
+        :attr:`contact_damping_ratio`. Box2D clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_push_velocity = 2.0  # Allow faster separation
+            >>> world.contact_push_velocity
+            3.0
+            >>> world.contact_push_velocity = 1.0  # Push overlaps apart gently
         """
-        return self._contact_push_velocity
+        return self._contact_tuning()[2]
 
     @contact_push_velocity.setter
     def contact_push_velocity(self, value: float):
-        self._contact_push_velocity = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(2, value)
 
     # --- diagnostics --------------------------------------------------------
 
@@ -1627,6 +1648,27 @@ class World(FixedAttributes):
             1
         """
         return Counters.from_b2Counters(lib.b2World_GetCounters(self._world_id))
+
+    @property
+    def max_capacity(self) -> Capacity:
+        """The most this world has needed at once so far: bodies, shapes,
+        contacts and scratch memory.
+
+        Pass it to a new world as ``World(capacity=...)`` and that world sets
+        the room aside up front, which helps it avoid allocating as the scene
+        fills. It is a high-water mark, so it does not fall when things are destroyed, and
+        Box2D updates it while stepping, so it is all zeros before the first
+        step.
+
+        Example:
+            >>> world = World()
+            >>> body = world.new_body().dynamic().circle(1).build()
+            >>> world.step(1 / 60, 4)
+            >>> world.max_capacity.dynamic_body_count
+            1
+            >>> roomy = World(capacity=world.max_capacity)
+        """
+        return Capacity.from_b2Capacity(lib.b2World_GetMaxCapacity(self._world_id))
 
     @property
     def awake_body_count(self) -> int:

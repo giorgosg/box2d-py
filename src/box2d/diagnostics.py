@@ -15,6 +15,13 @@ Both are snapshots of the step that just finished, so read them after
 
 Timings are milliseconds. They come from Box2D's own timer and include only
 what Box2D did, so they will not add up to the wall time of your frame.
+
+:class:`Capacity` is the most the world has needed so far, read from
+:attr:`.World.max_capacity`. Handing it to a new world for the same scene
+sets room aside up front, which helps it avoid allocating as it fills::
+
+    capacity = world.max_capacity
+    next_world = World(capacity=capacity)
 """
 
 from dataclasses import dataclass, fields
@@ -120,6 +127,81 @@ class Counters:
         return cls(**values)
 
 
+#: The most :class:`Capacity` allows in each of its counts. Box2D sizes its
+#: storage in C ints, and a count much past this would overflow them.
+MAX_CAPACITY_COUNT = 1 << 20
+
+#: The most :class:`Capacity` allows for ``arena_byte_count`` (1 GiB), for
+#: the same reason.
+MAX_ARENA_BYTE_COUNT = 1 << 30
+
+
+@dataclass
+class Capacity:
+    """How much room a world sets aside, to help it avoid allocating while it
+    runs.
+
+    Read from :attr:`.World.max_capacity`, it is the most the world has
+    needed at once so far; passed as ``World(capacity=...)``, it is what a new
+    world reserves up front. The default, all zeros, leaves Box2D's own small
+    starting sizes.
+
+    Box2D counts at the start of each step, and its scratch memory at the
+    end, so a world that has not stepped reports zeros.
+
+    A world given one checks that each count is a whole number from zero to
+    :data:`MAX_CAPACITY_COUNT`, and ``arena_byte_count`` one up to
+    :data:`MAX_ARENA_BYTE_COUNT`.
+
+    Attributes:
+        static_shape_count: Shapes on static bodies.
+        dynamic_shape_count: Shapes on dynamic bodies. Box2D's header says
+            dynamic and kinematic, but it counts and reserves for the dynamic
+            ones only.
+        static_body_count: Static bodies.
+        dynamic_body_count: Dynamic and kinematic bodies.
+        contact_count: Contacts, including ones not yet touching.
+        arena_byte_count: Bytes of scratch memory a step uses.
+    """
+
+    static_shape_count: int = 0
+    dynamic_shape_count: int = 0
+    static_body_count: int = 0
+    dynamic_body_count: int = 0
+    contact_count: int = 0
+    arena_byte_count: int = 0
+
+    @classmethod
+    def from_b2Capacity(cls, capacity):
+        return cls(
+            **{name: getattr(capacity, c_name) for name, c_name in _CAPACITY_FIELDS}
+        )
+
+    def _write_to(self, c_capacity):
+        """Copy this capacity into a b2Capacity, checking each field first.
+
+        Raises:
+            TypeError: If a field is not an int (bool and float included).
+            ValueError: If a field is negative or above its limit.
+        """
+        for name, c_name in _CAPACITY_FIELDS:
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise TypeError(
+                    f"Capacity.{name} must be an int, not {type(value).__name__}"
+                )
+            limit = (
+                MAX_ARENA_BYTE_COUNT
+                if name == "arena_byte_count"
+                else MAX_CAPACITY_COUNT
+            )
+            if not 0 <= value <= limit:
+                raise ValueError(
+                    f"Capacity.{name} must be from 0 to {limit}, not {value}"
+                )
+            setattr(c_capacity, c_name, value)
+
+
 def _camel(name):
     head, *rest = name.split("_")
     return head + "".join(part.title() for part in rest)
@@ -134,3 +216,4 @@ _COUNTER_FIELDS = [
     for field in fields(Counters)
     if field.name != "color_counts"
 ]
+_CAPACITY_FIELDS = [(field.name, _camel(field.name)) for field in fields(Capacity)]
