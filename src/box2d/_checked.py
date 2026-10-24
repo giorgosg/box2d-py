@@ -50,7 +50,7 @@ _pending = []
 _INVALID_INPUT = re.compile(r"invalid input: (?P<condition>.*) in (?P<function>\w+)")
 
 
-@ffi.callback("b2LogFcn")
+@ffi.callback("b2LogCallbackFcn")
 def _on_log(message):
     text = ffi.string(message).decode("utf-8", "replace").strip()
     if text.startswith("invalid input"):
@@ -59,7 +59,7 @@ def _on_log(message):
         log.warning(text)
 
 
-_raw_lib.b2SetLogFcn(_on_log)
+_raw_lib.b2SetLogCallback(_on_log)
 
 
 def _raise_pending(called):

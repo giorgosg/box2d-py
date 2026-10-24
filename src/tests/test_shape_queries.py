@@ -182,8 +182,10 @@ def test_cast_shape_answers_whether_something_fits(world):
 def test_cast_shape_reports_initial_overlap_at_fraction_zero(world, ground):
     """Starting inside geometry is reported, not skipped.
 
-    b2ShapeCast documents initial overlap as a miss, so it would be fair to
-    assume b2World_CastShape does the same; it does not.
+    Before 3.2, the header comment on the pair cast (b2ShapeCast, now
+    b2CastShape) called initial overlap a miss, though the code already
+    reported a hit at fraction 0. 3.2 corrected the comment; this test pins
+    the same behaviour for the world-level cast.
     """
     inside = world.cast_shape(ShapeProxy.circle(0.5, (0, 0)), (0, -20))
 

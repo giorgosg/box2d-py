@@ -677,7 +677,7 @@ class Body(FixedAttributes):
 
         Conservative: it may overestimate, never underestimate.
         """
-        return lib.b2Body_GetMaxExtentOrigin(self._body_id)
+        return lib.b2Body_GetMaxExtentFromOrigin(self._body_id)
 
     def _set_motion_lock(self, axis: str, value: bool) -> None:
         """Set one of the three motion locks, leaving the others alone."""
@@ -807,8 +807,8 @@ class Body(FixedAttributes):
         return Transform.from_b2Transform(b2transform)
 
     enable_sleep = b2_bool(
-        lib.b2Body_IsSleepEnabled,
-        lib.b2Body_EnableSleep,
+        lib.b2Body_IsSleepingEnabled,
+        lib.b2Body_EnableSleeping,
         doc="Get or set whether this body is allowed to fall asleep.",
     )
 
@@ -1086,7 +1086,7 @@ class Body(FixedAttributes):
 
     def is_sleep_enabled(self):
         """Check if the body is allowed to sleep."""
-        return lib.b2Body_IsSleepEnabled(self._body_id)
+        return lib.b2Body_IsSleepingEnabled(self._body_id)
 
     @property
     def is_valid(self) -> bool:
@@ -1265,7 +1265,7 @@ class Body(FixedAttributes):
         Returns:
             AABB object representing the axis-aligned bounding box.
         """
-        b2_aabb = lib.b2Body_ComputeAABB(self._body_id)
+        b2_aabb = lib.b2Body_ComputeBounds(self._body_id)
         return AABB(
             Vec2.from_b2Vec2(b2_aabb.lowerBound),
             Vec2.from_b2Vec2(b2_aabb.upperBound),

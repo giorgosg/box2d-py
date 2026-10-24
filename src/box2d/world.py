@@ -873,9 +873,7 @@ class World(FixedAttributes):
 
         A shape already overlapping the proxy at its starting position is
         reported at fraction 0, so a cast that starts inside geometry tells
-        you so rather than silently skipping it. (Box2D's lower-level
-        ``b2ShapeCast`` treats initial overlap as a miss instead; this is the
-        world-level function, which does not.)
+        you so rather than silently skipping it.
 
         Args:
             proxy: The shape to sweep, at its starting position.
@@ -1648,11 +1646,11 @@ class World(FixedAttributes):
         Box2D clamps to this rather than letting a body move so far in one
         step that collision cannot keep up.
         """
-        return lib.b2World_GetMaximumLinearSpeed(self._world_id)
+        return lib.b2World_GetMaxLinearSpeed(self._world_id)
 
     @maximum_linear_speed.setter
     def maximum_linear_speed(self, value: float):
-        lib.b2World_SetMaximumLinearSpeed(self._world_id, float(value))
+        lib.b2World_SetMaxLinearSpeed(self._world_id, float(value))
 
     @property
     def contact_recycle_distance(self) -> float:

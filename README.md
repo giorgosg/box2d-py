@@ -5,8 +5,8 @@ Python Bindings for Box2D v3 using CFFI
 [![Build Status](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml/badge.svg)](https://github.com/giorgosg/box2d-py/actions/workflows/build-matrix.yml)
 
 Python bindings for the [Box2D physics engine](https://box2d.org/), built
-against Box2D `main` rather than a tagged release. Provides Pythonic access to
-Box2D's feature set, on Linux, macOS and Windows.
+against Box2D's v3.2.0 release. Provides Pythonic access to Box2D's feature
+set, on Linux, macOS and Windows.
 
 ## Installation
 
@@ -313,8 +313,8 @@ Box2D's other diagnostics, such as a body going unstable, are logged to the
 
 ⚠️ Early development preview - API subject to change
 
-Tracks Box2D `main`, currently the 3.2.0 API (`box2d.BOX2D_VERSION`) ahead of
-it being tagged, so what is bound here moves with upstream.
+Built against Box2D's v3.2.0 release (`box2d.BOX2D_VERSION`); the `box2d`
+submodule is pinned to that tag.
 
 Bound and covered by tests on Linux, macOS and Windows for Python 3.12 and
 3.13, and in WebAssembly:
