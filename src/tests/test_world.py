@@ -531,6 +531,22 @@ def test_the_split_can_change_after_creation():
     world.destroy()
 
 
+def test_threads_says_what_the_world_was_made_with_whatever_the_split():
+    world = World()
+    assert world.threads == 1
+    world.destroy()
+
+
+@needs_threads
+def test_threads_stays_put_when_the_split_changes():
+    world = World(threads=2)
+    world.worker_count = 3
+    assert world.threads == 2
+    with pytest.raises(AttributeError):
+        world.threads = 4
+    world.destroy()
+
+
 @pytest.mark.skipif(HAS_THREADS, reason="this build has threads")
 def test_threads_are_refused_when_the_build_has_none():
     """WebAssembly is built without threads, and asking for them says so

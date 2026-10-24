@@ -1684,6 +1684,15 @@ class World(FixedAttributes):
         lib.b2World_SetContactRecycleDistance(self._world_id, float(value))
 
     @property
+    def threads(self) -> int:
+        """How many threads the world was created to step on.
+
+        Fixed for the world's life: it is the size of the world's thread pool.
+        :attr:`worker_count` starts at it but can be changed afterwards.
+        """
+        return self._threads
+
+    @property
     def worker_count(self) -> int:
         """How many pieces the world splits a step's work into.
 
