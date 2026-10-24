@@ -10,6 +10,10 @@ the joint attaches to each, and whether those bodies still collide. Anchors can
 be given either as local points on each body, or as a single world-space
 ``anchor`` that is converted to both -- the common case when you know where the
 pivot is but not each body's local frame.
+
+Definitions have slots, so assigning a field one does not have -- a
+misspelling, or a name from before a rename -- raises AttributeError
+rather than being kept and never read.
 """
 
 from dataclasses import dataclass, fields
@@ -21,7 +25,7 @@ if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
 
 
-@dataclass
+@dataclass(slots=True)
 class JointDef:
     """Fields common to every joint.
 
@@ -87,7 +91,7 @@ class JointDef:
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class FilterJointDef(JointDef):
     """Stops two bodies colliding without constraining them otherwise.
 
@@ -99,7 +103,7 @@ class FilterJointDef(JointDef):
         return {"body_a": self.body_a, "body_b": self.body_b}
 
 
-@dataclass
+@dataclass(slots=True)
 class WeldJointDef(JointDef):
     """Holds two bodies rigidly together, optionally with some give.
 
@@ -118,7 +122,7 @@ class WeldJointDef(JointDef):
     reference_angle: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class RevoluteJointDef(JointDef):
     """Pins two bodies together at a point and lets them rotate about it.
 
@@ -150,7 +154,7 @@ class RevoluteJointDef(JointDef):
     target_angle: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class PrismaticJointDef(JointDef):
     """Lets two bodies slide along one axis without rotating.
 
@@ -184,7 +188,7 @@ class PrismaticJointDef(JointDef):
     target_translation: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class WheelJointDef(JointDef):
     """A sliding axis with a spring, as between a chassis and a wheel.
 
@@ -214,7 +218,7 @@ class WheelJointDef(JointDef):
     spring_damping_ratio: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
@@ -249,7 +253,7 @@ class DistanceJointDef(JointDef):
     upper_spring_force: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MotorJointDef(JointDef):
     """Drives the relative motion of two bodies.
 
@@ -282,13 +286,15 @@ class MotorJointDef(JointDef):
 
     def joint_arguments(self):
         """The motor joint attaches at the bodies' origins, so it has no anchors."""
-        arguments = super().joint_arguments()
+        # Named, not super(): slots=True makes a new class that a bare
+        # super() in a method of the old one cannot see before Python 3.14.
+        arguments = JointDef.joint_arguments(self)
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class MoverJointDef(JointDef):
     """Drives a dynamic character body at a commanded velocity.
 
@@ -306,13 +312,15 @@ class MoverJointDef(JointDef):
 
     def joint_arguments(self):
         """The mover joint drives velocity only, so it has no anchors."""
-        arguments = super().joint_arguments()
+        # Named, not super(): slots=True makes a new class that a bare
+        # super() in a method of the old one cannot see before Python 3.14.
+        arguments = JointDef.joint_arguments(self)
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class PogoJointDef(JointDef):
     """A spring holding a character up off the ground. See :class:`.PogoJoint`.
 
@@ -341,7 +349,7 @@ class PogoJointDef(JointDef):
     velocity: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MouseJointDef:
     """Drags one body toward a moving world-space target.
 

@@ -18,6 +18,7 @@ from box2d import (
     DistanceJointDef,
     MotorJointDef,
     MouseJointDef,
+    MoverJointDef,
     PrismaticJointDef,
     RevoluteJointDef,
     WeldJointDef,
@@ -571,3 +572,41 @@ def test_one_limit_alone_is_checked_against_the_others_default(
     crosses an upper limit nobody set -- the error has to say so."""
     with pytest.raises(ValueError, match="a limit not given is 0"):
         world.add_joint(definition(*bodies, anchor=(1, 0), lower_limit=0.5))
+
+
+# --- definitions refuse names they do not have -------------------------------
+
+
+@pytest.mark.parametrize("definition", _joint_definitions(), ids=lambda d: d.__name__)
+def test_a_definition_refuses_a_field_it_does_not_have(world, bodies, definition):
+    """A misspelt or renamed field must fail, not be silently ignored.
+
+    motor_speed became target_motor_speed; a definition that took
+    ``d.motor_speed = 5`` would build its joint with the motor stopped.
+    """
+    if definition is MouseJointDef:
+        made = definition(bodies[0], target=(0, 0))
+    else:
+        made = definition(*bodies)
+    with pytest.raises(AttributeError):
+        made.motor_speed = 5.0
+
+
+@pytest.mark.parametrize(
+    "definition", [MotorJointDef, MoverJointDef], ids=lambda d: d.__name__
+)
+def test_definitions_that_drop_anchors_still_build(world, bodies, definition):
+    """These override joint_arguments and call the base class's."""
+    arguments = definition(*bodies).joint_arguments()
+    assert "local_anchor_a" not in arguments
+    assert world.add_joint(definition(*bodies)).is_valid
+
+
+def test_a_definition_copies_and_compares_by_value(bodies):
+    import copy
+
+    made = RevoluteJointDef(*bodies, anchor=(1, 0), target_motor_speed=2.0)
+    duplicate = copy.copy(made)
+    assert duplicate == made
+    duplicate.target_motor_speed = 3.0
+    assert made.target_motor_speed == 2.0
