@@ -187,7 +187,9 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
 ```
 
 - **`setup`** builds the scene. Reset and `self.rebuild()` throw the scene away
-  and call it again, keeping the controls as they are.
+  and call it again in a new world, keeping the controls and the view as they
+  are, so a reset scene runs exactly as it first did. Set anything the scene
+  needs on the world in `setup`, and read `self.world` rather than keeping it.
 - **Controls** (`UI.float`, `UI.int`, `UI.bool`, `UI.select`, `UI.button`) appear
   in the scenario's panel. Read them as attributes. A callback runs when one
   changes, but never before `setup` has built the scene, so it can rely on what

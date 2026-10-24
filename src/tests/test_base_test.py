@@ -8,8 +8,8 @@ destroy loop there -- and drew its status at world coordinates picked by eye.
 
 import pytest
 
-from box2d import World
-from box2d_testbed.base_test import BaseTest, UI
+from box2d import DestroyedError, World
+from box2d_testbed.base_test import BaseTest, UI, world_like
 from box2d_testbed import testbed_simulation
 
 CATEGORY = "_BaseTest"
@@ -85,7 +85,7 @@ def test_rebuild_replaces_the_scene_and_keeps_the_controls(world, scenario_class
     scenario.size = 2.0  # its callback rebuilds
 
     assert not first.is_valid, "the old scene is gone"
-    assert len(world.bodies) == 2, "and only one new one replaced it"
+    assert len(scenario.world.bodies) == 2, "and only one new one replaced it"
     assert scenario.size == 2.0
     assert scenario.crate.shapes[0].bounds.upper.x == pytest.approx(1.0, abs=0.05)
 
@@ -99,7 +99,7 @@ def test_reset_is_a_rebuild(world, scenario_class):
     scenario.reset = 1
 
     assert not first.is_valid
-    assert len(world.bodies) == 2
+    assert len(scenario.world.bodies) == 2
     assert scenario.crate.shapes[0].friction == pytest.approx(0.1)
 
 
@@ -121,9 +121,96 @@ def test_rebuild_lets_go_of_a_drag(world, scenario_class):
     scenario.rebuild()
 
     assert scenario.mouse_joint is None
-    assert len(world.bodies) == 2, "the drag's proxy body was left behind"
-    assert all(body.type != "kinematic" for body in world.bodies)
+    assert len(scenario.world.bodies) == 2, "the drag's proxy body was left behind"
+    assert all(body.type != "kinematic" for body in scenario.world.bodies)
     scenario.on_mouse_release(scenario.crate.position)  # must not raise
+
+
+def test_rebuild_builds_in_a_new_world_and_destroys_the_old_one(world, scenario_class):
+    """A new world numbers the scene from the start, as the first one did, so
+    it runs as it first ran."""
+    scenario = scenario_class(world)
+    scenario.setup()
+    crate = scenario.crate
+
+    scenario.rebuild()
+
+    assert not world.is_valid
+    assert scenario.world is not world and scenario.world.is_valid
+    with pytest.raises(DestroyedError):
+        crate.position
+
+
+def test_rebuild_makes_its_world_with_the_maker_it_was_given(world, scenario_class):
+    made = []
+
+    def new_world():
+        made.append(World(gravity=(0, -3)))
+        return made[-1]
+
+    scenario = scenario_class(world, new_world=new_world)
+    scenario.setup()
+    scenario.rebuild()
+    scenario.rebuild()
+
+    assert len(made) == 2
+    assert scenario.world is made[1]
+    assert not made[0].is_valid, "each rebuild destroys the world it replaces"
+    made[1].destroy()
+
+
+def test_without_a_maker_a_rebuild_copies_the_world_as_the_scenario_found_it():
+    """Not as setup or the running scene left it: setup sets up its own world
+    again, and a change made while the scene ran is part of that run."""
+
+    def keep_out(shape_a, shape_b):
+        return True
+
+    world = World(gravity=(1, -3))
+    world.enable_sleeping = False
+    world.contact_hertz = 45.0
+    world.restitution_threshold = 2.5
+    world.custom_filter = keep_out
+    world.user_data = "mine"
+
+    class Tuned(BaseTest, category=CATEGORY, name="Tuned"):
+        def setup(self):
+            self.world.hit_event_threshold = 7.0
+
+        def after_step(self, dt):
+            self.world.gravity = (0, 0)
+
+    scenario = Tuned(world)
+    scenario.setup()
+    scenario.after_step(1 / 60)
+    scenario.world.enable_warm_starting = False
+    scenario.rebuild()
+
+    new = scenario.world
+    try:
+        assert new.gravity == (1, -3)
+        assert new.enable_sleeping is False
+        assert new.enable_warm_starting is True
+        assert new.contact_hertz == pytest.approx(45.0)
+        assert new.restitution_threshold == pytest.approx(2.5)
+        assert new.hit_event_threshold == pytest.approx(7.0), "from setup"
+        assert new.custom_filter is keep_out
+        assert new.user_data == "mine"
+    finally:
+        new.destroy()
+
+
+def test_world_like_keeps_the_thread_count(world):
+    try:
+        threaded = World(threads=2)
+    except RuntimeError:
+        pytest.skip("this build has no threads")
+    copy = world_like(threaded)()
+    try:
+        assert copy.worker_count == 2
+    finally:
+        copy.destroy()
+        threaded.destroy()
 
 
 def test_a_drag_ends_when_the_scenario_destroys_the_dragged_body(world, scenario_class):
@@ -249,7 +336,7 @@ def test_a_setup_that_sets_its_own_control_does_not_recurse_on_reset(world):
     scenario.setup()
     scenario.reset = 1
     scenario.reset = 1
-    assert len(world.bodies) == 4
+    assert len(scenario.world.bodies) == 4
 
 
 def test_a_rebuild_that_raises_leaves_no_half_scene_marked_whole(world):
@@ -362,6 +449,6 @@ def test_the_readme_example_runs(world):
 
         drop.drop_height = 10.0  # after: the callback rebuilds
         assert drop.box.position.y == pytest.approx(10.0)
-        assert len(world.bodies) == 2
+        assert len(drop.world.bodies) == 2
     finally:
         BaseTest.registry["Bodies"].pop("Drop", None)

@@ -39,9 +39,9 @@ def test_ray_cast_lays_out_the_same_shapes_every_time(world):
         again = scenario(other, "Collision", "Ray Cast")
         assert layout(other) == first, "opened again"
         press(again, "reset")
-        assert layout(other) == first, "reset"
+        assert layout(again.world) == first, "reset"
     finally:
-        other.destroy()
+        again.world.destroy()
 
 
 def test_ray_cast_leaves_pythons_random_numbers_alone(world):

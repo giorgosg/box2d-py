@@ -426,8 +426,9 @@ def test_scenario_ui_controls_work(world, category, name):
 
     for control, prop in ui_properties(scenario):
         setattr(test, control, a_different_value(prop, getattr(test, control)))
-        # A control that rebuilds the scene must leave it usable.
-        world.step(1 / 60, 4)
+        # A control that rebuilds the scene must leave it usable -- in the
+        # new world a rebuild makes.
+        test.world.step(1 / 60, 4)
         test.after_step(1 / 60)
 
 

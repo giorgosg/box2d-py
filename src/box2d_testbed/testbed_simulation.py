@@ -51,9 +51,7 @@ class TestbedSimulation:
         print(f"Initializing test: {self.current_test_cls.__name__}")
         if self.world:
             self.world.destroy()
-        self.world = World(gravity=state.gravity, threads=state.threads)
-        self.apply_world_settings()
-        state.step_count = 0
+        self.new_world()
         state.scenario_error = None
         self._failed_hooks = set()
 
@@ -63,7 +61,9 @@ class TestbedSimulation:
         # everything that would have driven one checks for that; the error goes
         # where the scenario's own panel was.
         try:
-            self.current_test_obj = state.current_test_cls(self.world)
+            self.current_test_obj = state.current_test_cls(
+                self.world, new_world=self.new_world
+            )
             self.current_test_obj.setup()
         except BaseException:
             state.scenario_error = traceback.format_exc()
@@ -78,6 +78,24 @@ class TestbedSimulation:
         self.reset_view()
         state.perf.physics_ms_max = 0
         state.perf.draw_ms_max = 0
+
+    def new_world(self):
+        """Make a world the way the testbed makes them, and run that one.
+
+        With the settings panel's values as they are now. Called for a newly
+        opened scenario, and by the scenario itself whenever it rebuilds --
+        the Reset button among others -- which destroys the old world rather
+        than this; so whichever world the scenario is in is the one stepped,
+        drawn and bound in the console.
+
+        Returns:
+            World: The new world, which is ``self.world`` from now on.
+        """
+        self.world = World(gravity=state.gravity, threads=state.threads)
+        self.threads = state.threads
+        self.apply_world_settings()
+        state.step_count = 0
+        return self.world
 
     @staticmethod
     def world_settings():

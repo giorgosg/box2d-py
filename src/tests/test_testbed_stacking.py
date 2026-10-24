@@ -126,7 +126,7 @@ def test_rolling_resistance_reaches_every_capsule(world):
     test = scenario(world, "Stacking", "Capsule Stack")
     test.rolling_resistance = 0.2
 
-    shapes = [shape for body in dynamic_bodies(world) for shape in body.shapes]
+    shapes = [shape for body in dynamic_bodies(test.world) for shape in body.shapes]
     assert len(shapes) == 20
     assert all(shape.rolling_resistance == pytest.approx(0.2) for shape in shapes)
 
@@ -159,11 +159,11 @@ def test_the_dominoes_fall_once_leaning_and_again_flat(world):
 def test_the_domino_controls_rebuild_the_row(world):
     test = scenario(world, "Stacking", "Double Domino")
     test.count = 30
-    assert len(dynamic_bodies(world)) == 30
+    assert len(dynamic_bodies(test.world)) == 30
 
     test.nudge = 0.0
     run(test, 3.0)
-    assert all(abs(d.rotation) < 0.01 for d in dynamic_bodies(world))
+    assert all(abs(d.rotation) < 0.01 for d in dynamic_bodies(test.world))
 
 
 def tilted_column(world, lean):
@@ -171,7 +171,7 @@ def tilted_column(world, lean):
     test = scenario(world, "Stacking", "Tilted Stack")
     test.columns = 1
     test.lean = lean
-    return test, dynamic_bodies(world)[-1]
+    return test, dynamic_bodies(test.world)[-1]
 
 
 @pytest.mark.parametrize(

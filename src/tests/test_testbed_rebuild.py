@@ -1,12 +1,12 @@
-"""A rebuilt scene is numbered, and so solved, as a fresh one is.
+"""A reset scene runs again exactly as it first did.
 
-rebuild() builds the scene again inside the world it already lives in, since
-the testbed, its panel and the scenario all hold that world. Box2D reuses the
-ids it frees, and its solve order follows ids, so a scene rebuilt with its ids
-in another order is simulated differently: Ragdoll's Respawn, pressed as the
-first figure fell, dropped the next one somewhere a fresh one would not land.
-Pressed after the figure has landed it still does, because of the contact ids
-the first figure used, which BaseTest.rebuild explains.
+rebuild() builds the scene again in a new world, made as the first one was.
+It used to build it in the world it already lived in, and that could not be
+exact: Box2D reuses the ids it frees, last freed first, and solves in id
+order, so once a scene had run its contacts came back numbered differently
+and the rebuilt scene was simulated differently -- 14 of the 55 scenarios
+diverged. Ragdoll's Respawn, pressed after the figure had landed, dropped the
+next one somewhere a fresh one would not land.
 """
 
 import random
@@ -26,11 +26,13 @@ from box2d_testbed import (  # noqa: F401  (registers the scenarios)
     tb_shapes,
     tb_stacking,
 )
+from box2d_testbed import testbed_simulation
 from box2d_testbed.base_test import BaseTest
-from testbed_scenarios import every_scenario, run, scenario
+from box2d_testbed.testbed_state import state
+from testbed_scenarios import every_scenario, press, run, scenario
 
-#: Enough for every scene to have collided, stacked or swung: an id order
-#: that matters has diverged by then.
+#: Enough for every scene to have collided, stacked or swung, which is when a
+#: rebuild in the old world used to come out differently.
 SECONDS = 2.0
 
 #: Several scenarios build from Python's random numbers, so both builds of a
@@ -50,44 +52,47 @@ def fresh_world():
 
 
 def motion(world):
-    """Every body's position, rotation and velocities, in creation order."""
-    return [
-        (
-            tuple(body.position),
-            body.rotation,
-            tuple(body.linear_velocity),
+    """Every body's transform and velocities, in creation order.
+
+    As the floats' hex spellings, so the comparison is bit for bit: ``==`` on
+    the floats themselves would take -0.0 for 0.0.
+    """
+    rows = []
+    for body in world.bodies:
+        transform = body.transform
+        values = (
+            transform.p.x,
+            transform.p.y,
+            transform.q.c,
+            transform.q.s,
+            body.linear_velocity.x,
+            body.linear_velocity.y,
             body.angular_velocity,
         )
-        for body in world.bodies
-    ]
+        rows.append(tuple(float(value).hex() for value in values))
+    return rows
 
 
 @pytest.mark.parametrize("category, name", every_scenario())
-def test_a_rebuilt_scene_runs_exactly_as_a_fresh_one(
-    world, fresh_world, category, name
-):
-    """Compared bit for bit: a solve order that differs shows up as a
-    difference somewhere, even in a scene that ends up looking the same.
-
-    The rebuild comes before the scene has run. Once it has, Box2D has handed
-    out contact ids that a rebuild cannot give back in order, which
-    BaseTest.rebuild explains.
+def test_a_reset_scene_runs_again_exactly_as_it_first_did(world, category, name):
+    """Compared bit for bit after running: a solve order that differs shows up
+    as a difference somewhere, even in a scene that ends up looking the same.
     """
     random.seed(SEED)
-    fresh = scenario(fresh_world, category, name)
-    run(fresh, SECONDS)
+    test = scenario(world, category, name)
+    run(test, SECONDS)
+    first_run = motion(world)
+    first_hash = world.state_hash
 
-    # Seeded differently, so a scene with random parts that was never rebuilt
-    # would not match.
-    random.seed(SEED + 1)
-    rebuilt = scenario(world, category, name)
-    first = world.bodies
     random.seed(SEED)
-    rebuilt.rebuild()
-    assert not any(body.is_valid for body in first), "the first scene is gone"
-    run(rebuilt, SECONDS)
+    press(test, "reset")
 
-    assert motion(world) == motion(fresh_world)
+    assert not world.is_valid, "the first world is gone"
+    assert test.world is not world and test.world.is_valid
+    run(test, SECONDS)
+
+    assert motion(test.world) == first_run
+    assert test.world.state_hash == first_hash
 
 
 def test_compound_count_builds_the_scene_a_fresh_world_would(world, fresh_world):
@@ -105,4 +110,85 @@ def test_compound_count_builds_the_scene_a_fresh_world_would(world, fresh_world)
     changed.count = 2
     run(changed, seconds)
 
-    assert motion(world) == motion(fresh_world)
+    assert motion(changed.world) == motion(fresh_world)
+
+
+# --- in the testbed ---------------------------------------------------------
+
+
+@pytest.fixture
+def testbed_state_left_as_it_was():
+    """The testbed's state is one shared object; put back what these change."""
+    names = (
+        "current_test_cls",
+        "current_test_obj",
+        "scenario_error",
+        "step_count",
+        "center",
+        "scale",
+        "gravity",
+        "threads",
+        "enable_sleeping",
+        "enable_warm_starting",
+        "max_linear_speed",
+    )
+    saved = {name: getattr(state, name) for name in names}
+    yield
+    for name, value in saved.items():
+        setattr(state, name, value)
+
+
+@pytest.fixture
+def simulation(testbed_state_left_as_it_was):
+    """The testbed's simulation showing Ragdoll, with no renderer and without
+    loading the user's scenarios. The world is destroyed after the test."""
+    cls = testbed_simulation.TestbedSimulation
+    simulation = cls.__new__(cls)
+    simulation.world = None
+    simulation._applied_settings = None
+    simulation.debug_draw = None
+    state.current_test_cls = BaseTest.registry["Joints"]["Ragdoll"]
+    simulation.init_test()
+    yield simulation
+    simulation.world.destroy()
+
+
+def test_reset_in_the_testbed_moves_everything_onto_the_new_world(simulation):
+    test = simulation.current_test_obj
+    old = simulation.world
+    for _ in range(30):
+        simulation.update_physics()
+    state.center, state.scale = (3.0, 4.0), 7.0
+
+    press(test, "reset")
+
+    assert not old.is_valid
+    assert simulation.world is test.world
+    assert simulation.world.is_valid and simulation.world is not old
+    assert state.current_test_obj is test, "the same scenario, rebuilt"
+    assert state.step_count == 0, "counted for the new world"
+    assert (state.center, state.scale) == ((3.0, 4.0), 7.0), "the view is kept"
+    simulation.update_physics()  # steps the new world, not the old one
+    assert state.step_count == 1
+
+
+def test_reset_in_the_testbed_makes_the_world_with_the_panels_settings(simulation):
+    """The panel's settings, as they are now -- not as the scene's own setup
+    left them, and not as they were when the scenario was opened."""
+    test = simulation.current_test_obj
+    state.enable_sleeping = False
+    state.enable_warm_starting = False
+    state.max_linear_speed = 123.0
+    simulation.update_physics()  # applies them to the running world
+
+    press(test, "reset")
+
+    world = simulation.world
+    assert world.gravity == state.gravity
+    assert world.worker_count == state.threads
+    assert world.enable_sleeping is False
+    assert world.enable_warm_starting is False
+    assert world.max_linear_speed == pytest.approx(123.0)
+    # Ragdoll's setup stiffens the contacts; the new world gets that from
+    # setup running again.
+    assert world.contact_hertz == pytest.approx(240.0)

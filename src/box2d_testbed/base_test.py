@@ -1,6 +1,6 @@
 import functools
 
-from box2d import Vec2
+from box2d import Vec2, World
 from .testbed_state import state
 from .ui import UI, UIProperty
 
@@ -66,8 +66,18 @@ class BaseTest:
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
 
-    def __init__(self, world):
+    def __init__(self, world, new_world=None):
+        """
+        Args:
+            world: The world to build the scene in.
+            new_world: Makes the world each rebuild builds the scene in again,
+                called with no arguments. The testbed passes its own, which
+                makes the world with its settings panel's values as they are
+                then. Left out, a rebuild gets a world made like ``world`` as
+                it is now -- before setup has changed anything in it.
+        """
         self.world = world
+        self._new_world = new_world if new_world is not None else world_like(world)
         self.mouse_joint = None  # For default dragging
         self._setup_started = False
         # Whichever setup this scenario ends up with -- its own, a parent's or
@@ -271,29 +281,30 @@ class BaseTest:
         """Throw the scene away and build it again, keeping the controls.
 
         What Reset does, and what a control that changes how the scene is
-        built should call. Destroying the bodies takes their shapes and
-        joints with them. Does nothing before the first setup, which will
+        built should call. The old world is destroyed, and its bodies, joints
+        and callbacks with it; setup then runs again in a new world, made as
+        the first one was. Does nothing before the first setup, which will
         build the scene itself; after a setup that raised it tries again.
 
-        Built again in the same world, the scene is only the one first built
-        if Box2D numbers it the same way: it solves in id order, so a marginal
-        scene numbered differently comes out differently. Rebuilt before it
-        has run, and before the scenario has destroyed any bodies of its own,
-        the scene is the same exactly. After that it may not be: its contacts,
-        and bodies taking the place of ones the scenario destroyed, get the
-        ids the old ones freed in the order those went, and nothing here can
-        put that order back.
+        A new world rather than the old one emptied, because that is what
+        makes the scene the one first built, step for step. Box2D solves in
+        id order and hands freed ids back last-freed-first, so a scene built
+        again in a world that has run gets its contacts numbered in another
+        order, and a marginal scene comes out differently. A new world starts
+        its numbering from the beginning, as the first one did.
+
+        So the world is a different object afterwards: read ``self.world``
+        when it is needed rather than keeping it, and set up in ``setup``
+        whatever the scene needs set on the world.
         """
         if not self._setup_started:
             return
-        # Box2D hands back freed ids last-freed-first. Destroying the newest
-        # body first means setup gets the lowest back first, as from a new
-        # world -- body ids, and with them the ids of each body's shapes,
-        # chains and broad-phase proxies. That holds while creation order is
-        # id order, which a scenario destroying bodies of its own undoes.
-        for body in reversed(self.world.bodies):
-            body.destroy()
+        # Destroyed first: World.destroy refuses mid-step, from a world
+        # callback, and raises before anything here has changed.
+        self.world.destroy()
+        # Its joints went with the world.
         self.mouse_joint = None
+        self.world = self._new_world()
         self.setup()
 
     @reset.callback
@@ -317,6 +328,67 @@ class BaseTest:
         Returns the full test registry.
         """
         return BaseTest.registry
+
+
+#: What :func:`world_like` copies, besides gravity and threads: every world
+#: setting with a getter. (The SSE2 fallback has none, so is not copied.)
+WORLD_SETTINGS = (
+    "enable_sleeping",
+    "enable_continuous",
+    "enable_warm_starting",
+    "restitution_threshold",
+    "restitution_iterations",
+    "enable_restitution_propagation",
+    "hit_event_threshold",
+    "contact_hertz",
+    "contact_damping_ratio",
+    "contact_push_velocity",
+    "max_linear_speed",
+    "contact_recycle_distance",
+    "user_data",
+)
+
+#: The world's callbacks, copied too when set.
+WORLD_CALLBACKS = (
+    "custom_filter",
+    "pre_solve",
+    "pre_continuous",
+    "friction_mixer",
+    "restitution_mixer",
+)
+
+
+def world_like(world):
+    """A maker of worlds set up as ``world`` is now.
+
+    What a scenario rebuilds in when nothing has said how to make its world:
+    the testbed does say, but a scenario built on a world of its own -- in a
+    test, say -- still gets a new world on rebuild, and one that is not the
+    default world would change the scene.
+
+    Args:
+        world: The world to copy. Read now, so a setting changed in it later
+            is not copied.
+
+    Returns:
+        A callable taking no arguments that returns a new World.
+    """
+    gravity = world.gravity
+    # The world's thread count, which is what the worker count starts at.
+    threads = world.worker_count
+    settings = {name: getattr(world, name) for name in WORLD_SETTINGS}
+    for name in WORLD_CALLBACKS:
+        function = getattr(world, name)
+        if function is not None:
+            settings[name] = function
+
+    def new_world():
+        made = World(gravity=gravity, threads=threads)
+        for name, value in settings.items():
+            setattr(made, name, value)
+        return made
+
+    return new_world
 
 
 def _tracking_set_up(scenario, setup):
