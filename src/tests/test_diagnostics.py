@@ -4,7 +4,7 @@
 None of this was bound, so there was no way to ask why a scene had got slow,
 how much memory it was using, or whether it had come to rest.
 
-Profile and Counters map their fields onto Box2D's structs by converting
+Profile, Counters and Capacity map their fields onto Box2D's structs by converting
 snake_case to camelCase rather than listing both names, which is compact but
 would silently produce zeros if a name stopped matching. The conformance
 tests below check every derived name against the struct.
@@ -15,9 +15,9 @@ from dataclasses import fields
 
 import pytest
 
-from box2d import Profile, World
-from box2d._box2d import ffi
-from box2d.diagnostics import _COUNTER_FIELDS, _PROFILE_FIELDS
+from box2d import Capacity, Profile, World
+from box2d._box2d import ffi, lib
+from box2d.diagnostics import _CAPACITY_FIELDS, _COUNTER_FIELDS, _PROFILE_FIELDS
 
 
 @pytest.fixture
@@ -297,3 +297,142 @@ def test_dump_memory_stats_writes_its_file(world, tmp_path, monkeypatch):
     world.dump_memory_stats()
 
     assert os.path.exists(tmp_path / "box2d_memory.txt")
+
+
+# --- capacity ---------------------------------------------------------------
+
+
+def _pile(world, count=30):
+    """A ground box and ``count`` dynamic boxes dropped on it."""
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(40, 1)
+    boxes = []
+    for i in range(count):
+        box = world.add_body(body_type="dynamic", position=(i % 5, 2 + i))
+        box.add_box(0.5, 0.5)
+        boxes.append(box)
+    return boxes
+
+
+def test_every_capacity_field_exists_on_the_struct():
+    capacity = ffi.new("b2Capacity*")
+    for python_name, c_name in _CAPACITY_FIELDS:
+        assert hasattr(capacity, c_name), (
+            f"Capacity.{python_name} maps to b2Capacity.{c_name}, which does not exist"
+        )
+
+
+def test_capacity_covers_the_whole_struct():
+    c_names = {c_name for _, c_name in _CAPACITY_FIELDS}
+    struct_names = set(dir(ffi.new("b2Capacity*")))
+    assert c_names == struct_names, f"unmapped: {struct_names - c_names}"
+
+
+def test_capacity_conversion_reads_real_values_not_zeros():
+    c_capacity = ffi.new("b2Capacity*")
+    for index, (_, c_name) in enumerate(_CAPACITY_FIELDS):
+        setattr(c_capacity, c_name, index + 1)
+
+    capacity = Capacity.from_b2Capacity(c_capacity)
+    for index, (python_name, _) in enumerate(_CAPACITY_FIELDS):
+        assert getattr(capacity, python_name) == index + 1
+
+
+def test_a_default_capacity_is_box2ds_default():
+    defaults = lib.b2DefaultWorldDef().capacity
+    assert Capacity() == Capacity.from_b2Capacity(defaults)
+
+
+def test_a_new_world_has_needed_no_capacity(world):
+    """Box2D counts at the start of each step, so before one it is all zero."""
+    assert world.max_capacity == Capacity()
+
+
+def test_max_capacity_grows_with_the_scene(world):
+    _pile(world)
+    for _ in range(120):
+        world.step(1 / 60, 4)
+
+    capacity = world.max_capacity
+    assert isinstance(capacity, Capacity)
+    assert capacity.static_body_count == 1
+    assert capacity.dynamic_body_count == 30
+    assert capacity.static_shape_count == 1
+    assert capacity.dynamic_shape_count == 30
+    assert capacity.contact_count >= 30, "every box touches the pile or ground"
+    assert capacity.arena_byte_count > 0
+
+
+def test_max_capacity_is_a_high_water_mark(world):
+    boxes = _pile(world)
+    for _ in range(60):
+        world.step(1 / 60, 4)
+    before = world.max_capacity
+
+    for box in boxes:
+        box.destroy()
+    world.step(1 / 60, 4)
+
+    assert world.counters.body_count == 1
+    assert world.max_capacity == before
+
+
+def test_max_capacity_is_read_only(world):
+    with pytest.raises(AttributeError):
+        world.max_capacity = Capacity()
+
+
+def test_max_capacity_is_an_independent_copy(world):
+    capacity = world.max_capacity
+    capacity.contact_count = 99
+    assert world.max_capacity.contact_count == 0
+
+
+def test_a_capacity_fed_to_a_new_world_is_allocated_up_front():
+    """What max_capacity is for: a world sized for the scene from the start.
+
+    Box2D counts its allocations across every world, so a world kept for
+    reading the counters measures what creating each one cost.
+    """
+    first = World()
+    _pile(first, count=200)
+    for _ in range(120):
+        first.step(1 / 60, 4)
+    capacity = first.max_capacity
+    first.destroy()
+
+    probe = World()
+    try:
+        before = probe.counters.byte_count
+        plain = World()
+        plain_bytes = probe.counters.byte_count - before
+        plain.destroy()
+
+        before = probe.counters.byte_count
+        sized = World(capacity=capacity)
+        sized_bytes = probe.counters.byte_count - before
+        sized.destroy()
+    finally:
+        probe.destroy()
+
+    assert sized_bytes > plain_bytes
+
+
+def test_a_world_made_with_a_capacity_simulates_as_usual():
+    sized = World(capacity=Capacity(dynamic_body_count=64, contact_count=128))
+    try:
+        boxes = _pile(sized)
+        for _ in range(120):
+            sized.step(1 / 60, 4)
+        assert sized.max_capacity.dynamic_body_count == 30, (
+            "the high-water mark counts what was used, not what was reserved"
+        )
+        assert all(box.position.y < 32 for box in boxes), "the boxes fell"
+    finally:
+        sized.destroy()
+
+
+@pytest.mark.parametrize("capacity", [{"contact_count": 10}, (0, 0, 0, 0, 10, 0)])
+def test_world_takes_only_a_capacity(capacity):
+    with pytest.raises(TypeError, match="Capacity"):
+        World(capacity=capacity)

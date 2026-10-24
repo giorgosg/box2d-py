@@ -44,7 +44,7 @@ from .mover import (
     solve_planes,
 )
 from .query import MAX_PROXY_POINTS, ShapeProxy
-from .diagnostics import Counters, Profile
+from .diagnostics import Capacity, Counters, Profile
 from .jointdef import (
     JointDef,
     FilterJointDef,
@@ -137,6 +137,7 @@ __all__ = [
     "ShapeProxy",
     "DebugDraw",
     "Color",
+    "Capacity",
     "Counters",
     "Profile",
     # errors

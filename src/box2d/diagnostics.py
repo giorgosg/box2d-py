@@ -15,6 +15,13 @@ Both are snapshots of the step that just finished, so read them after
 
 Timings are milliseconds. They come from Box2D's own timer and include only
 what Box2D did, so they will not add up to the wall time of your frame.
+
+:class:`Capacity` is the most the world has needed so far, read from
+:attr:`.World.max_capacity`. Handing it to a new world sizes that world for
+the scene from the start, so it does not grow its storage while running::
+
+    capacity = world.max_capacity
+    next_world = World(capacity=capacity)
 """
 
 from dataclasses import dataclass, fields
@@ -120,6 +127,46 @@ class Counters:
         return cls(**values)
 
 
+@dataclass
+class Capacity:
+    """How much room a world holds for, so it need not grow while it runs.
+
+    Read from :attr:`.World.max_capacity`, it is the most the world has
+    needed at once so far; passed as ``World(capacity=...)``, it is what a new
+    world sets aside up front. The default, all zeros, leaves Box2D's own
+    small starting sizes.
+
+    Box2D counts at the start of each step, and its scratch memory at the
+    end, so a world that has not stepped reports zeros.
+
+    Attributes:
+        static_shape_count: Shapes on static bodies.
+        dynamic_shape_count: Shapes on dynamic and kinematic bodies.
+        static_body_count: Static bodies.
+        dynamic_body_count: Dynamic and kinematic bodies.
+        contact_count: Contacts, including ones not yet touching.
+        arena_byte_count: Bytes of scratch memory a step uses.
+    """
+
+    static_shape_count: int = 0
+    dynamic_shape_count: int = 0
+    static_body_count: int = 0
+    dynamic_body_count: int = 0
+    contact_count: int = 0
+    arena_byte_count: int = 0
+
+    @classmethod
+    def from_b2Capacity(cls, capacity):
+        return cls(
+            **{name: getattr(capacity, c_name) for name, c_name in _CAPACITY_FIELDS}
+        )
+
+    def _fill_b2Capacity(self, capacity):
+        """Copy these values into a b2Capacity, e.g. a world definition's."""
+        for name, c_name in _CAPACITY_FIELDS:
+            setattr(capacity, c_name, getattr(self, name))
+
+
 def _camel(name):
     head, *rest = name.split("_")
     return head + "".join(part.title() for part in rest)
@@ -134,3 +181,4 @@ _COUNTER_FIELDS = [
     for field in fields(Counters)
     if field.name != "color_counts"
 ]
+_CAPACITY_FIELDS = [(field.name, _camel(field.name)) for field in fields(Capacity)]

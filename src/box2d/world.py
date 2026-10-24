@@ -36,7 +36,7 @@ from .joint import (
 from .math import Vec2, Rot, VectorLike, AABB, Transform
 from .mover import CollisionPlane
 from .query import ShapeProxy
-from .diagnostics import Counters, Profile
+from .diagnostics import Capacity, Counters, Profile
 from .dataclasses import BodyDef, BodyType, Manifold
 from .events import (
     BodyMoveEvent,
@@ -169,7 +169,12 @@ class World(FixedAttributes):
     #: destroy, but has no getter for the lock, so it is mirrored here.
     _locked = False
 
-    def __init__(self, gravity: VectorLike = (0, -10), threads: int = 1):
+    def __init__(
+        self,
+        gravity: VectorLike = (0, -10),
+        threads: int = 1,
+        capacity: Optional[Capacity] = None,
+    ):
         """Initialize physics world with specified gravity vector.
 
         Args:
@@ -177,6 +182,13 @@ class World(FixedAttributes):
             threads: How many threads to step on, the calling one included.
                 Above one, the world starts a thread pool of its own, which
                 it stops when destroyed. Worlds do not share threads.
+            capacity: Room to set aside up front, so the world does not grow
+                its storage as the scene fills: typically another world's
+                :attr:`max_capacity` after running the same scene. None
+                leaves Box2D's small starting sizes.
+
+        Raises:
+            TypeError: If ``capacity`` is not a :class:`Capacity`.
 
         Example:
             >>> world = World(gravity=(0, -9.8))
@@ -186,6 +198,12 @@ class World(FixedAttributes):
 
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
+        if capacity is not None:
+            if not isinstance(capacity, Capacity):
+                raise TypeError(
+                    f"capacity must be a Capacity, not {type(capacity).__name__}"
+                )
+            capacity._fill_b2Capacity(world_def.capacity)
         self._threads = threads
         if threads > 1:
             if not HAS_THREADS:
@@ -1619,6 +1637,27 @@ class World(FixedAttributes):
             1
         """
         return Counters.from_b2Counters(lib.b2World_GetCounters(self._world_id))
+
+    @property
+    def max_capacity(self) -> Capacity:
+        """The most this world has needed at once so far: bodies, shapes,
+        contacts and scratch memory.
+
+        Pass it to a new world as ``World(capacity=...)`` and that world sets
+        the room aside up front instead of growing as the scene fills. It is
+        a high-water mark, so it does not fall when things are destroyed, and
+        Box2D updates it while stepping, so it is all zeros before the first
+        step.
+
+        Example:
+            >>> world = World()
+            >>> body = world.new_body().dynamic().circle(1).build()
+            >>> world.step(1 / 60, 4)
+            >>> world.max_capacity.dynamic_body_count
+            1
+            >>> roomy = World(capacity=world.max_capacity)
+        """
+        return Capacity.from_b2Capacity(lib.b2World_GetMaxCapacity(self._world_id))
 
     @property
     def awake_body_count(self) -> int:
