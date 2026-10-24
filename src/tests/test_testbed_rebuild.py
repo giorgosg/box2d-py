@@ -234,11 +234,14 @@ def test_reset_gives_a_hook_that_raised_another_go(simulation):
         simulation.update_physics()
         simulation.update_physics()
         assert Flaky.calls == 1, "set aside after raising"
+        assert "bad step" in state.scenario_error
 
         press(simulation.current_test_obj, "reset")
+        assert state.scenario_error is None, "the panel stops showing it"
         simulation.update_physics()
 
         assert Flaky.calls == 2
+        assert "bad step" in state.scenario_error, "and shows it again"
     finally:
         BaseTest.registry.pop("_Rebuild", None)
 

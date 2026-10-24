@@ -102,8 +102,10 @@ class TestbedSimulation:
         world = self.make_world()
         if test is self.current_test_obj:
             self._run(world)
-            # A new scene: the hooks set aside for raising get another go.
+            # A new scene: the hooks set aside for raising get another go, and
+            # the panel stops showing what they raised until one does again.
             self._failed_hooks = set()
+            state.scenario_error = None
         return world
 
     def _run(self, world):
