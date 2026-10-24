@@ -72,9 +72,9 @@ Simulation Parameters
 * ``world.gravity`` - Get/set gravitational acceleration vector (m/s²)
 * ``world.enable_sleeping`` - Toggle body sleeping for inactive objects
 * ``world.enable_continuous`` - Toggle continuous collision detection
-* ``world.contact_hertz`` - Get/set contact stiffness frequency
-* ``world.contact_damping_ratio`` - Get/set contact damping ratio
-* ``world.contact_push_velocity`` - Get/set max velocity for penetration resolution
+* ``world.contact_hertz`` - Get/set contact stiffness (Hz, default 30)
+* ``world.contact_damping_ratio`` - Get/set contact bounciness (non-dimensional, default 10)
+* ``world.contact_push_velocity`` - Get/set the cap on overlap resolution speed (m/s, default 3)
 * ``world.restitution_threshold`` - Get/set minimum speed for restitution effects
 * ``world.hit_event_threshold`` - Get/set minimum collision speed for hit events
 
@@ -84,7 +84,7 @@ Diagnostics
 * ``world.profile`` - Milliseconds spent in each phase of the last step (``Profile``)
 * ``world.counters`` - Bodies, shapes, contacts and bytes as of the last step (``Counters``)
 * ``world.max_capacity`` - The most the world has needed so far (``Capacity``, read-only);
-  pass it to ``World(capacity=...)`` so a new world for the same scene does not grow as it fills
+  pass it to ``World(capacity=...)`` to help a new world for the same scene avoid allocating as it fills
 
 Examples
 ^^^^^^^^

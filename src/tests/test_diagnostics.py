@@ -10,6 +10,7 @@ would silently produce zeros if a name stopped matching. The conformance
 tests below check every derived name against the struct.
 """
 
+import gc
 import os
 from dataclasses import fields
 
@@ -17,7 +18,13 @@ import pytest
 
 from box2d import Capacity, Profile, World
 from box2d._box2d import ffi, lib
-from box2d.diagnostics import _CAPACITY_FIELDS, _COUNTER_FIELDS, _PROFILE_FIELDS
+from box2d.diagnostics import (
+    MAX_ARENA_BYTE_COUNT,
+    MAX_CAPACITY_COUNT,
+    _CAPACITY_FIELDS,
+    _COUNTER_FIELDS,
+    _PROFILE_FIELDS,
+)
 
 
 @pytest.fixture
@@ -363,6 +370,17 @@ def test_max_capacity_grows_with_the_scene(world):
     assert capacity.arena_byte_count > 0
 
 
+def test_max_capacity_counts_kinematic_bodies_but_not_their_shapes(world):
+    """As Box2D 3.2 measures it, whatever its header says."""
+    for body_type in ("kinematic", "dynamic", "dynamic"):
+        body = world.add_body(body_type=body_type, position=(0, 10))
+        body.add_circle(radius=0.5)
+    world.step(1 / 60, 4)
+
+    assert world.max_capacity.dynamic_body_count == 3
+    assert world.max_capacity.dynamic_shape_count == 2
+
+
 def test_max_capacity_is_a_high_water_mark(world):
     boxes = _pile(world)
     for _ in range(60):
@@ -401,6 +419,10 @@ def test_a_capacity_fed_to_a_new_world_is_allocated_up_front():
     capacity = first.max_capacity
     first.destroy()
 
+    # Box2D's byte count covers every world, so a collection freeing some
+    # other test's world in between would be counted against these.
+    gc.collect()
+    gc.disable()
     probe = World()
     try:
         before = probe.counters.byte_count
@@ -414,22 +436,65 @@ def test_a_capacity_fed_to_a_new_world_is_allocated_up_front():
         sized.destroy()
     finally:
         probe.destroy()
+        gc.enable()
 
     assert sized_bytes > plain_bytes
 
 
-def test_a_world_made_with_a_capacity_simulates_as_usual():
-    sized = World(capacity=Capacity(dynamic_body_count=64, contact_count=128))
-    try:
-        boxes = _pile(sized)
-        for _ in range(120):
-            sized.step(1 / 60, 4)
-        assert sized.max_capacity.dynamic_body_count == 30, (
-            "the high-water mark counts what was used, not what was reserved"
+def test_a_world_made_with_a_capacity_simulates_as_a_plain_one_does():
+    """The room set aside changes where things are stored, not the physics."""
+
+    def settle(world):
+        try:
+            boxes = _pile(world)
+            for _ in range(120):
+                world.step(1 / 60, 4)
+            return [tuple(box.position) for box in boxes], world.max_capacity
+        finally:
+            world.destroy()
+
+    plain, _ = settle(World())
+    sized, used = settle(World(capacity=Capacity(dynamic_body_count=64)))
+
+    assert sized == plain, "positions should be bit-identical"
+    assert used.dynamic_body_count == 30, (
+        "the high-water mark counts what was used, not what was reserved"
+    )
+
+
+def test_capacity_round_trips_through_the_struct():
+    capacity = Capacity(1, 2, 3, 4, 5, 6)
+    c_capacity = ffi.new("b2Capacity*")
+    capacity._write_to(c_capacity)
+    assert Capacity.from_b2Capacity(c_capacity) == capacity
+
+
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("contact_count", -1, ValueError),
+        ("static_body_count", 1.5, TypeError),
+        ("dynamic_shape_count", 10.0, TypeError),
+        ("dynamic_body_count", True, TypeError),
+        ("static_shape_count", "10", TypeError),
+        ("contact_count", MAX_CAPACITY_COUNT + 1, ValueError),
+        ("arena_byte_count", MAX_ARENA_BYTE_COUNT + 1, ValueError),
+    ],
+)
+def test_world_refuses_a_capacity_field_out_of_range(field, value, error):
+    capacity = Capacity(**{field: value})
+    with pytest.raises(error, match=f"Capacity.{field}"):
+        World(capacity=capacity)
+
+
+def test_world_takes_a_large_capacity():
+    world = World(
+        capacity=Capacity(
+            static_body_count=MAX_CAPACITY_COUNT // 64,
+            arena_byte_count=MAX_ARENA_BYTE_COUNT // 64,
         )
-        assert all(box.position.y < 32 for box in boxes), "the boxes fell"
-    finally:
-        sized.destroy()
+    )
+    world.destroy()
 
 
 @pytest.mark.parametrize("capacity", [{"contact_count": 10}, (0, 0, 0, 0, 10, 0)])

@@ -182,13 +182,15 @@ class World(FixedAttributes):
             threads: How many threads to step on, the calling one included.
                 Above one, the world starts a thread pool of its own, which
                 it stops when destroyed. Worlds do not share threads.
-            capacity: Room to set aside up front, so the world does not grow
-                its storage as the scene fills: typically another world's
-                :attr:`max_capacity` after running the same scene. None
-                leaves Box2D's small starting sizes.
+            capacity: Room to set aside up front, which helps the world
+                avoid allocating as the scene fills: typically another
+                world's :attr:`max_capacity` after running the same scene.
+                None leaves Box2D's small starting sizes.
 
         Raises:
-            TypeError: If ``capacity`` is not a :class:`Capacity`.
+            TypeError: If ``capacity`` is not a :class:`Capacity`, or one of
+                its fields is not an int.
+            ValueError: If one of its fields is negative or over its limit.
 
         Example:
             >>> world = World(gravity=(0, -9.8))
@@ -203,7 +205,7 @@ class World(FixedAttributes):
                 raise TypeError(
                     f"capacity must be a Capacity, not {type(capacity).__name__}"
                 )
-            capacity._fill_b2Capacity(world_def.capacity)
+            capacity._write_to(world_def.capacity)
         self._threads = threads
         if threads > 1:
             if not HAS_THREADS:
@@ -1562,14 +1564,16 @@ class World(FixedAttributes):
 
     @property
     def contact_hertz(self) -> float:
-        """Contact constraint stiffness frequency (Hz).
+        """Contact stiffness, in cycles per second. Box2D's default is 30.
 
-        Higher values make contacts stiffer/more rigid. Box2D clamps a
-        negative value to zero.
+        Increasing this increases the speed of overlap recovery, but can
+        introduce jitter. Box2D clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_hertz = 30.0  # Softer contacts
+            >>> world.contact_hertz
+            30.0
+            >>> world.contact_hertz = 60.0  # Recover from overlap faster
         """
         return self._contact_tuning()[0]
 
@@ -1579,14 +1583,17 @@ class World(FixedAttributes):
 
     @property
     def contact_damping_ratio(self) -> float:
-        """Contact constraint damping ratio (0-1).
+        """Contact bounciness, non-dimensional. Box2D's default is 10.
 
-        1.0 = critical damping (fastest oscillation reduction). Box2D clamps a
-        negative value to zero.
+        You can speed up overlap recovery by decreasing this, with the
+        trade-off that overlap resolution becomes more energetic. Box2D
+        clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_damping_ratio = 0.2  # Add some energy absorption
+            >>> world.contact_damping_ratio
+            10.0
+            >>> world.contact_damping_ratio = 5.0  # Faster, livelier recovery
         """
         return self._contact_tuning()[1]
 
@@ -1596,14 +1603,18 @@ class World(FixedAttributes):
 
     @property
     def contact_push_velocity(self) -> float:
-        """Maximum velocity for pushing objects out of penetration (m/s).
+        """The fastest overlap is resolved, usually in m/s. Box2D's default
+        is 3.
 
-        Limits how fast contacts can separate penetrating bodies. Box2D clamps
-        a negative value to zero.
+        This only puts a cap on the resolution speed. The speed itself is
+        increased by increasing :attr:`contact_hertz` and/or decreasing
+        :attr:`contact_damping_ratio`. Box2D clamps a negative value to zero.
 
         Example:
             >>> world = World()
-            >>> world.contact_push_velocity = 2.0  # Allow faster separation
+            >>> world.contact_push_velocity
+            3.0
+            >>> world.contact_push_velocity = 1.0  # Push overlaps apart gently
         """
         return self._contact_tuning()[2]
 
@@ -1644,8 +1655,8 @@ class World(FixedAttributes):
         contacts and scratch memory.
 
         Pass it to a new world as ``World(capacity=...)`` and that world sets
-        the room aside up front instead of growing as the scene fills. It is
-        a high-water mark, so it does not fall when things are destroyed, and
+        the room aside up front, which helps it avoid allocating as the scene
+        fills. It is a high-water mark, so it does not fall when things are destroyed, and
         Box2D updates it while stepping, so it is all zeros before the first
         step.
 
