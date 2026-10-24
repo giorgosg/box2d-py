@@ -22,7 +22,7 @@ from .material import SurfaceMaterial
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ContactData
 from .accessors import b2_value
-from .lifetime import IdRef, is_live, raw_id
+from .lifetime import IdRef, is_live, join_world, raw_id
 from ._fixed_attributes import FixedAttributes
 from .accessors import b2_bool, b2_float
 
@@ -48,6 +48,7 @@ class Shape(FixedAttributes):
         # Every shape's constructor comes here before asking Box2D for it.
         body.world._refuse_while_locked("shape", "create")
         self._body = body
+        join_world(self, body.world)
         self.user_data = user_data
 
     def _set_handle(self):
@@ -314,7 +315,7 @@ class Shape(FixedAttributes):
         raw = raw_id(self, "_shape_id")
         if raw is None:
             return
-        if lib.b2Shape_IsValid(raw):
+        if self.is_valid:
             self._body.world._refuse_while_locked("shape")
             lib.b2DestroyShape(raw, bool(update_body_mass))
         body = getattr(self, "_body", None)
@@ -888,6 +889,7 @@ class Chain(FixedAttributes):
     def __init__(self, body: "Body", chaindef: ChainDef):
         body.world._refuse_while_locked("chain", "create")
         self._body = body
+        join_world(self, body.world)
         self.user_data = chaindef.user_data
         self._is_loop = chaindef.is_loop
         cd = chaindef.b2ChainDef
@@ -968,12 +970,14 @@ class Chain(FixedAttributes):
         raw = raw_id(self, "_chain_id")
         if raw is None:
             return
-        if lib.b2Chain_IsValid(raw):
+        if self.is_valid:
             self._body.world._refuse_while_locked("chain")
             lib.b2DestroyChain(raw)
         chains = getattr(self._body, "_chains", ())
         if self in chains:
             chains.remove(self)
+        for segment in self.segments:
+            del segment._shape_id
         del self._chain_id
 
     @property

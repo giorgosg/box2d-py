@@ -67,7 +67,7 @@ def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
     test = scenario(world, "Benchmark", "Spinner")
     test.body_count = type(test).body_count.max_value
 
-    bar, *pieces = dynamic_bodies(world)
+    bar, *pieces = dynamic_bodies(test.world)
     assert len(pieces) == test.body_count
 
     # The ring is 40 m in radius, round the origin. The corners of a piece's
@@ -89,7 +89,7 @@ def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
         [(-0.4, -40), (0.4, -40), (0.4, 0), (-0.4, 0)], radius=0.2
     )
     in_the_bar = [
-        shape for shape in world.query_shape(bar_shape) if shape.body in pieces
+        shape for shape in test.world.query_shape(bar_shape) if shape.body in pieces
     ]
     assert not in_the_bar, f"{len(in_the_bar)} pieces start inside the bar"
 
@@ -97,7 +97,7 @@ def test_every_spinner_piece_starts_inside_the_ring_and_clear_of_the_bar(world):
 def test_the_pyramid_stands_centred_on_the_origin(world):
     test = scenario(world, "Benchmark", "Pyramid")
     test.base_count = 6
-    boxes = dynamic_bodies(world)
+    boxes = dynamic_bodies(test.world)
 
     # Six boxes along the bottom, five on them and so on up to one at the top.
     assert len(boxes) == 21
@@ -139,7 +139,7 @@ def test_the_valley_has_one_box_in_each_place(world):
 def test_compound_count_sets_how_many_bodies_there_are(world):
     test = scenario(world, "Benchmark", "Compound")
     test.count = 2
-    assert len(dynamic_bodies(world)) == 4
+    assert len(dynamic_bodies(test.world)) == 4
 
 
 @pytest.mark.parametrize(
@@ -155,7 +155,7 @@ def test_the_pyramids_stand_and_fall_asleep(world, name, control, value, boxes):
     test = scenario(world, "Benchmark", name)
     if control is not None:
         setattr(test, control, value)
-    assert len(dynamic_bodies(world)) == boxes
+    assert len(dynamic_bodies(test.world)) == boxes
 
     bodies, moved = moved_from_start(test, 1.5)
 
@@ -166,7 +166,7 @@ def test_the_pyramids_stand_and_fall_asleep(world, name, control, value, boxes):
 def test_the_spinner_turns_at_full_speed_and_keeps_its_pieces_in(world):
     test = scenario(world, "Benchmark", "Spinner")
     test.body_count = 150
-    bar, *pieces = dynamic_bodies(world)
+    bar, *pieces = dynamic_bodies(test.world)
     assert len(pieces) == 150
 
     run(test, 2.0)

@@ -258,7 +258,7 @@ def test_respawn_drops_a_fresh_ragdoll_from_the_top(world):
 
     assert not landed.hip.is_valid, "the old figure is gone"
     assert test.human.hip.position.y > 20.0
-    assert len(dynamic_bodies(world)) == 11
+    assert len(dynamic_bodies(test.world)) == 11
 
 
 @pytest.mark.parametrize("name", ["Ragdoll", "Scale Ragdoll"])

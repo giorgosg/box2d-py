@@ -62,7 +62,7 @@ from .jointdef import (
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
-from .lifetime import IdRef, raw_id, is_live, wrapper_for
+from .lifetime import IdRef, raw_id, is_live, new_liveness, wrapper_for
 from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
 from typing import Optional
@@ -201,6 +201,9 @@ class World(FixedAttributes):
         self._handle = ffi.new_handle(self)
         world_def.userData = self._handle
 
+        # Shared with every object made in this world, and turned off when it
+        # is destroyed: see box2d.lifetime.
+        self._world_alive = new_liveness()
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
         # Contact tuning is cached because Box2D has only a combined setter
@@ -1313,7 +1316,7 @@ class World(FixedAttributes):
             ContactBeginEvent(
                 shape_a=resolve(event.shapeIdA),
                 shape_b=resolve(event.shapeIdB),
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, self),
             )
             for event in (events.beginEvents[i] for i in range(events.beginCount))
         ]
@@ -1321,7 +1324,7 @@ class World(FixedAttributes):
             ContactEndEvent(
                 shape_a=resolve(event.shapeIdA),
                 shape_b=resolve(event.shapeIdB),
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, self),
             )
             for event in (events.endEvents[i] for i in range(events.endCount))
         ]
@@ -1332,7 +1335,7 @@ class World(FixedAttributes):
                 point=Vec2(event.point.x, event.point.y),
                 normal=Vec2(event.normal.x, event.normal.y),
                 approach_speed=event.approachSpeed,
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, self),
             )
             for event in (events.hitEvents[i] for i in range(events.hitCount))
         ]
@@ -1414,8 +1417,21 @@ class World(FixedAttributes):
         if raw is not None:
             if lib.b2World_IsValid(raw):
                 self._refuse_while_locked("world")
+                # Gone from here: after a refusal, which leaves everything
+                # live, and before Box2D frees anything.
+                self._world_alive[0] = False
                 lib.b2DestroyWorld(raw)
+            # And if Box2D had already let go of it some other way.
+            self._world_alive[0] = False
             del self._world_id
+            # Box2D names a body, shape, chain or joint by the slot its world
+            # occupies rather than by the world, and the next world made takes
+            # the freed slot -- whose objects these ids would then name. So
+            # every wrapper lets go of its id now, and raises from here on.
+            for body in self._bodies.values():
+                body._forget_ids()
+            for joint in self._joints.values():
+                del joint._joint_id
             # Box2D's handles went with the world, so nothing needs these kept.
             self._bodies.clear()
             self._joints.clear()
@@ -1673,6 +1689,15 @@ class World(FixedAttributes):
     @contact_recycle_distance.setter
     def contact_recycle_distance(self, value: float):
         lib.b2World_SetContactRecycleDistance(self._world_id, float(value))
+
+    @property
+    def threads(self) -> int:
+        """How many threads the world was created to step on.
+
+        Fixed for the world's life: it is the size of the world's thread pool.
+        :attr:`worker_count` starts at it but can be changed afterwards.
+        """
+        return self._threads
 
     @property
     def worker_count(self) -> int:

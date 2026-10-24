@@ -39,8 +39,10 @@ def test_ray_cast_lays_out_the_same_shapes_every_time(world):
         again = scenario(other, "Collision", "Ray Cast")
         assert layout(other) == first, "opened again"
         press(again, "reset")
-        assert layout(other) == first, "reset"
+        assert layout(again.world) == first, "reset"
     finally:
+        # The world Reset made is destroyed by the rebuilt_worlds_destroyed
+        # fixture; this one, if Reset did not get as far as destroying it.
         other.destroy()
 
 

@@ -20,7 +20,7 @@ Events are opt-in per shape, and Box2D defaults them off:
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 
-from ._checked import lib
+from ._checked import ffi, lib
 from .dataclasses import ContactData
 from .math import Transform, Vec2
 
@@ -42,21 +42,41 @@ class Contact:
     :attr:`is_valid` before reading :attr:`data`.
     """
 
-    __slots__ = ("_contact_id", "_key")
+    __slots__ = ("_id_copy", "_world_alive", "_key")
 
-    def __init__(self, contact_id):
-        self._contact_id = contact_id
+    def __init__(self, contact_id, world):
+        """
+        Args:
+            contact_id: The ``b2ContactId`` Box2D reported.
+            world: The :class:`.World` that reported it. A contact id names
+                its world only by slot, which the next world made reuses, so
+                the world is what tells a contact of a destroyed world from
+                one in the world that took its place. The contact does not
+                keep the world alive.
+        """
+        # A copy the handle owns. What Box2D reports is a view into its event
+        # array, which the next step refills with other contacts' ids, and
+        # which is freed with the world.
+        self._id_copy = ffi.new("b2ContactId *", contact_id)
+        # The world's liveness flag rather than the world: see box2d.lifetime.
+        self._world_alive = world._world_alive
         # cdata structs are not hashable, so identity travels as a plain tuple.
         self._key = (
             contact_id.index1,
             contact_id.world0,
+            world._world_id.generation,
             contact_id.generation,
         )
 
     @property
+    def _contact_id(self):
+        """The contact's ``b2ContactId``."""
+        return self._id_copy[0]
+
+    @property
     def is_valid(self) -> bool:
-        """Whether Box2D still recognises this contact."""
-        return bool(lib.b2Contact_IsValid(self._contact_id))
+        """Whether Box2D still recognises this contact, in a live world."""
+        return self._world_alive[0] and bool(lib.b2Contact_IsValid(self._contact_id))
 
     @property
     def data(self) -> Optional[ContactData]:

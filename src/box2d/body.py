@@ -5,7 +5,7 @@ from .joint import Joint
 from typing import TYPE_CHECKING, Sequence, List
 from .dataclasses import MassData, ContactData, BodyDef
 from .accessors import b2_bool, b2_float, b2_value
-from .lifetime import IdRef, raw_id, is_live
+from .lifetime import IdRef, raw_id, is_live, join_world
 from ._fixed_attributes import FixedAttributes
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
@@ -570,6 +570,7 @@ class Body(FixedAttributes):
         """
         world._refuse_while_locked("body", "create")
         self.world = world
+        join_world(self, world)
         self._handle = ffi.new_handle(self)
 
         # Box2D's userData carries the handle that maps an id back to this
@@ -1115,14 +1116,30 @@ class Body(FixedAttributes):
         # Box2D destroys the attached joints with the body, so their wrappers
         # are looked up first, while the ids still lead to them.
         joints = []
-        if lib.b2Body_IsValid(raw):
+        if self.is_valid:
             self.world._refuse_while_locked("body")
             joints = self._read_joints()
             lib.b2DestroyBody(raw)
         self.world._untrack_body(raw)
-        del self._body_id
+        self._forget_ids()
         for joint in joints:
             joint._release()
+
+    def _forget_ids(self):
+        """Let go of the ids of this body, its shapes and its chains.
+
+        For when Box2D has taken them all down at once, with the body or with
+        the world. Each would raise anyway, by its own check or its world's;
+        letting go as well means nothing is left holding an id that a later
+        object could come to own.
+        """
+        for shape in self._shapes:
+            del shape._shape_id
+        for chain in self._chains:
+            for segment in chain.segments:
+                del segment._shape_id
+            del chain._chain_id
+        del self._body_id
 
     def get_local_point(self, world_point: VectorLike) -> Vec2:
         """Convert a point from world space to local body space.

@@ -54,7 +54,7 @@ def test_reset_rebuilds_the_platform_with_the_shape_and_scale_chosen(world):
 
     test.reset = (test.reset or 0) + 1
 
-    platform = next(body for body in world.bodies if body.type == "kinematic")
+    platform = next(body for body in test.world.bodies if body.type == "kinematic")
     (shape,) = platform.shapes
     assert isinstance(shape, Polygon), f"the platform is a {type(shape).__name__}"
     # Box2D's sample makes the polygon a box 0.5 by 0.75 from its centre.
