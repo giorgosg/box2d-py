@@ -41,7 +41,9 @@ def test_ray_cast_lays_out_the_same_shapes_every_time(world):
         press(again, "reset")
         assert layout(again.world) == first, "reset"
     finally:
-        again.world.destroy()
+        # The world Reset made is destroyed by the rebuilt_worlds_destroyed
+        # fixture; this one, if Reset did not get as far as destroying it.
+        other.destroy()
 
 
 def test_ray_cast_leaves_pythons_random_numbers_alone(world):

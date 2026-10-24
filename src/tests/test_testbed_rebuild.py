@@ -1,4 +1,5 @@
-"""A reset scene runs again exactly as it first did.
+"""A reset scene runs again exactly as it first did, given the same random
+numbers -- several scenes are built from Python's, and draw new ones on Reset.
 
 rebuild() builds the scene again in a new world, made as the first one was.
 It used to build it in the world it already lived in, and that could not be
@@ -170,6 +171,76 @@ def test_reset_in_the_testbed_moves_everything_onto_the_new_world(simulation):
     assert (state.center, state.scale) == ((3.0, 4.0), 7.0), "the view is kept"
     simulation.update_physics()  # steps the new world, not the old one
     assert state.step_count == 1
+
+
+def test_rebuilding_a_scenario_no_longer_open_leaves_the_testbed_alone(simulation):
+    """A scenario object outlives its turn -- a console name can hold it --
+    and rebuilding it must not swap the open scenario's world out."""
+    left = simulation.current_test_obj
+    state.current_test_cls = BaseTest.registry["Joints"]["Soft Body"]
+    simulation.init_test()
+    showing = simulation.world
+
+    left.rebuild()
+
+    assert simulation.world is showing and showing.is_valid
+    assert simulation.current_test_obj.world is showing
+    assert left.world is not showing
+    left.world.destroy()
+
+
+def test_reset_rebuilds_a_scenario_that_takes_only_a_world(simulation):
+    """Scenarios may override __init__(self, world); the testbed must not
+    need them to accept anything more."""
+
+    class Own(BaseTest, category="_Rebuild", name="Own"):
+        def __init__(self, world):
+            super().__init__(world)
+
+        def setup(self):
+            self.world.new_body().dynamic().circle(0.5).build()
+
+    try:
+        state.current_test_cls = Own
+        simulation.init_test()
+        test = simulation.current_test_obj
+        assert test is not None, state.scenario_error
+        old = simulation.world
+
+        press(test, "reset")
+
+        assert not old.is_valid
+        assert simulation.world is test.world
+    finally:
+        BaseTest.registry.pop("_Rebuild", None)
+
+
+def test_reset_gives_a_hook_that_raised_another_go(simulation):
+    """A hook that raises is set aside until the scene is built again."""
+
+    class Flaky(BaseTest, category="_Rebuild", name="Flaky"):
+        calls = 0
+
+        def setup(self):
+            pass
+
+        def after_step(self, dt):
+            Flaky.calls += 1
+            raise ValueError("bad step")
+
+    try:
+        state.current_test_cls = Flaky
+        simulation.init_test()
+        simulation.update_physics()
+        simulation.update_physics()
+        assert Flaky.calls == 1, "set aside after raising"
+
+        press(simulation.current_test_obj, "reset")
+        simulation.update_physics()
+
+        assert Flaky.calls == 2
+    finally:
+        BaseTest.registry.pop("_Rebuild", None)
 
 
 def test_reset_in_the_testbed_makes_the_world_with_the_panels_settings(simulation):

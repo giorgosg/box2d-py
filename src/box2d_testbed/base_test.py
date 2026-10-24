@@ -66,18 +66,19 @@ class BaseTest:
         BaseTest.registry[category][name] = cls
         cls.category, cls.name = category, name
 
-    def __init__(self, world, new_world=None):
+    def __init__(self, world):
         """
         Args:
             world: The world to build the scene in.
-            new_world: Makes the world each rebuild builds the scene in again,
-                called with no arguments. The testbed passes its own, which
-                makes the world with its settings panel's values as they are
-                then. Left out, a rebuild gets a world made like ``world`` as
-                it is now -- before setup has changed anything in it.
         """
         self.world = world
-        self._new_world = new_world if new_world is not None else world_like(world)
+        # Makes the world each rebuild builds the scene in again, called with
+        # no arguments: one like ``world`` as it is now, before setup has
+        # changed anything in it. The testbed replaces it, once the scenario
+        # is constructed, with one that makes its worlds from its settings
+        # panel -- afterwards, so a scenario can override __init__ taking
+        # just the world.
+        self._new_world = world_like(world)
         self.mouse_joint = None  # For default dragging
         self._setup_started = False
         # Whichever setup this scenario ends up with -- its own, a parent's or
@@ -291,7 +292,9 @@ class BaseTest:
         id order and hands freed ids back last-freed-first, so a scene built
         again in a world that has run gets its contacts numbered in another
         order, and a marginal scene comes out differently. A new world starts
-        its numbering from the beginning, as the first one did.
+        its numbering from the beginning, as the first one did -- so the scene
+        runs as it first did, unless it was built from Python's random
+        numbers, which come out differently each time it is built.
 
         So the world is a different object afterwards: read ``self.world``
         when it is needed rather than keeping it, and set up in ``setup``
@@ -333,6 +336,7 @@ class BaseTest:
 #: What :func:`world_like` copies, besides gravity and threads: every world
 #: setting with a getter. (The SSE2 fallback has none, so is not copied.)
 WORLD_SETTINGS = (
+    "worker_count",
     "enable_sleeping",
     "enable_continuous",
     "enable_warm_starting",
@@ -374,8 +378,7 @@ def world_like(world):
         A callable taking no arguments that returns a new World.
     """
     gravity = world.gravity
-    # The world's thread count, which is what the worker count starts at.
-    threads = world.worker_count
+    threads = world.threads
     settings = {name: getattr(world, name) for name in WORLD_SETTINGS}
     for name in WORLD_CALLBACKS:
         function = getattr(world, name)

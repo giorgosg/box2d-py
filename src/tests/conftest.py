@@ -42,6 +42,34 @@ def world():
     world.destroy()
 
 
+@pytest.fixture(autouse=True)
+def rebuilt_worlds_destroyed(monkeypatch):
+    """Destroy every world a scenario's rebuild made, after the test.
+
+    A rebuild builds the scene again in a new world, which the scenario holds
+    and the test never sees, so no fixture of the test's destroys it. Left to
+    the garbage collector, Box2D's 128 world slots run out in a run with it
+    off, or merely slow. So the worlds are recorded where rebuilds make them.
+    """
+    try:
+        from box2d_testbed import base_test
+    except ImportError:  # no testbed, so no rebuilds
+        yield
+        return
+
+    made = []
+
+    def recorded(*args, **kwargs):
+        world = World(*args, **kwargs)
+        made.append(world)
+        return world
+
+    monkeypatch.setattr(base_test, "World", recorded)
+    yield
+    for world in made:
+        world.destroy()  # a no-op on one a later rebuild destroyed
+
+
 @pytest.fixture
 def random_left_as_it_was():
     """Put Python's random numbers back as they were after the test.

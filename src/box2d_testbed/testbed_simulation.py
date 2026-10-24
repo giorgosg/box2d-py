@@ -18,6 +18,7 @@ from box2d import World
 from .base_test import BaseTest
 from .scenario_loader import loader
 from .scenario_store import UserStore, user_scenario_dir
+import functools
 import time
 import traceback
 
@@ -51,7 +52,7 @@ class TestbedSimulation:
         print(f"Initializing test: {self.current_test_cls.__name__}")
         if self.world:
             self.world.destroy()
-        self.new_world()
+        self._run(self.make_world())
         state.scenario_error = None
         self._failed_hooks = set()
 
@@ -61,10 +62,12 @@ class TestbedSimulation:
         # everything that would have driven one checks for that; the error goes
         # where the scenario's own panel was.
         try:
-            self.current_test_obj = state.current_test_cls(
-                self.world, new_world=self.new_world
-            )
-            self.current_test_obj.setup()
+            test = state.current_test_cls(self.world)
+            # Handed over after construction rather than to it, so a scenario
+            # overriding __init__ need take only the world.
+            test._new_world = functools.partial(self._new_world_for, test)
+            self.current_test_obj = test
+            test.setup()
         except BaseException:
             state.scenario_error = traceback.format_exc()
             print(state.scenario_error, end="")
@@ -79,23 +82,36 @@ class TestbedSimulation:
         state.perf.physics_ms_max = 0
         state.perf.draw_ms_max = 0
 
-    def new_world(self):
-        """Make a world the way the testbed makes them, and run that one.
+    def make_world(self):
+        """A new world, made with the settings panel's values as they are now."""
+        world = World(gravity=state.gravity, threads=state.threads)
+        self._configure(world)
+        return world
 
-        With the settings panel's values as they are now. Called for a newly
-        opened scenario, and by the scenario itself whenever it rebuilds --
-        the Reset button among others -- which destroys the old world rather
-        than this; so whichever world the scenario is in is the one stepped,
-        drawn and bound in the console.
+    def _new_world_for(self, test):
+        """Make the world ``test`` rebuilds in, and run it if ``test`` is open.
+
+        The scenario calls this whenever it rebuilds -- the Reset button among
+        others -- and destroys its old world itself. A scenario object can
+        outlive its turn, though: a name in the console can hold one, and
+        rebuilding that must not take the open scenario's world away.
 
         Returns:
-            World: The new world, which is ``self.world`` from now on.
+            World: The new world.
         """
-        self.world = World(gravity=state.gravity, threads=state.threads)
-        self.threads = state.threads
-        self.apply_world_settings()
+        world = self.make_world()
+        if test is self.current_test_obj:
+            self._run(world)
+            # A new scene: the hooks set aside for raising get another go.
+            self._failed_hooks = set()
+        return world
+
+    def _run(self, world):
+        """Make ``world`` the one stepped, drawn and bound in the console."""
+        self.world = world
+        self.threads = world.threads
+        self._applied_settings = self.world_settings()
         state.step_count = 0
-        return self.world
 
     @staticmethod
     def world_settings():
@@ -114,12 +130,17 @@ class TestbedSimulation:
         Kept in one place so a setting added to the panel cannot be applied on
         a fresh world but forgotten when it is changed later, or the reverse.
         """
-        self.world.enable_continuous = state.enable_continuous
-        self.world.enable_sleeping = state.enable_sleeping
-        self.world.enable_warm_starting = state.enable_warm_starting
-        self.world.max_linear_speed = state.max_linear_speed
-        self.world.contact_recycle_distance = state.contact_recycle_distance
+        self._configure(self.world)
         self._applied_settings = self.world_settings()
+
+    @staticmethod
+    def _configure(world):
+        """Set the UI's world settings on ``world``."""
+        world.enable_continuous = state.enable_continuous
+        world.enable_sleeping = state.enable_sleeping
+        world.enable_warm_starting = state.enable_warm_starting
+        world.max_linear_speed = state.max_linear_speed
+        world.contact_recycle_distance = state.contact_recycle_distance
 
     def reset_view(self):
         """Point the camera at the current scenario."""

@@ -142,13 +142,16 @@ def test_rebuild_builds_in_a_new_world_and_destroys_the_old_one(world, scenario_
 
 
 def test_rebuild_makes_its_world_with_the_maker_it_was_given(world, scenario_class):
+    """The testbed hands over its own maker after constructing the scenario,
+    so a scenario overriding __init__(self, world) needs nothing more."""
     made = []
 
     def new_world():
         made.append(World(gravity=(0, -3)))
         return made[-1]
 
-    scenario = scenario_class(world, new_world=new_world)
+    scenario = scenario_class(world)
+    scenario._new_world = new_world
     scenario.setup()
     scenario.rebuild()
     scenario.rebuild()
@@ -200,14 +203,18 @@ def test_without_a_maker_a_rebuild_copies_the_world_as_the_scenario_found_it():
         new.destroy()
 
 
-def test_world_like_keeps_the_thread_count(world):
+def test_world_like_keeps_the_threads_and_the_split_apart():
+    """The thread count is the pool's size and fixed; the worker count is
+    how a step is split, and can be changed after creation."""
     try:
         threaded = World(threads=2)
     except RuntimeError:
         pytest.skip("this build has no threads")
+    threaded.worker_count = 3
     copy = world_like(threaded)()
     try:
-        assert copy.worker_count == 2
+        assert copy.threads == 2
+        assert copy.worker_count == 3
     finally:
         copy.destroy()
         threaded.destroy()
