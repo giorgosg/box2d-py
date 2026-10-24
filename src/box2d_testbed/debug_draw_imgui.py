@@ -27,24 +27,27 @@ from .testbed_state import state
 
 # The draw-list bits that switch anti-aliasing, in whichever spelling this
 # binding has. imgui 1.93 merged ImDrawListFlags_ into ImDrawFlags_, renaming
-# them, and the browser's imgui_bundle 1.92.4 has only the old names -- so the
-# binding is asked which it has, as add_polyline's keywords are below, rather
-# than told by a version number.
+# them, and the browser's imgui_bundle 1.92.4 has only the old names. Which
+# enum exists is the thing that differs, so that is what is checked, rather
+# than a version number that only implies it.
 #
-# _AA_LINES is what turning lines on sets; _AA_LINES_ALL is what turning them
-# off clears, which takes the bits that only refine anti-aliased lines with it.
+# _AA_LINES is what turning lines on sets; _AA_LINES_OFF_MASK is what turning
+# them off clears, which takes the bits that only refine anti-aliased lines
+# with it.
 # Plain ints: ~ on an IntFlag complements only within the bits its enum
 # declares, so masking with it would also clear any bit the enum has no name
 # for -- and 1.92's ImDrawListFlags_ names five bits of a 32-bit field.
 if hasattr(imgui, "ImDrawListFlags_"):
     _AA_LINES = int(imgui.ImDrawListFlags_.anti_aliased_lines)
-    _AA_LINES_ALL = _AA_LINES | int(imgui.ImDrawListFlags_.anti_aliased_lines_use_tex)
+    _AA_LINES_OFF_MASK = _AA_LINES | int(
+        imgui.ImDrawListFlags_.anti_aliased_lines_use_tex
+    )
     _AA_FILL = int(imgui.ImDrawListFlags_.anti_aliased_fill)
 else:
     # 1.93 always anti-aliases lines with textures, so the textured variant is
     # gone; anti-aliased line ends are new, and off by default.
     _AA_LINES = int(imgui.ImDrawFlags_.aa_lines)
-    _AA_LINES_ALL = _AA_LINES | int(imgui.ImDrawFlags_.aa_line_ends)
+    _AA_LINES_OFF_MASK = _AA_LINES | int(imgui.ImDrawFlags_.aa_line_ends)
     _AA_FILL = int(imgui.ImDrawFlags_.aa_fill)
 
 
@@ -191,7 +194,7 @@ class ImGuiDebugDraw(DebugDraw):
         if self.antialias_lines:
             flags |= _AA_LINES
         else:
-            flags &= ~_AA_LINES_ALL
+            flags &= ~_AA_LINES_OFF_MASK
         if self.antialias_fill:
             flags |= _AA_FILL
         else:
