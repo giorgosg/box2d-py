@@ -1124,6 +1124,21 @@ class Body(FixedAttributes):
         for joint in joints:
             joint._release()
 
+    def _forget_ids(self):
+        """Let go of the ids of this body, its shapes and its chains.
+
+        For :meth:`.World.destroy`, which takes them all down at once: a world
+        made afterwards reuses the destroyed world's slot, and Box2D would
+        take these ids for its objects.
+        """
+        for shape in self._shapes:
+            del shape._shape_id
+        for chain in self._chains:
+            for segment in chain.segments:
+                del segment._shape_id
+            del chain._chain_id
+        del self._body_id
+
     def get_local_point(self, world_point: VectorLike) -> Vec2:
         """Convert a point from world space to local body space.
 

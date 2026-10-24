@@ -169,3 +169,41 @@ def test_is_valid_is_a_property_everywhere():
 
     for cls in (World, Body, Shape, Chain, Joint, Contact):
         assert isinstance(cls.__dict__.get("is_valid"), property), cls.__name__
+
+
+def test_a_world_made_after_one_is_destroyed_does_not_revive_its_objects():
+    """Box2D names a body, shape, chain or joint by its world's slot, not by
+    the world, and a world made after a destroy takes the freed slot. So the
+    old ids named the new world's objects: an old body read a new body's
+    position, and an old circle read a polygon as if it were one.
+    """
+    old = World()
+    body = old.new_body().dynamic().position(1, 2).circle(0.5).build()
+    shape = body.shapes[0]
+    chain = old.new_body().static().chain([(0, 0), (1, 0), (2, 0)]).build().chains[0]
+    segment = chain.segments[0]
+    joint = old.add_distance_joint(body, old.new_body().static().build())
+    old.destroy()
+
+    new = World()
+    try:
+        # As much as the old world had, so every old id has a new namesake.
+        new.new_body().dynamic().position(7, 7).box(1, 1).build()
+        new.new_body().static().chain([(0, 5), (1, 5), (2, 5)]).build()
+        anchor = new.new_body().static().build()
+        new.add_distance_joint(new.bodies[0], anchor)
+
+        for gone in (body, shape, chain, segment, joint):
+            assert gone.is_valid is False, type(gone).__name__
+        with pytest.raises(DestroyedError):
+            body.position
+        with pytest.raises(DestroyedError):
+            shape.radius
+        with pytest.raises(DestroyedError):
+            segment.friction
+        with pytest.raises(DestroyedError):
+            chain.get_surface_material()
+        with pytest.raises(DestroyedError):
+            joint.rest_length
+    finally:
+        new.destroy()

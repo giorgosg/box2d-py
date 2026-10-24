@@ -1416,6 +1416,14 @@ class World(FixedAttributes):
                 self._refuse_while_locked("world")
                 lib.b2DestroyWorld(raw)
             del self._world_id
+            # Box2D names a body, shape, chain or joint by the slot its world
+            # occupies rather than by the world, and the next world made takes
+            # the freed slot -- whose objects these ids would then name. So
+            # every wrapper lets go of its id now, and raises from here on.
+            for body in self._bodies.values():
+                body._forget_ids()
+            for joint in self._joints.values():
+                del joint._joint_id
             # Box2D's handles went with the world, so nothing needs these kept.
             self._bodies.clear()
             self._joints.clear()
