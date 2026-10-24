@@ -1239,7 +1239,8 @@ class DistanceJoint(Joint):
                 At zero it only pulls, like a rope.
 
         Raises:
-            ValueError: If lower_spring_force is above upper_spring_force.
+            ValueError: If lower_limit is above upper_limit, or
+                lower_spring_force above upper_spring_force.
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
@@ -1268,6 +1269,7 @@ class DistanceJoint(Joint):
             defn.minLength = self._lower_limit
         if self._upper_limit is not None:
             defn.maxLength = self._upper_limit
+        _ordered(defn.minLength, defn.maxLength, "distance joint limits")
 
         defn.enableLimit = self._enable_limit
         defn.enableSpring = self._enable_spring
@@ -1378,30 +1380,42 @@ class DistanceJoint(Joint):
 
     @property
     def lower_limit(self):
-        """The shortest the joint may get, in metres, when the limit is enabled."""
+        """The shortest the joint may get, in metres, when the limit is enabled.
+
+        Cannot be set above the upper.
+        """
         return lib.b2DistanceJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
     def lower_limit(self, value):
-        self.set_limits(float(value), self.upper_limit)
+        self.set_limits(value, self.upper_limit)
 
     @property
     def upper_limit(self):
-        """The longest the joint may get, in metres, when the limit is enabled."""
+        """The longest the joint may get, in metres, when the limit is enabled.
+
+        Cannot be set below the lower.
+        """
         return lib.b2DistanceJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
     def upper_limit(self, value):
-        self.set_limits(self.lower_limit, float(value))
+        self.set_limits(self.lower_limit, value)
 
     def set_limits(self, lower, upper):
         """Set the shortest and longest the joint may get, in metres.
 
+        Box2D clamps both to at least its linear slop.
+
         Args:
             lower (float): Lower length limit
             upper (float): Upper length limit
+
+        Raises:
+            ValueError: If lower is above upper.
         """
-        lib.b2DistanceJoint_SetLimits(self._joint_id, float(lower), float(upper))
+        lower, upper = _ordered(lower, upper, "distance joint limits")
+        lib.b2DistanceJoint_SetLimits(self._joint_id, lower, upper)
 
     enable_motor = b2_bool(
         lib.b2DistanceJoint_IsMotorEnabled,

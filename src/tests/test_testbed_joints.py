@@ -267,3 +267,13 @@ def test_each_ragdoll_scenario_opens_with_its_figure_in_view(world, name):
     assert_view_takes_in_moving_bodies(test)
     run(test, 5.0)
     assert_view_takes_in_moving_bodies(test)
+
+
+def test_distance_joint_sliders_may_pass_each_other(world):
+    """The joint refuses crossed limits, but its two sliders move freely."""
+    test = scenario(world, "Joints", "Distance Joint")
+    test.max_length = 1.5
+    test.min_length = 3.0
+    for joint in test.joints:
+        assert joint.lower_limit == pytest.approx(1.5)
+        assert joint.upper_limit == pytest.approx(3.0)

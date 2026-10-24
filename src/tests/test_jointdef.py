@@ -510,6 +510,14 @@ _LIMITED = {
     "revolute": RevoluteJointDef,
     "prismatic": PrismaticJointDef,
     "wheel": WheelJointDef,
+    # Distance limits are lengths, which Box2D clamps to be positive, so the
+    # values below are all positive.
+    "distance": DistanceJointDef,
+}
+
+#: Box2D defaults both limits of these to zero.
+_ZERO_DEFAULT_LIMITS = {
+    name: definition for name, definition in _LIMITED.items() if name != "distance"
 }
 
 
@@ -519,22 +527,22 @@ def limited_joint(request, world, bodies):
 
 
 def test_each_limit_can_be_set_on_its_own(limited_joint):
-    limited_joint.set_limits(-1.0, 1.0)
-    limited_joint.lower_limit = -0.5
-    limited_joint.upper_limit = 0.75
-    assert limited_joint.lower_limit == pytest.approx(-0.5)
-    assert limited_joint.upper_limit == pytest.approx(0.75)
+    limited_joint.set_limits(1.0, 3.0)
+    limited_joint.lower_limit = 1.5
+    limited_joint.upper_limit = 2.75
+    assert limited_joint.lower_limit == pytest.approx(1.5)
+    assert limited_joint.upper_limit == pytest.approx(2.75)
 
 
 def test_limits_that_cross_are_refused(limited_joint):
-    limited_joint.set_limits(-1.0, 1.0)
+    limited_joint.set_limits(1.0, 3.0)
     with pytest.raises(ValueError, match="lower 2.0 is above upper 1.0"):
         limited_joint.set_limits(2.0, 1.0)
     with pytest.raises(ValueError, match="above upper"):
-        limited_joint.lower_limit = 1.5
+        limited_joint.lower_limit = 3.5
     with pytest.raises(ValueError, match="above upper"):
-        limited_joint.upper_limit = -1.5
-    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (-1.0, 1.0)
+        limited_joint.upper_limit = 0.5
+    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (1.0, 3.0)
 
 
 @pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
@@ -553,7 +561,9 @@ def test_a_limit_can_be_set_equal_to_the_other(limited_joint):
     assert limited_joint.upper_limit == pytest.approx(0.1)
 
 
-@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+@pytest.mark.parametrize(
+    "definition", list(_ZERO_DEFAULT_LIMITS.values()), ids=list(_ZERO_DEFAULT_LIMITS)
+)
 def test_one_limit_alone_is_checked_against_the_others_default(
     world, bodies, definition
 ):

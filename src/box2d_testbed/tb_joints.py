@@ -577,13 +577,22 @@ class DistanceChain(BaseTest, category="Joints", name="Distance Joint"):
                     spring_hertz=self.hertz,
                     spring_damping_ratio=self.damping_ratio,
                     rest_length=self.length,
-                    lower_limit=self.min_length,
-                    upper_limit=self.max_length,
+                    lower_limit=self.limits[0],
+                    upper_limit=self.limits[1],
                     enable_spring=self.enable_spring,
                     enable_limit=self.enable_limit,
                 )
             )
             previous = body
+
+    @property
+    def limits(self):
+        """The two length sliders as (lower, upper), whichever is larger.
+
+        The sliders move independently, so either can pass the other, and
+        the joint refuses a lower limit above its upper.
+        """
+        return tuple(sorted((self.min_length, self.max_length)))
 
     @enable_spring.callback
     @enable_limit.callback
@@ -597,8 +606,7 @@ class DistanceChain(BaseTest, category="Joints", name="Distance Joint"):
             joint.enable_spring = self.enable_spring
             joint.enable_limit = self.enable_limit
             joint.rest_length = self.length
-            joint.lower_limit = self.min_length
-            joint.upper_limit = self.max_length
+            joint.set_limits(*self.limits)
             joint.spring_hertz = self.hertz
             joint.spring_damping_ratio = self.damping_ratio
             # A chain at rest is asleep, and would not notice the change.
