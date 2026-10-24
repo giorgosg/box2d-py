@@ -232,7 +232,7 @@ class Shape(FixedAttributes):
         The AABB (Axis-Aligned Bounding Box) is the smallest rectangle
         that completely contains the shape in world coordinates.
         """
-        b2aabb = lib.b2Shape_GetAABB(self._shape_id)
+        b2aabb = lib.b2Shape_GetBounds(self._shape_id)
         return AABB.from_b2AABB(b2aabb)
 
     @property
@@ -391,7 +391,7 @@ class Shape(FixedAttributes):
         """
         # 3.2 takes the origin and translation directly rather than a
         # b2RayCastInput, and always casts the full translation.
-        output = lib.b2Shape_RayCast(
+        output = lib.b2Shape_CastRay(
             self._shape_id, Vec2(origin).b2Vec2[0], Vec2(translation).b2Vec2[0]
         )
         return CastResult.from_b2CastOutput(output)

@@ -303,23 +303,38 @@ def test_a_dropped_figure_lands_and_settles(world):
 def test_a_stiff_figure_folds_less_than_a_limp_one(world):
     """What the friction control is for: joints that resist bending."""
 
-    def bending_after_landing(friction):
+    def largest_bend_until_asleep(friction):
         world = World()
         ground = world.add_body(position=(0, 0))
         ground.add_segment((-40, 0), (40, 0))
         human = Human(world, (0, 8), friction_torque=friction)
         joints = [bone.joint for bone in human.bones if bone.joint is not None]
         start = [joint.angle for joint in joints]
+        largest = 0.0
         for _ in range(500):
             world.step(1 / 60, 4)
-        bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
+            bent = sum(abs(joint.angle - angle) for joint, angle in zip(joints, start))
+            largest = max(largest, bent)
+        # The largest bend is only the whole story if nothing moves after the
+        # last step. From some drop heights the stiff figure never settles --
+        # its joints keep creeping on the ground -- and its largest bend then
+        # grows with however many steps are run.
+        assert not any(bone.body.awake for bone in human.bones), (
+            f"friction {friction}: the figure was still moving after 500 steps"
+        )
         world.destroy()
-        return bent
+        return largest
 
-    # Measured on the joints rather than on where the head ends up: a limp
-    # figure may crumple into a pile or fall flat depending on how it lands,
-    # and Box2D 3.2's contact changes moved it from one to the other.
-    assert bending_after_landing(50.0) < 0.5 * bending_after_landing(0.0)
+    # The largest bend at any point, not how bent the figure is once it
+    # settles. Lying on flat ground straightens a limp figure back out, so at
+    # rest the two measured about the same, and the comparison came down to
+    # how the stiff figure happened to land a second time after bouncing --
+    # which Box2D v3.2.0 changed by recycling the contacts of fast bodies too.
+    # Measured 2026-10-24 for this 8 m drop, with both figures asleep by step
+    # 500: stiff over limp is 0.137 on v3.2.0 and 0.090 on the ac7c751 pin
+    # before it. Only this height was checked that way; at some lower drops
+    # the stiff figure never sleeps, which is what the assertion above guards.
+    assert largest_bend_until_asleep(50.0) < 0.5 * largest_bend_until_asleep(0.0)
 
 
 # --- resizing ----------------------------------------------------------------

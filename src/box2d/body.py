@@ -677,7 +677,7 @@ class Body(FixedAttributes):
 
         Conservative: it may overestimate, never underestimate.
         """
-        return lib.b2Body_GetMaxExtentOrigin(self._body_id)
+        return lib.b2Body_GetMaxExtentFromOrigin(self._body_id)
 
     def _set_motion_lock(self, axis: str, value: bool) -> None:
         """Set one of the three motion locks, leaving the others alone."""
@@ -726,9 +726,14 @@ class Body(FixedAttributes):
         lib.b2Body_EnableContactRecycling,
         doc="""Whether this body's contacts may be reused between steps.
 
-        Recycling keeps the impulses the solver had already worked out, which
-        steadies a body resting on something. Turning it off trades that for
-        less per-step work, which Box2D suggests for characters.
+        While two shapes stay within the world's contact_recycle_distance of
+        where they were when last collided, their contact keeps its points and
+        only has their separation updated, rather than being collided again.
+        That is cheaper and keeps stacks steady, but a reused contact can be
+        stale enough to cause ghost collisions, which is why Box2D suggests
+        turning it off for characters, at the cost of more work per step.
+        Fast-moving bodies are recycled too as of Box2D v3.2.0; up to the
+        ac7c751 snapshot before it, their contacts were always collided again.
 
         Existing contacts keep the setting they were created with, so a change
         takes effect for contacts made after it.
@@ -807,8 +812,8 @@ class Body(FixedAttributes):
         return Transform.from_b2Transform(b2transform)
 
     enable_sleep = b2_bool(
-        lib.b2Body_IsSleepEnabled,
-        lib.b2Body_EnableSleep,
+        lib.b2Body_IsSleepingEnabled,
+        lib.b2Body_EnableSleeping,
         doc="Get or set whether this body is allowed to fall asleep.",
     )
 
@@ -1086,7 +1091,7 @@ class Body(FixedAttributes):
 
     def is_sleep_enabled(self):
         """Check if the body is allowed to sleep."""
-        return lib.b2Body_IsSleepEnabled(self._body_id)
+        return lib.b2Body_IsSleepingEnabled(self._body_id)
 
     @property
     def is_valid(self) -> bool:
@@ -1265,7 +1270,7 @@ class Body(FixedAttributes):
         Returns:
             AABB object representing the axis-aligned bounding box.
         """
-        b2_aabb = lib.b2Body_ComputeAABB(self._body_id)
+        b2_aabb = lib.b2Body_ComputeBounds(self._body_id)
         return AABB(
             Vec2.from_b2Vec2(b2_aabb.lowerBound),
             Vec2.from_b2Vec2(b2_aabb.upperBound),

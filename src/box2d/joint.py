@@ -684,12 +684,12 @@ class RevoluteJoint(Joint):
         self._register()
 
     angle = b2_value(
-        lib.b2RevoluteJoint_GetAngle,
+        lib.b2RevoluteJoint_GetCurrentAngle,
         doc="Current joint angle in radians relative to the reference angle.",
     )
     motor_speed = b2_float(
-        lib.b2RevoluteJoint_GetMotorSpeed,
-        lib.b2RevoluteJoint_SetMotorSpeed,
+        lib.b2RevoluteJoint_GetTargetMotorSpeed,
+        lib.b2RevoluteJoint_SetTargetMotorSpeed,
         doc="Desired motor speed in radians per second.",
     )
     max_motor_torque = b2_float(
@@ -741,7 +741,7 @@ class RevoluteJoint(Joint):
         doc="Get or set whether the motor drives the joint.",
     )
     motor_torque = b2_value(
-        lib.b2RevoluteJoint_GetMotorTorque,
+        lib.b2RevoluteJoint_GetCurrentMotorTorque,
         doc="The torque the motor applied in the last step, in newton-metres.",
     )
     enable_spring = b2_bool(
@@ -895,11 +895,11 @@ class PrismaticJoint(Joint):
         self._register()
 
     joint_translation = b2_value(
-        lib.b2PrismaticJoint_GetTranslation,
+        lib.b2PrismaticJoint_GetCurrentTranslation,
         doc="Get the current joint translation.",
     )
     joint_speed = b2_value(
-        lib.b2PrismaticJoint_GetSpeed,
+        lib.b2PrismaticJoint_GetCurrentSpeed,
         doc="Get the current joint linear speed.",
     )
     enable_limit = b2_bool(
@@ -945,8 +945,8 @@ class PrismaticJoint(Joint):
         doc="Check if the joint motor is enabled.",
     )
     motor_speed = b2_float(
-        lib.b2PrismaticJoint_GetMotorSpeed,
-        lib.b2PrismaticJoint_SetMotorSpeed,
+        lib.b2PrismaticJoint_GetTargetMotorSpeed,
+        lib.b2PrismaticJoint_SetTargetMotorSpeed,
         doc="Get the motor speed in meters per second.",
     )
     max_motor_force = b2_float(
@@ -955,7 +955,7 @@ class PrismaticJoint(Joint):
         doc="Get maximum motor force in Newtons.",
     )
     motor_force = b2_value(
-        lib.b2PrismaticJoint_GetMotorForce,
+        lib.b2PrismaticJoint_GetCurrentMotorForce,
         doc="Get the current motor force in Newtons.",
     )
     enable_spring = b2_bool(
@@ -1134,8 +1134,8 @@ class WheelJoint(Joint):
         doc="Check if joint motor is enabled.",
     )
     motor_speed = b2_float(
-        lib.b2WheelJoint_GetMotorSpeed,
-        lib.b2WheelJoint_SetMotorSpeed,
+        lib.b2WheelJoint_GetTargetMotorSpeed,
+        lib.b2WheelJoint_SetTargetMotorSpeed,
         doc="Get motor speed in radians per second.",
     )
     max_motor_torque = b2_float(
@@ -1144,7 +1144,7 @@ class WheelJoint(Joint):
         doc="Get maximum motor torque in N-m.",
     )
     motor_torque = b2_value(
-        lib.b2WheelJoint_GetMotorTorque,
+        lib.b2WheelJoint_GetCurrentMotorTorque,
         doc="Get current motor torque in N-m.",
     )
 
@@ -1267,8 +1267,8 @@ class DistanceJoint(Joint):
         self._register()
 
     length = b2_float(
-        lib.b2DistanceJoint_GetLength,
-        lib.b2DistanceJoint_SetLength,
+        lib.b2DistanceJoint_GetRestLength,
+        lib.b2DistanceJoint_SetRestLength,
         doc="Get the rest length of the joint.",
     )
     current_length = b2_value(
@@ -1345,7 +1345,7 @@ class DistanceJoint(Joint):
     @property
     def min_length(self):
         """Get the minimum allowed length."""
-        return lib.b2DistanceJoint_GetMinLength(self._joint_id)
+        return lib.b2DistanceJoint_GetLowerLimit(self._joint_id)
 
     @min_length.setter
     def min_length(self, value):
@@ -1359,7 +1359,7 @@ class DistanceJoint(Joint):
     @property
     def max_length(self):
         """Get the maximum allowed length."""
-        return lib.b2DistanceJoint_GetMaxLength(self._joint_id)
+        return lib.b2DistanceJoint_GetUpperLimit(self._joint_id)
 
     @max_length.setter
     def max_length(self, value):
@@ -1377,7 +1377,7 @@ class DistanceJoint(Joint):
             min_length (float): Minimum allowed length
             max_length (float): Maximum allowed length
         """
-        lib.b2DistanceJoint_SetLengthRange(
+        lib.b2DistanceJoint_SetLimits(
             self._joint_id, float(min_length), float(max_length)
         )
 
@@ -1387,8 +1387,8 @@ class DistanceJoint(Joint):
         doc="Check if the joint motor is enabled.",
     )
     motor_speed = b2_float(
-        lib.b2DistanceJoint_GetMotorSpeed,
-        lib.b2DistanceJoint_SetMotorSpeed,
+        lib.b2DistanceJoint_GetTargetMotorSpeed,
+        lib.b2DistanceJoint_SetTargetMotorSpeed,
         doc="Get motor speed in meters per second.",
     )
     max_motor_force = b2_float(
@@ -1397,7 +1397,7 @@ class DistanceJoint(Joint):
         doc="Get maximum motor force in Newtons.",
     )
     motor_force = b2_value(
-        lib.b2DistanceJoint_GetMotorForce,
+        lib.b2DistanceJoint_GetCurrentMotorForce,
         doc="Get current motor force in Newtons.",
     )
 
@@ -1711,11 +1711,11 @@ class PogoJoint(Joint):
         doc="Get or set the spring damping ratio.",
     )
     length = b2_value(
-        lib.b2PogoJoint_GetLength,
+        lib.b2PogoJoint_GetCurrentLength,
         doc="The spring's current length, along the character's pogo axis.",
     )
     velocity = b2_value(
-        lib.b2PogoJoint_GetVelocity,
+        lib.b2PogoJoint_GetCurrentSpeed,
         doc="The spring's internal velocity. Pass it to the next pogo.",
     )
     impulse = b2_value(

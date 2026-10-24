@@ -74,7 +74,9 @@ class RayCastResult:
 
     shape: "Shape"  # Shape that was hit
     point: Vec2  # Hit point in world coords
-    normal: Vec2  # Surface normal at hit point
+    # Surface normal at hit point. The zero vector when the cast started inside
+    # the shape, which is reported at fraction 0 with no surface to take one from.
+    normal: Vec2
     fraction: float  # Fraction along ray where hit occurred (0-1)
 
 
@@ -873,9 +875,9 @@ class World(FixedAttributes):
 
         A shape already overlapping the proxy at its starting position is
         reported at fraction 0, so a cast that starts inside geometry tells
-        you so rather than silently skipping it. (Box2D's lower-level
-        ``b2ShapeCast`` treats initial overlap as a miss instead; this is the
-        world-level function, which does not.)
+        you so rather than silently skipping it. Such a hit has no surface to
+        take a normal from, so its normal is the zero vector -- check the
+        fraction before normalising it.
 
         Args:
             proxy: The shape to sweep, at its starting position.
@@ -1648,18 +1650,22 @@ class World(FixedAttributes):
         Box2D clamps to this rather than letting a body move so far in one
         step that collision cannot keep up.
         """
-        return lib.b2World_GetMaximumLinearSpeed(self._world_id)
+        return lib.b2World_GetMaxLinearSpeed(self._world_id)
 
     @maximum_linear_speed.setter
     def maximum_linear_speed(self, value: float):
-        lib.b2World_SetMaximumLinearSpeed(self._world_id, float(value))
+        lib.b2World_SetMaxLinearSpeed(self._world_id, float(value))
 
     @property
     def contact_recycle_distance(self) -> float:
         """How far a contact point may move and still be reused, in metres.
 
-        Reusing contact points keeps stacks stable, because the solver keeps
-        the impulses it had already worked out. Zero disables recycling.
+        A contact whose shapes have moved less than this (and turned less
+        than about 11 degrees) relative to each other since it was last
+        collided keeps its points and only has their separation updated,
+        rather than being collided again. That is cheaper and keeps stacks
+        steady. Contacts not yet touching use the smaller of this and Box2D's
+        speculative distance. Zero disables recycling.
         """
         return lib.b2World_GetContactRecycleDistance(self._world_id)
 

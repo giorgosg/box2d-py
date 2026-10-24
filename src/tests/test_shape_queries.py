@@ -182,14 +182,18 @@ def test_cast_shape_answers_whether_something_fits(world):
 def test_cast_shape_reports_initial_overlap_at_fraction_zero(world, ground):
     """Starting inside geometry is reported, not skipped.
 
-    b2ShapeCast documents initial overlap as a miss, so it would be fair to
-    assume b2World_CastShape does the same; it does not.
+    Up to the ac7c751 pin before the v3.2.0 tag, the header comment on the
+    pair cast (b2ShapeCast, now b2CastShape) called initial overlap a miss,
+    though the code already reported a hit at fraction 0. v3.2.0 corrected
+    the comment; this test pins the same behaviour for the world-level cast,
+    including the zero normal that comes with it.
     """
     inside = world.cast_shape(ShapeProxy.circle(0.5, (0, 0)), (0, -20))
 
     assert inside, "a cast starting inside the ground should say so"
     assert inside[0].shape is ground.shapes[0]
     assert inside[0].fraction == 0.0
+    assert inside[0].normal == Vec2(0, 0), "no surface, so no normal"
 
 
 def test_cast_shape_respects_the_filter(world):
