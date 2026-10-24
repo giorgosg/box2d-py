@@ -26,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 testbed = [
-  "imgui_bundle>=1.92",
+  "imgui_bundle>=1.92.4",
   "PyOpenGL",
   "PyOpenGL-accelerate",
   "numpy"
