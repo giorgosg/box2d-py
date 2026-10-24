@@ -64,6 +64,27 @@ def run_headless(frame_count, on_frame=None, renderer="imgui"):
     return rendered["count"], app
 
 
+@pytest.fixture
+def bare_imgui():
+    """An imgui context of the test's own, with no app and no backend.
+
+    For driving the installed binding directly, in frames the test opens and
+    closes itself. Yields the imgui module, with the context current.
+    """
+    from imgui_bundle import imgui
+
+    context = imgui.create_context()
+    try:
+        io = imgui.get_io()
+        io.display_size = imgui.ImVec2(400.0, 300.0)
+        io.delta_time = 1.0 / 60.0
+        # As in run_headless: with no backend there is no font upload path.
+        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
+        yield imgui
+    finally:
+        imgui.destroy_context(context)
+
+
 def test_the_testbed_runs_without_a_display():
     """The whole app: docking, panels, physics and drawing, no screen."""
     frames, app = run_headless(40)
@@ -107,7 +128,7 @@ def test_scenarios_can_be_switched_headlessly():
     assert frames > 0
 
 
-def test_a_scenarios_status_is_drawn_over_the_view():
+def test_a_scenarios_status_is_drawn_over_the_view(bare_imgui):
     """status() lines reach the window's draw list, through the installed imgui.
 
     Drawn by the app rather than by either renderer, and checked against the
@@ -118,19 +139,12 @@ def test_a_scenarios_status_is_drawn_over_the_view():
     """
     from types import SimpleNamespace
 
-    from imgui_bundle import imgui
-
     from box2d_testbed.testbed import TestbedApp
 
-    context = imgui.create_context()
+    imgui = bare_imgui
     window_open = False
+    imgui.new_frame()
     try:
-        io = imgui.get_io()
-        io.display_size = imgui.ImVec2(400.0, 300.0)
-        io.delta_time = 1.0 / 60.0
-        # As in run_headless: with no backend there is no font upload path.
-        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
-        imgui.new_frame()
         imgui.begin("Simulation")
         window_open = True
 
@@ -157,44 +171,34 @@ def test_a_scenarios_status_is_drawn_over_the_view():
         if window_open:
             imgui.end()
         imgui.end_frame()
-        imgui.destroy_context(context)
 
 
-def test_the_simulation_window_does_not_scroll():
+def test_the_simulation_window_does_not_scroll(bare_imgui):
     """The wheel zooms the scene; it must not scroll the window.
 
     It did when a world label drawn outside the view (the GL renderer places
     text with the cursor) extended the window's content: the content, and the
     scenario's status with it, moved up out of sight.
     """
-    from imgui_bundle import imgui
-
     from box2d_testbed.testbed import SIMULATION_WINDOW_FLAGS
 
-    context = imgui.create_context()
-    try:
-        io = imgui.get_io()
-        io.display_size = imgui.ImVec2(400.0, 300.0)
-        io.delta_time = 1.0 / 60.0
-        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
-
-        content_top = []
-        for frame in range(6):
-            if frame == 1:
-                io.add_mouse_pos_event(100.0, 100.0)
-            if frame == 3:
-                io.add_mouse_wheel_event(0.0, -5.0)
-            imgui.new_frame()
-            imgui.set_next_window_pos((0.0, 0.0))
-            imgui.set_next_window_size((400.0, 300.0))
-            imgui.begin("Simulation", None, SIMULATION_WINDOW_FLAGS)
-            content_top.append(round(imgui.get_cursor_screen_pos().y))
-            imgui.set_cursor_screen_pos((50.0, 600.0))
-            imgui.text("a label below the view")
-            imgui.end()
-            imgui.end_frame()
-    finally:
-        imgui.destroy_context(context)
+    imgui = bare_imgui
+    io = imgui.get_io()
+    content_top = []
+    for frame in range(6):
+        if frame == 1:
+            io.add_mouse_pos_event(100.0, 100.0)
+        if frame == 3:
+            io.add_mouse_wheel_event(0.0, -5.0)
+        imgui.new_frame()
+        imgui.set_next_window_pos((0.0, 0.0))
+        imgui.set_next_window_size((400.0, 300.0))
+        imgui.begin("Simulation", None, SIMULATION_WINDOW_FLAGS)
+        content_top.append(round(imgui.get_cursor_screen_pos().y))
+        imgui.set_cursor_screen_pos((50.0, 600.0))
+        imgui.text("a label below the view")
+        imgui.end()
+        imgui.end_frame()
 
     assert len(set(content_top)) == 1, f"the content moved: {content_top}"
 
@@ -447,7 +451,7 @@ def test_a_rounded_shape_is_drawn_once_not_layered():
     assert recorder.polylines == 1, "and outlined once, with no thick stroke pass"
 
 
-def test_every_primitive_reaches_the_installed_draw_list():
+def test_every_primitive_reaches_the_installed_draw_list(bare_imgui):
     """The renderer's calls, against a real ImDrawList rather than a stand-in.
 
     imgui_bundle swapped add_polyline's thickness and flags arguments between
@@ -461,21 +465,13 @@ def test_every_primitive_reaches_the_installed_draw_list():
     installed binding knows what it takes, so the primitives are driven
     against it here, where a rejected call is a failure.
     """
-    from imgui_bundle import imgui
-
     from box2d import AABB, Transform, Vec2
     from box2d.debug_draw import Color
     from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw
 
-    context = imgui.create_context()
+    imgui = bare_imgui
+    imgui.new_frame()
     try:
-        io = imgui.get_io()
-        io.display_size = imgui.ImVec2(200.0, 200.0)
-        io.delta_time = 1.0 / 60.0
-        # As in run_headless: with no backend there is no font upload path.
-        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
-        imgui.new_frame()
-
         renderer = ImGuiDebugDraw()
         renderer._draw_list = imgui.get_background_draw_list()
         renderer._scale_x = renderer._scale_y = 10.0
@@ -503,28 +499,33 @@ def test_every_primitive_reaches_the_installed_draw_list():
         # "forgot to call Render or EndFrame" assertion in whatever runs the
         # app next, which for a long time was nothing.
         imgui.end_frame()
-        imgui.destroy_context(context)
 
 
 @pytest.mark.parametrize("lines", [True, False], ids=["aa-lines", "no-aa-lines"])
 @pytest.mark.parametrize("fill", [True, False], ids=["aa-fill", "no-aa-fill"])
-def test_antialiasing_is_set_on_the_worlds_draw_list_alone(lines, fill):
-    """The anti-aliasing switches, against the installed binding's flags.
+def test_antialiasing_is_set_on_the_worlds_draw_list_alone(bare_imgui, lines, fill):
+    """The anti-aliasing switches, against the installed binding.
 
     imgui 1.93 merged ImDrawListFlags_ into ImDrawFlags_ and renamed the
     anti-aliasing bits, so the names start_frame used were gone and the
     testbed raised on its first frame. Pyodide's 1.92.4 has only the old
-    names. Driving start_frame against the installed binding is what catches
-    the next rename; checking the bits it leaves, and that a primitive drawn
-    afterwards honours them, is what catches a rename to something that no
-    longer does what the old name did.
-    """
-    from imgui_bundle import imgui
+    names. So start_frame is driven against whatever binding is installed,
+    and checked three ways:
 
+    - the bits it leaves on the world's draw list;
+    - what primitives drawn there afterwards do with them, which catches a
+      name that survives but no longer means what it did: an anti-aliased
+      stroke samples imgui's line texture where a plain one sits entirely on
+      the white pixel, and an anti-aliased fill grows a fringe of vertices;
+    - that the rest of the UI keeps both, in a window drawn after the world
+      in the same frame and in every window of the next one -- which a change
+      to the shared style rather than to this one list would fail.
+    """
     from box2d import Transform, Vec2
     from box2d.debug_draw import Color
     from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw
 
+    imgui = bare_imgui
     # Looked up here rather than borrowed from the renderer, so the test
     # cannot agree with a mistake in it.
     if hasattr(imgui, "ImDrawListFlags_"):
@@ -534,44 +535,80 @@ def test_antialiasing_is_set_on_the_worlds_draw_list_alone(lines, fill):
         aa_lines = imgui.ImDrawFlags_.aa_lines
         aa_fill = imgui.ImDrawFlags_.aa_fill
 
-    context = imgui.create_context()
-    try:
-        io = imgui.get_io()
-        io.display_size = imgui.ImVec2(200.0, 200.0)
-        io.delta_time = 1.0 / 60.0
-        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
-        imgui.new_frame()
+    def anti_aliases(draw_list):
+        return bool(draw_list.flags & aa_lines), bool(draw_list.flags & aa_fill)
 
-        renderer = ImGuiDebugDraw()
-        renderer.antialias_lines = lines
-        renderer.antialias_fill = fill
+    def added_vertices(draw_list, draw):
+        before = draw_list.vtx_buffer.size()
+        draw()
+        return [
+            draw_list.vtx_buffer[i] for i in range(before, draw_list.vtx_buffer.size())
+        ]
+
+    square = [(10.0, 10.0), (60.0, 10.0), (60.0, 60.0), (10.0, 60.0)]
+    renderer = ImGuiDebugDraw()
+    renderer.antialias_lines = lines
+    renderer.antialias_fill = fill
+
+    imgui.new_frame()
+    open_windows = 0
+    try:
+        imgui.begin("Simulation")
+        open_windows += 1
         renderer.start_frame()
         world = renderer._draw_list
+        assert anti_aliases(world) == (lines, fill)
 
-        assert bool(world.flags & aa_lines) == lines
-        assert bool(world.flags & aa_fill) == fill
-        # The UI's draw lists keep what the style asked for, which is both.
-        ui = imgui.get_foreground_draw_list()
-        assert ui.flags & aa_lines and ui.flags & aa_fill
-
-        # A fill is the primitive whose geometry shows the flag: anti-aliased,
-        # it grows a fringe of extra vertices; without, it is one per corner.
-        before = world.vtx_buffer.size()
-        square = [(10.0, 10.0), (60.0, 10.0), (60.0, 60.0), (10.0, 60.0)]
-        world.add_convex_poly_filled(square, 0xFFFFFFFF)
-        added = world.vtx_buffer.size() - before
-        assert (added > len(square)) == fill, f"{added} vertices for a square"
+        white = imgui.get_font_tex_uv_white_pixel()
+        stroke = added_vertices(
+            world,
+            lambda: world.add_polyline(
+                square, 0xFFFFFFFF, thickness=1.0, flags=imgui.ImDrawFlags_.closed
+            ),
+        )
+        on_white = all(
+            abs(vertex.uv.x - white.x) < 1e-6 and abs(vertex.uv.y - white.y) < 1e-6
+            for vertex in stroke
+        )
+        assert stroke and on_white is not lines, "the stroke's texture coordinates"
+        fill_vertices = added_vertices(
+            world, lambda: world.add_convex_poly_filled(square, 0xFFFFFFFF)
+        )
+        assert (len(fill_vertices) > len(square)) is fill, (
+            f"{len(fill_vertices)} vertices for a filled square"
+        )
 
         # Drawing the world through the renderer leaves the switches alone.
-        white = Color(255, 255, 255, 255)
         corners = [Vec2(-1, -1), Vec2(1, -1), Vec2(1, 1), Vec2(-1, 1)]
-        renderer.draw_solid_polygon(Transform(Vec2(0.0, 0.0)), corners, 0.1, white)
+        renderer.draw_solid_polygon(
+            Transform(Vec2(0.0, 0.0)), corners, 0.1, Color(255, 255, 255, 255)
+        )
         renderer.end_frame()
-        assert bool(world.flags & aa_lines) == lines
-        assert bool(world.flags & aa_fill) == fill
+        assert anti_aliases(world) == (lines, fill)
+        imgui.end()
+        open_windows -= 1
+
+        imgui.begin("Controls")
+        open_windows += 1
+        assert anti_aliases(imgui.get_window_draw_list()) == (True, True)
+        imgui.end()
+        open_windows -= 1
+    finally:
+        # Close what was opened, or end_frame asserts and hides the failure.
+        for _ in range(open_windows):
+            imgui.end()
+        imgui.end_frame()
+
+    # The next frame starts every list from the style again, the world's too.
+    imgui.new_frame()
+    try:
+        for name in ("Simulation", "Controls"):
+            imgui.begin(name)
+            drawn = anti_aliases(imgui.get_window_draw_list())
+            imgui.end()
+            assert drawn == (True, True), f"{name} next frame"
     finally:
         imgui.end_frame()
-        imgui.destroy_context(context)
 
 
 def test_the_testbed_imports_without_pyopengl():
