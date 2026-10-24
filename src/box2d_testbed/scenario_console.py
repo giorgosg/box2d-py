@@ -23,6 +23,7 @@ from .scenario_editor import (
     TextEditor,
     add_editor_marker,
     clear_editor_markers,
+    editor_text,
     modern_text_editor,
     push_code_font,
     python_editor,
@@ -138,7 +139,7 @@ class Console(code.InteractiveConsole):
     @property
     def input(self) -> str:
         """What is currently typed at the prompt."""
-        return self.editor.get_text()
+        return editor_text(self.editor)
 
     @input.setter
     def input(self, text: str) -> None:

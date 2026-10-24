@@ -53,6 +53,24 @@ def render_text_editor(editor, title: str, size, *, parent_is_focused: bool = Fa
     return result
 
 
+def editor_text(editor) -> str:
+    """What is in the editor, exactly as typed.
+
+    imgui_bundle 1.93's ImGuiColorTextEdit ends get_text with a newline
+    whenever the last line is not empty, the way a text file ends; every
+    earlier version, the browser's 1.92.4 included, joins the lines and adds
+    nothing. So "x" reads back as "x\\n" there, which is a different thing to
+    type at a prompt. Joined lines have one newline fewer than there are
+    lines, so a text with as many newlines as lines carries one the document
+    does not have, and that one is dropped: a rule that is right for both,
+    without asking which this is.
+    """
+    text = editor.get_text()
+    if text.endswith("\n") and text.count("\n") == editor.get_line_count():
+        return text[:-1]
+    return text
+
+
 def clear_editor_markers(editor) -> None:
     """Clear diagnostic markers when this binding provides them."""
     if hasattr(editor, "clear_markers"):
@@ -234,7 +252,7 @@ class ScenarioEditor:
         wholesale -- which is how a scenario arrives from anywhere but the
         keyboard -- would look saved when it is not.
         """
-        return self.ref is not None and self.editor.get_text() != self.loaded_text
+        return self.ref is not None and editor_text(self.editor) != self.loaded_text
 
     def open(self, ref: ScenarioRef) -> bool:
         """Show a scenario's source, discarding whatever was in the buffer."""
@@ -254,7 +272,7 @@ class ScenarioEditor:
         # What the editor made of it, not what was handed to it: it normalises
         # line endings and the trailing newline, and the difference would read
         # as an unsaved change the moment the file was opened.
-        self.loaded_text = self.editor.get_text()
+        self.loaded_text = editor_text(self.editor)
         clear_editor_markers(self.editor)
         if self.shared_store is not None and ref.store is self.shared_store:
             self._say(
@@ -295,7 +313,7 @@ class ScenarioEditor:
         """Copy what is open into the user's own scenarios, and open that."""
         if self.ref is None:
             return
-        source = rewrite_relative_imports(self.editor.get_text())
+        source = rewrite_relative_imports(editor_text(self.editor))
         source, renamed = rename_scenarios(source, taken_names())
         try:
             stem = self.ref.store.fork_stem(self.ref.name)
@@ -318,7 +336,7 @@ class ScenarioEditor:
         """Write the buffer, then load it."""
         if self.ref is None or not self.ref.writable:
             return
-        source = self.editor.get_text()
+        source = editor_text(self.editor)
         try:
             self.ref.store.write(self.ref.name, source)
         except StoreError as exc:
@@ -332,7 +350,7 @@ class ScenarioEditor:
         if self.ref is None or self.shared_store is None:
             return None
         try:
-            ref = self.shared_store.publish(self.editor.get_text())
+            ref = self.shared_store.publish(editor_text(self.editor))
             url = self.shared_store.url_for(ref.name)
         except StoreError as exc:
             self._say(str(exc), error=True)
@@ -370,7 +388,7 @@ class ScenarioEditor:
     def _request_share(self) -> None:
         if self.ref is None or self.shared_store is None:
             return
-        source = self.editor.get_text()
+        source = editor_text(self.editor)
         self._say("sharing current buffer…")
         self._start_sharing_task(self._share_async(source))
 
@@ -446,7 +464,7 @@ class ScenarioEditor:
         """Execute the buffer and put what it defines on screen."""
         if self.ref is None:
             return
-        source = self.editor.get_text()
+        source = editor_text(self.editor)
         path_for = getattr(self.ref.store, "path_for", None)
         filename = str(path_for(self.ref.name)) if path_for else None
 

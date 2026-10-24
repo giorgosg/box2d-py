@@ -52,6 +52,24 @@ def test_push_code_font_supports_both_imgui_signatures(monkeypatch, old_binding)
     assert calls == ([(font,)] if old_binding else [(font, 0.0)])
 
 
+@pytest.mark.parametrize(
+    "text", ["", "x", "x\n", "a\nb", "a\nb\n", "\n", "a\n\n", "    indented"]
+)
+def test_an_editor_gives_back_exactly_what_it_was_given(text):
+    """No newline added to the end, whichever binding this is.
+
+    imgui_bundle 1.93's TextEditor.get_text ends the text with a newline
+    whenever the last line has anything on it, the way a text file ends; every
+    earlier version gave back what was there. The console reads its prompt
+    through this, so "x" came back as "x\\n" -- which recalled history
+    with a newline on, and submitted every line followed by an empty one.
+    """
+    editor = scenario_editor.python_editor(line_numbers=False)
+    editor.set_text(text)
+
+    assert scenario_editor.editor_text(editor) == text
+
+
 def test_a_scenario_is_renamed_so_the_copy_sits_beside_the_original():
     source = 'class Foo(BaseTest, category="Bodies", name="Body Type"):\n    pass\n'
 

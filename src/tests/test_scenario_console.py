@@ -220,24 +220,41 @@ def type_at_prompt(console, text):
     console.editor.set_cursor(TextEditor.DocPos(len(lines) - 1, len(lines[-1])))
 
 
-@pytest.mark.parametrize(
-    "typed, runs, why",
-    [
-        ("1 + 1", True, "a complete statement runs"),
-        ("", False, "an empty prompt does nothing"),
-        ("   ", False, "nor does a blank one"),
-        ("for i in x:", False, "a block header waits for its body"),
-        ("x = (1 +", False, "so does an unclosed bracket"),
-        ("?", True, "a syntax error is better reported than stuck at the prompt"),
-        ("for i in x:\n    print(i)", False, "Enter on a body line takes another"),
-        ("for i in x:\n    print(i)\n", True, "and a blank line closes the block"),
-        ("for i in x:\n    print(i)\n    ", True, "even one the auto-indent filled in"),
-    ],
-)
+ENTER_CASES = [
+    ("1 + 1", True, "a complete statement runs"),
+    ("", False, "an empty prompt does nothing"),
+    ("   ", False, "nor does a blank one"),
+    ("for i in x:", False, "a block header waits for its body"),
+    ("x = (1 +", False, "so does an unclosed bracket"),
+    ("?", True, "a syntax error is better reported than stuck at the prompt"),
+    ("for i in x:\n    print(i)", False, "Enter on a body line takes another"),
+    ("for i in x:\n    print(i)\n", True, "and a blank line closes the block"),
+    ("for i in x:\n    print(i)\n    ", True, "even one the auto-indent filled in"),
+]
+
+
+@pytest.mark.parametrize("typed, runs, why", ENTER_CASES)
 def test_enter_either_runs_it_or_takes_another_line(typed, runs, why):
     from box2d_testbed.scenario_console import should_run
 
     assert should_run(typed) is runs, why
+
+
+@pytest.mark.parametrize("typed, runs, why", ENTER_CASES)
+def test_the_prompt_reads_back_what_enter_decides_on(console, typed, runs, why):
+    """The same decisions, made on what the prompt's editor gives back.
+
+    A trailing newline is how the rule recognises the blank line that closes
+    a block, so an editor that adds one -- imgui_bundle 1.93's does, unless it
+    is read through editor_text -- ran a loop on the Enter after its first
+    body line, before there was any chance to type a second.
+    """
+    from box2d_testbed.scenario_console import should_run
+
+    console.input = typed
+
+    assert console.input == typed
+    assert should_run(console.input) is runs, why
 
 
 def test_a_block_typed_at_the_prompt_runs_in_one_go(console):
