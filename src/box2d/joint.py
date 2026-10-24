@@ -691,13 +691,23 @@ class RevoluteJoint(Joint):
         angle less body_a's, less the reference_angle the joint was made with.
         """,
     )
+    current_speed = b2_value(
+        lib.b2RevoluteJoint_GetCurrentSpeed,
+        doc="""How fast the joint is turning right now, in radians per second.
+
+        body_b's angular velocity less body_a's. Compare target_motor_speed,
+        which is only the speed the motor is driving towards. A body that is
+        asleep counts as not turning.
+        """,
+    )
     target_motor_speed = b2_float(
         lib.b2RevoluteJoint_GetTargetMotorSpeed,
         lib.b2RevoluteJoint_SetTargetMotorSpeed,
         doc="""The speed the motor drives the joint towards, in radians per second.
 
         A setting, not a measurement: the motor only gets there if
-        max_motor_torque allows.
+        max_motor_torque allows. current_speed is how fast the joint is
+        actually turning.
         """,
     )
     max_motor_torque = b2_float(

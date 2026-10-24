@@ -188,6 +188,52 @@ def test_revolute_joint_via_world_method(world_and_bodies):
     assert revolute_joint.max_motor_torque == pytest.approx(10.0)
 
 
+def _driven_wheel(max_motor_torque):
+    """A wheel pinned to the ground by a motorised revolute joint, no gravity."""
+    world = World(gravity=(0, 0))
+    ground = world.new_body().build()
+    wheel = world.new_body().dynamic().build()
+    wheel.add_circle(radius=1.0)
+    joint = world.add_revolute_joint(
+        ground,
+        wheel,
+        local_anchor_a=(0, 0),
+        local_anchor_b=(0, 0),
+        enable_motor=True,
+        target_motor_speed=3.0,
+        max_motor_torque=max_motor_torque,
+    )
+    return world, ground, wheel, joint
+
+
+def test_revolute_joint_current_speed_is_how_fast_it_turns():
+    world, ground, wheel, joint = _driven_wheel(max_motor_torque=1000.0)
+    assert joint.current_speed == pytest.approx(0.0)
+
+    for _ in range(10):
+        world.step(1 / 60, 4)
+
+    assert joint.current_speed == pytest.approx(3.0, abs=0.01)
+    assert joint.current_speed == pytest.approx(
+        wheel.angular_velocity - ground.angular_velocity
+    )
+
+
+def test_revolute_joint_current_speed_is_not_the_target():
+    world, _, _, joint = _driven_wheel(max_motor_torque=0.5)
+
+    world.step(1 / 60, 4)
+
+    assert joint.target_motor_speed == pytest.approx(3.0)
+    assert 0.0 < joint.current_speed < 0.5, "a weak motor has not got up to speed"
+
+
+def test_revolute_joint_current_speed_is_read_only():
+    _, _, _, joint = _driven_wheel(max_motor_torque=1000.0)
+    with pytest.raises(AttributeError):
+        joint.current_speed = 1.0
+
+
 # --- destroying joints, which nothing exercised before ----------------------
 
 
