@@ -1306,14 +1306,15 @@ class World(FixedAttributes):
             ...     for touch in world.get_contact_events().begin:
             ...         pass  # touch.shape_a and touch.shape_b just met
         """
-        events = lib.b2World_GetContactEvents(self._world_id)
+        world_id = self._world_id
+        events = lib.b2World_GetContactEvents(world_id)
         resolve = self._shape_from_id
 
         begin = [
             ContactBeginEvent(
                 shape_a=resolve(event.shapeIdA),
                 shape_b=resolve(event.shapeIdB),
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, world_id),
             )
             for event in (events.beginEvents[i] for i in range(events.beginCount))
         ]
@@ -1321,7 +1322,7 @@ class World(FixedAttributes):
             ContactEndEvent(
                 shape_a=resolve(event.shapeIdA),
                 shape_b=resolve(event.shapeIdB),
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, world_id),
             )
             for event in (events.endEvents[i] for i in range(events.endCount))
         ]
@@ -1332,7 +1333,7 @@ class World(FixedAttributes):
                 point=Vec2(event.point.x, event.point.y),
                 normal=Vec2(event.normal.x, event.normal.y),
                 approach_speed=event.approachSpeed,
-                contact=Contact(event.contactId),
+                contact=Contact(event.contactId, world_id),
             )
             for event in (events.hitEvents[i] for i in range(events.hitCount))
         ]

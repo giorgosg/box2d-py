@@ -207,3 +207,63 @@ def test_a_world_made_after_one_is_destroyed_does_not_revive_its_objects():
             joint.rest_length
     finally:
         new.destroy()
+
+
+def test_objects_destroyed_before_their_world_stay_gone_in_the_next():
+    """Destroyed on their own, or taken down with a body, before the world
+    went: World.destroy no longer holds them, so it cannot release them, and
+    their ids would name the next world's objects in the same places."""
+    old = World()
+    body = old.new_body().dynamic().position(1, 2).circle(0.5).build()
+    shape = body.shapes[0]
+    holder = old.new_body().static().chain([(0, 0), (1, 0), (2, 0)]).build()
+    chain = holder.chains[0]
+    segment = chain.segments[0]
+    anchor = old.new_body().static().build()
+    joint = old.add_distance_joint(body, anchor)
+    body.destroy()  # takes its shape and the joint with it
+    chain.destroy()
+    old.destroy()
+
+    new = World()
+    try:
+        # Built the same way, so every old id has a new namesake.
+        twin = new.new_body().dynamic().position(7, 7).circle(0.5).build()
+        new_holder = new.new_body().static().chain([(0, 5), (1, 5), (2, 5)]).build()
+        new_anchor = new.new_body().static().build()
+        new_joint = new.add_distance_joint(twin, new_anchor)
+
+        for gone in (body, shape, chain, segment, joint):
+            assert gone.is_valid is False, type(gone).__name__
+        with pytest.raises(DestroyedError):
+            shape.radius
+        with pytest.raises(DestroyedError):
+            segment.friction
+        with pytest.raises(DestroyedError):
+            joint.rest_length
+
+        # Destroying the dead again must not destroy their namesakes.
+        for gone in (body, shape, chain, joint):
+            gone.destroy()
+        assert twin.is_valid and twin.shapes[0].is_valid
+        assert new_holder.chains[0].is_valid and new_joint.is_valid
+    finally:
+        new.destroy()
+
+
+def test_an_object_whose_world_is_destroyed_without_it_being_tracked_is_gone():
+    """The sturdy check: each object knows its world, whichever path let go."""
+    old = World()
+    body = old.new_body().dynamic().position(1, 2).build()
+    # As if the world had lost track of it.
+    old._bodies.clear()
+    old.destroy()
+
+    new = World()
+    try:
+        new.new_body().dynamic().position(7, 7).build()
+        assert body.is_valid is False
+        with pytest.raises(DestroyedError):
+            body.position
+    finally:
+        new.destroy()

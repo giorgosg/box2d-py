@@ -142,7 +142,7 @@ def test_contacts_are_usable_as_dictionary_keys(world):
     ball.add_circle(radius=0.5, enable_contact_events=True)
 
     contact = collect_first_contact(world)
-    same = Contact(contact._contact_id)
+    same = Contact(contact._contact_id, contact._world_id)
 
     assert contact == same
     assert hash(contact) == hash(same)
@@ -171,3 +171,31 @@ def test_a_stale_contact_reports_no_data(world):
 
     assert contact.is_valid is False
     assert contact.data is None
+
+
+def bouncing_ball(world):
+    ground = world.add_body(position=(0, 0))
+    ground.add_box(20, 1, enable_contact_events=True)
+    ball = world.add_body(body_type="dynamic", position=(0, 4))
+    ball.add_circle(radius=0.5, enable_contact_events=True)
+
+
+def test_a_contact_from_a_destroyed_world_stays_gone_in_the_next():
+    """Box2D names a contact by its world's slot, which the next world made
+    takes: the old contact read as live, and equal to the new world's."""
+    old = World()
+    bouncing_ball(old)
+    stale = collect_first_contact(old)
+    old.destroy()
+
+    new = World()
+    try:
+        bouncing_ball(new)
+        fresh = collect_first_contact(new)
+        assert fresh._contact_id.index1 == stale._contact_id.index1
+        assert stale.is_valid is False
+        assert stale.data is None
+        assert stale != fresh
+        assert fresh.is_valid is True
+    finally:
+        new.destroy()

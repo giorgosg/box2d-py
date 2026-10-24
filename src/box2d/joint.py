@@ -5,7 +5,7 @@ import math
 from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike
 from .accessors import b2_bool, b2_float, b2_value
-from .lifetime import IdRef, raw_id, is_live
+from .lifetime import IdRef, raw_id, is_live, join_world
 from ._fixed_attributes import FixedAttributes
 from typing import TYPE_CHECKING
 
@@ -103,6 +103,7 @@ class Joint(FixedAttributes):
         """
         world._refuse_while_locked("joint", "create")
         self.world = world
+        join_world(self, world)
 
     def _register(self):
         """Hand Box2D a handle to this joint, and the world a reference to it.
@@ -131,11 +132,10 @@ class Joint(FixedAttributes):
         # Read past the validity check so destroy stays callable on a joint
         # Box2D has already reclaimed, e.g. one whose bodies went first.
         raw = raw_id(self, "_joint_id")
-        if raw is not None and lib.b2Joint_IsValid(raw):
+        if raw is not None and self.is_valid:
             self.world._refuse_while_locked("joint")
             lib.b2DestroyJoint(raw)
         self._release()
-        del self._joint_id
 
     def _release(self):
         """Let go of this joint once Box2D no longer has it.
@@ -145,6 +145,7 @@ class Joint(FixedAttributes):
         :meth:`.Body.destroy` for each joint Box2D takes down with the body.
         """
         self.world._untrack_joint(raw_id(self, "_joint_id"))
+        del self._joint_id
 
     @property
     def is_valid(self):

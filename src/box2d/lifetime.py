@@ -12,6 +12,13 @@ not. Box2D's own ``b2*_IsValid`` functions are safe to call on stale ids,
 including ids whose world has already been destroyed, so this check never
 crashes on the values it is meant to reject.
 
+They are not enough on their own, though. A body, shape, chain, joint or
+contact id names its world by the slot the world occupies, not by the world,
+and a world made after one is destroyed takes the freed slot -- where the old
+ids name the new world's objects, and Box2D calls them valid. So each wrapper
+also records its world's id, which does carry a generation, with
+:func:`join_world`, and is live only while that world is.
+
 Going the other way, from an id Box2D hands back to the wrapper it belongs to,
 relies on the user data each wrapper gives Box2D: a cffi handle to itself. A
 handle does not keep its object alive, so every wrapper is held by its owner
@@ -21,7 +28,13 @@ shapes and chains, a chain its segments -- and released when it is destroyed.
 
 from typing import Callable, Optional
 
-from ._checked import ffi
+from ._checked import ffi, lib
+
+# Looked up once: IdRef calls it on every id read, the hot path.
+_world_is_valid = lib.b2World_IsValid
+
+#: Where a wrapper keeps the id of the world it belongs to.
+_WORLD_SLOT = "_owner_world_id"
 
 
 class DestroyedError(RuntimeError):
@@ -43,6 +56,25 @@ def raw_id(obj, name: str):
         The stored id, or None if it was never set or has been released.
     """
     return getattr(obj, f"_raw{name}", None)
+
+
+def join_world(obj, world) -> None:
+    """Record ``world`` as the world ``obj`` belongs to.
+
+    From then on ``obj``'s :class:`IdRef` and :func:`is_live` treat its id as
+    gone once that world is, whatever Box2D says of the id itself.
+
+    Args:
+        obj: A body, shape, chain or joint wrapper.
+        world: Its :class:`.World`, which must be live.
+    """
+    setattr(obj, _WORLD_SLOT, world._world_id)
+
+
+def _world_live(obj) -> bool:
+    """Whether the world ``obj`` belongs to is live; True if it has none."""
+    world_id = getattr(obj, _WORLD_SLOT, None)
+    return world_id is None or bool(_world_is_valid(world_id))
 
 
 class IdRef:
@@ -72,7 +104,13 @@ class IdRef:
         if obj is None:
             return self
         raw = getattr(obj, self._slot, None)
-        if raw is None or not self._is_valid(raw):
+        # _world_live inlined: this runs on every property read.
+        world_id = getattr(obj, _WORLD_SLOT, None)
+        if (
+            raw is None
+            or (world_id is not None and not _world_is_valid(world_id))
+            or not self._is_valid(raw)
+        ):
             raise DestroyedError(
                 f"This {self._label} has been destroyed and can no longer be used."
             )
@@ -94,10 +132,11 @@ def is_live(obj, name: str, is_valid) -> bool:
         is_valid: The Box2D validity function for this id type.
 
     Returns:
-        True if the id is set and Box2D still recognises it.
+        True if the id is set, its world is live, and Box2D still recognises
+        it.
     """
     raw = raw_id(obj, name)
-    return raw is not None and bool(is_valid(raw))
+    return raw is not None and _world_live(obj) and bool(is_valid(raw))
 
 
 def wrapper_for(

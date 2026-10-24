@@ -42,21 +42,33 @@ class Contact:
     :attr:`is_valid` before reading :attr:`data`.
     """
 
-    __slots__ = ("_contact_id", "_key")
+    __slots__ = ("_contact_id", "_world_id", "_key")
 
-    def __init__(self, contact_id):
+    def __init__(self, contact_id, world_id):
+        """
+        Args:
+            contact_id: The ``b2ContactId`` Box2D reported.
+            world_id: The ``b2WorldId`` of the world it was reported by. A
+                contact id names its world only by slot, which the next world
+                made reuses, so this is what tells a contact of a destroyed
+                world from one in the world that took its place.
+        """
         self._contact_id = contact_id
+        self._world_id = world_id
         # cdata structs are not hashable, so identity travels as a plain tuple.
         self._key = (
             contact_id.index1,
             contact_id.world0,
+            world_id.generation,
             contact_id.generation,
         )
 
     @property
     def is_valid(self) -> bool:
-        """Whether Box2D still recognises this contact."""
-        return bool(lib.b2Contact_IsValid(self._contact_id))
+        """Whether Box2D still recognises this contact, in a live world."""
+        return bool(lib.b2World_IsValid(self._world_id)) and bool(
+            lib.b2Contact_IsValid(self._contact_id)
+        )
 
     @property
     def data(self) -> Optional[ContactData]:
