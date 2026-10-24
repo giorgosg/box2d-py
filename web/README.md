@@ -164,9 +164,12 @@ and **Open link**; the desktop app hides them unless explicitly opted in with
 The wheel is ours to build, but `imgui-bundle` is not: the page gets it from
 Pyodide's own package index through `loadPackage`, so its version is whatever
 that release of Pyodide pinned -- 0.29.4 ships **1.92.4** (September 2025),
-while a desktop `pip install` today gets **1.92.900**. There is no pinning
-this from our side short of changing the Pyodide version, so the renderer has
-to work against both.
+while a desktop `pip install` today gets **1.93.0**, and `uv.lock` pins the
+same. There is no pinning this from our side short of changing the Pyodide
+version, so the testbed has to work across the whole range. 1.92.4 is
+therefore also the floor `pyproject.toml` declares, being the oldest version
+the testbed really runs on. (1.92.3 gives the same test results; 1.92.0
+does not get past the first frame that pushes a font.)
 
 That is not hypothetical. `ImDrawList.add_polyline` takes
 `(points, col, flags, thickness)` in 1.92.4, keeping the C++ order, and
@@ -187,3 +190,23 @@ function arguments` at one traceback per frame.
 `src/tests/test_testbed_headless.py` is the guard: it drives every primitive
 against a real `ImDrawList` from the installed binding, outside the callback,
 where a rejected call fails instead of being swallowed.
+
+imgui 1.93 changed two more things the testbed uses, both handled the same
+way -- by asking the binding what it has, not which version it is:
+
+- **Anti-aliasing flags.** 1.93 merged `ImDrawListFlags_` into `ImDrawFlags_`,
+  so `anti_aliased_lines` and `anti_aliased_fill` became `aa_lines` and
+  `aa_fill`, and the old enum is gone from the binding. `debug_draw_imgui.py`
+  looks up whichever exists once, at import. That one was loud: the renderer
+  raised on the first frame, outside any callback.
+  `test_antialiasing_is_set_on_the_worlds_draw_list_alone` drives
+  `start_frame` against the installed binding and checks that a fill drawn
+  afterwards has an anti-aliasing fringe only when one was asked for.
+- **`TextEditor.get_text`** ends its text with a newline whenever the last
+  line is not empty, the way a file ends; 1.92 joins the lines and adds
+  nothing. Quiet again: the console's prompt read back `x` as `x\n`, and
+  since a trailing newline is how the prompt recognises the blank line that
+  closes a block, a `for` loop ran on the Enter after its first body line.
+  `scenario_editor.editor_text` reads the editors through one rule that is
+  right for both, and
+  `test_an_editor_gives_back_exactly_what_it_was_given` holds it to that.
