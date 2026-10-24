@@ -506,6 +506,74 @@ def test_every_primitive_reaches_the_installed_draw_list():
         imgui.destroy_context(context)
 
 
+@pytest.mark.parametrize("lines", [True, False], ids=["aa-lines", "no-aa-lines"])
+@pytest.mark.parametrize("fill", [True, False], ids=["aa-fill", "no-aa-fill"])
+def test_antialiasing_is_set_on_the_worlds_draw_list_alone(lines, fill):
+    """The anti-aliasing switches, against the installed binding's flags.
+
+    imgui 1.93 merged ImDrawListFlags_ into ImDrawFlags_ and renamed the
+    anti-aliasing bits, so the names start_frame used were gone and the
+    testbed raised on its first frame. Pyodide's 1.92.4 has only the old
+    names. Driving start_frame against the installed binding is what catches
+    the next rename; checking the bits it leaves, and that a primitive drawn
+    afterwards honours them, is what catches a rename to something that no
+    longer does what the old name did.
+    """
+    from imgui_bundle import imgui
+
+    from box2d import Transform, Vec2
+    from box2d.debug_draw import Color
+    from box2d_testbed.debug_draw_imgui import ImGuiDebugDraw
+
+    # Looked up here rather than borrowed from the renderer, so the test
+    # cannot agree with a mistake in it.
+    if hasattr(imgui, "ImDrawListFlags_"):
+        aa_lines = imgui.ImDrawListFlags_.anti_aliased_lines
+        aa_fill = imgui.ImDrawListFlags_.anti_aliased_fill
+    else:
+        aa_lines = imgui.ImDrawFlags_.aa_lines
+        aa_fill = imgui.ImDrawFlags_.aa_fill
+
+    context = imgui.create_context()
+    try:
+        io = imgui.get_io()
+        io.display_size = imgui.ImVec2(200.0, 200.0)
+        io.delta_time = 1.0 / 60.0
+        io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
+        imgui.new_frame()
+
+        renderer = ImGuiDebugDraw()
+        renderer.antialias_lines = lines
+        renderer.antialias_fill = fill
+        renderer.start_frame()
+        world = renderer._draw_list
+
+        assert bool(world.flags & aa_lines) == lines
+        assert bool(world.flags & aa_fill) == fill
+        # The UI's draw lists keep what the style asked for, which is both.
+        ui = imgui.get_foreground_draw_list()
+        assert ui.flags & aa_lines and ui.flags & aa_fill
+
+        # A fill is the primitive whose geometry shows the flag: anti-aliased,
+        # it grows a fringe of extra vertices; without, it is one per corner.
+        before = world.vtx_buffer.size()
+        square = [(10.0, 10.0), (60.0, 10.0), (60.0, 60.0), (10.0, 60.0)]
+        world.add_convex_poly_filled(square, 0xFFFFFFFF)
+        added = world.vtx_buffer.size() - before
+        assert (added > len(square)) == fill, f"{added} vertices for a square"
+
+        # Drawing the world through the renderer leaves the switches alone.
+        white = Color(255, 255, 255, 255)
+        corners = [Vec2(-1, -1), Vec2(1, -1), Vec2(1, 1), Vec2(-1, 1)]
+        renderer.draw_solid_polygon(Transform(Vec2(0.0, 0.0)), corners, 0.1, white)
+        renderer.end_frame()
+        assert bool(world.flags & aa_lines) == lines
+        assert bool(world.flags & aa_fill) == fill
+    finally:
+        imgui.end_frame()
+        imgui.destroy_context(context)
+
+
 def test_the_testbed_imports_without_pyopengl():
     """A browser has no PyOpenGL, and the imgui renderer does not need one.
 
