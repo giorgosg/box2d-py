@@ -726,9 +726,14 @@ class Body(FixedAttributes):
         lib.b2Body_EnableContactRecycling,
         doc="""Whether this body's contacts may be reused between steps.
 
-        Recycling keeps the impulses the solver had already worked out, which
-        steadies a body resting on something. Turning it off trades that for
-        less per-step work, which Box2D suggests for characters.
+        While two shapes stay within the world's contact_recycle_distance of
+        where they were when last collided, their contact keeps its points and
+        only has their separation updated, rather than being collided again.
+        That is cheaper and keeps stacks steady, but a reused contact can be
+        stale enough to cause ghost collisions, which is why Box2D suggests
+        turning it off for characters, at the cost of more work per step.
+        Fast-moving bodies are recycled too as of Box2D v3.2.0; up to the
+        ac7c751 snapshot before it, their contacts were always collided again.
 
         Existing contacts keep the setting they were created with, so a change
         takes effect for contacts made after it.

@@ -1660,8 +1660,12 @@ class World(FixedAttributes):
     def contact_recycle_distance(self) -> float:
         """How far a contact point may move and still be reused, in metres.
 
-        Reusing contact points keeps stacks stable, because the solver keeps
-        the impulses it had already worked out. Zero disables recycling.
+        A contact whose shapes have moved less than this (and turned less
+        than about 11 degrees) relative to each other since it was last
+        collided keeps its points and only has their separation updated,
+        rather than being collided again. That is cheaper and keeps stacks
+        steady. Contacts not yet touching use the smaller of this and Box2D's
+        speculative distance. Zero disables recycling.
         """
         return lib.b2World_GetContactRecycleDistance(self._world_id)
 
