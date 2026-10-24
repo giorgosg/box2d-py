@@ -12,6 +12,7 @@ import math
 import pytest
 
 from box2d import RevoluteJointDef, World
+from box2d._box2d import lib
 
 
 @pytest.fixture
@@ -49,11 +50,43 @@ def test_world_settings_are_not_a_python_mirror(world):
     assert world.restitution_threshold == pytest.approx(2.0)
 
 
-def test_contact_tuning_is_still_cached(world):
-    """Box2D has only a combined setter for these and no getter."""
-    world.contact_hertz = 25.0
-    assert world.contact_hertz == pytest.approx(25.0)
-    assert hasattr(world, "_contact_hertz")
+CONTACT_TUNING = ("contact_hertz", "contact_damping_ratio", "contact_push_velocity")
+
+
+def test_contact_tuning_starts_at_box2d_defaults(world):
+    defaults = lib.b2DefaultWorldDef()
+    assert world.contact_hertz == pytest.approx(defaults.contactHertz)
+    assert world.contact_damping_ratio == pytest.approx(defaults.contactDampingRatio)
+    assert world.contact_push_velocity == pytest.approx(defaults.contactSpeed)
+
+
+@pytest.mark.parametrize("name", CONTACT_TUNING)
+def test_contact_tuning_round_trips_one_value_and_keeps_the_others(world, name):
+    """Box2D sets the three together, so setting one must not reset the rest."""
+    others = {other: 1.25 + index for index, other in enumerate(CONTACT_TUNING)}
+    for other, value in others.items():
+        setattr(world, other, value)
+
+    setattr(world, name, 0.5)
+
+    for other, value in others.items():
+        expected = 0.5 if other == name else value
+        assert getattr(world, other) == pytest.approx(expected)
+
+
+def test_contact_tuning_is_read_from_box2d(world):
+    """Set behind the wrapper's back, the new values must show."""
+    lib.b2World_SetContactTuning(world._world_id, 12.0, 0.5, 1.5)
+    assert world.contact_hertz == pytest.approx(12.0)
+    assert world.contact_damping_ratio == pytest.approx(0.5)
+    assert world.contact_push_velocity == pytest.approx(1.5)
+    assert not hasattr(world, "_contact_hertz")
+
+
+def test_contact_tuning_reads_what_box2d_kept(world):
+    """Box2D clamps a negative value to zero; a cache would show -1."""
+    world.contact_push_velocity = -1.0
+    assert world.contact_push_velocity == 0.0
 
 
 # --- body ------------------------------------------------------------------

@@ -206,13 +206,6 @@ class World(FixedAttributes):
         self._world_alive = new_liveness()
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
-        # Contact tuning is cached because Box2D has only a combined setter
-        # for the three values and no getter; everything else is read back
-        # from Box2D rather than mirrored here.
-        self._contact_hertz = world_def.contactHertz
-        self._contact_damping_ratio = world_def.contactDampingRatio
-        self._contact_push_velocity = world_def.contactSpeed
-
         # Every live body and joint, keyed by id. Box2D's user data on each is
         # a handle to its wrapper, which does not keep the wrapper alive; these
         # do, until the object is destroyed.
@@ -1535,71 +1528,70 @@ class World(FixedAttributes):
     def hit_event_threshold(self, value: float):
         lib.b2World_SetHitEventThreshold(self._world_id, float(value))
 
+    def _contact_tuning(self):
+        """Box2D's contact hertz, damping ratio and push speed, in that order."""
+        values = ffi.new("float[3]")
+        lib.b2World_GetContactTuning(self._world_id, values, values + 1, values + 2)
+        return tuple(values)
+
+    def _set_contact_tuning(self, index: int, value: float):
+        """Set one of the three, keeping the other two: Box2D sets them together."""
+        hertz, damping_ratio, push_speed = (
+            float(value) if i == index else current
+            for i, current in enumerate(self._contact_tuning())
+        )
+        lib.b2World_SetContactTuning(self._world_id, hertz, damping_ratio, push_speed)
+
     @property
     def contact_hertz(self) -> float:
         """Contact constraint stiffness frequency (Hz).
 
-        Higher values make contacts stiffer/more rigid.
+        Higher values make contacts stiffer/more rigid. Box2D clamps a
+        negative value to zero.
 
         Example:
             >>> world = World()
             >>> world.contact_hertz = 30.0  # Softer contacts
         """
-        return self._contact_hertz
+        return self._contact_tuning()[0]
 
     @contact_hertz.setter
     def contact_hertz(self, value: float):
-        self._contact_hertz = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(0, value)
 
     @property
     def contact_damping_ratio(self) -> float:
         """Contact constraint damping ratio (0-1).
 
-        1.0 = critical damping (fastest oscillation reduction)
+        1.0 = critical damping (fastest oscillation reduction). Box2D clamps a
+        negative value to zero.
 
         Example:
             >>> world = World()
             >>> world.contact_damping_ratio = 0.2  # Add some energy absorption
         """
-        return self._contact_damping_ratio
+        return self._contact_tuning()[1]
 
     @contact_damping_ratio.setter
     def contact_damping_ratio(self, value: float):
-        self._contact_damping_ratio = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(1, value)
 
     @property
     def contact_push_velocity(self) -> float:
         """Maximum velocity for pushing objects out of penetration (m/s).
 
-        Limits how fast contacts can separate penetrating bodies.
+        Limits how fast contacts can separate penetrating bodies. Box2D clamps
+        a negative value to zero.
 
         Example:
             >>> world = World()
             >>> world.contact_push_velocity = 2.0  # Allow faster separation
         """
-        return self._contact_push_velocity
+        return self._contact_tuning()[2]
 
     @contact_push_velocity.setter
     def contact_push_velocity(self, value: float):
-        self._contact_push_velocity = float(value)
-        lib.b2World_SetContactTuning(
-            self._world_id,
-            self._contact_hertz,
-            self._contact_damping_ratio,
-            self._contact_push_velocity,
-        )
+        self._set_contact_tuning(2, value)
 
     # --- diagnostics --------------------------------------------------------
 
