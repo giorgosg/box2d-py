@@ -1417,7 +1417,11 @@ class World(FixedAttributes):
         if raw is not None:
             if lib.b2World_IsValid(raw):
                 self._refuse_while_locked("world")
+                # Gone from here: after a refusal, which leaves everything
+                # live, and before Box2D frees anything.
+                self._world_alive[0] = False
                 lib.b2DestroyWorld(raw)
+            # And if Box2D had already let go of it some other way.
             self._world_alive[0] = False
             del self._world_id
             # Box2D names a body, shape, chain or joint by the slot its world

@@ -6,6 +6,8 @@ body after its world was destroyed took the interpreter down with SIGSEGV
 (exit code 139) -- no traceback, no exception, nothing to catch.
 """
 
+import functools
+
 import pytest
 from box2d import World, DestroyedError
 
@@ -267,3 +269,112 @@ def test_an_object_whose_world_is_destroyed_without_it_being_tracked_is_gone():
             body.position
     finally:
         new.destroy()
+
+
+# --- every object shares its world's liveness flag ---------------------------
+
+
+def _two_bodies(world):
+    a = world.new_body().dynamic().position(0, 0).circle(0.5).build()
+    b = world.new_body().dynamic().position(1, 0).circle(0.5).build()
+    return a, b
+
+
+def _joint_between_two_bodies(kind, world):
+    return getattr(world, f"add_{kind}_joint")(*_two_bodies(world))
+
+
+#: One maker per kind of object with an id, each given a live world.
+MAKERS = {
+    "body-static": lambda w: w.new_body().static().build(),
+    "body-kinematic": lambda w: w.new_body().kinematic().build(),
+    "body-dynamic": lambda w: w.new_body().dynamic().build(),
+    "shape-box": lambda w: w.new_body().build().add_box(1, 1),
+    "shape-circle": lambda w: w.new_body().build().add_circle(0.5),
+    "shape-capsule": lambda w: w.new_body().build().add_capsule((0, 0), (1, 0), 0.2),
+    "shape-polygon": lambda w: (
+        w.new_body().build().add_polygon([(0, 0), (1, 0), (0, 1)])
+    ),
+    "shape-segment": lambda w: w.new_body().build().add_segment((0, 0), (1, 0)),
+    "chain": lambda w: w.new_body().build().add_chain([(0, 0), (1, 0), (2, 0)]),
+    "chain-segment": lambda w: (
+        w.new_body().build().add_chain([(0, 0), (1, 0), (2, 0)]).segments[0]
+    ),
+    "joint-mouse": lambda w: w.add_mouse_joint(_two_bodies(w)[0], (0, 0)),
+    **{
+        f"joint-{kind}": functools.partial(_joint_between_two_bodies, kind)
+        for kind in (
+            "filter",
+            "weld",
+            "revolute",
+            "prismatic",
+            "wheel",
+            "distance",
+            "motor",
+            "mover",
+            "pogo",
+        )
+    },
+}
+
+
+@pytest.mark.parametrize("kind", sorted(MAKERS))
+def test_every_object_holds_its_worlds_own_liveness_flag(kind):
+    """The flag is what makes an object of a destroyed world read as gone,
+    so one made without it would come back to life in the next world."""
+    world = World()
+    try:
+        made = MAKERS[kind](world)
+        assert made._world_alive is world._world_alive
+    finally:
+        world.destroy()
+    assert made.is_valid is False
+
+
+def _all_subclasses(cls):
+    for sub in cls.__subclasses__():
+        yield sub
+        yield from _all_subclasses(sub)
+
+
+def test_the_flag_test_covers_every_joint_and_shape_class():
+    from box2d import Joint, Shape
+    from box2d.shape import ChainSegment
+
+    world = World()
+    try:
+        made = {type(make(world)) for make in MAKERS.values()}
+    finally:
+        world.destroy()
+    for base in (Joint, Shape):
+        missing = set(_all_subclasses(base)) - made - {ChainSegment} - {base}
+        assert not missing, missing
+    assert ChainSegment in made
+
+
+def test_a_destroy_refused_mid_step_leaves_the_world_and_its_objects_live():
+    """Box2D cannot destroy a world while it steps, and the refusal must come
+    before anything is marked gone."""
+    world = World()
+    ground = world.new_body().static().box(20, 1).build()
+    ball = world.new_body().dynamic().position(0, 1.2).circle(0.5).build()
+    refusals = []
+
+    def pre_solve(shape_a, shape_b, manifold):
+        try:
+            world.destroy()
+        except RuntimeError as refused:
+            refusals.append(refused)
+        return True
+
+    world.pre_solve = pre_solve
+    ball.shapes[0].enable_pre_solve_events = True
+    try:
+        for _ in range(30):
+            world.step(1 / 60, 4)
+        assert refusals, "the callback never ran"
+        assert world.is_valid and ground.is_valid and ball.is_valid
+        assert world._world_alive[0] is True
+    finally:
+        world.pre_solve = None
+        world.destroy()
