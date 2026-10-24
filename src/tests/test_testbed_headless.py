@@ -588,6 +588,7 @@ def test_the_testbed_imports_without_pyopengl():
 
     program = textwrap.dedent(
         """
+        import importlib.util
         import sys
 
         # Nothing may import PyOpenGL during this. find_spec, not find_module:
@@ -601,7 +602,11 @@ def test_the_testbed_imports_without_pyopengl():
 
         sys.meta_path.insert(0, Blocked())
 
-        assert __import__("importlib").util.find_spec is not None
+        # Imported above rather than reached as importlib.util: the submodule
+        # is only an attribute once something has imported it, which in a
+        # venv with Sphinx a namespace-package .pth file does at startup, and
+        # in one without it nothing does.
+        assert importlib.util.find_spec is not None
         try:
             import OpenGL  # noqa: F401
             raise AssertionError("the block did not work, so this proves nothing")
