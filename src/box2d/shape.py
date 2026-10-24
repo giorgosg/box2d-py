@@ -113,7 +113,7 @@ class Shape(FixedAttributes):
         return ffi.from_handle(body_data)
 
     @property
-    def material(self) -> int:
+    def user_material(self) -> int:
         """
         Get or set the shape material identifier.
 
@@ -123,11 +123,11 @@ class Shape(FixedAttributes):
         """
         return lib.b2Shape_GetUserMaterial(self._shape_id)
 
-    @material.setter
-    def material(self, value: Union[int, SurfaceMaterial]) -> None:
-        if hasattr(value, "material"):
+    @user_material.setter
+    def user_material(self, value: Union[int, SurfaceMaterial]) -> None:
+        if hasattr(value, "user_material"):
             # If it's a SurfaceMaterial object
-            lib.b2Shape_SetUserMaterial(self._shape_id, value.material)
+            lib.b2Shape_SetUserMaterial(self._shape_id, value.user_material)
         else:
             # If it's a material ID
             lib.b2Shape_SetUserMaterial(self._shape_id, int(value))
@@ -327,7 +327,7 @@ class Shape(FixedAttributes):
         """Get or set every surface property at once, as a SurfaceMaterial."""
         material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
         return SurfaceMaterial(
-            material=material.userMaterialId,
+            user_material=material.userMaterialId,
             friction=material.friction,
             restitution=material.restitution,
             rolling_resistance=material.rollingResistance,

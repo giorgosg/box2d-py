@@ -630,7 +630,7 @@ class RevoluteJoint(Joint):
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_limit = enable_limit
-        self._motor_speed = target_motor_speed
+        self._target_motor_speed = target_motor_speed
         self._max_motor_torque = max_motor_torque
         self._enable_motor = enable_motor
         self._reference_angle = reference_angle
@@ -660,8 +660,8 @@ class RevoluteJoint(Joint):
         _ordered(defn.lowerAngle, defn.upperAngle, f"revolute {_UNSET_LIMITS}")
 
         # Configure motor parameters.
-        if self._motor_speed is not None:
-            defn.motorSpeed = self._motor_speed
+        if self._target_motor_speed is not None:
+            defn.motorSpeed = self._target_motor_speed
         if self._max_motor_torque is not None:
             defn.maxMotorTorque = self._max_motor_torque
         if self._enable_motor is not None:
@@ -857,7 +857,7 @@ class PrismaticJoint(Joint):
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_limit = enable_limit
-        self._motor_speed = target_motor_speed
+        self._target_motor_speed = target_motor_speed
         self._max_motor_force = max_motor_force
         self._enable_motor = enable_motor
         self._reference_angle = reference_angle
@@ -892,8 +892,8 @@ class PrismaticJoint(Joint):
         )
         if self._enable_motor is not None:
             defn.enableMotor = self._enable_motor
-        if self._motor_speed is not None:
-            defn.motorSpeed = self._motor_speed
+        if self._target_motor_speed is not None:
+            defn.motorSpeed = self._target_motor_speed
         if self._max_motor_force is not None:
             defn.maxMotorForce = self._max_motor_force
         if self._enable_spring is not None:
@@ -1069,7 +1069,7 @@ class WheelJoint(Joint):
         self._lower_limit = lower_limit
         self._upper_limit = upper_limit
         self._enable_motor = enable_motor
-        self._motor_speed = target_motor_speed
+        self._target_motor_speed = target_motor_speed
         self._max_motor_torque = max_motor_torque
         self._enable_spring = enable_spring
         self._spring_hertz = spring_hertz
@@ -1092,7 +1092,7 @@ class WheelJoint(Joint):
         defn.upperTranslation = self._upper_limit
         _ordered(defn.lowerTranslation, defn.upperTranslation, f"wheel {_UNSET_LIMITS}")
         defn.enableMotor = self._enable_motor
-        defn.motorSpeed = self._motor_speed
+        defn.motorSpeed = self._target_motor_speed
         defn.maxMotorTorque = self._max_motor_torque
         defn.enableSpring = self._enable_spring
         defn.hertz = self._spring_hertz
@@ -1243,15 +1243,15 @@ class DistanceJoint(Joint):
         """
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
-        self._length = rest_length
-        self._min_length = lower_limit
-        self._max_length = upper_limit
+        self._rest_length = rest_length
+        self._lower_limit = lower_limit
+        self._upper_limit = upper_limit
         self._enable_limit = enable_limit
         self._enable_spring = enable_spring
         self._hertz = spring_hertz
         self._damping_ratio = spring_damping_ratio
         self._enable_motor = enable_motor
-        self._motor_speed = target_motor_speed
+        self._target_motor_speed = target_motor_speed
         self._max_motor_force = max_motor_force
         self._join(world)
 
@@ -1262,12 +1262,12 @@ class DistanceJoint(Joint):
         defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
         defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
 
-        if self._length is not None:
-            defn.length = self._length
-        if self._min_length is not None:
-            defn.minLength = self._min_length
-        if self._max_length is not None:
-            defn.maxLength = self._max_length
+        if self._rest_length is not None:
+            defn.length = self._rest_length
+        if self._lower_limit is not None:
+            defn.minLength = self._lower_limit
+        if self._upper_limit is not None:
+            defn.maxLength = self._upper_limit
 
         defn.enableLimit = self._enable_limit
         defn.enableSpring = self._enable_spring
@@ -1276,8 +1276,8 @@ class DistanceJoint(Joint):
         if self._damping_ratio is not None:
             defn.dampingRatio = self._damping_ratio
         defn.enableMotor = self._enable_motor
-        if self._motor_speed is not None:
-            defn.motorSpeed = self._motor_speed
+        if self._target_motor_speed is not None:
+            defn.motorSpeed = self._target_motor_speed
         if self._max_motor_force is not None:
             defn.maxMotorForce = self._max_motor_force
 
@@ -1663,8 +1663,8 @@ class PogoJoint(Joint):
         local_anchor_a: VectorLike = (0, 0),
         local_anchor_b: VectorLike = (0, 0),
         normal: VectorLike = (0, 1),
-        hertz=None,
-        damping_ratio=None,
+        spring_hertz=None,
+        spring_damping_ratio=None,
         rest_length=None,
         max_tension_force=None,
         max_compression_force=None,
@@ -1684,8 +1684,8 @@ class PogoJoint(Joint):
                 character, in body_b's local coordinates
             normal (vector-like): The ground normal at the contact, in world
                 coordinates. The spring pushes along it. Normalized here.
-            hertz (float): Spring frequency
-            damping_ratio (float): Spring damping ratio
+            spring_hertz (float): Spring frequency
+            spring_damping_ratio (float): Spring damping ratio
             rest_length (float): Length the spring settles at
             max_tension_force (float): How hard the spring may pull the
                 character down to the ground. Zero while jumping.
@@ -1705,8 +1705,8 @@ class PogoJoint(Joint):
         defn.base.collideConnected = collide_connected
         defn.normal = _unit_vector(normal, "a pogo normal").b2Vec2[0]
         for field, value in (
-            ("hertz", hertz),
-            ("dampingRatio", damping_ratio),
+            ("hertz", spring_hertz),
+            ("dampingRatio", spring_damping_ratio),
             ("restLength", rest_length),
             ("maxTensionForce", max_tension_force),
             ("maxCompressionForce", max_compression_force),
@@ -1727,12 +1727,12 @@ class PogoJoint(Joint):
         lib.b2PogoJoint_SetRestLength,
         doc="Get or set the length the spring settles at.",
     )
-    hertz = b2_float(
+    spring_hertz = b2_float(
         lib.b2PogoJoint_GetSpringHertz,
         lib.b2PogoJoint_SetSpringHertz,
         doc="Get or set the spring frequency in Hertz.",
     )
-    damping_ratio = b2_float(
+    spring_damping_ratio = b2_float(
         lib.b2PogoJoint_GetSpringDampingRatio,
         lib.b2PogoJoint_SetSpringDampingRatio,
         doc="Get or set the spring damping ratio.",

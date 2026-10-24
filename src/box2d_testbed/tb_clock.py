@@ -510,7 +510,7 @@ class PendulumClock(BaseTest, category="Machines", name="Pendulum Clock"):
         for contact in self.pendulum.contact_data:
             if contact.manifold.points:
                 point = contact.manifold.points[0]
-                where = contact.shape_a.body.world_center_of_mass + point.anchor_a
+                where = contact.shape_a.body.world_center + point.anchor_a
                 direction = -1.0 if where.x < self.pivot.x else 1.0
         self.pendulum.angular_velocity = direction * self.PUSH_SPEED
         self.pendulum.awake = True

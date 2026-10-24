@@ -63,7 +63,6 @@ def test_body_enable_sleeping(world):
     body = world.add_body(body_type="dynamic")
     body.enable_sleeping = False
     assert body.enable_sleeping is False
-    assert body.is_sleeping_enabled() is False
     body.enable_sleeping = True
     assert body.enable_sleeping is True
 

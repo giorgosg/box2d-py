@@ -92,7 +92,7 @@ class ShapeDef:
         # Handle material - either an int or SurfaceMaterial object
         if self.material is not None:
             if isinstance(self.material, SurfaceMaterial):
-                shape_def.material.userMaterialId = self.material.material
+                shape_def.material.userMaterialId = self.material.user_material
                 # Apply any material properties if the corresponding ShapeDef property is None
                 if self.friction is None and self.material.friction is not None:
                     shape_def.material.friction = self.material.friction
@@ -635,7 +635,7 @@ class ChainDef:
                     if mat.tangent_speed is not None
                     else lib.b2DefaultSurfaceMaterial().tangentSpeed
                 )
-                materials[i].userMaterialId = mat.material
+                materials[i].userMaterialId = mat.user_material
 
                 if mat.custom_color is not None:
                     if isinstance(mat.custom_color, int):

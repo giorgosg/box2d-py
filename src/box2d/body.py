@@ -1089,10 +1089,6 @@ class Body(FixedAttributes):
         if shape in self._shapes:
             shape.destroy()
 
-    def is_sleeping_enabled(self):
-        """Check if the body is allowed to sleep."""
-        return lib.b2Body_IsSleepingEnabled(self._body_id)
-
     @property
     def is_valid(self) -> bool:
         """Whether this body is still live, i.e. has not been destroyed."""
@@ -1216,7 +1212,7 @@ class Body(FixedAttributes):
         lib.b2Body_ApplyAngularImpulse(self._body_id, float(impulse), wake)
 
     @property
-    def local_center_of_mass(self) -> Vec2:
+    def local_center(self) -> Vec2:
         """Get the center of mass position in local space.
 
         Returns:
@@ -1226,7 +1222,7 @@ class Body(FixedAttributes):
         return Vec2.from_b2Vec2(center)
 
     @property
-    def world_center_of_mass(self) -> Vec2:
+    def world_center(self) -> Vec2:
         """Get the center of mass position in world space.
 
         Returns:

@@ -322,8 +322,8 @@ class PogoJointDef(JointDef):
     Attributes:
         normal: The ground normal at the contact, in world coordinates.
             Defaults to straight up.
-        hertz: Spring frequency.
-        damping_ratio: Spring damping ratio.
+        spring_hertz: Spring frequency.
+        spring_damping_ratio: Spring damping ratio.
         rest_length: Length the spring settles at.
         max_tension_force: How hard the spring may pull the character down.
         max_compression_force: How hard the spring may push the character up.
@@ -332,8 +332,8 @@ class PogoJointDef(JointDef):
     """
 
     normal: Optional[VectorLike] = None
-    hertz: Optional[float] = None
-    damping_ratio: Optional[float] = None
+    spring_hertz: Optional[float] = None
+    spring_damping_ratio: Optional[float] = None
     rest_length: Optional[float] = None
     max_tension_force: Optional[float] = None
     max_compression_force: Optional[float] = None

@@ -253,7 +253,7 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
         inertia = self.body.rotational_inertia
         inv_inertia = 1.0 / inertia if inertia > 0.0001 else 0.0
 
-        center = self.body.world_center_of_mass
+        center = self.body.world_center
         velocity = self.body.linear_velocity
         angular_velocity = self.body.angular_velocity
 

@@ -303,8 +303,8 @@ class DynamicMover:
             local_anchor_b=self.center1,
             normal=self.cast.normal,
             rest_length=self.pogo_rest_length,
-            hertz=self.pogo_hertz,
-            damping_ratio=self.pogo_damping_ratio,
+            spring_hertz=self.pogo_hertz,
+            spring_damping_ratio=self.pogo_damping_ratio,
             max_compression_force=self.pogo_compression_scale * weight,
             # A jumping character must not be pulled back down to the ground.
             max_tension_force=(

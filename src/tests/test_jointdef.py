@@ -309,6 +309,7 @@ _DEF_ALIASES = {
         "minLength": "lower_limit",
         "maxLength": "upper_limit",
     },
+    "PogoJointDef": _SPRING,
 }
 
 
@@ -326,6 +327,7 @@ def _camel(name):
         "DistanceJointDef",
         "WeldJointDef",
         "MotorJointDef",
+        "PogoJointDef",
     ],
 )
 def test_joint_def_covers_box2d_s_own(name):

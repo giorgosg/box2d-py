@@ -197,17 +197,17 @@ def test_material_property(dynamic_body):
     shape = dynamic_body.add_circle(radius=0.5)
 
     # Test getting the material ID
-    default_material = shape.material
+    default_material = shape.user_material
     assert isinstance(default_material, int)
 
     # Test setting a new material ID
-    shape.material = 42
-    assert shape.material == 42
+    shape.user_material = 42
+    assert shape.user_material == 42
 
     # Test with SurfaceMaterial object
     custom_material = SurfaceMaterial(friction=0.8)
-    shape.material = custom_material
-    assert shape.material == custom_material.material
+    shape.user_material = custom_material
+    assert shape.user_material == custom_material.user_material
 
 
 def test_shape_collision_filter(dynamic_body):
@@ -409,9 +409,9 @@ def test_shape_multiple_materials(static_body):
     )
 
     # Test that segments have different materials
-    assert chain.segments[0].material != chain.segments[1].material
-    assert chain.segments[0].material == chain.segments[2].material
-    assert chain.segments[1].material == chain.segments[3].material
+    assert chain.segments[0].user_material != chain.segments[1].user_material
+    assert chain.segments[0].user_material == chain.segments[2].user_material
+    assert chain.segments[1].user_material == chain.segments[3].user_material
 
 
 def test_circle_get_set_geometry(dynamic_body):
