@@ -197,17 +197,17 @@ def test_material_property(dynamic_body):
     shape = dynamic_body.add_circle(radius=0.5)
 
     # Test getting the material ID
-    default_material = shape.material
+    default_material = shape.user_material
     assert isinstance(default_material, int)
 
     # Test setting a new material ID
-    shape.material = 42
-    assert shape.material == 42
+    shape.user_material = 42
+    assert shape.user_material == 42
 
     # Test with SurfaceMaterial object
     custom_material = SurfaceMaterial(friction=0.8)
-    shape.material = custom_material
-    assert shape.material == custom_material.material
+    shape.user_material = custom_material
+    assert shape.user_material == custom_material.user_material
 
 
 def test_shape_collision_filter(dynamic_body):
@@ -256,7 +256,7 @@ def test_shape_introspection_properties(dynamic_body, world):
     assert shape.world == world
 
     # Test aabb property
-    aabb = shape.aabb
+    aabb = shape.bounds
     assert isinstance(aabb, AABB)
     assert aabb.lower.x < aabb.upper.x
     assert aabb.lower.y < aabb.upper.y
@@ -270,7 +270,7 @@ def test_shape_introspection_properties(dynamic_body, world):
 
 
 def test_shape_validity_and_collision_methods(dynamic_body):
-    """Test is_valid, test_point, ray_cast, get_closest_point methods"""
+    """Test is_valid, test_point, cast_ray, get_closest_point methods"""
     shape = dynamic_body.add_circle(radius=1.0, center=(0, 0))
 
     # Test is_valid
@@ -280,8 +280,8 @@ def test_shape_validity_and_collision_methods(dynamic_body):
     assert shape.test_point((0, 0)) is True  # Point at center should be inside
     assert shape.test_point((1.5, 0)) is False  # Point outside radius should be outside
 
-    # Test ray_cast
-    hit_result = shape.ray_cast(
+    # Test cast_ray
+    hit_result = shape.cast_ray(
         (-2, 0), (4, 0)
     )  # Ray from left to right through circle
     assert hit_result is not None
@@ -290,7 +290,7 @@ def test_shape_validity_and_collision_methods(dynamic_body):
     assert isinstance(hit_result.normal, Vec2)
     assert 0 < hit_result.fraction < 1
 
-    miss_result = shape.ray_cast((-2, 2), (4, 0))  # Ray above the circle
+    miss_result = shape.cast_ray((-2, 2), (4, 0))  # Ray above the circle
     assert miss_result is None
 
     # Test get_closest_point
@@ -409,9 +409,9 @@ def test_shape_multiple_materials(static_body):
     )
 
     # Test that segments have different materials
-    assert chain.segments[0].material != chain.segments[1].material
-    assert chain.segments[0].material == chain.segments[2].material
-    assert chain.segments[1].material == chain.segments[3].material
+    assert chain.segments[0].user_material != chain.segments[1].user_material
+    assert chain.segments[0].user_material == chain.segments[2].user_material
+    assert chain.segments[1].user_material == chain.segments[3].user_material
 
 
 def test_circle_get_set_geometry(dynamic_body):

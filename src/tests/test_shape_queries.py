@@ -129,7 +129,7 @@ def test_cast_shape_finds_the_ground(world, ground):
 
 def test_cast_shape_stops_at_the_shape_surface_not_its_centre(world, ground):
     """The difference from a ray cast: the radius is accounted for."""
-    ray = world.ray_cast((0, 10), (0, -20))
+    ray = world.cast_ray((0, 10), (0, -20))
     cast = world.cast_shape(ShapeProxy.circle(2.0, (0, 10)), (0, -20))
 
     assert ray[0].point.y == pytest.approx(0.5, abs=0.05)
@@ -170,7 +170,7 @@ def test_cast_shape_answers_whether_something_fits(world):
         post.add_box(2, 4)  # posts span |x| 2..4, leaving a 4m gap
 
     # A ray straight down the middle sees nothing either way.
-    assert world.ray_cast((0, 10), (0, -20)) == []
+    assert world.cast_ray((0, 10), (0, -20)) == []
 
     narrow = world.cast_shape(ShapeProxy.circle(1.5, (0, 10)), (0, -20))
     wide = world.cast_shape(ShapeProxy.circle(2.5, (0, 10)), (0, -20))

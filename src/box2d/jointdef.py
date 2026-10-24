@@ -10,6 +10,10 @@ the joint attaches to each, and whether those bodies still collide. Anchors can
 be given either as local points on each body, or as a single world-space
 ``anchor`` that is converted to both -- the common case when you know where the
 pivot is but not each body's local frame.
+
+Definitions have slots, so assigning a field one does not have -- a
+misspelling, or a name from before a rename -- raises AttributeError
+rather than being kept and never read.
 """
 
 from dataclasses import dataclass, fields
@@ -21,7 +25,7 @@ if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
 
 
-@dataclass
+@dataclass(slots=True)
 class JointDef:
     """Fields common to every joint.
 
@@ -87,7 +91,7 @@ class JointDef:
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class FilterJointDef(JointDef):
     """Stops two bodies colliding without constraining them otherwise.
 
@@ -99,7 +103,7 @@ class FilterJointDef(JointDef):
         return {"body_a": self.body_a, "body_b": self.body_b}
 
 
-@dataclass
+@dataclass(slots=True)
 class WeldJointDef(JointDef):
     """Holds two bodies rigidly together, optionally with some give.
 
@@ -118,7 +122,7 @@ class WeldJointDef(JointDef):
     reference_angle: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class RevoluteJointDef(JointDef):
     """Pins two bodies together at a point and lets them rotate about it.
 
@@ -126,7 +130,8 @@ class RevoluteJointDef(JointDef):
         lower_limit: Lower limit of rotation in radians.
         upper_limit: Upper limit of rotation in radians.
         enable_limit: Whether the angle limits are enforced.
-        motor_speed: Desired motor speed in radians per second.
+        target_motor_speed: The speed the motor drives towards, in radians per
+            second.
         max_motor_torque: Torque the motor may apply, in newton-metres.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Angle between the bodies at which the joint rests.
@@ -139,7 +144,7 @@ class RevoluteJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
@@ -149,7 +154,7 @@ class RevoluteJointDef(JointDef):
     target_angle: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class PrismaticJointDef(JointDef):
     """Lets two bodies slide along one axis without rotating.
 
@@ -158,7 +163,7 @@ class PrismaticJointDef(JointDef):
         lower_limit: Lower translation limit.
         upper_limit: Upper translation limit.
         enable_limit: Whether the translation limits are enforced.
-        motor_speed: Desired motor speed.
+        target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         enable_motor: Whether the motor drives the joint.
         reference_angle: Not supported since Box2D 3.2, where the axis owns the
@@ -173,7 +178,7 @@ class PrismaticJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
     enable_motor: Optional[bool] = None
     reference_angle: Optional[float] = None
@@ -183,7 +188,7 @@ class PrismaticJointDef(JointDef):
     target_translation: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class WheelJointDef(JointDef):
     """A sliding axis with a spring, as between a chassis and a wheel.
 
@@ -193,7 +198,8 @@ class WheelJointDef(JointDef):
         lower_limit: Lower translation limit.
         upper_limit: Upper translation limit.
         enable_motor: Whether the motor drives the joint.
-        motor_speed: Desired motor speed in radians per second.
+        target_motor_speed: The speed the motor drives towards, in radians per
+            second.
         max_motor_torque: Torque the motor may apply.
         enable_spring: Whether the suspension spring is active.
         spring_hertz: Spring frequency.
@@ -205,27 +211,27 @@ class WheelJointDef(JointDef):
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     enable_motor: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_torque: Optional[float] = None
     enable_spring: Optional[bool] = None
     spring_hertz: Optional[float] = None
     spring_damping_ratio: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
     Attributes:
-        length: The rest length between the anchors.
-        min_length: Lower length limit.
-        max_length: Upper length limit.
+        rest_length: The rest length between the anchors.
+        lower_limit: Lower length limit.
+        upper_limit: Upper length limit.
         enable_limit: Whether the length limits are enforced.
         enable_spring: Whether the joint behaves as a spring rather than a rod.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
         enable_motor: Whether the motor drives the length.
-        motor_speed: Desired motor speed.
+        target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         lower_spring_force: Most the spring may pull, as a negative force in
             newtons. At zero it only pushes, like a strut.
@@ -233,21 +239,21 @@ class DistanceJointDef(JointDef):
             like a rope.
     """
 
-    length: Optional[float] = None
-    min_length: Optional[float] = None
-    max_length: Optional[float] = None
+    rest_length: Optional[float] = None
+    lower_limit: Optional[float] = None
+    upper_limit: Optional[float] = None
     enable_limit: Optional[bool] = None
     enable_spring: Optional[bool] = None
     spring_hertz: Optional[float] = None
     spring_damping_ratio: Optional[float] = None
     enable_motor: Optional[bool] = None
-    motor_speed: Optional[float] = None
+    target_motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
     lower_spring_force: Optional[float] = None
     upper_spring_force: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MotorJointDef(JointDef):
     """Drives the relative motion of two bodies.
 
@@ -280,13 +286,15 @@ class MotorJointDef(JointDef):
 
     def joint_arguments(self):
         """The motor joint attaches at the bodies' origins, so it has no anchors."""
-        arguments = super().joint_arguments()
+        # super() with arguments: slots=True makes a new class that a bare
+        # super() in a method of the old one cannot see before Python 3.14.
+        arguments = super(MotorJointDef, self).joint_arguments()
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class MoverJointDef(JointDef):
     """Drives a dynamic character body at a commanded velocity.
 
@@ -304,13 +312,15 @@ class MoverJointDef(JointDef):
 
     def joint_arguments(self):
         """The mover joint drives velocity only, so it has no anchors."""
-        arguments = super().joint_arguments()
+        # super() with arguments: slots=True makes a new class that a bare
+        # super() in a method of the old one cannot see before Python 3.14.
+        arguments = super(MoverJointDef, self).joint_arguments()
         arguments.pop("local_anchor_a", None)
         arguments.pop("local_anchor_b", None)
         return arguments
 
 
-@dataclass
+@dataclass(slots=True)
 class PogoJointDef(JointDef):
     """A spring holding a character up off the ground. See :class:`.PogoJoint`.
 
@@ -320,8 +330,8 @@ class PogoJointDef(JointDef):
     Attributes:
         normal: The ground normal at the contact, in world coordinates.
             Defaults to straight up.
-        hertz: Spring frequency.
-        damping_ratio: Spring damping ratio.
+        spring_hertz: Spring frequency.
+        spring_damping_ratio: Spring damping ratio.
         rest_length: Length the spring settles at.
         max_tension_force: How hard the spring may pull the character down.
         max_compression_force: How hard the spring may push the character up.
@@ -330,8 +340,8 @@ class PogoJointDef(JointDef):
     """
 
     normal: Optional[VectorLike] = None
-    hertz: Optional[float] = None
-    damping_ratio: Optional[float] = None
+    spring_hertz: Optional[float] = None
+    spring_damping_ratio: Optional[float] = None
     rest_length: Optional[float] = None
     max_tension_force: Optional[float] = None
     max_compression_force: Optional[float] = None
@@ -339,7 +349,7 @@ class PogoJointDef(JointDef):
     velocity: Optional[float] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MouseJointDef:
     """Drags one body toward a moving world-space target.
 

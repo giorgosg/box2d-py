@@ -276,7 +276,7 @@ class DynamicMoverScene(BaseTest, category="Character", name="Dynamic Mover"):
             paddle,
             anchor=(160, 8),
             enable_motor=True,
-            motor_speed=1.0,
+            target_motor_speed=1.0,
             max_motor_torque=500.0,
         )
 

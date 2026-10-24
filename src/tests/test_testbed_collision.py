@@ -20,8 +20,8 @@ def layout(world):
     return [
         (
             type(shape).__name__,
-            tuple(shape.aabb.lower),
-            tuple(shape.aabb.upper),
+            tuple(shape.bounds.lower),
+            tuple(shape.bounds.upper),
         )
         for body in world.bodies
         for shape in body.shapes
@@ -132,7 +132,7 @@ def test_ray_cast_marks_the_hits_the_query_returns(world):
     drawn = Drawn()
     test.debug_draw(drawn)
 
-    hits = world.ray_cast(test.ray_start, test.ray_end - test.ray_start)
+    hits = world.cast_ray(test.ray_start, test.ray_end - test.ray_start)
     assert drawn.points == [hit.point for hit in hits[:4]]
 
 
@@ -203,7 +203,7 @@ def test_a_ray_from_inside_a_shape_is_reported_only_with_every_hit(world):
     test = scenario(world, "Collision", "Ray Cast")
     (ground,) = world.bodies
     circle = next(shape for shape in ground.shapes if isinstance(shape, Circle))
-    inside = circle.aabb.center
+    inside = circle.bounds.center
     test.on_mouse_down(inside)
     test.on_mouse_release(inside + Vec2(8, 0.3))
 

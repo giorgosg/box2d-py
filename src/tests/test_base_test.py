@@ -87,7 +87,7 @@ def test_rebuild_replaces_the_scene_and_keeps_the_controls(world, scenario_class
     assert not first.is_valid, "the old scene is gone"
     assert len(world.bodies) == 2, "and only one new one replaced it"
     assert scenario.size == 2.0
-    assert scenario.crate.shapes[0].aabb.upper.x == pytest.approx(1.0, abs=0.05)
+    assert scenario.crate.shapes[0].bounds.upper.x == pytest.approx(1.0, abs=0.05)
 
 
 def test_reset_is_a_rebuild(world, scenario_class):

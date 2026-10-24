@@ -72,7 +72,7 @@ class RayCast(BaseTest, category="Collision", name="Ray Cast"):
 
     def cast(self):
         """The hits shown: the closest, or up to Max Hits, nearest first."""
-        hits = self.world.ray_cast(
+        hits = self.world.cast_ray(
             self.ray_start,
             self.ray_end - self.ray_start,
             first_hit_only=self.max_hits == 1,

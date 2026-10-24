@@ -517,8 +517,8 @@ class TestbedApp:
         # Hertz slider
         _, state.hertz = imgui.slider_int("Hertz", state.hertz, 10, 240)
 
-        _, state.maximum_linear_speed = imgui.slider_float(
-            "Max speed", state.maximum_linear_speed, 10.0, 1000.0, format="%.0f"
+        _, state.max_linear_speed = imgui.slider_float(
+            "Max speed", state.max_linear_speed, 10.0, 1000.0, format="%.0f"
         )
         _, state.contact_recycle_distance = imgui.slider_float(
             "Recycle dist", state.contact_recycle_distance, 0.0, 0.5, format="%.3f"
@@ -529,7 +529,7 @@ class TestbedApp:
         _, state.enable_continuous = imgui.checkbox(
             "Continuous Collision", state.enable_continuous
         )
-        _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
+        _, state.enable_sleeping = imgui.checkbox("Sleep", state.enable_sleeping)
         _, state.enable_warm_starting = imgui.checkbox(
             "Warm starting", state.enable_warm_starting
         )

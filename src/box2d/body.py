@@ -672,7 +672,7 @@ class Body(FixedAttributes):
         return lib.b2Body_GetMaxExtent(self._body_id)
 
     @property
-    def max_extent_origin(self) -> float:
+    def max_extent_from_origin(self) -> float:
         """The largest distance from the body origin to any point of its shapes.
 
         Conservative: it may overestimate, never underestimate.
@@ -811,7 +811,7 @@ class Body(FixedAttributes):
         b2transform = lib.b2Body_GetTransform(self._body_id)
         return Transform.from_b2Transform(b2transform)
 
-    enable_sleep = b2_bool(
+    enable_sleeping = b2_bool(
         lib.b2Body_IsSleepingEnabled,
         lib.b2Body_EnableSleeping,
         doc="Get or set whether this body is allowed to fall asleep.",
@@ -1089,10 +1089,6 @@ class Body(FixedAttributes):
         if shape in self._shapes:
             shape.destroy()
 
-    def is_sleep_enabled(self):
-        """Check if the body is allowed to sleep."""
-        return lib.b2Body_IsSleepingEnabled(self._body_id)
-
     @property
     def is_valid(self) -> bool:
         """Whether this body is still live, i.e. has not been destroyed."""
@@ -1216,7 +1212,7 @@ class Body(FixedAttributes):
         lib.b2Body_ApplyAngularImpulse(self._body_id, float(impulse), wake)
 
     @property
-    def local_center_of_mass(self) -> Vec2:
+    def local_center(self) -> Vec2:
         """Get the center of mass position in local space.
 
         Returns:
@@ -1226,7 +1222,7 @@ class Body(FixedAttributes):
         return Vec2.from_b2Vec2(center)
 
     @property
-    def world_center_of_mass(self) -> Vec2:
+    def world_center(self) -> Vec2:
         """Get the center of mass position in world space.
 
         Returns:
@@ -1264,11 +1260,11 @@ class Body(FixedAttributes):
         lib.b2Body_UpdateMassFromShapes(self._body_id)
 
     @property
-    def aabb(self) -> AABB:
-        """Get the AABB enclosing all shapes attached to the body.
+    def bounds(self) -> AABB:
+        """The world AABB enclosing all shapes attached to the body.
 
-        Returns:
-            AABB object representing the axis-aligned bounding box.
+        It need not contain the body origin. A body with no shapes gets an
+        empty box at its origin.
         """
         b2_aabb = lib.b2Body_ComputeBounds(self._body_id)
         return AABB(

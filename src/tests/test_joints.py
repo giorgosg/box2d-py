@@ -1,5 +1,7 @@
 # tests/test_joints.py
 
+import math
+
 import pytest
 from box2d import World, Vec2, MouseJoint, RevoluteJoint
 from pytest import approx
@@ -130,7 +132,7 @@ def test_revolute_joint_creation(world_and_bodies):
         lower_limit=-0.5,
         upper_limit=0.5,
         enable_limit=True,
-        motor_speed=2.0,
+        target_motor_speed=2.0,
         max_motor_torque=10.0,
         enable_motor=True,
         reference_angle=0.0,
@@ -148,7 +150,7 @@ def test_revolute_joint_creation(world_and_bodies):
     # Verify limit and motor settings.
     assert revolute_joint.lower_limit == pytest.approx(-0.5)
     assert revolute_joint.upper_limit == pytest.approx(0.5)
-    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.target_motor_speed == pytest.approx(2.0)
     assert revolute_joint.max_motor_torque == pytest.approx(10.0)
 
 
@@ -164,7 +166,7 @@ def test_revolute_joint_via_world_method(world_and_bodies):
         lower_limit=-0.5,
         upper_limit=0.5,
         enable_limit=True,
-        motor_speed=2.0,
+        target_motor_speed=2.0,
         max_motor_torque=10.0,
         enable_motor=True,
         reference_angle=0.0,
@@ -184,8 +186,78 @@ def test_revolute_joint_via_world_method(world_and_bodies):
 
     assert revolute_joint.lower_limit == pytest.approx(-0.5)
     assert revolute_joint.upper_limit == pytest.approx(0.5)
-    assert revolute_joint.motor_speed == pytest.approx(2.0)
+    assert revolute_joint.target_motor_speed == pytest.approx(2.0)
     assert revolute_joint.max_motor_torque == pytest.approx(10.0)
+
+
+def _driven_wheel(max_motor_torque):
+    """A wheel pinned to the ground by a motorised revolute joint, no gravity."""
+    world = World(gravity=(0, 0))
+    ground = world.new_body().build()
+    wheel = world.new_body().dynamic().build()
+    wheel.add_circle(radius=1.0)
+    joint = world.add_revolute_joint(
+        ground,
+        wheel,
+        local_anchor_a=(0, 0),
+        local_anchor_b=(0, 0),
+        enable_motor=True,
+        target_motor_speed=3.0,
+        max_motor_torque=max_motor_torque,
+    )
+    return world, ground, wheel, joint
+
+
+def test_revolute_joint_current_speed_is_how_fast_it_turns():
+    world, ground, wheel, joint = _driven_wheel(max_motor_torque=1000.0)
+    assert joint.current_speed == pytest.approx(0.0)
+
+    for _ in range(10):
+        world.step(1 / 60, 4)
+
+    assert joint.current_speed == pytest.approx(3.0, abs=0.01)
+    assert joint.current_speed == pytest.approx(
+        wheel.angular_velocity - ground.angular_velocity
+    )
+
+
+def test_revolute_joint_current_speed_is_not_the_target():
+    world, _, _, joint = _driven_wheel(max_motor_torque=0.5)
+
+    world.step(1 / 60, 4)
+
+    assert joint.target_motor_speed == pytest.approx(3.0)
+    assert 0.0 < joint.current_speed < 0.5, "a weak motor has not got up to speed"
+
+
+def test_revolute_joint_current_speed_is_read_only():
+    _, _, _, joint = _driven_wheel(max_motor_torque=1000.0)
+    with pytest.raises(AttributeError):
+        joint.current_speed = 1.0
+
+
+def _free_pair():
+    """Two bodies on one pivot, no gravity, no motor."""
+    world = World(gravity=(0, 0))
+    a = world.new_body().dynamic().build()
+    a.add_circle(radius=1.0)
+    b = world.new_body().dynamic().build()
+    b.add_circle(radius=1.0)
+    joint = world.add_revolute_joint(a, b, local_anchor_a=(0, 0), local_anchor_b=(0, 0))
+    return world, a, b, joint
+
+
+def test_revolute_joint_current_speed_counts_both_bodies_turning():
+    _, a, b, joint = _free_pair()
+    a.angular_velocity = 1.0
+    b.angular_velocity = -2.0
+    assert joint.current_speed == pytest.approx(-3.0)
+
+
+def test_revolute_joint_current_angle_is_wrapped():
+    _, a, b, joint = _free_pair()
+    b.rotation = 3.5
+    assert joint.current_angle == pytest.approx(3.5 - 2 * math.pi, abs=1e-5)
 
 
 # --- destroying joints, which nothing exercised before ----------------------
@@ -209,7 +281,7 @@ def make_joint(kind, world, a, b):
     if kind == "weld":
         return world.add_weld_joint(a, b, **anchors)
     if kind == "distance":
-        return world.add_distance_joint(a, b, length=2.0, **anchors)
+        return world.add_distance_joint(a, b, rest_length=2.0, **anchors)
     if kind == "prismatic":
         return world.add_prismatic_joint(a, b, axis=(1, 0), **anchors)
     if kind == "wheel":

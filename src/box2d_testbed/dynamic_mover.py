@@ -218,7 +218,7 @@ class DynamicMover:
         self.pogo_origin = self.body.position + self.center1
         self.pogo_translation = Vec2(0, -reach)
 
-        hits = self.world.ray_cast(
+        hits = self.world.cast_ray(
             self.pogo_origin,
             self.pogo_translation,
             filter=self.filter,
@@ -283,9 +283,9 @@ class DynamicMover:
         """Replace last step's pogo with one where the ray landed this step."""
         if self.pogo_joint is not None:
             if self.pogo_joint.is_valid:
-                self.pogo_length = self.pogo_joint.length
+                self.pogo_length = self.pogo_joint.current_length
                 self.pogo_impulse = self.pogo_joint.impulse
-                self.pogo_velocity = self.pogo_joint.velocity
+                self.pogo_velocity = self.pogo_joint.current_speed
                 self.pogo_joint.destroy()
             self.pogo_joint = None
 
@@ -303,8 +303,8 @@ class DynamicMover:
             local_anchor_b=self.center1,
             normal=self.cast.normal,
             rest_length=self.pogo_rest_length,
-            hertz=self.pogo_hertz,
-            damping_ratio=self.pogo_damping_ratio,
+            spring_hertz=self.pogo_hertz,
+            spring_damping_ratio=self.pogo_damping_ratio,
             max_compression_force=self.pogo_compression_scale * weight,
             # A jumping character must not be pulled back down to the ground.
             max_tension_force=(

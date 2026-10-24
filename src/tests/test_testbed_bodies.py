@@ -83,7 +83,7 @@ def test_enable_sleep_holds_for_the_scene_reset_builds(world):
     run(test, 3.0)
 
     assert all(box.awake for box in test.cargo), "cargo at rest stays awake"
-    assert not any(body.enable_sleep for body in [test.platform, *test.cargo])
+    assert not any(body.enable_sleeping for body in [test.platform, *test.cargo])
 
 
 def test_enable_sleep_lets_cargo_at_rest_sleep_again(world):

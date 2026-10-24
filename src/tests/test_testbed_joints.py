@@ -93,7 +93,7 @@ def test_the_driving_course_ends_in_a_wall(world):
     scenario(world, "Joints", "Driving")
 
     # Along the last flat stretch, towards the end of the course at x = 320.
-    hits = world.ray_cast((310, 5), (20, 0), first_hit_only=True)
+    hits = world.cast_ray((310, 5), (20, 0), first_hit_only=True)
 
     assert hits, "nothing there: the car would drive off the end"
     assert hits[0].point.x == pytest.approx(320)
@@ -176,11 +176,11 @@ def test_the_torque_slider_reaches_a_car_being_driven(world):
 def drive_target(test):
     """The speed and torque the car's motors are set to, front and rear alike."""
     rear, front = test.car.rear_axle, test.car.front_axle
-    assert (rear.motor_speed, rear.max_motor_torque) == (
-        front.motor_speed,
+    assert (rear.target_motor_speed, rear.max_motor_torque) == (
+        front.target_motor_speed,
         front.max_motor_torque,
     )
-    return rear.motor_speed, rear.max_motor_torque
+    return rear.target_motor_speed, rear.max_motor_torque
 
 
 def test_the_speed_slider_reaches_a_car_being_driven(world):
@@ -267,3 +267,13 @@ def test_each_ragdoll_scenario_opens_with_its_figure_in_view(world, name):
     assert_view_takes_in_moving_bodies(test)
     run(test, 5.0)
     assert_view_takes_in_moving_bodies(test)
+
+
+def test_distance_joint_sliders_may_pass_each_other(world):
+    """The joint refuses crossed limits, but its two sliders move freely."""
+    test = scenario(world, "Joints", "Distance Joint")
+    test.max_length = 1.5
+    test.min_length = 3.0
+    for joint in test.joints:
+        assert joint.lower_limit == pytest.approx(1.5)
+        assert joint.upper_limit == pytest.approx(3.0)

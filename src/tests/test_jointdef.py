@@ -18,6 +18,7 @@ from box2d import (
     DistanceJointDef,
     MotorJointDef,
     MouseJointDef,
+    MoverJointDef,
     PrismaticJointDef,
     RevoluteJointDef,
     WeldJointDef,
@@ -60,7 +61,7 @@ def bodies(world):
         (lambda a, b: RevoluteJointDef(a, b, anchor=(1, 0)), RevoluteJoint),
         (lambda a, b: PrismaticJointDef(a, b, anchor=(1, 0)), PrismaticJoint),
         (lambda a, b: WheelJointDef(a, b, anchor=(1, 0)), WheelJoint),
-        (lambda a, b: DistanceJointDef(a, b, length=2.0), DistanceJoint),
+        (lambda a, b: DistanceJointDef(a, b, rest_length=2.0), DistanceJoint),
         (lambda a, b: MotorJointDef(a, b), MotorJoint),
     ],
     ids=["weld", "revolute", "prismatic", "wheel", "distance", "motor"],
@@ -84,7 +85,7 @@ def test_definition_settings_reach_the_joint(world, bodies):
             anchor=(1, 0),
             enable_motor=True,
             max_motor_torque=100.0,
-            motor_speed=2.0,
+            target_motor_speed=2.0,
             enable_limit=True,
             lower_limit=-1.0,
             upper_limit=1.0,
@@ -92,7 +93,7 @@ def test_definition_settings_reach_the_joint(world, bodies):
     )
     assert joint.enable_motor is True
     assert joint.max_motor_torque == pytest.approx(100.0)
-    assert joint.motor_speed == pytest.approx(2.0)
+    assert joint.target_motor_speed == pytest.approx(2.0)
     assert joint.enable_limit is True
 
 
@@ -174,9 +175,9 @@ def test_shorthand_matches_add_joint(world, bodies):
 
 
 def test_shorthand_accepts_positional_anchors(world, bodies):
-    joint = world.add_distance_joint(*bodies, (0, 0), (0, 0), length=2.0)
+    joint = world.add_distance_joint(*bodies, (0, 0), (0, 0), rest_length=2.0)
     assert isinstance(joint, DistanceJoint)
-    assert joint.length == pytest.approx(2.0)
+    assert joint.rest_length == pytest.approx(2.0)
 
 
 def test_prismatic_and_wheel_default_their_axis(world, bodies):
@@ -204,7 +205,7 @@ def test_revolute_runtime_surface_matches_the_other_joints(world, bodies):
     assert joint.spring_hertz == pytest.approx(3.0)
     assert joint.spring_damping_ratio == pytest.approx(0.5)
     assert joint.target_angle == pytest.approx(math.pi / 8)
-    assert isinstance(joint.motor_torque, float)
+    assert isinstance(joint.current_motor_torque, float)
 
 
 # --- the filter joint, which had no binding at all --------------------------
@@ -279,24 +280,37 @@ def test_filter_joint_can_be_destroyed(world):
 # --- conformance with Box2D's own definitions -------------------------------
 
 #: Where our field name differs from the C one by choice rather than omission.
+#: Each is named as the joint property it sets, which Box2D 3.2 renamed in its
+#: functions but not in its definition structs.
 _SPRING = {"hertz": "spring_hertz", "dampingRatio": "spring_damping_ratio"}
+_MOTOR = {"motorSpeed": "target_motor_speed"}
 _DEF_ALIASES = {
     "RevoluteJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerAngle": "lower_limit",
         "upperAngle": "upper_limit",
     },
     "PrismaticJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
     "WheelJointDef": {
         **_SPRING,
+        **_MOTOR,
         "lowerTranslation": "lower_limit",
         "upperTranslation": "upper_limit",
     },
-    "DistanceJointDef": _SPRING,
+    "DistanceJointDef": {
+        **_SPRING,
+        **_MOTOR,
+        "length": "rest_length",
+        "minLength": "lower_limit",
+        "maxLength": "upper_limit",
+    },
+    "PogoJointDef": _SPRING,
 }
 
 
@@ -314,6 +328,7 @@ def _camel(name):
         "DistanceJointDef",
         "WeldJointDef",
         "MotorJointDef",
+        "PogoJointDef",
     ],
 )
 def test_joint_def_covers_box2d_s_own(name):
@@ -496,6 +511,14 @@ _LIMITED = {
     "revolute": RevoluteJointDef,
     "prismatic": PrismaticJointDef,
     "wheel": WheelJointDef,
+    # Distance limits are lengths, which Box2D clamps to be positive, so the
+    # values below are all positive.
+    "distance": DistanceJointDef,
+}
+
+#: Box2D defaults both limits of these to zero.
+_ZERO_DEFAULT_LIMITS = {
+    name: definition for name, definition in _LIMITED.items() if name != "distance"
 }
 
 
@@ -505,22 +528,69 @@ def limited_joint(request, world, bodies):
 
 
 def test_each_limit_can_be_set_on_its_own(limited_joint):
-    limited_joint.set_limits(-1.0, 1.0)
-    limited_joint.lower_limit = -0.5
-    limited_joint.upper_limit = 0.75
-    assert limited_joint.lower_limit == pytest.approx(-0.5)
-    assert limited_joint.upper_limit == pytest.approx(0.75)
+    limited_joint.set_limits(1.0, 3.0)
+    limited_joint.lower_limit = 1.5
+    limited_joint.upper_limit = 2.75
+    assert limited_joint.lower_limit == pytest.approx(1.5)
+    assert limited_joint.upper_limit == pytest.approx(2.75)
 
 
 def test_limits_that_cross_are_refused(limited_joint):
-    limited_joint.set_limits(-1.0, 1.0)
+    limited_joint.set_limits(1.0, 3.0)
     with pytest.raises(ValueError, match="lower 2.0 is above upper 1.0"):
         limited_joint.set_limits(2.0, 1.0)
     with pytest.raises(ValueError, match="above upper"):
-        limited_joint.lower_limit = 1.5
+        limited_joint.lower_limit = 3.5
     with pytest.raises(ValueError, match="above upper"):
-        limited_joint.upper_limit = -1.5
-    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (-1.0, 1.0)
+        limited_joint.upper_limit = 0.5
+    assert (limited_joint.lower_limit, limited_joint.upper_limit) == (1.0, 3.0)
+
+
+# Box2D holds a distance joint's limits to at least its linear slop, 0.005 m,
+# and at most 100 km. The ordering check has to compare what it will store.
+_SLOP = 0.005
+
+
+def test_a_distance_limit_below_the_floor_is_raised_to_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies, upper_limit=0.003))
+    assert joint.lower_limit == pytest.approx(_SLOP)
+    assert joint.upper_limit == pytest.approx(_SLOP), "not left below the lower"
+
+
+def test_a_distance_upper_limit_below_the_floor_meets_the_default_lower(world, bodies):
+    """The lower defaults to the floor, so an upper below it is not crossed."""
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.upper_limit = 0.004
+    assert (joint.lower_limit, joint.upper_limit) == pytest.approx((_SLOP, _SLOP))
+
+
+def test_distance_limits_below_the_floor_both_become_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.set_limits(-2.0, -1.0)
+    assert (joint.lower_limit, joint.upper_limit) == pytest.approx((_SLOP, _SLOP))
+
+
+def test_crossed_distance_limits_are_reported_as_given(world, bodies):
+    """Even when one of them would be raised to the floor."""
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    with pytest.raises(ValueError, match="lower 3.0 is above upper -1.0"):
+        joint.set_limits(3.0, -1.0)
+    with pytest.raises(ValueError, match="lower 3.0 is above upper -1.0"):
+        world.add_joint(DistanceJointDef(*bodies, lower_limit=3.0, upper_limit=-1.0))
+
+
+def test_a_distance_limit_past_the_cap_is_lowered_to_it(world, bodies):
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    joint.set_limits(1.0, 1e9)
+    assert joint.upper_limit == pytest.approx(100_000.0)
+
+
+def test_an_infinite_distance_limit_is_still_refused(world, bodies):
+    from box2d import InvalidInputError
+
+    joint = world.add_joint(DistanceJointDef(*bodies))
+    with pytest.raises(InvalidInputError):
+        joint.set_limits(1.0, math.inf)
 
 
 @pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
@@ -539,7 +609,9 @@ def test_a_limit_can_be_set_equal_to_the_other(limited_joint):
     assert limited_joint.upper_limit == pytest.approx(0.1)
 
 
-@pytest.mark.parametrize("definition", list(_LIMITED.values()), ids=list(_LIMITED))
+@pytest.mark.parametrize(
+    "definition", list(_ZERO_DEFAULT_LIMITS.values()), ids=list(_ZERO_DEFAULT_LIMITS)
+)
 def test_one_limit_alone_is_checked_against_the_others_default(
     world, bodies, definition
 ):
@@ -547,3 +619,41 @@ def test_one_limit_alone_is_checked_against_the_others_default(
     crosses an upper limit nobody set -- the error has to say so."""
     with pytest.raises(ValueError, match="a limit not given is 0"):
         world.add_joint(definition(*bodies, anchor=(1, 0), lower_limit=0.5))
+
+
+# --- definitions refuse names they do not have -------------------------------
+
+
+@pytest.mark.parametrize("definition", _joint_definitions(), ids=lambda d: d.__name__)
+def test_a_definition_refuses_a_field_it_does_not_have(world, bodies, definition):
+    """A misspelt or renamed field must fail, not be silently ignored.
+
+    motor_speed became target_motor_speed; a definition that took
+    ``d.motor_speed = 5`` would build its joint with the motor stopped.
+    """
+    if definition is MouseJointDef:
+        made = definition(bodies[0], target=(0, 0))
+    else:
+        made = definition(*bodies)
+    with pytest.raises(AttributeError):
+        made.motor_speed = 5.0
+
+
+@pytest.mark.parametrize(
+    "definition", [MotorJointDef, MoverJointDef], ids=lambda d: d.__name__
+)
+def test_definitions_that_drop_anchors_still_build(world, bodies, definition):
+    """These override joint_arguments and call the base class's."""
+    arguments = definition(*bodies).joint_arguments()
+    assert "local_anchor_a" not in arguments
+    assert world.add_joint(definition(*bodies)).is_valid
+
+
+def test_a_definition_copies_and_compares_by_value(bodies):
+    import copy
+
+    made = RevoluteJointDef(*bodies, anchor=(1, 0), target_motor_speed=2.0)
+    duplicate = copy.copy(made)
+    assert duplicate == made
+    duplicate.target_motor_speed = 3.0
+    assert made.target_motor_speed == 2.0

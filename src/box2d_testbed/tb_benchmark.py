@@ -243,7 +243,7 @@ class Spinner(BaseTest, category="Benchmark", name="Spinner"):
             bar,
             anchor=bar.position,
             enable_motor=True,
-            motor_speed=self.MOTOR_SPEED,
+            target_motor_speed=self.MOTOR_SPEED,
             max_motor_torque=self.MAX_MOTOR_TORQUE,
         )
 

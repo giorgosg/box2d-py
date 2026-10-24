@@ -194,7 +194,7 @@ class Car:
             # A motor held at zero speed resists the wheel turning, up to its
             # torque: that is the brake, and the car starts with it on.
             "enable_motor": True,
-            "motor_speed": 0,
+            "target_motor_speed": 0,
             "max_motor_torque": torque,
             "enable_limit": True,
             "lower_limit": -0.25 * scale,
@@ -225,8 +225,8 @@ class Car:
             speed: Angular velocity in radians/second. Positive turns the
                 wheels anticlockwise, which drives the car left.
         """
-        self.rear_axle.motor_speed = speed
-        self.front_axle.motor_speed = speed
+        self.rear_axle.target_motor_speed = speed
+        self.front_axle.target_motor_speed = speed
         # A parked car falls asleep, and a new speed does not wake it. The
         # whole car is one island, so waking one axle's bodies wakes it all.
         self.rear_axle.wake_bodies()

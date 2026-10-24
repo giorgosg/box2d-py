@@ -916,7 +916,7 @@ class World(FixedAttributes):
         results.sort(key=lambda hit: hit.fraction)
         return results[:1] if first_hit_only else results
 
-    def ray_cast(
+    def cast_ray(
         self,
         origin: VectorLike,
         translation: VectorLike,
@@ -929,15 +929,16 @@ class World(FixedAttributes):
             origin: Starting point of the ray (x,y)
             translation: The translation of the ray from the start point to the end point
             filter: Optional filter to control which shapes are tested
-            first_hit_only: If True, only return the first hit encountered
+            first_hit_only: If True, return only the hit closest to the origin
 
         Returns:
-            List of RayCastResult objects containing hit information
+            List of RayCastResult objects containing hit information, nearest
+            first
 
         Example:
             >>> world = World()
             >>> box = world.new_body().dynamic().position(5,0).box(1,1).build()
-            >>> hits = world.ray_cast((0,0), (10,0))
+            >>> hits = world.cast_ray((0,0), (10,0))
             >>> len(hits) > 0
             True
             >>> s = hits[0].shape  # First intersected shape
@@ -1427,19 +1428,19 @@ class World(FixedAttributes):
         self.destroy()
 
     @property
-    def enable_sleep(self) -> bool:
+    def enable_sleeping(self) -> bool:
         """Control whether bodies can enter sleep state to save computation.
 
         When enabled, inactive bodies will stop simulating until awakened.
 
         Example:
             >>> world = World()
-            >>> world.enable_sleep = False  # Disable sleeping entirely
+            >>> world.enable_sleeping = False  # Disable sleeping entirely
         """
         return lib.b2World_IsSleepingEnabled(self._world_id)
 
-    @enable_sleep.setter
-    def enable_sleep(self, value: bool):
+    @enable_sleeping.setter
+    def enable_sleeping(self, value: bool):
         lib.b2World_EnableSleeping(self._world_id, bool(value))
 
     @property
@@ -1644,7 +1645,7 @@ class World(FixedAttributes):
     # --- tuning -------------------------------------------------------------
 
     @property
-    def maximum_linear_speed(self) -> float:
+    def max_linear_speed(self) -> float:
         """Speed cap applied to every body, in m/s.
 
         Box2D clamps to this rather than letting a body move so far in one
@@ -1652,8 +1653,8 @@ class World(FixedAttributes):
         """
         return lib.b2World_GetMaxLinearSpeed(self._world_id)
 
-    @maximum_linear_speed.setter
-    def maximum_linear_speed(self, value: float):
+    @max_linear_speed.setter
+    def max_linear_speed(self, value: float):
         lib.b2World_SetMaxLinearSpeed(self._world_id, float(value))
 
     @property

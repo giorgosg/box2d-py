@@ -221,13 +221,13 @@ def test_bounds_contain_every_shape(world):
 # --- tuning -----------------------------------------------------------------
 
 
-def test_maximum_linear_speed_round_trips(world):
-    world.maximum_linear_speed = 50.0
-    assert world.maximum_linear_speed == pytest.approx(50.0)
+def test_max_linear_speed_round_trips(world):
+    world.max_linear_speed = 50.0
+    assert world.max_linear_speed == pytest.approx(50.0)
 
 
-def test_maximum_linear_speed_caps_a_body(world):
-    world.maximum_linear_speed = 5.0
+def test_max_linear_speed_caps_a_body(world):
+    world.max_linear_speed = 5.0
     body = world.add_body(body_type="dynamic", position=(0, 0))
     body.add_circle(radius=0.5)
     body.linear_velocity = (500, 0)

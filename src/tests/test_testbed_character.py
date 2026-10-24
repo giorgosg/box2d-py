@@ -79,10 +79,10 @@ def in_view(test, body):
     """Whether the whole of a body is inside the scenario's opening view."""
     center, zoom = test.view()
     return all(
-        center.x - 1.6 * zoom <= shape.aabb.lower.x
-        and shape.aabb.upper.x <= center.x + 1.6 * zoom
-        and center.y - zoom <= shape.aabb.lower.y
-        and shape.aabb.upper.y <= center.y + zoom
+        center.x - 1.6 * zoom <= shape.bounds.lower.x
+        and shape.bounds.upper.x <= center.x + 1.6 * zoom
+        and center.y - zoom <= shape.bounds.lower.y
+        and shape.bounds.upper.y <= center.y + zoom
         for shape in body.shapes
     )
 
@@ -349,8 +349,8 @@ def test_the_pogo_sliders_reach_the_spring_in_place(world):
     test.pogo_damping = 2.0
     run(test, 1 / HERTZ)
 
-    assert test.mover.pogo_joint.hertz == pytest.approx(20.0)
-    assert test.mover.pogo_joint.damping_ratio == pytest.approx(2.0)
+    assert test.mover.pogo_joint.spring_hertz == pytest.approx(20.0)
+    assert test.mover.pogo_joint.spring_damping_ratio == pytest.approx(2.0)
     assert (test.mover.position - start).length < 0.1, "the scene is not rebuilt"
 
 

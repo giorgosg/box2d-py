@@ -138,7 +138,7 @@ def test_sleep_enabled():
     body = world.new_body().dynamic().enable_sleep(False).build()
 
     # Verify sleep is disabled
-    assert not body.is_sleep_enabled()
+    assert not body.enable_sleeping
 
 
 def test_initial_position_reuse():

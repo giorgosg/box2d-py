@@ -178,7 +178,7 @@ def test_spring_force_limits_round_trip(world):
         DistanceJointDef(
             ground,
             hanging,
-            length=3.0,
+            rest_length=3.0,
             lower_spring_force=-20.0,
             upper_spring_force=40.0,
         )
@@ -196,7 +196,7 @@ def test_spring_force_limits_are_effectively_unbounded_by_default(world):
     ground = world.add_body(position=(0, 0))
     hanging = world.add_body(body_type="dynamic", position=(0, -3))
     hanging.add_circle(radius=0.5)
-    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
+    joint = world.add_joint(DistanceJointDef(ground, hanging, rest_length=3.0))
 
     # Box2D uses FLT_MAX rather than an actual infinity here.
     assert joint.lower_spring_force < -1e37
@@ -207,7 +207,7 @@ def test_spring_force_bounds_that_cross_are_refused(world):
     """Box2D would swap them: upper 0 then lower 10 gave a range of (0, 10)."""
     ground = world.add_body(position=(0, 0))
     hanging = world.add_body(body_type="dynamic", position=(0, -3))
-    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
+    joint = world.add_joint(DistanceJointDef(ground, hanging, rest_length=3.0))
 
     joint.upper_spring_force = 0.0
     with pytest.raises(ValueError, match="lower 10.0 is above upper 0.0"):
@@ -221,7 +221,7 @@ def test_spring_force_bounds_that_cross_are_refused(world):
 def test_a_spring_force_bound_can_be_set_equal_to_the_other(world):
     ground = world.add_body(position=(0, 0))
     hanging = world.add_body(body_type="dynamic", position=(0, -3))
-    joint = world.add_joint(DistanceJointDef(ground, hanging, length=3.0))
+    joint = world.add_joint(DistanceJointDef(ground, hanging, rest_length=3.0))
 
     joint.lower_spring_force = 0.1
     joint.upper_spring_force = 0.1
@@ -232,7 +232,11 @@ def test_a_distance_joint_cannot_be_made_with_crossed_spring_forces(world):
     ground = world.add_body(position=(0, 0))
     hanging = world.add_body(body_type="dynamic", position=(0, -3))
     crossed = DistanceJointDef(
-        ground, hanging, length=3.0, lower_spring_force=10.0, upper_spring_force=0.0
+        ground,
+        hanging,
+        rest_length=3.0,
+        lower_spring_force=10.0,
+        upper_spring_force=0.0,
     )
     with pytest.raises(ValueError, match="above upper"):
         world.add_joint(crossed)
@@ -248,7 +252,7 @@ def hanging_length(**limits):
         DistanceJointDef(
             ground,
             weight,
-            length=3.0,
+            rest_length=3.0,
             enable_spring=True,
             spring_hertz=1.0,
             spring_damping_ratio=0.5,
@@ -286,7 +290,7 @@ def propped_height(**limits):
         DistanceJointDef(
             ground,
             weight,
-            length=3.0,
+            rest_length=3.0,
             enable_spring=True,
             spring_hertz=1.0,
             spring_damping_ratio=0.5,

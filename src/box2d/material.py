@@ -20,7 +20,7 @@ class SurfaceMaterial:
     callbacks to determine the resulting friction and restitution.
 
     Attributes:
-        material: User material identifier passed with query results. (auto-generated if not set)
+        user_material: User material identifier passed with query results. (auto-generated if not set)
         friction: The Coulomb (dry) friction coefficient, usually in the range [0,1]. default=0.6
         restitution: The coefficient of restitution (bounce), usually in the range [0,1]. default=0.0
         rolling_resistance: The rolling resistance coefficient, usually in the range [0,1]. default=0.0
@@ -36,7 +36,7 @@ class SurfaceMaterial:
     _materials_registry: ClassVar[WeakValueDictionary] = WeakValueDictionary()
 
     # Auto-increment material ID by default
-    material: int = field(default_factory=lambda: SurfaceMaterial._get_next_id())
+    user_material: int = field(default_factory=lambda: SurfaceMaterial._get_next_id())
     friction: Optional[float] = None
     restitution: Optional[float] = None
     rolling_resistance: Optional[float] = None
@@ -52,7 +52,7 @@ class SurfaceMaterial:
 
     def __post_init__(self):
         # Register this material in the registry
-        self._materials_registry[self.material] = self
+        self._materials_registry[self.user_material] = self
 
     @classmethod
     def from_b2SurfaceMaterial(cls, material) -> "SurfaceMaterial":
@@ -62,7 +62,7 @@ class SurfaceMaterial:
         so a material read back keeps the identity it was stored under.
         """
         return cls(
-            material=material.userMaterialId,
+            user_material=material.userMaterialId,
             friction=material.friction,
             restitution=material.restitution,
             rolling_resistance=material.rollingResistance,
@@ -85,7 +85,7 @@ class SurfaceMaterial:
         material = lib.b2DefaultSurfaceMaterial()
 
         # Always set the material ID, even if using the auto-generated one
-        material.userMaterialId = self.material
+        material.userMaterialId = self.user_material
 
         # Override with any explicitly set values
         if self.friction is not None:
@@ -116,7 +116,7 @@ class SurfaceMaterial:
         """
         default_mat = lib.b2DefaultSurfaceMaterial()
         return cls(
-            material=cls._get_next_id(),  # Still use auto-generated ID
+            user_material=cls._get_next_id(),  # Still use auto-generated ID
             friction=default_mat.friction,
             restitution=default_mat.restitution,
             rolling_resistance=default_mat.rollingResistance,

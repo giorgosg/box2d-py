@@ -92,8 +92,8 @@ def test_mover_joint_def_ignores_anchors(world):
 def pogo(world, ground, body, **kwargs):
     settings = dict(
         local_anchor_a=(0, 0),
-        hertz=5,
-        damping_ratio=1,
+        spring_hertz=5,
+        spring_damping_ratio=1,
         rest_length=1.5,
         max_compression_force=1000,
         max_tension_force=1000,
@@ -110,7 +110,7 @@ def test_pogo_joint_holds_a_body_at_its_rest_length(world):
 
     run(world, 180)
 
-    assert joint.length == pytest.approx(1.5, abs=0.02)
+    assert joint.current_length == pytest.approx(1.5, abs=0.02)
     assert body.position.y == pytest.approx(1.5, abs=0.02)
 
 
@@ -142,7 +142,7 @@ def test_pogo_joint_can_be_warm_started(world):
     for _ in range(180):
         joint = pogo(world, ground, body, impulse=impulse, velocity=velocity)
         world.step(STEP, SUBSTEPS)
-        impulse, velocity = joint.impulse, joint.velocity
+        impulse, velocity = joint.impulse, joint.current_speed
         joint.destroy()
     assert body.position.y == pytest.approx(1.5, abs=0.02)
 
@@ -150,11 +150,11 @@ def test_pogo_joint_can_be_warm_started(world):
 def test_pogo_joint_settings_round_trip(world):
     joint = pogo(world, world.add_body(), character(world))
     joint.rest_length = 2.0
-    joint.hertz = 3.0
-    joint.damping_ratio = 0.5
+    joint.spring_hertz = 3.0
+    joint.spring_damping_ratio = 0.5
     assert joint.rest_length == pytest.approx(2.0)
-    assert joint.hertz == pytest.approx(3.0)
-    assert joint.damping_ratio == pytest.approx(0.5)
+    assert joint.spring_hertz == pytest.approx(3.0)
+    assert joint.spring_damping_ratio == pytest.approx(0.5)
 
 
 def test_pogo_normal_is_normalized(world):

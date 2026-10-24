@@ -253,7 +253,7 @@ class UserConstraint(BaseTest, category="Joints", name="User Constraint"):
         inertia = self.body.rotational_inertia
         inv_inertia = 1.0 / inertia if inertia > 0.0001 else 0.0
 
-        center = self.body.world_center_of_mass
+        center = self.body.world_center
         velocity = self.body.linear_velocity
         angular_velocity = self.body.angular_velocity
 
@@ -334,7 +334,7 @@ class DiagonalSlide(BaseTest, category="Joints", name="Prismatic Joint"):
             upper_limit=10,
             enable_motor=self.enable_motor,
             max_motor_force=self.max_force,
-            motor_speed=self.motor_speed,
+            target_motor_speed=self.motor_speed,
             enable_spring=self.enable_spring,
             spring_damping_ratio=self.spring_damping,
             spring_hertz=self.spring_hertz,
@@ -351,7 +351,7 @@ class DiagonalSlide(BaseTest, category="Joints", name="Prismatic Joint"):
         self.joint.enable_limit = self.enable_limit
         self.joint.enable_motor = self.enable_motor
         self.joint.max_motor_force = self.max_force
-        self.joint.motor_speed = self.motor_speed
+        self.joint.target_motor_speed = self.motor_speed
         self.joint.enable_spring = self.enable_spring
         self.joint.spring_damping_ratio = self.spring_damping
         self.joint.spring_hertz = self.spring_hertz
@@ -360,8 +360,8 @@ class DiagonalSlide(BaseTest, category="Joints", name="Prismatic Joint"):
 
     def status(self):
         return [
-            f"translation {self.joint.joint_translation:.2f} m",
-            f"motor force {self.joint.motor_force:.1f} N",
+            f"translation {self.joint.current_translation:.2f} m",
+            f"motor force {self.joint.current_motor_force:.1f} N",
         ]
 
 
@@ -576,14 +576,23 @@ class DistanceChain(BaseTest, category="Joints", name="Distance Joint"):
                     local_anchor_b=(0, 0),
                     spring_hertz=self.hertz,
                     spring_damping_ratio=self.damping_ratio,
-                    length=self.length,
-                    min_length=self.min_length,
-                    max_length=self.max_length,
+                    rest_length=self.length,
+                    lower_limit=self.limits[0],
+                    upper_limit=self.limits[1],
                     enable_spring=self.enable_spring,
                     enable_limit=self.enable_limit,
                 )
             )
             previous = body
+
+    @property
+    def limits(self):
+        """The two length sliders as (lower, upper), whichever is larger.
+
+        The sliders move independently, so either can pass the other, and
+        the joint refuses a lower limit above its upper.
+        """
+        return tuple(sorted((self.min_length, self.max_length)))
 
     @enable_spring.callback
     @enable_limit.callback
@@ -596,9 +605,8 @@ class DistanceChain(BaseTest, category="Joints", name="Distance Joint"):
         for joint in self.joints:
             joint.enable_spring = self.enable_spring
             joint.enable_limit = self.enable_limit
-            joint.length = self.length
-            joint.min_length = self.min_length
-            joint.max_length = self.max_length
+            joint.rest_length = self.length
+            joint.set_limits(*self.limits)
             joint.spring_hertz = self.hertz
             joint.spring_damping_ratio = self.damping_ratio
             # A chain at rest is asleep, and would not notice the change.
@@ -751,7 +759,7 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
             body,
             local_anchor_a=position + (0, 1.0 + length),
             local_anchor_b=(0, 1.0),
-            length=length,
+            rest_length=length,
         )
 
     def attach_motor(self, ground, body, position):
@@ -792,7 +800,7 @@ class MotionLocks(BaseTest, category="Joints", name="Motion Locks"):
             enable_limit=True,
             enable_motor=True,
             max_motor_torque=10.0,
-            motor_speed=1.0,
+            target_motor_speed=1.0,
         )
 
     @lock_x.callback
@@ -968,11 +976,11 @@ class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
             local_anchor_a=(-2.5, 0.2),
             local_anchor_b=(0.5, 0),
             enable_spring=True,
-            min_length=0.2,
-            max_length=5.5,
+            lower_limit=0.2,
+            upper_limit=5.5,
             enable_limit=True,
             enable_motor=self.motor,
-            motor_speed=self.motor_speed,
+            target_motor_speed=self.motor_speed,
             max_motor_force=self.motor_force,
         )
 
@@ -990,7 +998,7 @@ class ScissorLift(BaseTest, category="Joints", name="Scissor Lift"):
 
     @motor_speed.callback
     def on_speed_change(self, key, value):
-        self.lift_joint.motor_speed = value
+        self.lift_joint.target_motor_speed = value
         self.lift_joint.wake_bodies()
 
 

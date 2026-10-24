@@ -27,7 +27,7 @@ def world():
 @pytest.mark.parametrize(
     "name,value",
     [
-        ("enable_sleep", False),
+        ("enable_sleeping", False),
         ("enable_continuous", False),
         ("restitution_threshold", 3.5),
         ("hit_event_threshold", 7.25),
@@ -59,12 +59,12 @@ def test_contact_tuning_is_still_cached(world):
 # --- body ------------------------------------------------------------------
 
 
-def test_body_enable_sleep(world):
+def test_body_enable_sleeping(world):
     body = world.add_body(body_type="dynamic")
-    body.enable_sleep = False
-    assert body.enable_sleep is False
-    body.enable_sleep = True
-    assert body.enable_sleep is True
+    body.enable_sleeping = False
+    assert body.enable_sleeping is False
+    body.enable_sleeping = True
+    assert body.enable_sleeping is True
 
 
 def test_clear_forces(world):

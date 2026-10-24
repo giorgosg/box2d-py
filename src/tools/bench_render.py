@@ -137,7 +137,7 @@ def main(argv=None):
         # The simulation picks the first registered scenario as it is built,
         # so the choice has to be made after that rather than before.
         state.current_test_cls = registry[category][name]
-        state.enable_sleep = not arguments.no_sleep
+        state.enable_sleeping = not arguments.no_sleep
         app.simulation.init_test()
 
         # Controls exist only once the scenario does. Setting one fires its

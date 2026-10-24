@@ -103,9 +103,9 @@ ENTRY_POINTS = {
     "Shape.get_closest_point.target": lambda w, bs, p: (
         bs[0].shapes[0].get_closest_point(p)
     ),
-    "Shape.ray_cast.origin": lambda w, bs, p: bs[0].shapes[0].ray_cast(p, (5.0, 5.0)),
-    "Shape.ray_cast.translation": lambda w, bs, p: (
-        bs[0].shapes[0].ray_cast((-5.0, 0.0), p)
+    "Shape.cast_ray.origin": lambda w, bs, p: bs[0].shapes[0].cast_ray(p, (5.0, 5.0)),
+    "Shape.cast_ray.translation": lambda w, bs, p: (
+        bs[0].shapes[0].cast_ray((-5.0, 0.0), p)
     ),
     "Body.add_circle.center": lambda w, bs, p: bs[0].add_circle(radius=1.0, center=p),
     "Body.add_box.offset": lambda w, bs, p: bs[0].add_box(1, 1, offset=p),
@@ -116,8 +116,8 @@ ENTRY_POINTS = {
     # World
     "World.gravity": lambda w, bs, p: setattr(w, "gravity", p),
     "World.query_circle.position": lambda w, bs, p: w.query_circle(p, 1.0),
-    "World.ray_cast.origin": lambda w, bs, p: w.ray_cast(p, (5.0, 5.0)),
-    "World.ray_cast.translation": lambda w, bs, p: w.ray_cast((0.0, 0.0), p),
+    "World.cast_ray.origin": lambda w, bs, p: w.cast_ray(p, (5.0, 5.0)),
+    "World.cast_ray.translation": lambda w, bs, p: w.cast_ray((0.0, 0.0), p),
     # Character mover queries
     "World.cast_mover.point1": lambda w, bs, p: w.cast_mover(p, (0, 2), 0.5, (1, 0)),
     "World.cast_mover.point2": lambda w, bs, p: w.cast_mover((0, 1), p, 0.5, (1, 0)),
@@ -223,8 +223,6 @@ SCALAR_EXCEPTIONS = {
     "max_motor_torque",
     "max_force",
     "max_torque",
-    "max_length",
-    "min_length",
     "target_angle",
     "reference_angle",
     "correction_factor",
