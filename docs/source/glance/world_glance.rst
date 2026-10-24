@@ -62,14 +62,14 @@ Spatial Queries
 
 * ``world.query_aabb(aabb, collision_filter=None, max_results=None)`` - Find shapes in a specified AABB
 * ``world.query_circle(position, radius, collision_filter=None, max_results=None)`` - Find shapes in a circular area
-* ``world.ray_cast(origin, translation, collision_filter=None, first_hit_only=False)`` - Find shapes along a ray path
+* ``world.cast_ray(origin, translation, collision_filter=None, first_hit_only=False)`` - Find shapes along a ray path
 * ``world.get_sensor_events()`` - Get sensor overlap events from last simulation step
 
 Simulation Parameters
 ^^^^^^^^^^^^^^^^^^^^^
 
 * ``world.gravity`` - Get/set gravitational acceleration vector (m/s²)
-* ``world.enable_sleep`` - Toggle body sleeping for inactive objects
+* ``world.enable_sleeping`` - Toggle body sleeping for inactive objects
 * ``world.enable_continuous`` - Toggle continuous collision detection
 * ``world.contact_hertz`` - Get/set contact stiffness frequency
 * ``world.contact_damping_ratio`` - Get/set contact damping ratio
@@ -120,7 +120,7 @@ Spatial queries:
     overlapping_shapes = world.query_circle(position=(10, 5), radius=3)
     
     # Cast a ray and find intersections
-    ray_hits = world.ray_cast(origin=(0, 0), translation=(10, 10))
+    ray_hits = world.cast_ray(origin=(0, 0), translation=(10, 10))
     for hit in ray_hits:
         print(f"Hit at {hit.point}, normal: {hit.normal}")
 

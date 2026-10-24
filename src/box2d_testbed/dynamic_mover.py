@@ -218,7 +218,7 @@ class DynamicMover:
         self.pogo_origin = self.body.position + self.center1
         self.pogo_translation = Vec2(0, -reach)
 
-        hits = self.world.ray_cast(
+        hits = self.world.cast_ray(
             self.pogo_origin,
             self.pogo_translation,
             filter=self.filter,

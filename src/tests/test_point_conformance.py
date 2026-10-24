@@ -116,8 +116,8 @@ ENTRY_POINTS = {
     # World
     "World.gravity": lambda w, bs, p: setattr(w, "gravity", p),
     "World.query_circle.position": lambda w, bs, p: w.query_circle(p, 1.0),
-    "World.ray_cast.origin": lambda w, bs, p: w.ray_cast(p, (5.0, 5.0)),
-    "World.ray_cast.translation": lambda w, bs, p: w.ray_cast((0.0, 0.0), p),
+    "World.cast_ray.origin": lambda w, bs, p: w.cast_ray(p, (5.0, 5.0)),
+    "World.cast_ray.translation": lambda w, bs, p: w.cast_ray((0.0, 0.0), p),
     # Character mover queries
     "World.cast_mover.point1": lambda w, bs, p: w.cast_mover(p, (0, 2), 0.5, (1, 0)),
     "World.cast_mover.point2": lambda w, bs, p: w.cast_mover((0, 1), p, 0.5, (1, 0)),

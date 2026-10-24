@@ -84,7 +84,7 @@ class TestbedSimulation:
         """The world settings the UI can change, as a comparable snapshot."""
         return (
             state.enable_continuous,
-            state.enable_sleep,
+            state.enable_sleeping,
             state.enable_warm_starting,
             state.max_linear_speed,
             state.contact_recycle_distance,
@@ -97,7 +97,7 @@ class TestbedSimulation:
         a fresh world but forgotten when it is changed later, or the reverse.
         """
         self.world.enable_continuous = state.enable_continuous
-        self.world.enable_sleep = state.enable_sleep
+        self.world.enable_sleeping = state.enable_sleeping
         self.world.enable_warm_starting = state.enable_warm_starting
         self.world.max_linear_speed = state.max_linear_speed
         self.world.contact_recycle_distance = state.contact_recycle_distance

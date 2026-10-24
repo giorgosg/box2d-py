@@ -529,7 +529,7 @@ class TestbedApp:
         _, state.enable_continuous = imgui.checkbox(
             "Continuous Collision", state.enable_continuous
         )
-        _, state.enable_sleep = imgui.checkbox("Sleep", state.enable_sleep)
+        _, state.enable_sleeping = imgui.checkbox("Sleep", state.enable_sleeping)
         _, state.enable_warm_starting = imgui.checkbox(
             "Warm starting", state.enable_warm_starting
         )

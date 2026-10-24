@@ -326,7 +326,7 @@ def test_a_shape_made_directly_and_dropped(make, hit):
         ground = world.new_body().static().build()
         {make}
         FORGET()
-        hits = world.ray_cast((-5, 0.1), (10, 0))
+        hits = world.cast_ray((-5, 0.1), (10, 0))
         print(type(hits[0].shape).__name__)
         """
     )
@@ -431,7 +431,7 @@ _REFUSED = {
         """
         del chain
         FORGET()
-        print([type(hit.shape).__name__ for hit in world.ray_cast((-5, 8), (0, -6))])
+        print([type(hit.shape).__name__ for hit in world.cast_ray((-5, 8), (0, -6))])
         """,
         "['ChainSegment']",
     ),

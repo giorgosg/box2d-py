@@ -27,7 +27,7 @@ def world():
 @pytest.mark.parametrize(
     "name,value",
     [
-        ("enable_sleep", False),
+        ("enable_sleeping", False),
         ("enable_continuous", False),
         ("restitution_threshold", 3.5),
         ("hit_event_threshold", 7.25),

@@ -119,7 +119,7 @@ class TestbedData:
         self.substeps = 20
         self.hertz = 60
         self.enable_continuous = True
-        self.enable_sleep = True
+        self.enable_sleeping = True
         # Bound on World for a while, but reachable only from code until now.
         self.enable_warm_starting = True
         self.max_linear_speed = 400.0

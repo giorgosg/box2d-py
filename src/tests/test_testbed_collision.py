@@ -132,7 +132,7 @@ def test_ray_cast_marks_the_hits_the_query_returns(world):
     drawn = Drawn()
     test.debug_draw(drawn)
 
-    hits = world.ray_cast(test.ray_start, test.ray_end - test.ray_start)
+    hits = world.cast_ray(test.ray_start, test.ray_end - test.ray_start)
     assert drawn.points == [hit.point for hit in hits[:4]]
 
 

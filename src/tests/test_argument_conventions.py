@@ -97,7 +97,7 @@ def test_world_queries(world, point):
     body.add_circle(radius=1.0)
     world.step(1 / 60, 4)
     assert isinstance(world.query_circle(point, 2.0), list)
-    assert isinstance(world.ray_cast(point, (5.0, 5.0)), list)
+    assert isinstance(world.cast_ray(point, (5.0, 5.0)), list)
 
 
 @pytest.mark.parametrize("point", VECTOR_LIKE)

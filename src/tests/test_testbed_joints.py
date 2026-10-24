@@ -93,7 +93,7 @@ def test_the_driving_course_ends_in_a_wall(world):
     scenario(world, "Joints", "Driving")
 
     # Along the last flat stretch, towards the end of the course at x = 320.
-    hits = world.ray_cast((310, 5), (20, 0), first_hit_only=True)
+    hits = world.cast_ray((310, 5), (20, 0), first_hit_only=True)
 
     assert hits, "nothing there: the car would drive off the end"
     assert hits[0].point.x == pytest.approx(320)
