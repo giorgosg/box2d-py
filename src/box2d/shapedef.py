@@ -356,7 +356,9 @@ class BoxDef:
         height: Full height of the box
         radius: Radius of the rounded corners
         offset: Position of the box relative to the body origin
-        rotation: Rotation of the box, in radians or as a Rot
+        rotation: Rotation of the box relative to the body, in radians or as
+            a Rot. Box.create, Body.add_box and BodyBuilder.box take it as
+            ``angle``.
     """
 
     width: float
@@ -398,7 +400,9 @@ class PolygonDef:
         vertices: List of points defining the polygon vertices
         radius: Rounding radius for the polygon corners (optional)
         offset: Local position of the polygon relative to the body origin (optional)
-        rotation: Local rotation of the polygon relative to the body (optional)
+        rotation: Local rotation of the polygon relative to the body, in
+            radians or as a Rot (optional). Polygon.create takes it as
+            ``angle``.
     """
 
     vertices: Iterable[VectorLike]
@@ -534,8 +538,10 @@ class ChainDef:
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data, kept as the created chain's
             ``user_data``.
-        enable_sensor_events: True if sensors may detect this chain. Box2D defaults
-            it to False; box2d-py defaults it to True. default=True
+        enable_sensor_events: True if this chain takes part in sensor events. A
+            sensor reports the chain only when both of them have it set: this
+            flag on the chain, and the same flag on the sensor shape. Box2D
+            defaults it to False; box2d-py defaults it to True. default=True
     """
 
     vertices: Sequence[VectorLike]

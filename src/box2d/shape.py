@@ -4,7 +4,13 @@ Each shape's constructor accepts a body and a shape definition.
 Each shape (except Chain) subclasses a common base that implements common properties.
 Each shape also has a classmethod ``create`` that takes the geometry as arguments
 and ShapeDef fields as keywords; the Body ``add_*`` methods call it.
-Chain is implemented as a separate class.
+Chain is implemented as a separate class, and its ``create`` takes the chain's
+own options -- loop, ghosts, filter, materials or one material's friction and
+the like, user_data -- rather than ShapeDef fields; see :class:`.ChainDef`.
+
+``Polygon.create`` and ``Box.create`` call the shape's rotation ``angle``, in
+radians, where :class:`.PolygonDef` and :class:`.BoxDef` call it ``rotation``.
+It is the same value under two names.
 """
 
 from ._checked import lib, ffi
@@ -791,7 +797,8 @@ class Polygon(Shape):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.PolygonDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field.
+        :class:`.ShapeDef` field. ``angle`` is the definition's ``rotation``:
+        the polygon's rotation relative to the body, in radians.
         """
         polygondef = PolygonDef(
             vertices,
@@ -827,7 +834,8 @@ class Box(Polygon):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.BoxDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field.
+        :class:`.ShapeDef` field. ``angle`` is the definition's ``rotation``:
+        the box's rotation relative to the body, in radians.
         """
         # Built directly rather than through Polygon's hull, which has a
         # minimum feature size that very thin boxes fall below.

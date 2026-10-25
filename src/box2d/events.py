@@ -117,13 +117,14 @@ class ContactBeginEvent:
     """Two shapes started touching.
 
     Attributes:
-        shape_a: One of the shapes now touching.
-        shape_b: The other shape.
+        shape_a: One of the shapes now touching, or None if it has been
+            destroyed since the step.
+        shape_b: The other shape, or None if destroyed since the step.
         contact: A handle on this contact, stable until the matching end event.
     """
 
-    shape_a: "Shape"
-    shape_b: "Shape"
+    shape_a: Optional["Shape"]
+    shape_b: Optional["Shape"]
     contact: Optional[Contact] = None
 
 
@@ -153,16 +154,17 @@ class ContactHitEvent:
     approach speed exceeds the world's hit event threshold.
 
     Attributes:
-        shape_a: One of the shapes involved.
-        shape_b: The other shape.
+        shape_a: One of the shapes involved, or None if it has been destroyed
+            since the step.
+        shape_b: The other shape, or None if destroyed since the step.
         point: Where they hit, in world coordinates.
         normal: The contact normal, pointing from shape_a to shape_b.
         approach_speed: How fast they were closing, in metres per second.
         contact: A handle on the contact this hit belongs to.
     """
 
-    shape_a: "Shape"
-    shape_b: "Shape"
+    shape_a: Optional["Shape"]
+    shape_b: Optional["Shape"]
     point: Vec2
     normal: Vec2
     approach_speed: float

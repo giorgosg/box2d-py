@@ -56,7 +56,7 @@ class BodyBuilder:
 
         Example::
 
-            >>> from box2d import World
+            >>> from box2d import BodyBuilder, World
             >>> @BodyBuilder.extend
             ... def custom_shape(self, value):
             ...     # Custom functionality
@@ -366,7 +366,8 @@ class BodyBuilder:
             height: Full height of the box.
             radius: The radius of the rounded corners (default: 0.0).
             offset: The offset of the box from the body's position (default: (0, 0)).
-            angle: The angle of the box (default: 0.0).
+            angle: The box's rotation relative to the body, in radians
+                (default: 0.0). :class:`.BoxDef` calls this ``rotation``.
             **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
@@ -723,11 +724,7 @@ class Body(FixedAttributes):
 
     @property
     def lock_rotation(self) -> bool:
-        """Get or set whether the body is prevented from rotating.
-
-        Box2D 3.2 replaced the single fixed_rotation flag with three
-        independent locks; this is the rotational one.
-        """
+        """Get or set whether the body is prevented from rotating."""
         return lib.b2Body_GetMotionLocks(self._body_id).angularZ
 
     @lock_rotation.setter
@@ -953,7 +950,8 @@ class Body(FixedAttributes):
             height: Full height of the box.
             radius: The radius of the rounded corners (default: 0.0).
             offset: The offset of the box from the body's position (default: (0, 0)).
-            angle: The rotation angle of the box in radians (default: 0.0).
+            angle: The box's rotation relative to the body, in radians
+                (default: 0.0). :class:`.BoxDef` calls this ``rotation``.
             **shapedef_args: Additional parameters for the shape definition.
 
         Returns:
