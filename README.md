@@ -32,7 +32,7 @@ Or install from PyPI:
 pip install "box2d-python[testbed]"
 ```
 
-The release on PyPI, 0.1.2, predates the Box2D v3.2.0 port this README
+The releases on PyPI (0.1.x) predate the Box2D v3.2.0 port this README
 describes, so its API differs from what is documented here.
 
 ## Building from source
