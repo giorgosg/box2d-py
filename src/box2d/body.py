@@ -15,13 +15,22 @@ if TYPE_CHECKING:  # annotations only; these modules import this one
 class BodyBuilder:
     """Builder for creating Box2D bodies with chained configuration methods.
 
+    Each configuration method returns the builder, so calls chain, and
+    :meth:`build` creates the body.
+
     Example:
-        >>> body = world.new_body()
-        >>> body.dynamic()
-        >>> body.position(2, 3)
-        >>> body.box(width=2, height=1)
-        >>> body.circle(radius=0.5, center=(1, 0))
-        >>> body = body.build()
+        >>> from box2d import World
+        >>> world = World()
+        >>> body = (
+        ...     world.new_body()
+        ...     .dynamic()
+        ...     .position(2, 3)
+        ...     .box(width=2, height=1)
+        ...     .circle(radius=0.5, center=(1, 0))
+        ...     .build()
+        ... )
+        >>> len(body.shapes)
+        2
     """
 
     def __init__(self, world):
@@ -47,12 +56,12 @@ class BodyBuilder:
 
         Example::
 
+            >>> from box2d import World
             >>> @BodyBuilder.extend
-            >>> def custom_shape(self, value):
-            >>>     # Custom functionality
-            >>>     return self
-
-            >>> builder = world.new_body().custom_shape(10)
+            ... def custom_shape(self, value):
+            ...     # Custom functionality
+            ...     return self
+            >>> builder = World().new_body().custom_shape(10)
 
         Args:
             func (callable): A function to be added as a method to BodyBuilder. The function should accept
@@ -91,8 +100,8 @@ class BodyBuilder:
     def lock_rotation(self, lock=True):
         """Prevent the body from rotating.
 
-        Useful for objects like characters. Box2D 3.2 replaced the old
-        fixed_rotation flag with independent locks; see also lock_x and lock_y.
+        Useful for objects like characters. See also lock_x and lock_y.
+
         Args:
             lock: Boolean indicating whether rotation should be locked
         Returns:
@@ -127,6 +136,7 @@ class BodyBuilder:
         """Set whether the body is treated as a bullet.
 
         Bullet bodies perform continuous collision detection, suitable for fast-moving objects.
+
         Args:
             bullet: Boolean indicating whether to enable bullet behavior
         Returns:
@@ -214,6 +224,7 @@ class BodyBuilder:
         """Set the gravity scale for the body.
 
         Adjusts the effect of gravity on this body relative to the world gravity.
+
         Args:
             scale: Float value representing the gravity scale factor
         Returns:
@@ -232,6 +243,8 @@ class BodyBuilder:
             The builder instance
 
         Example:
+            >>> from box2d import World
+            >>> world = World()
             >>> builder = world.new_body().position(2, 3)
             >>> builder = world.new_body().position((2, 3))
         """
@@ -276,6 +289,7 @@ class BodyBuilder:
         """Set the linear damping of the body.
 
         Damping reduces the linear velocity over time.
+
         Args:
             damping: Float value for linear damping
         Returns:
@@ -288,6 +302,7 @@ class BodyBuilder:
         """Set the angular damping of the body.
 
         Damping reduces the angular velocity over time.
+
         Args:
             damping: Float value for angular damping
         Returns:
@@ -300,6 +315,7 @@ class BodyBuilder:
         """Set whether the body is allowed to sleep.
 
         Sleeping bodies are skipped in simulations for performance optimization.
+
         Args:
             enable: Boolean indicating whether sleeping is enabled
         Returns:
@@ -312,6 +328,7 @@ class BodyBuilder:
         """Set the sleep threshold for the body.
 
         The minimum velocity below which the body will go to sleep.
+
         Args:
             threshold: Float value representing the sleep threshold
         Returns:
@@ -401,12 +418,16 @@ class BodyBuilder:
         radius: float,
         **shapedef_args,
     ):
-        """Add a vertical capsule shape (cylinder with hemispherical ends).
+        """Add a capsule shape: a segment between two points, rounded by a radius.
+
+        The endpoints may be anywhere in the body's local frame, so the capsule
+        can lie at any angle.
 
         Args:
-            point1: The first endpoint of the capsule.
-            point2: The second endpoint of the capsule.
-            radius: Radius of the hemispherical ends.
+            point1: The first endpoint of the capsule, in local coordinates.
+            point2: The second endpoint of the capsule, in local coordinates.
+            radius: Radius of the capsule (half its thickness), which is also
+                the radius of its rounded ends.
             **shapedef_args: Additional parameters for the shape definition.
         Returns:
             Self for method chaining.
@@ -723,14 +744,15 @@ class Body(FixedAttributes):
         lib.b2Body_EnableContactRecycling,
         doc="""Whether this body's contacts may be reused between steps.
 
+        A contact is only reused when both of its bodies allow it.
+
         While two shapes stay within the world's contact_recycle_distance of
         where they were when last collided, their contact keeps its points and
         only has their separation updated, rather than being collided again.
         That is cheaper and keeps stacks steady, but a reused contact can be
         stale enough to cause ghost collisions, which is why Box2D suggests
         turning it off for characters, at the cost of more work per step.
-        Fast-moving bodies are recycled too as of Box2D v3.2.0; up to the
-        ac7c751 snapshot before it, their contacts were always collided again.
+        Contacts of fast-moving bodies are recycled too.
 
         Existing contacts keep the setting they were created with, so a change
         takes effect for contacts made after it.
@@ -1277,7 +1299,7 @@ class Body(FixedAttributes):
     def update_mass_from_shapes(self):
         """Update mass properties to the sum of the mass properties of the shapes.
 
-        This normally doesn't need to be called unless you called set_mass_data()
+        This normally doesn't need to be called unless you set :attr:`mass_data`
         to override the mass and later want to reset the mass.
         """
         lib.b2Body_UpdateMassFromShapes(self._body_id)
@@ -1329,11 +1351,10 @@ class Body(FixedAttributes):
 
     @property
     def joints(self) -> List[Joint]:
-        """Get all joints attached to this body.
+        """The joints attached to this body, as a list.
 
-        Returns:
-            List of Joint objects attached to this body: the same objects the
-            ``add_*_joint`` methods returned, whether or not they were kept.
+        They are the same objects the ``add_*_joint`` methods returned, whether
+        or not those were kept.
         """
         return self._read_joints()
 
