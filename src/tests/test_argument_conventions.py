@@ -1,10 +1,10 @@
 # tests/test_argument_conventions.py
 """Anywhere box2d-py takes a point, it accepts the same forms.
 
-That means any vector-like -- tuple, list, Vec2, b2Vec2 -- or the two
-components as separate scalars. BodyBuilder.position and .linear_velocity used
-to be the sole exceptions, taking two scalars and rejecting everything else,
-which is what made the README's own example raise TypeError.
+That means any vector-like -- tuple, list, Vec2, b2Vec2. The Vec2 constructor
+and BodyBuilder.position and .linear_velocity also take the two components as
+separate scalars. The two builder methods used to take only that, rejecting
+every vector-like, which is what made the README's own example raise TypeError.
 """
 
 import pytest

@@ -44,9 +44,9 @@ Box2D is compiled from source as part of the build. That needs:
 
 ``-e`` installs in editable mode: ``src/`` is what gets imported, so edits to
 the Python take effect without installing again. The project's
-`README <https://github.com/giorgosg/box2d-py#building-from-source>`_ covers
-the rest of development, from the ``uv`` setup to running the tests, and
-`web/README.md <https://github.com/giorgosg/box2d-py/blob/main/web/README.md>`_
+`CONTRIBUTING.md <https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md>`_
+covers the rest of development, from the ``uv`` setup to running the tests,
+and `web/README.md <https://github.com/giorgosg/box2d-py/blob/main/web/README.md>`_
 covers building for WebAssembly.
 
 Versions

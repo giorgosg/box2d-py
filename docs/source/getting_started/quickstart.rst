@@ -252,7 +252,7 @@ The scenarios are written with this same API, so they double as examples of
 it. Each one's source opens in the testbed's own editor, where it can be
 changed and run again without a restart, or forked into a scenario of your
 own. The project's
-`README <https://github.com/giorgosg/box2d-py#running-the-testbed>`_
+`README <https://github.com/giorgosg/box2d-py#the-testbed>`_
 covers its keys, writing scenarios, and the console it has on the running
 simulation.
 
