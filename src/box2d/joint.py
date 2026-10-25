@@ -158,7 +158,7 @@ class Joint(FixedAttributes):
         """Get the first body connected by this joint.
 
         Returns:
-            Body: The dynamic body that initiated the joint connection
+            Body: The first body, which may be static, kinematic or dynamic
         """
         return self.world._bodies.require(lib.b2Joint_GetBodyA(self._joint_id))
 
@@ -167,7 +167,7 @@ class Joint(FixedAttributes):
         """Get the second body connected by this joint.
 
         Returns:
-            Body: The partner body (can be static or dynamic)
+            Body: The second body, which may be static, kinematic or dynamic
         """
         return self.world._bodies.require(lib.b2Joint_GetBodyB(self._joint_id))
 
@@ -314,7 +314,8 @@ class Joint(FixedAttributes):
 
         A joint reports nothing through World.get_joint_events until one of its
         thresholds is set, so this is how a breakable construction learns which
-        of its joints is about to give. Defaults to infinity.
+        of its joints is about to give. Defaults to FLT_MAX, the largest
+        32-bit float (about 3.4e38).
         """,
     )
 
@@ -323,7 +324,8 @@ class Joint(FixedAttributes):
         lib.b2Joint_SetTorqueThreshold,
         doc="""Get or set the torque above which this joint reports an event.
 
-        The rotational counterpart of force_threshold. Defaults to infinity.
+        The rotational counterpart of force_threshold. Defaults to FLT_MAX,
+        the largest 32-bit float (about 3.4e38).
         """,
     )
 
@@ -347,6 +349,15 @@ class MouseJoint(Joint):
     spring. Moving the target moves the proxy, and the spring pulls the body
     after it. The proxy is destroyed along with the joint, whether by
     :meth:`destroy` or by Box2D taking the joint down with the dragged body.
+
+    The proxy is an ordinary kinematic body in the world while the joint
+    exists, which shows in a few places:
+
+    - it is listed in :attr:`.World.bodies` and counted in
+      :attr:`.World.counters` and :attr:`.World.max_capacity`;
+    - :attr:`~.Joint.body_a` is the proxy, and :attr:`~.Joint.body_b` the
+      dragged body;
+    - :attr:`~.Joint.joint_type` reports Box2D's motor joint type, ``b2_motorJoint``.
     """
 
     def __init__(
@@ -871,7 +882,8 @@ class PrismaticJoint(Joint):
             target_motor_speed (float): Desired motor speed in metres per second
             max_motor_force (float): Maximum motor force in newtons
             enable_motor (bool): Whether to enable the joint motor
-            reference_angle (float): Reference angle between bodies
+            reference_angle (float): Accepted but ignored: the axis sets the
+                joint frame's rotation, so a value here has no effect.
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring oscillation frequency in Hz
             spring_damping_ratio (float): Spring damping ratio

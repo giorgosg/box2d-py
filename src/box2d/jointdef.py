@@ -166,8 +166,8 @@ class PrismaticJointDef(JointDef):
         target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         enable_motor: Whether the motor drives the joint.
-        reference_angle: Not supported since Box2D 3.2, where the axis owns the
-            joint frame's rotation. Passing it raises.
+        reference_angle: Accepted but ignored: the axis sets the joint frame's
+            rotation, so a value here has no effect.
         enable_spring: Whether a spring pulls the joint toward its rest length.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
@@ -355,6 +355,9 @@ class MouseJointDef:
 
     Unlike the other definitions this connects a single body to a point rather
     than two bodies together, so it does not share :class:`JointDef`'s fields.
+
+    The joint it makes adds a kinematic proxy body to the world; see
+    :class:`.MouseJoint`.
 
     Attributes:
         body: The body to drag.
