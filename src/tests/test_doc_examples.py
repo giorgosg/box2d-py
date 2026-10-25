@@ -33,6 +33,7 @@ GUIDES = [
         "lifetime",
         "events",
         "queries",
+        "callbacks_threading",
     ]
 ]
 #: Every page whose Python is run, the front page included.

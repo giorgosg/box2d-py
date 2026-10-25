@@ -106,7 +106,8 @@ Not during a step
 
 Nothing can be created or destroyed while the world is stepping, which is when
 Box2D calls the world's callbacks: :attr:`~box2d.world.World.custom_filter`,
-:attr:`~box2d.world.World.pre_solve` and the others. Box2D would ignore a
+:attr:`~box2d.world.World.pre_solve` and the others described in
+:doc:`callbacks_threading`. Box2D would ignore a
 destroy then and fail a create, so box2d-py raises :class:`RuntimeError`
 instead, as it does for a step from inside a step:
 
