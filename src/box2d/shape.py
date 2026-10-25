@@ -51,24 +51,15 @@ class Shape(FixedAttributes):
         join_world(self, body.world)
         self.user_data = user_data
 
-    def _set_handle(self):
-        """Hand Box2D a handle to this shape, through its user data.
-
-        That handle is how a shape id from Box2D -- a ray cast hit, an event --
-        becomes this object again. It does not keep the object alive, so
-        whatever calls this must also see that something holds the shape.
-        """
-        self._handle = ffi.new_handle(self)
-        lib.b2Shape_SetUserData(self._shape_id, self._handle)
-
     def _register(self):
-        """Set the handle, and have the body hold this shape until destroyed.
+        """Enter this shape in its world's table, and in its body's shapes.
 
-        Done here rather than in ``body.add_*``, since ``Circle.create`` and
-        the rest make a shape without it, and a shape nothing held was
-        collected while Box2D still had its handle.
+        The world's table is how a shape id from Box2D -- a ray cast hit, an
+        event -- becomes this object again, and it holds the shape until it is
+        destroyed. Done here rather than in ``body.add_*``, since
+        ``Circle.create`` and the rest make a shape without it.
         """
-        self._set_handle()
+        self._body.world._track_shape(self)
         self._body._shapes.append(self)
 
     density = b2_float(
@@ -107,11 +98,10 @@ class Shape(FixedAttributes):
     @property
     def body(self) -> "Body":
         """Return the body to which this shape is attached."""
-        body_id = lib.b2Shape_GetBody(self._shape_id)
-        body_data = lib.b2Body_GetUserData(body_id)
-        if body_data == ffi.NULL:
-            raise ValueError("Body not found for shape")
-        return ffi.from_handle(body_data)
+        # A shape never changes body, so the one it was made on is the answer.
+        # The id is read for its check, so a destroyed shape still raises.
+        self._shape_id  # noqa: B018
+        return self._body
 
     @property
     def user_material(self) -> int:
@@ -197,16 +187,9 @@ class Shape(FixedAttributes):
 
     @property
     def world(self) -> "World":
-        """
-        Get the world that owns this shape.
-
-        Uses the user data handle to retrieve the World object.
-        """
-        world_id = lib.b2Shape_GetWorld(self._shape_id)
-        world_data = lib.b2World_GetUserData(world_id)
-        if world_data == ffi.NULL:
-            raise ValueError("World not found for shape")
-        return ffi.from_handle(world_data)
+        """Get the world that owns this shape."""
+        self._shape_id  # noqa: B018 -- read to raise if destroyed
+        return self._body.world
 
     @property
     def parent_chain(self) -> "Chain":
@@ -319,8 +302,10 @@ class Shape(FixedAttributes):
             self._body.world._refuse_while_locked("shape")
             lib.b2DestroyShape(raw, bool(update_body_mass))
         body = getattr(self, "_body", None)
-        if body is not None and self in getattr(body, "_shapes", ()):
-            body._shapes.remove(self)
+        if body is not None:
+            body.world._untrack_shape(raw)
+            if self in getattr(body, "_shapes", ()):
+                body._shapes.remove(self)
         del self._shape_id
 
     @property
@@ -440,7 +425,11 @@ class Shape(FixedAttributes):
         contact_data = ffi.new("b2ContactData[]", capacity)
         count = lib.b2Shape_GetContactData(self._shape_id, contact_data, capacity)
 
-        result = [ContactData.from_b2ContactData(contact_data[i]) for i in range(count)]
+        shapes = self._body.world._shapes
+        result = [
+            ContactData.from_b2ContactData(contact_data[i], shapes)
+            for i in range(count)
+        ]
 
         return result
 
@@ -487,14 +476,14 @@ class Shape(FixedAttributes):
         overlaps = ffi.new("b2ShapeId[]", capacity)
         count = lib.b2Shape_GetSensorData(self._shape_id, overlaps, capacity)
 
+        # Box2D refreshes overlaps when it steps, so one may name a shape
+        # destroyed since, which is no longer in the table and is left out.
+        find = self._body.world._shapes.find
         result = []
         for i in range(count):
-            shape_id = overlaps[i]
-            if lib.b2Shape_IsValid(shape_id):
-                shape_data = lib.b2Shape_GetUserData(shape_id)
-                if shape_data != ffi.NULL:
-                    shape = ffi.from_handle(shape_data)
-                    result.append(shape)
+            shape = find(overlaps[i])
+            if shape is not None:
+                result.append(shape)
 
         return result
 
@@ -849,9 +838,9 @@ class ChainSegment(Shape):
         self._shape_id = b2chainsegment
         self._parent_chain = chain
         super().__init__(chain.body)
-        # Held by the chain, in its segments, rather than by the body: the
-        # body's shapes leave chain segments out.
-        self._set_handle()
+        # In the world's table, but not in the body's shapes, which leave
+        # chain segments out: the chain lists them, in its segments.
+        chain.body.world._track_shape(self)
 
     def destroy(self, update_body_mass: bool = True) -> None:
         """A segment cannot be removed from its chain; destroy the chain.
@@ -906,8 +895,6 @@ class Chain(FixedAttributes):
             ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
             for i in range(returned)
         ]
-        # The body holds the chain, and so its segments, until it is
-        # destroyed: Box2D has handles to the segments.
         body._chains.append(self)
 
     @classmethod
@@ -976,7 +963,9 @@ class Chain(FixedAttributes):
         chains = getattr(self._body, "_chains", ())
         if self in chains:
             chains.remove(self)
+        untrack_shape = self._body.world._untrack_shape
         for segment in self.segments:
+            untrack_shape(raw_id(segment, "_shape_id"))
             del segment._shape_id
         del self._chain_id
 
@@ -993,11 +982,8 @@ class Chain(FixedAttributes):
         Returns:
             The World object that owns this chain
         """
-        world_id = lib.b2Chain_GetWorld(self._chain_id)
-        world_data = lib.b2World_GetUserData(world_id)
-        if world_data == ffi.NULL:
-            raise ValueError("World data is NULL")
-        return ffi.from_handle(world_data)
+        self._chain_id  # noqa: B018 -- read to raise if destroyed
+        return self._body.world
 
     def get_surface_material(self, segment_index: int = 0) -> SurfaceMaterial:
         """Read the material a segment is using.

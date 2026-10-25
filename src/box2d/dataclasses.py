@@ -192,18 +192,22 @@ class ContactData:
     manifold: Manifold
 
     @classmethod
-    def from_b2ContactData(cls, contact_data):
-        shape_a_data = lib.b2Shape_GetUserData(contact_data.shapeIdA)
-        shape_b_data = lib.b2Shape_GetUserData(contact_data.shapeIdB)
-        if shape_a_data is None or shape_b_data is None:
-            raise ValueError("Shape data not found in contact data")
+    def from_b2ContactData(cls, contact_data, shapes):
+        """Build from Box2D's contact data.
 
-        manifold = Manifold.from_b2Manifold(contact_data.manifold)
+        Args:
+            contact_data: A ``b2ContactData``.
+            shapes: The :class:`~box2d.lifetime.IdTable` of shapes of the
+                world the contact is in.
 
+        Raises:
+            LookupError: If a shape is not in ``shapes``. A contact exists
+                only between live shapes, so that would be a bug.
+        """
         return cls(
-            shape_a=ffi.from_handle(shape_a_data),
-            shape_b=ffi.from_handle(shape_b_data),
-            manifold=manifold,
+            shape_a=shapes.require(contact_data.shapeIdA),
+            shape_b=shapes.require(contact_data.shapeIdB),
+            manifold=Manifold.from_b2Manifold(contact_data.manifold),
         )
 
 
@@ -306,9 +310,9 @@ class BodyDef:
             self._name_string = ffi.new("char[]", self.name.encode("utf-8"))
             body_def.name = self._name_string
 
-        # user_data is deliberately not written here. Box2D's userData holds the
-        # handle that maps a body id back to its Body, which Body.__init__ sets;
-        # the caller's own value is carried on the Body as an attribute.
+        # user_data is deliberately not written here: Box2D's userData is a
+        # void pointer, which cannot hold a Python object by itself. The
+        # caller's value is carried on the Body as an attribute instead.
 
         body_def.enableSleep = self.enable_sleep
         body_def.isAwake = self.is_awake

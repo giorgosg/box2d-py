@@ -106,16 +106,12 @@ class Joint(FixedAttributes):
         join_world(self, world)
 
     def _register(self):
-        """Hand Box2D a handle to this joint, and the world a reference to it.
+        """Enter this joint in its world's joint table.
 
-        Called once the joint exists. The handle in Box2D's user data is how a
-        joint id read back from Box2D -- ``body.joints``, joint events --
-        becomes this object again. A handle does not keep its object alive,
-        and a joint whose wrapper was collected aborted the interpreter on the
-        next lookup, so the world holds every joint as it holds every body.
+        Called once the joint exists. The table is how a joint id read back
+        from Box2D -- ``body.joints``, joint events -- becomes this object
+        again, and it holds the joint until Box2D no longer has it.
         """
-        self._joint_handle = ffi.new_handle(self)
-        lib.b2Joint_SetUserData(self._joint_id, self._joint_handle)
         self.world._track_joint(self)
 
     def destroy(self):
@@ -140,8 +136,8 @@ class Joint(FixedAttributes):
     def _release(self):
         """Let go of this joint once Box2D no longer has it.
 
-        Box2D's handle to the wrapper is gone with the joint, so the world's
-        reference is no longer needed. Called by :meth:`destroy`, and by
+        Box2D has no joint for the id any more, so it leaves the world's
+        table. Called by :meth:`destroy`, and by
         :meth:`.Body.destroy` for each joint Box2D takes down with the body.
         """
         self.world._untrack_joint(raw_id(self, "_joint_id"))
@@ -164,9 +160,7 @@ class Joint(FixedAttributes):
         Returns:
             Body: The dynamic body that initiated the joint connection
         """
-        return ffi.from_handle(
-            lib.b2Body_GetUserData(lib.b2Joint_GetBodyA(self._joint_id))
-        )
+        return self.world._bodies.require(lib.b2Joint_GetBodyA(self._joint_id))
 
     @property
     def body_b(self):
@@ -175,9 +169,7 @@ class Joint(FixedAttributes):
         Returns:
             Body: The partner body (can be static or dynamic)
         """
-        return ffi.from_handle(
-            lib.b2Body_GetUserData(lib.b2Joint_GetBodyB(self._joint_id))
-        )
+        return self.world._bodies.require(lib.b2Joint_GetBodyB(self._joint_id))
 
     @property
     def local_anchor_a(self):

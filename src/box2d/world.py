@@ -62,7 +62,7 @@ from .jointdef import (
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
-from .lifetime import IdRef, raw_id, is_live, new_liveness, wrapper_for
+from .lifetime import IdRef, IdTable, raw_id, is_live, new_liveness
 from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
 from typing import Optional
@@ -101,12 +101,27 @@ class SensorEvents:
     end: list[SensorEvent]
 
 
-def make_ray_cast_callback(results: list):
-    """Create a ray cast callback function."""
+def make_ray_cast_callback(results: list, *, world: "World", errors: list = None):
+    """Create a ray cast callback function.
+
+    Args:
+        results: A list to collect a :class:`RayCastResult` per hit.
+        world: The world being cast in, whose shapes the hits are.
+        errors: Optional list to put an exception in, rather than raise it
+            from the callback, where cffi would only print it. The cast is
+            stopped there; the caller raises it once Box2D returns.
+    """
+    require = world._shapes.require
 
     @ffi.callback("float(b2ShapeId, b2Vec2, b2Vec2, float, void*)")
     def ray_cast_callback(shape_id, point, normal, fraction, _):
-        shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
+        try:
+            shape = require(shape_id)
+        except LookupError as error:
+            if errors is None:
+                raise
+            errors.append(error)
+            return 0.0  # Stop the cast
         result = RayCastResult(
             shape=shape,
             point=Vec2(point.x, point.y),
@@ -119,7 +134,13 @@ def make_ray_cast_callback(results: list):
     return ray_cast_callback
 
 
-def make_overlap_callback(results: list, max_results: int = None):
+def make_overlap_callback(
+    results: list,
+    max_results: int = None,
+    *,
+    world: "World",
+    errors: list = None,
+):
     """
     Create an overlap callback that appends detected shapes to the results
     list and stops querying when max_results is reached.
@@ -128,20 +149,35 @@ def make_overlap_callback(results: list, max_results: int = None):
         results: A list to collect overlapping shapes.
         max_results: Optional maximum number of shapes to collect. Once reached,
                      the callback returns False to stop further processing.
+        world: The world being queried, whose shapes the results are.
+        errors: As for :func:`make_ray_cast_callback`.
 
     Returns:
         A Box2D-compatible callback function.
     """
+    require = world._shapes.require
 
     @ffi.callback("bool(b2ShapeId, void*)")
     def overlap_callback(shape_id, _):
-        shape = ffi.from_handle(lib.b2Shape_GetUserData(shape_id))
+        try:
+            shape = require(shape_id)
+        except LookupError as error:
+            if errors is None:
+                raise
+            errors.append(error)
+            return False  # Stop querying
         results.append(shape)
         if max_results is not None and len(results) >= max_results:
             return False  # Stop querying further shapes
         return True  # Continue querying
 
     return overlap_callback
+
+
+def _raise_first(errors: list):
+    """Raise what a query callback held back, once Box2D has returned."""
+    if errors:
+        raise errors[0]
 
 
 class World(FixedAttributes):
@@ -218,19 +254,16 @@ class World(FixedAttributes):
             # world, sized to this.
             world_def.workerCount = threads
 
-        self._handle = ffi.new_handle(self)
-        world_def.userData = self._handle
-
         # Shared with every object made in this world, and turned off when it
         # is destroyed: see box2d.lifetime.
         self._world_alive = new_liveness()
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
 
-        # Every live body and joint, keyed by id. Box2D's user data on each is
-        # a handle to its wrapper, which does not keep the wrapper alive; these
-        # do, until the object is destroyed.
-        self._bodies = {}
-        self._joints = {}
+        # Every live body, shape and joint, keyed by id: how an id Box2D
+        # reports becomes the object the caller made. See box2d.lifetime.
+        self._bodies = IdTable("body")
+        self._shapes = IdTable("shape")
+        self._joints = IdTable("joint")
 
         # Callbacks, with the cffi trampolines that must outlive them.
         self._custom_filter = self._custom_filter_trampoline = None
@@ -289,7 +322,7 @@ class World(FixedAttributes):
         """Raise rather than create or destroy something mid-step.
 
         Box2D ignores a destroy while the world is locked, so going ahead would
-        release a wrapper whose handle Box2D still holds, and destroying the
+        drop a wrapper whose object Box2D still has, and destroying the
         world itself would free it under the solver. A create returns a null
         id, which would surface later as a misleading DestroyedError.
 
@@ -471,7 +504,7 @@ class World(FixedAttributes):
             else [joint_def.body_a, joint_def.body_b]
         )
         for body in bodies:
-            if body._body_id not in self._bodies:
+            if not self._bodies.holds(body, body._body_id):
                 raise ValueError("Every body of a joint must belong to this world")
 
     def add_mouse_joint(
@@ -565,19 +598,27 @@ class World(FixedAttributes):
 
     def _track_body(self, body: "Body"):
         """Hold a new body for as long as Box2D has it. Called by the Body."""
-        self._bodies[body._body_id] = body
+        self._bodies.add(body._body_id, body)
 
     def _untrack_body(self, body_id):
         """Let go of a body Box2D no longer has, by the id it was tracked under."""
-        self._bodies.pop(body_id, None)
+        self._bodies.remove(body_id)
+
+    def _track_shape(self, shape: "Shape"):
+        """Hold a new shape, chain segments included, while Box2D has it."""
+        self._shapes.add(shape._shape_id, shape)
+
+    def _untrack_shape(self, shape_id):
+        """Let go of a shape Box2D no longer has, by the id it was tracked under."""
+        self._shapes.remove(shape_id)
 
     def _track_joint(self, joint: "Joint"):
         """Hold a new joint for as long as Box2D has it. Called by the Joint."""
-        self._joints[joint._joint_id] = joint
+        self._joints.add(joint._joint_id, joint)
 
     def _untrack_joint(self, joint_id):
         """Let go of a joint Box2D no longer has, by the id it was tracked under."""
-        self._joints.pop(joint_id, None)
+        self._joints.remove(joint_id)
 
     @property
     def bodies(self):
@@ -668,7 +709,7 @@ class World(FixedAttributes):
         capsule.radius = float(radius)
 
         planes = []
-        resolve = self._shape_from_id
+        resolve = self._shapes.find
 
         @ffi.callback("bool(b2ShapeId, b2PlaneResult*, void*)")
         def collect(shape_id, result, _context):
@@ -777,8 +818,10 @@ class World(FixedAttributes):
         if filter is None:
             filter = CollisionFilter()
 
-        results = []
-        overlap_callback = make_overlap_callback(results, max_results)
+        results, errors = [], []
+        overlap_callback = make_overlap_callback(
+            results, max_results, world=self, errors=errors
+        )
 
         c_filter = filter.b2QueryFilter
 
@@ -792,6 +835,7 @@ class World(FixedAttributes):
             overlap_callback,
             ffi.NULL,
         )
+        _raise_first(errors)
         return results
 
     def query_circle(
@@ -859,8 +903,10 @@ class World(FixedAttributes):
         if filter is None:
             filter = CollisionFilter()
 
-        results = []
-        overlap_callback = make_overlap_callback(results, max_results)
+        results, errors = [], []
+        overlap_callback = make_overlap_callback(
+            results, max_results, world=self, errors=errors
+        )
         c_filter = filter.b2QueryFilter
 
         # 3.2 added a query origin for large-world support. Coordinates in
@@ -873,6 +919,7 @@ class World(FixedAttributes):
             overlap_callback,
             ffi.NULL,
         )
+        _raise_first(errors)
         return results
 
     def cast_shape(
@@ -916,8 +963,8 @@ class World(FixedAttributes):
         if filter is None:
             filter = CollisionFilter()
 
-        results = []
-        callback = make_ray_cast_callback(results)
+        results, errors = [], []
+        callback = make_ray_cast_callback(results, world=self, errors=errors)
         c_filter = filter.b2QueryFilter
 
         lib.b2World_CastShape(
@@ -929,6 +976,7 @@ class World(FixedAttributes):
             callback,
             ffi.NULL,
         )
+        _raise_first(errors)
         results.sort(key=lambda hit: hit.fraction)
         return results[:1] if first_hit_only else results
 
@@ -964,7 +1012,7 @@ class World(FixedAttributes):
         if filter is None:
             filter = CollisionFilter()
 
-        results = []
+        results, errors = [], []
 
         p1 = Vec2(origin).b2Vec2[0]
         p2 = Vec2(translation).b2Vec2[0]
@@ -974,15 +1022,16 @@ class World(FixedAttributes):
             if result.hit:
                 results.append(
                     RayCastResult(
-                        shape=ffi.from_handle(lib.b2Shape_GetUserData(result.shapeId)),
+                        shape=self._shapes.require(result.shapeId),
                         point=Vec2(result.point.x, result.point.y),
                         normal=Vec2(result.normal.x, result.normal.y),
                         fraction=result.fraction,
                     )
                 )
         else:
-            callback = make_ray_cast_callback(results)
+            callback = make_ray_cast_callback(results, world=self, errors=errors)
             lib.b2World_CastRay(self._world_id, p1, p2, c_filter[0], callback, ffi.NULL)
+            _raise_first(errors)
         results.sort(key=lambda r: r.fraction)
         return results
 
@@ -1027,7 +1076,7 @@ class World(FixedAttributes):
             # Process each event
             begin_ev = [sensor_events.beginEvents[i] for i in range(begin_count)]
             end_ev = [sensor_events.endEvents[i] for i in range(end_count)]
-            resolve = self._shape_from_id
+            resolve = self._shapes.find
             begin_events = [
                 SensorEvent(
                     sensor=resolve(event.sensorShapeId),
@@ -1047,16 +1096,6 @@ class World(FixedAttributes):
 
         return SensorEvents(begin=begin_events, end=end_events)
 
-    @staticmethod
-    def _shape_from_id(shape_id):
-        """Resolve a shape id back to its wrapper, or None if it is gone.
-
-        End-touch events can name a shape that was destroyed during the step,
-        and any event can name one destroyed since, so this has to tolerate
-        that rather than follow a handle to a released wrapper.
-        """
-        return wrapper_for(shape_id, lib.b2Shape_IsValid, lib.b2Shape_GetUserData)
-
     # --- callbacks Box2D invokes during a step ------------------------------
     #
     # Each one keeps both the user's function and the cffi trampoline wrapping
@@ -1065,8 +1104,11 @@ class World(FixedAttributes):
     #
     # None of these may touch the world: Box2D calls them mid-solve, with the
     # world locked. It ignores a destroy made then, so every destroy() raises
-    # instead -- going ahead would release a wrapper Box2D still has a handle
-    # to. Creating anything, or stepping again, raises in the same way.
+    # instead -- going ahead would drop a wrapper whose object Box2D still
+    # has. Creating anything, or stepping again, raises in the same way.
+    #
+    # Each resolves shape ids with find, so a shape it cannot place reaches
+    # the callback as None, as in events, rather than failing the step.
 
     @property
     def custom_filter(self):
@@ -1097,7 +1139,7 @@ class World(FixedAttributes):
             self._custom_filter = self._custom_filter_trampoline = None
             return
 
-        resolve = self._shape_from_id
+        resolve = self._shapes.find
 
         # Exceptions are caught here rather than left to cffi's error= path,
         # which reports them as unraisable. Allowing the collision is the
@@ -1148,7 +1190,7 @@ class World(FixedAttributes):
             self._register_pre_solve()
             return
 
-        resolve = self._shape_from_id
+        resolve = self._shapes.find
 
         # A callback that raises leaves the contact as it was rather than
         # dropping it, which would look like objects falling through.
@@ -1196,7 +1238,7 @@ class World(FixedAttributes):
             self._register_pre_solve()
             return
 
-        resolve = self._shape_from_id
+        resolve = self._shapes.find
 
         # As above: a callback that raises keeps the collision.
         @ffi.callback("bool(b2ShapeId, b2ShapeId, b2Vec2, b2Vec2, void*)")
@@ -1323,7 +1365,7 @@ class World(FixedAttributes):
             ...         pass  # touch.shape_a and touch.shape_b just met
         """
         events = lib.b2World_GetContactEvents(self._world_id)
-        resolve = self._shape_from_id
+        resolve = self._shapes.find
 
         begin = [
             ContactBeginEvent(
@@ -1365,19 +1407,18 @@ class World(FixedAttributes):
             since the step is left out.
         """
         events = lib.b2World_GetBodyEvents(self._world_id)
-        # Bound once: looking a function up on lib costs more per event than
-        # the call itself, and there can be thousands of events.
-        is_valid, from_handle, null = lib.b2Body_IsValid, ffi.from_handle, ffi.NULL
+        # Bound once, as there can be thousands of events.
+        find = self._bodies.find
         moves = []
         for i in range(events.moveCount):
             event = events.moveEvents[i]
-            # The event carries the body's handle, but a body destroyed since
-            # the step has had its wrapper released, so the id is checked first.
-            if not is_valid(event.bodyId) or event.userData == null:
+            # A body destroyed since the step is no longer in the table.
+            body = find(event.bodyId)
+            if body is None:
                 continue
             moves.append(
                 BodyMoveEvent(
-                    body=from_handle(event.userData),
+                    body=body,
                     transform=Transform.from_b2Transform(event.transform),
                     fell_asleep=bool(event.fellAsleep),
                 )
@@ -1397,13 +1438,12 @@ class World(FixedAttributes):
         """
         events = lib.b2World_GetJointEvents(self._world_id)
         # Bound once and checked as in get_body_events, for the same reasons.
-        is_valid, from_handle, null = lib.b2Joint_IsValid, ffi.from_handle, ffi.NULL
+        find = self._joints.find
         reports = []
         for i in range(events.count):
-            event = events.jointEvents[i]
-            if not is_valid(event.jointId) or event.userData == null:
-                continue
-            reports.append(JointEvent(joint=from_handle(event.userData)))
+            joint = find(events.jointEvents[i].jointId)
+            if joint is not None:
+                reports.append(JointEvent(joint=joint))
         return reports
 
     @property
@@ -1445,8 +1485,9 @@ class World(FixedAttributes):
                 body._forget_ids()
             for joint in self._joints.values():
                 del joint._joint_id
-            # Box2D's handles went with the world, so nothing needs these kept.
+            # Box2D's objects went with the world, so nothing needs these kept.
             self._bodies.clear()
+            self._shapes.clear()
             self._joints.clear()
 
     def __del__(self):

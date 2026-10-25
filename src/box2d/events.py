@@ -17,6 +17,7 @@ Events are opt-in per shape, and Box2D defaults them off:
 - sensor overlap needs ``enable_sensor_events`` on the visiting shape
 """
 
+import weakref
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 
@@ -42,7 +43,7 @@ class Contact:
     :attr:`is_valid` before reading :attr:`data`.
     """
 
-    __slots__ = ("_id_copy", "_world_alive", "_key")
+    __slots__ = ("_id_copy", "_world_alive", "_shapes", "_key")
 
     def __init__(self, contact_id, world):
         """
@@ -60,6 +61,8 @@ class Contact:
         self._id_copy = ffi.new("b2ContactId *", contact_id)
         # The world's liveness flag rather than the world: see box2d.lifetime.
         self._world_alive = world._world_alive
+        # And its shape table, weakly: its shapes lead back to the world.
+        self._shapes = weakref.ref(world._shapes)
         # cdata structs are not hashable, so identity travels as a plain tuple.
         self._key = (
             contact_id.index1,
@@ -87,7 +90,12 @@ class Contact:
         """
         if not self.is_valid:
             return None
-        return ContactData.from_b2ContactData(lib.b2Contact_GetData(self._contact_id))
+        shapes = self._shapes()
+        if shapes is None:  # The world is being collected.
+            return None
+        return ContactData.from_b2ContactData(
+            lib.b2Contact_GetData(self._contact_id), shapes
+        )
 
     def __eq__(self, other):
         return isinstance(other, Contact) and self._key == other._key

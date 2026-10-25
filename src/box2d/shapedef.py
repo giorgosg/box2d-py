@@ -80,9 +80,9 @@ class ShapeDef:
         # Start with defaults
         shape_def = lib.b2DefaultShapeDef()
 
-        # user_data is not written here: Box2D's userData holds the handle that
-        # maps a shape id back to its Python object, so the shape keeps the
-        # application's user_data itself.
+        # user_data is not written here: Box2D's userData is a void pointer,
+        # which cannot hold a Python object by itself, so the shape keeps the
+        # application's user_data instead.
 
         shape_def.material.friction = self.friction
         shape_def.material.restitution = self.restitution
