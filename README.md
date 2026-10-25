@@ -74,53 +74,18 @@ builds a first scene step by step, and the
 box2d-testbed
 ```
 
-Each scenario has its own controls in the side panel. The panel's buttons for
-running the testbed itself are also on the keyboard:
-
-| key | |
-|---|---|
-| `p` | pause and resume |
-| `o` | single step |
-| `r` | restart the scenario |
-| `Home` | reset the view |
-| `[` `]` | previous and next scenario |
-
-Dragging a body pulls it around, which every scenario gets without writing
-anything; drag with the middle button to pan, and scroll to zoom. The keys are
-ignored while the editor or the console has the keyboard, so typing `pr` into
-either does not pause the simulation.
-
-### Writing scenarios
-
-The **Editor** tab, next to Simulation, edits scenario files. `Ctrl+S` writes
-the file, runs it, and rebuilds the world around what it defines, so the loop
-is edit, save, watch, with nothing restarted. A scenario that will not compile,
-or raises while building, leaves the running scene alone and reports itself:
-the message and the line in the editor, the traceback in the scenario's own
-panel.
-
-Your own scenarios are ordinary Python files, loaded at startup beside the
-shipped ones, from a directory outside the project:
-
-| | |
-|---|---|
-| Linux | `~/.local/share/box2d-testbed/scenarios` |
-| macOS | `~/Library/Application Support/box2d-testbed/scenarios` |
-| Windows | `%APPDATA%\box2d-testbed\scenarios` |
-
-`BOX2D_TESTBED_SCENARIOS` points it somewhere else, such as a project of your
-own.
-
-**New** starts from a template. **Fork** copies whatever is open -- the shipped
-`tb_*.py` included, which open read-only -- into your directory, under
-`... copy` names so the fork sits beside the original, and rewrites its imports
-so the file stands alone. The Scenario menu opens the file behind the running
-scenario, which is the quick way to find one worth forking.
+A window of scenarios, each showing one part of Box2D running live, with its
+own controls in the side panel. `p` pauses, `o` steps, `r` resets the
+scenario, `Home` resets the view, and `[` `]` move between scenarios. Drag a
+body with the left button to pull it, drag with the middle button to pan, and
+scroll to zoom.
+[Running the testbed](https://box2d-py.readthedocs.io/en/latest/testbed/running.html) covers the panels, the settings
+and the rest.
 
 ### What a scenario looks like
 
-A scenario is a class. Declaring it registers it, under the category and name
-it gives:
+A scenario is a class, and declaring it registers it under the category and
+name it gives:
 
 ```python
 from box2d_testbed.base_test import BaseTest, UI
@@ -157,73 +122,30 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
         return "asleep" if not self.box.awake else f"height {self.box.position.y:.1f}"
 ```
 
-- **`setup`** builds the scene. Reset and `self.rebuild()` throw it away and
-  call `setup` again in a new world, keeping the controls and the view, so a
-  reset scene runs exactly as it first did -- unless it is built from Python's
-  random numbers. Set anything the scene needs on the world here, and read
-  `self.world` rather than keeping it.
-- **Controls** (`UI.float`, `UI.int`, `UI.bool`, `UI.select`, `UI.button`)
-  appear in the scenario's panel and read as attributes. A callback runs when
-  one changes, never before `setup`: one that changes how the scene is built
-  calls `self.rebuild()`, and one that tunes something in place just sets it.
-- **`status`** returns a line, or a list of lines, shown at the top left of the
-  view. `debug_draw(self, debug_draw)` draws in the world instead.
-- **`after_step(dt)`** runs after every step. If it, `status` or `debug_draw`
-  raises, the error is reported once and that hook is not called again, so a
-  broken one neither takes the window down nor floods the terminal.
-- **`on_key_down(key)`, `on_key_up(key)`** and the `on_mouse_*` handlers take
-  input.
-- **`camera_center` and `camera_zoom`** frame the scenario when it opens; leave
-  them out to frame whatever moves. The **Copy** button in the status bar
-  copies the current view as these two lines.
-
-The shipped scenarios keep to a few conventions of their own, as examples of
-the library; [CONTRIBUTING.md](https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md#shipped-scenarios) lists them.
+`setup` builds the scene, the `UI` declarations are controls in its panel, and
+`status` is shown at the top left of the view. Your own scenarios are Python
+files in a directory of your own, which the **Editor** tab, beside the
+simulation, edits: `Ctrl+S` saves the file, runs it, and puts its scenario on
+screen, with nothing restarted. **Fork** copies any scenario, the shipped
+ones included, into a file of your own to change.
+[Writing scenarios](https://box2d-py.readthedocs.io/en/latest/testbed/scenarios.html) covers all of it.
 
 ### The console
 
 The **Console** panel along the bottom is a Python prompt on the running
-simulation. `test`, `world`, `state` and `app` are bound to what is running and
-rebound after every rebuild, `box2d` and `Vec2` are imported, and names you
-define stay defined.
-
-<!-- not run: a session at the running testbed's console -->
-```python
->>> len(list(world.bodies))
-41
->>> for body in world.bodies:
-...     body.linear_velocity = (0, 20)
-...
->>> test.camera_zoom
-14.0
-```
-
-| key | |
-|---|---|
-| `Enter` | run it, or take another line if it is not a complete statement yet |
-| `Tab` | complete the name left of the cursor, or indent if there is none |
-| `Ctrl+R` | search what you have run |
-| `Up` `Down` | walk the history, while the prompt is one line |
-
-Completion works on the live objects -- `world.` lists what that world actually
-has -- because it evaluates the name to the left of the dot, which is also the
-reason to complete a name rather than the result of a call. A blank line closes
-a block and runs it, as at any prompt. The output above the prompt can be
-selected and copied with `Ctrl+C`.
+simulation, with `test` and `world` bound to what is running, and completion
+on the live objects. [The console](https://box2d-py.readthedocs.io/en/latest/testbed/console.html) covers it.
 
 ## Running in a browser
 
-The testbed also runs in a browser: CPython, Box2D and the bindings compiled to
-WebAssembly with Pyodide, drawing through imgui into a canvas. It is single
-threaded, and what you write in its editor lasts until the page reloads, unless
-you share it. **Share** uploads the editor's buffer and copies its link.
-**Open link** takes that link or the scenario's full SHA-256 hash, and opens
-the scenario read-only and without running it: review the source, then press
-**Run**, or **Fork** it into an editable in-browser file. Every shared
-scenario is public to anyone with its link.
-
-[`web/README.md`](https://github.com/giorgosg/box2d-py/blob/main/web/README.md) covers building and serving it, and
-[`server/README.md`](https://github.com/giorgosg/box2d-py/blob/main/server/README.md) the store that sharing talks to.
+The testbed also runs in a web page: CPython, Box2D and the bindings compiled
+to WebAssembly with Pyodide. It is single threaded, and what you write in its
+editor lasts until the page reloads, unless you share it: **Share** uploads a
+scenario and copies its public link, and **Open link** opens one read-only,
+without running it until you press **Run**.
+[The testbed in a browser](https://box2d-py.readthedocs.io/en/latest/testbed/browser.html) covers the differences, and
+[`web/README.md`](https://github.com/giorgosg/box2d-py/blob/main/web/README.md)
+building and serving it.
 
 ## Development status
 

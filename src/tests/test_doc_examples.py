@@ -5,9 +5,11 @@ Each file's blocks run in order in one namespace, as a reader working down the
 page would run them: a later block may use what an earlier one made. A block
 written as a ``>>>`` session runs as a doctest, so its output is checked too.
 
-A README block that cannot run here -- the console session, which needs the
-running testbed -- is preceded by an HTML comment starting ``not run:``, which
-renders as nothing on GitHub and PyPI.
+A page whose examples assume names already bound -- the testbed's console
+page, whose session is typed where the console binds ``test`` and ``world`` --
+gets them from its entry in PRELUDES, bound as the testbed would bind them. A
+README block that cannot run here at all is preceded by an HTML comment
+starting ``not run:``, which renders as nothing on GitHub and PyPI.
 """
 
 import contextlib
@@ -38,8 +40,17 @@ GUIDES = [
         "debug_drawing",
     ]
 ]
+SCENARIOS = DOCS / "testbed" / "scenarios.rst"
+CONSOLE = DOCS / "testbed" / "console.rst"
+#: The testbed's pages, in the order the front page lists them.
+TESTBED = [
+    DOCS / "testbed" / "running.rst",
+    SCENARIOS,
+    CONSOLE,
+    DOCS / "testbed" / "browser.rst",
+]
 #: Every page whose Python is run, the front page included.
-PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE, *GUIDES]
+PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE, *GUIDES, *TESTBED]
 
 
 def _page_id(path):
@@ -84,9 +95,14 @@ def rst_blocks(path):
     ]
 
 
-def run_blocks(path, blocks):
-    """Run the blocks in order in one namespace, and return it."""
-    namespace = {"__name__": f"doc_example_{path.stem}"}
+def run_blocks(path, blocks, names=None):
+    """Run the blocks in order in one namespace, and return it.
+
+    Args:
+        names: Names bound before the first block runs, if the page assumes
+            any.
+    """
+    namespace = {"__name__": f"doc_example_{path.stem}", **(names or {})}
     for line, code in blocks:
         where = f"{path.name}:{line}"
         if code.lstrip().startswith(">>>"):
@@ -106,9 +122,53 @@ def run_blocks(path, blocks):
     return namespace
 
 
+def destroy_worlds(*objects):
+    """Destroy every live world among ``objects``, a scenario's included.
+
+    Read when called, so a scenario that has rebuilt since gives up the world
+    it has now, not the one it was made with.
+    """
+    from box2d import World
+
+    for value in objects:
+        world = value if isinstance(value, World) else getattr(value, "world", None)
+        if isinstance(world, World) and world.is_valid:
+            world.destroy()
+
+
+def console_names(on_teardown):
+    """What the testbed's console binds, with the Drop scenario running.
+
+    The session on the console page is typed at the running testbed, where
+    the console binds these. Drop is the one the scenarios page defines, built
+    here as the testbed would open it. ``app`` is left out: it is the window.
+
+    Args:
+        on_teardown: Registers a function to call once the page has run,
+            which destroys the worlds made here and by the page's own code.
+    """
+    import box2d
+    from box2d import Vec2, World
+    from box2d_testbed.testbed_state import state
+
+    scenarios = run_blocks(SCENARIOS, rst_blocks(SCENARIOS))
+    on_teardown(lambda: destroy_worlds(*scenarios.values()))
+    world = World()
+    test = scenarios["Drop"](world)
+    on_teardown(lambda: destroy_worlds(world, test))
+    test.setup()
+    return {"test": test, "world": world, "state": state, "box2d": box2d, "Vec2": Vec2}
+
+
+#: The names a page's examples assume, made fresh for each run of the page.
+#: Each is called with a function that registers its cleanup.
+PRELUDES = {CONSOLE: console_names}
+
+
 @pytest.fixture
 def scenario_registry_left_as_it_was():
-    """The README defines a scenario, which registers itself; take it out.
+    """The README and the scenarios page each define a scenario, which
+    registers itself; take it out.
 
     BaseTest needs nothing from the testbed extra, so this runs everywhere.
     """
@@ -120,6 +180,22 @@ def scenario_registry_left_as_it_was():
     BaseTest.registry.update(before)
 
 
+@pytest.fixture
+def testbed_state_left_as_it_was():
+    """Put the testbed's shared state back after a page has run.
+
+    The console page binds it, and a page's code may set it -- the view, the
+    pause, the settings -- which every testbed test after it would inherit.
+    Like BaseTest, it needs nothing from the testbed extra.
+    """
+    from box2d_testbed.testbed_state import state
+
+    before = dict(vars(state))
+    yield
+    vars(state).clear()
+    vars(state).update(before)
+
+
 def test_the_blocks_are_found():
     """A change of fence or directive must not leave nothing to run."""
     assert len(markdown_blocks(README)) == 3
@@ -127,6 +203,8 @@ def test_the_blocks_are_found():
     assert len(rst_blocks(INSTALL)) >= 2
     assert len(rst_blocks(QUICKSTART)) >= 8
     assert all(rst_blocks(path) for path in GUIDES)
+    assert len(rst_blocks(SCENARIOS)) >= 3
+    assert len(rst_blocks(CONSOLE)) >= 2
 
 
 @pytest.mark.parametrize("path", PAGES, ids=_page_id)
@@ -139,7 +217,9 @@ def test_every_python_block_is_run(path):
     assert languages.count("python") == len(rst_blocks(path)), path.name
 
 
-def test_readme_examples_run(scenario_registry_left_as_it_was):
+def test_readme_examples_run(
+    scenario_registry_left_as_it_was, testbed_state_left_as_it_was
+):
     namespace = run_blocks(README, markdown_blocks(README))
 
     # The example simulation ends where its comment says.
@@ -158,5 +238,9 @@ def test_readme_examples_run(scenario_registry_left_as_it_was):
 
 
 @pytest.mark.parametrize("path", PAGES, ids=_page_id)
-def test_page_examples_run(path):
-    run_blocks(path, rst_blocks(path))
+def test_page_examples_run(
+    path, request, scenario_registry_left_as_it_was, testbed_state_left_as_it_was
+):
+    prelude = PRELUDES.get(path)
+    names = prelude(request.addfinalizer) if prelude else None
+    run_blocks(path, rst_blocks(path), names)

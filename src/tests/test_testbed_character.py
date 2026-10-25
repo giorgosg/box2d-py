@@ -75,6 +75,23 @@ def test_the_mover_can_jump_up_onto_the_ledge(world):
     assert test.position.y > 1.5, "on top of it, not under it"
 
 
+def test_the_mover_lands_from_a_fall_faster_than_its_own_height_a_step(world):
+    """The mover queries see only what the capsule touches now, so a step
+    longer than the capsule would carry it from above the ground to below it
+    without ever touching it. The sweep stops it on the ground instead."""
+    test = mover(world)
+    # 300 m/s is 5 m a step, three times the capsule's 1.6 m: from 2 m up,
+    # the first step would end with the whole capsule under the ground.
+    test.position = Vec2(-2, 2)
+    test.velocity = Vec2(0, -300)
+
+    run(test, 0.5)
+
+    assert test.on_ground
+    assert test.position.y == pytest.approx(0.8, abs=0.01), "on the ground, not in it"
+    assert test.velocity.y == pytest.approx(0.0, abs=1e-6)
+
+
 def in_view(test, body):
     """Whether the whole of a body is inside the scenario's opening view."""
     center, zoom = test.view()

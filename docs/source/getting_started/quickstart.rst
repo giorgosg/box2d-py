@@ -47,11 +47,12 @@ Stepping
 
 :meth:`~box2d.world.World.step` advances the world by a time step, in
 seconds. Use the same step every time, typically 1/60 of a second, rather
-than the time a frame happened to take: Box2D is tuned for a fixed step, and
-a varying one makes the simulation jittery. In a game loop, add each frame's
-elapsed time to an accumulator, step once for every whole time step it holds,
-and carry what is left over to the next frame. The second argument is the
-number of substeps, which trade speed for accuracy; 4 is the usual choice.
+than the time a frame happened to take: as Box2D's own manual puts it, a time
+step that varies gives results that vary, which makes the simulation hard to
+debug. In a game loop, add each frame's elapsed time to an accumulator, step
+once for every whole time step it holds, and carry what is left over to the
+next frame. The second argument is the number of substeps, which trade speed
+for accuracy; 4 is the usual choice.
 
 .. code-block:: python
 
@@ -251,10 +252,9 @@ its controls in a side panel.
 The scenarios are written with this same API, so they double as examples of
 it. Each one's source opens in the testbed's own editor, where it can be
 changed and run again without a restart, or forked into a scenario of your
-own. The project's
-`README <https://github.com/giorgosg/box2d-py#the-testbed>`_
-covers its keys, writing scenarios, and the console it has on the running
-simulation.
+own. :doc:`../testbed/running` covers its panels, keys and mouse,
+:doc:`../testbed/scenarios` writing scenarios, and :doc:`../testbed/console`
+the console it has on the running simulation.
 
 Where next
 ----------

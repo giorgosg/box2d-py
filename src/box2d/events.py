@@ -208,9 +208,9 @@ class BodyMoveEvent:
 class JointEvent:
     """A joint exceeded its force or torque threshold during the last step.
 
-    Thresholds are set per joint definition, via ``force_threshold`` and
-    ``torque_threshold``. This is how you detect a joint about to fail, for
-    breakable constructions.
+    Thresholds are set on the joint, through its ``force_threshold`` and
+    ``torque_threshold``, once it has been made. This is how you detect a
+    joint about to fail, for breakable constructions.
 
     Attributes:
         joint: The joint that reported the event.

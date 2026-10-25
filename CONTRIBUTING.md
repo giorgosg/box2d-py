@@ -108,14 +108,18 @@ The examples are tests, so they cannot drift from the code unnoticed:
   there.
 - In the docs, Python goes in a plain `.. code-block:: python`, with no options,
   so the test finds it; shell commands are `bash`, `console` or `text`.
-- A README block that cannot run under pytest, such as a session at the
-  running testbed's console, is preceded by an HTML comment starting
-  `not run:` and saying why, which renders as nothing on GitHub and PyPI:
+- A page whose examples assume names already bound, as the testbed console
+  page's session assumes the names the console binds, gets them from its
+  entry in the test's `PRELUDES`, bound as the testbed would bind them.
+- A README block that cannot run under pytest at all is preceded by an HTML
+  comment starting `not run:` and saying why, which renders as nothing on
+  GitHub and PyPI:
 
   ````markdown
-  <!-- not run: a session at the running testbed's console -->
+  <!-- not run: opens the testbed's window -->
   ```python
-  >>> len(list(world.bodies))
+  from box2d_testbed import main
+  main()
   ```
   ````
 
