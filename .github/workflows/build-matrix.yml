@@ -25,6 +25,32 @@ jobs:
       - name: Check formatting
         run: ruff format --check src setup.py web docs/source
 
+  # The API reference is autodoc reading the installed package, so the package
+  # is built first. -W makes a warning fail the job and -n reports every
+  # reference that resolves to nothing; readthedocs would publish either
+  # silently. Installed the way readthedocs installs it: the package itself,
+  # not editable, plus docs/requirements.txt. intersphinx fetches CPython's
+  # inventory, so this needs the network, which the runner has.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install the package and Sphinx
+        run: |
+          python -m pip install --upgrade pip
+          pip install . -r docs/requirements.txt
+
+      - name: Build the docs
+        run: sphinx-build -W --keep-going -n -b html docs/source docs/build/html
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:
