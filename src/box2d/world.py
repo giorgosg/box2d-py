@@ -234,9 +234,11 @@ class World(FixedAttributes):
                 None leaves Box2D's small starting sizes.
 
         Raises:
-            TypeError: If ``capacity`` is not a :class:`Capacity`, or one of
+            TypeError: If ``capacity`` is not a :class:`.Capacity`, or one of
                 its fields is not an int.
             ValueError: If one of its fields is negative or over its limit.
+            RuntimeError: If ``threads`` is above one and this build has no
+                thread support, as WebAssembly builds do not.
 
         Example:
             >>> world = World(gravity=(0, -9.8))
@@ -306,8 +308,9 @@ class World(FixedAttributes):
 
         Args:
             time_step: Time to simulate (seconds)
-            substep_count: Number of solver iterations (default 4)
-                           Higher values improve stability at cost of performance
+            substep_count: Number of sub-steps each step is divided into
+                (default 4). More sub-steps improve accuracy and stability at a
+                cost in performance.
 
         Raises:
             RuntimeError: If called from a world callback during a step.
@@ -664,7 +667,8 @@ class World(FixedAttributes):
             point2: Second endpoint.
             radius: The capsule's radius.
             translation: The movement to sweep along.
-            filter: Which shapes to test against. Defaults to everything.
+            filter: Which shapes to test against. Defaults to ``CollisionFilter()``; see
+                :class:`.CollisionFilter` for which shapes that matches.
 
         Returns:
             float: The fraction of the translation travelled before hitting
@@ -705,7 +709,8 @@ class World(FixedAttributes):
             point1: First endpoint of the capsule's axis, in world coordinates.
             point2: Second endpoint.
             radius: The capsule's radius.
-            filter: Which shapes to consider. Defaults to everything.
+            filter: Which shapes to consider. Defaults to ``CollisionFilter()``; see
+                :class:`.CollisionFilter` for which shapes that matches.
 
         Returns:
             list[CollisionPlane]: One per surface touched, each carrying the
@@ -810,11 +815,12 @@ class World(FixedAttributes):
         Args:
             aabb: Axis-aligned bounding box to query.
             filter: Optional CollisionFilter instance for filtering.
-                If None, a default CollisionFilter is used.
+                If None, ``CollisionFilter()`` is used; see
+                :class:`.CollisionFilter` for which shapes that matches.
             max_results: Optional maximum number of shapes to return.
 
         Returns:
-            list: Shapes with overlapping fixtures.
+            list: The overlapping shapes.
 
         Example:
             >>> world = World()
@@ -860,17 +866,18 @@ class World(FixedAttributes):
         Args:
             position: Center of the query circle in world coordinates.
             radius: Radius of the query circle.
-            collision_filter: Optional CollisionFilter instance for filtering.
-                              If None, a default CollisionFilter is used.
+            filter: Optional CollisionFilter instance for filtering.
+                If None, ``CollisionFilter()`` is used; see
+                :class:`.CollisionFilter` for which shapes that matches.
             max_results: Optional maximum number of shapes to return.
-                         The callback will return False when this limit is reached.
+                The query stops when this limit is reached.
 
         Returns:
-            list: Shapes with overlapping fixtures.
+            list: The overlapping shapes.
 
         Example:
             >>> world = World()
-            >>> # Create a body with a circle fixture
+            >>> # Create a body with a circle shape
             >>> box = world.new_body().dynamic().circle(1).build()
             >>> overlaps = world.query_circle((0, 0), 1.5, filter=CollisionFilter(), max_results=10)
             >>> len(overlaps) <= 10
@@ -1045,7 +1052,7 @@ class World(FixedAttributes):
         results.sort(key=lambda r: r.fraction)
         return results
 
-    def get_sensor_events(self) -> list:
+    def get_sensor_events(self) -> SensorEvents:
         """Retrieve all sensor events that occurred during the last time step.
 
         Sensors are shapes marked with is_sensor=True. They detect overlap with
@@ -1053,10 +1060,10 @@ class World(FixedAttributes):
         all begin and end overlap events for sensors from the last simulation step.
 
         Returns:
-            list: A list of SensorEvent objects with the following attributes:
-                - sensor: The sensor Shape that detected overlap
-                - visitor: The Shape that overlapped with the sensor
-                - begin: True if overlap began, False if overlap ended
+            SensorEvents: with ``begin`` and ``end`` lists of
+            :class:`SensorEvent`, each carrying ``sensor`` (the sensor shape),
+            ``visitor`` (the shape overlapping it) and ``begin`` (True if the
+            overlap began, False if it ended).
 
             A shape destroyed since the step, or whose destruction ended the
             overlap, is None, as in :meth:`get_contact_events`.
@@ -1064,7 +1071,7 @@ class World(FixedAttributes):
         Example:
             >>> world = World()
             >>> body = world.new_body().dynamic().position(0,0).build()
-            >>> # Create a sensor fixture
+            >>> # Create a sensor shape
             >>> sensor = body.add_circle(radius=1.0, is_sensor=True)
             >>> # Run simulation
             >>> world.step(1/60)
@@ -1353,15 +1360,18 @@ class World(FixedAttributes):
         """Contacts that began, ended, or hit during the last step.
 
         Contacts are only reported for shapes that opted in. Begin and end need
-        ``enable_contact_events`` on both shapes; hits need ``enable_hit_events``
-        and an approach speed above :attr:`hit_event_threshold`. Box2D defaults
-        all of these off.
+        ``enable_contact_events`` on at least one of the two shapes; hits need
+        ``enable_hit_events`` on at least one of them and an approach speed
+        above :attr:`hit_event_threshold`. Box2D defaults both flags off.
 
         Returns:
             ContactEvents: with ``begin``, ``end`` and ``hit`` lists, describing
             only the step that just finished. Reading does not consume them, so
             asking twice between steps gives the same answer; the next step
             replaces them.
+
+            A shape destroyed since the step, or whose destruction ended the
+            contact, is None in the events that name it.
 
         Example:
             >>> world = World()
@@ -1585,9 +1595,9 @@ class World(FixedAttributes):
 
     @property
     def hit_event_threshold(self) -> float:
-        """Minimum collision speed to trigger hit events (m/s).
+        """Minimum approach speed to trigger hit events (m/s).
 
-        Collisions slower than this won't generate collision events.
+        Collisions slower than this won't generate hit events.
 
         Example:
             >>> world = World()
@@ -1702,8 +1712,9 @@ class World(FixedAttributes):
 
     @property
     def max_capacity(self) -> Capacity:
-        """The most this world has needed at once so far: bodies, shapes,
-        contacts and scratch memory.
+        """The most this world has needed at once so far.
+
+        It covers bodies, shapes, contacts and scratch memory.
 
         Pass it to a new world as ``World(capacity=...)`` and that world sets
         the room aside up front, which helps it avoid allocating as the scene

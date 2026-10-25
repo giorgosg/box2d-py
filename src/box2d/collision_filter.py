@@ -25,8 +25,10 @@ class CollisionCategoryRegistry:
     """
     A registry to manage named collision categories.
 
-    Each category is automatically assigned a unique bit. The valid bits
-    run from 0x0001 to 0x8000, which gives up to 16 unique categories.
+    Each category is automatically assigned a unique bit. The registry
+    hands out bits 0x0001 to 0x8000, so it holds at most 16 categories.
+    Box2D's category and mask fields are 64 bits wide; a bit above 0x8000
+    can still be given to :class:`CollisionFilter` as an integer.
 
     By default, auto_create is disabled (False) so that
     category names must be explicitly defined. This prevents typos from
@@ -51,7 +53,7 @@ class CollisionCategoryRegistry:
             The bitmask value assigned to this category.
 
         Raises:
-            ValueError: If the maximum number of categories (16) is exceeded.
+            ValueError: If the registry's 16 categories are already in use.
 
         Example:
             >>> reg = CollisionCategoryRegistry()
@@ -165,6 +167,18 @@ class CollisionFilter:
     The API is chainable and accepts categories (and masks) as either integers or names (resolved
     via a registry). The group is strictly an integer.
 
+    Box2D's category and mask are 64-bit fields, but this class's defaults use
+    only the low 16 bits: ``CollisionFilter()`` has category ``0x1`` and mask
+    :attr:`ALL`, which is ``0xFFFF`` rather than every bit, and a registry
+    names categories ``0x1`` to ``0x8000``. Integers with higher bits are
+    passed to Box2D as given.
+
+    Used as the filter of a world query or cast, where ``CollisionFilter()``
+    is the default, it finds shapes that have a category bit within ``0xFFFF``
+    and whose own mask includes category ``0x1``. That covers every shape made
+    with a default filter, Box2D's or this class's. The group plays no part in
+    queries.
+
     Examples (Fluent Interface):
         >>> f1 = CollisionFilter("player").allow_collision_with("enemy")
         >>> f2 = CollisionFilter("enemy").allow_collision_with("player")
@@ -178,7 +192,10 @@ class CollisionFilter:
         False
     """
 
-    ALL = 0xFFFF  # Default mask (all bits set)
+    #: The default mask, covering the low 16 bits, which are the categories a
+    #: registry can name. Box2D's masks are 64 bits wide, so this is not
+    #: every bit.
+    ALL = 0xFFFF
     DEFAULT_CATEGORY = 0x0001  # Default category if none is provided
 
     def __init__(
