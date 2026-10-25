@@ -36,13 +36,15 @@ Custom filtering
 ----------------
 
 :attr:`~box2d.world.World.custom_filter` decides, for a pair of shapes, what
-categories and masks cannot: return False and the two do not collide. Box2D
-asks it before making a contact between two shapes whose bounding boxes have
-come to overlap, when at least one of the two has ``enable_custom_filtering``,
-and asks it again as long as it says no. It does not ask again while a
-contact it allowed lasts. It is also asked about a sensor and each shape
-overlapping it, and returning False there hides the shape from the sensor.
-Here a ghost falls through the ground:
+categories and masks cannot: return False and the two do not collide. It is
+consulted only when at least one of the two shapes has
+``enable_custom_filtering``. Box2D's broad phase asks it about a pair of
+shapes with no contact yet whose bounding boxes overlap, at the step one of
+them moves into the other's; it asks again only as one of them moves on, and
+not at all while a contact it allowed lasts. Continuous collision may also
+ask it, before stopping a fast body at a shape. And a sensor asks it about
+each shape overlapping it, where returning False hides the shape from the
+sensor. Here a ghost falls through the ground:
 
 .. code-block:: python
 
@@ -133,6 +135,7 @@ a rule like "nothing grips ice" possible:
     ...     if ICE in (material_a, material_b):
     ...         return 0.0
     ...     return math.sqrt(friction_a * friction_b)
+    >>> world.destroy()
     >>> world = World()
     >>> ground = world.new_body().static().box(20, 1).build()
     >>> crate = world.new_body().dynamic().position(-5, 1).linear_velocity(3, 0).box(1, 1).build()
@@ -162,7 +165,8 @@ box2d-py enforces the clearest cases: creating or destroying anything, or
 stepping the world, raises :class:`RuntimeError` inside a callback. The rest it
 does not stop, and Box2D's answer varies. Some setters are ignored while the
 world is locked, others take effect part way through the solve, and every
-query finds nothing:
+query answers as if the world were empty: overlaps and casts find nothing, and
+``cast_mover`` reports a clear path, 1.0:
 
 .. code-block:: python
 
@@ -240,7 +244,9 @@ pile settles identically on one thread and on four:
     ...             world.new_body().dynamic().position(i * 1.01 - 3, j * 1.01 + 1).box(1, 1).build()
     ...     for _ in range(60):
     ...         world.step(1 / 60, 4)
-    ...     return world.state_hash
+    ...     state_hash = world.state_hash
+    ...     world.destroy()
+    ...     return state_hash
     >>> pile(1) == pile(threads)
     True
 

@@ -142,6 +142,10 @@ reports shapes that begin or stop overlapping it, as
 the ``sensor`` and the ``visitor``. A sensor may sit on a body of any type,
 including a static one, and never reports shapes on its own body. Box2D works
 out sensor overlaps at the end of the step, from where the shapes ended up.
+Since Box2D 3.2 it also sweeps fast shapes against static sensors, and
+bullets against every sensor not on a bullet, so a shape that crosses a
+sensor within a single step is still reported: it begins, and ends at the
+next step.
 
 A visitor is reported only if it also has ``enable_sensor_events``, so a shape
 made with it off passes through unseen. Here a ghost and a rock fall into a
@@ -149,6 +153,7 @@ sensor, and only the rock is reported:
 
 .. code-block:: python
 
+    >>> world.destroy()
     >>> world = World()
     >>> zone = world.new_body().static().position(0, 2).box(4, 2, is_sensor=True).build()
     >>> ghost = (
@@ -187,6 +192,7 @@ sleeps, so whatever follows that body can stop too:
 
 .. code-block:: python
 
+    >>> world.destroy()
     >>> world = World()
     >>> ground = world.new_body().static().box(20, 1).build()
     >>> crate = world.new_body().dynamic().position(0, 3).box(1, 1).build()

@@ -8,7 +8,8 @@ which shapes collide with each other and which a query sees.
 
 Every query takes and returns world coordinates, and works between steps:
 during a step, which is when the world's callbacks run, Box2D answers every
-query with nothing.
+query as if the world were empty, so an overlap query or a cast finds nothing
+and :meth:`~box2d.world.World.cast_mover` reports a clear path, 1.0.
 
 Overlap queries
 ---------------
@@ -39,16 +40,20 @@ bounding box but clear of the ball itself:
 So use ``query_aabb`` to narrow things down, and ``query_shape`` or
 ``query_circle`` when the answer has to be exact.
 
-Each takes ``max_results``, and stops once it has found that many. They come
-in the order Box2D's tree yields them, which is not nearest first, so this is
-for asking whether there is anything, or capping the work, rather than for
-finding the closest few:
+Each takes ``max_results``, and stops once it has found that many. Box2D keeps
+static, kinematic and dynamic shapes in three separate trees and searches them
+in that order, and each tree in an order of its own, which is not nearest
+first. So a cap fills with static shapes before any others, and is for asking
+whether there is anything, or capping the work, rather than for finding the
+closest few. Here five static crates fill a cap of two, and the ball is left
+out:
 
 .. code-block:: python
 
     >>> crates = [world.new_body().position(x, 3).box(1, 1).build() for x in range(5)]
-    >>> len(world.query_aabb(AABB(lower=(-10, -10), upper=(10, 10)), max_results=2))
-    2
+    >>> found = world.query_aabb(AABB(lower=(-10, -10), upper=(10, 10)), max_results=2)
+    >>> [shape.body.type for shape in found]
+    ['static', 'static']
 
 Ray casts
 ---------
@@ -102,10 +107,11 @@ face, at y = 0.5:
 
 .. code-block:: python
 
+    >>> world.destroy()
     >>> world = World()
     >>> ground = world.new_body().static().box(20, 1).build()
     >>> [hit] = world.cast_shape(ShapeProxy.box(1, 1, center=(5, 10)), (0, -20))
-    >>> round(hit.fraction * 20, 1), hit.point.y, hit.normal
+    >>> round(hit.fraction * 20, 1), round(hit.point.y, 2), hit.normal
     (9.0, 0.5, Vec2(0.0, 1.0))
 
 The results are as for ``cast_ray``, nearest first, and ``first_hit_only``

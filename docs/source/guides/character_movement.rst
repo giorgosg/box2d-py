@@ -19,10 +19,7 @@ A geometric mover
 
 A geometric mover is a capsule whose position and velocity the program keeps
 itself. Nothing in the world knows it is there: bodies do not collide with it,
-and gravity does not reach it. Each step, it asks the world which surfaces the
-capsule is up against, works out the movement that comes closest to the one
-wanted while clearing all of them, and trims its velocity so as not to keep
-pushing into them. Three functions do that:
+and gravity does not reach it. Each step it moves itself, with four functions:
 
 - :meth:`~box2d.world.World.collide_mover` returns the surfaces a capsule
   touches or overlaps, as :class:`~box2d.mover.CollisionPlane` objects, each
@@ -30,8 +27,20 @@ pushing into them. Three functions do that:
 - :func:`~box2d.mover.solve_planes` finds the movement closest to the one
   asked for that satisfies every plane, and returns it as the
   ``translation`` of a :class:`~box2d.mover.MoverResult`;
+- :meth:`~box2d.world.World.cast_mover` sweeps the capsule along a
+  translation, and returns the fraction of it travelled before hitting
+  something, 1.0 if nothing;
 - :func:`~box2d.mover.clip_vector` removes the parts of the velocity that
   point into the planes that pushed.
+
+The planes only describe what the capsule touches now. A movement that clears
+them can still pass straight through something it does not yet touch, such as
+a floor below a fast fall, so the movement is swept with ``cast_mover`` and
+only the part that is clear is taken. That leaves the capsule touching
+whatever stopped it, so it asks again, a few times, until the movement left is
+negligible: the same loop as Box2D's own geometric mover sample. The sweep is
+built for movers: a capsule already touching a surface slides along it rather
+than stopping.
 
 Here a capsule 1.6 m tall -- two centres 0.4 m above and below its position,
 and a 0.4 m radius round them -- drops onto the ground, then walks right into a
@@ -66,11 +75,17 @@ wall:
 
         def update(self, walk_speed):
             self.velocity = Vec2(walk_speed, self.velocity.y - GRAVITY * TIME_STEP)
-            planes = world.collide_mover(*self.capsule(), RADIUS)
-            # A surface facing up more steeply than 45 degrees is ground.
+            target = self.position + self.velocity * TIME_STEP
+            for _ in range(5):
+                planes = world.collide_mover(*self.capsule(), RADIUS)
+                result = solve_planes(target - self.position, planes)
+                fraction = world.cast_mover(*self.capsule(), RADIUS, result.translation)
+                moved = result.translation * fraction
+                self.position += moved
+                if moved.length < 0.01:
+                    break
+            # A surface no steeper than about 45 degrees is ground.
             self.on_ground = any(plane.plane.normal.y > 0.7 for plane in planes)
-            result = solve_planes(self.velocity * TIME_STEP, planes)
-            self.position += result.translation
             self.velocity = clip_vector(self.velocity, planes)
 
 It lands with the bottom of its capsule on the ground, 0.8 m below its
@@ -88,6 +103,18 @@ position, and stops against the wall with its side on the wall's face:
     >>> round(walker.position.x, 1), walker.velocity
     (4.1, Vec2(0.0, 0.0))
 
+Without the sweep, a walker dropped from higher up would be falling fast
+enough to step from above the ground to below it, never touching it, and fall
+for ever. With it, it lands:
+
+.. code-block:: python
+
+    >>> walker = Walker((-3, 30))
+    >>> for _ in range(120):
+    ...     walker.update(0)
+    >>> round(walker.position.y, 1), walker.on_ground
+    (0.8, True)
+
 The capsule is not stepped by the world, so ``update`` runs once per step, and
 the world's ``step`` moves only the bodies around it. A jump is a velocity set
 while ``on_ground``.
@@ -100,11 +127,8 @@ push into it, as into another character, and setting the second to False
 keeps the mover's speed through it. Each plane's ``shape`` says which surface
 it is, for deciding that, or for leaving planes out altogether.
 
-:meth:`~box2d.world.World.cast_mover` is the sweep to go with them: it moves
-the capsule along a translation and returns the fraction of it travelled
-before hitting something, 1.0 if nothing. It is built for movers, and lets a
-capsule already touching a surface slide along it rather than stop. Here, how
-far the walker could fall from 3 m up before landing:
+``cast_mover`` also answers questions of its own, such as how far the walker
+could fall from 3 m up before landing:
 
 .. code-block:: python
 
@@ -139,6 +163,7 @@ and destroying one a step costs little.
 
 .. code-block:: python
 
+    world.destroy()
     world = World()
     ground = world.new_body().static().box(40, 1, offset=(0, -0.5)).build()
     anchor = world.new_body().static().build()
@@ -168,6 +193,8 @@ and destroying one a step costs little.
                 self.joint.destroy()
                 self.joint = None
             foot = character.get_world_point(FOOT)
+            # The ray starts inside the character's own capsule, which
+            # first_hit_only skips, as it does any shape a ray starts in.
             hits = world.cast_ray(foot, (0, -2 * REST_LENGTH), first_hit_only=True)
             if not hits:
                 self.impulse = self.speed = 0.0

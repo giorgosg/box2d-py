@@ -63,7 +63,7 @@ moved. Static and kinematic bodies have no mass, as Box2D stores it:
     5.0
     >>> [body.type for body in (floor, platform, crate)]
     ['static', 'kinematic', 'dynamic']
-    >>> [body.mass for body in (floor, platform, crate)]
+    >>> [round(body.mass, 3) for body in (floor, platform, crate)]
     [0.0, 0.0, 1.0]
 
 Shapes
@@ -113,13 +113,13 @@ belongs to the world rather than to either body, and destroying either body
 destroys it.
 
 The two bodies a joint connects do not collide with each other, unless it was
-made with ``collide_connected=True``. This door hangs on a hinge at its foot,
-where it meets the floor:
+made with ``collide_connected=True``. This door stands on a hinge at its foot,
+where it meets the floor, and the two touch without colliding:
 
 .. code-block:: python
 
-    >>> door = world.new_body().dynamic().position(8, 3).box(0.2, 4).build()
-    >>> hinge = world.add_revolute_joint(floor, door, anchor=(8, 1))
+    >>> door = world.new_body().dynamic().position(8, 2.5).box(0.2, 4).build()
+    >>> hinge = world.add_revolute_joint(floor, door, anchor=(8, 0.5))
     >>> hinge.collide_connected
     False
 
@@ -153,10 +153,11 @@ Stepping
 --------
 
 :meth:`~box2d.world.World.step` advances the world by a time step, in seconds,
-divided into substeps. Give it the same time step every time: Box2D is tuned
-for a fixed step, and one that varies makes the simulation jitter. 1/60 s gives
-a good simulation, and Box2D advises nothing longer than 1/30 s. The substeps
-trade speed for accuracy. Four is Box2D's recommendation and the default;
+divided into substeps. Give it the same time step every time: a time step
+that varies gives results that vary with it, which Box2D warns makes a
+simulation hard to debug, so the step should not follow the frame rate.
+1/60 s gives a good simulation, and Box2D advises nothing longer than 1/30 s.
+The substeps trade speed for accuracy. Four is Box2D's recommendation and the default;
 more help long chains of joints, which stretch less.
 
 A game's frames do not take a fixed time, so the usual loop keeps an
@@ -209,8 +210,8 @@ Bodies touching each other or connected by joints form an island, and an
 island sleeps once every body in it has moved slower than its
 ``sleep_threshold``, 0.05 m/s by default, for half a second. A sleeping body
 costs nothing to step. It wakes when something awake touches it, when a joint
-or contact on it is destroyed, when a force or impulse is applied to it or its
-velocity is set, or when ``awake`` is set to True.
+or contact on it is destroyed, when a force or impulse is applied to it, when
+it is given a velocity other than zero, or when ``awake`` is set to True.
 
 Stopped, the platform falls asleep with everything else, and
 :attr:`~box2d.world.World.awake_body_count` falls to zero:
