@@ -55,7 +55,7 @@ pyodide build
 A minute or two from cold, and it leaves a wasm32 wheel in `dist/`:
 
 ```
-dist/box2d_python-0.1.3-cp313-cp313-pyemscripten_2025_0_wasm32.whl   ~320 KiB
+dist/box2d_python-<version>-cp313-cp313-pyemscripten_2025_0_wasm32.whl   ~320 KiB
 ```
 
 The build prints a different, longer name at the end
@@ -148,8 +148,9 @@ The store now lives in [`server/`](../server/README.md):
   complete digest also avoids weakening a public content address just to save
   characters in a URL.
 - No accounts, and everything public. Which makes it a pastebin that accepts
-  Python, so: a size cap, a rate-limiting rule on the write, and no delete
-  (immutable content has nothing to update).
+  Python, so: a 64 KiB size cap and no delete (immutable content has nothing
+  to update). There is no rate limit on the write yet; the server README lists
+  it as still to do.
 - **Nothing fetched is executed on its own.** Opening a shared scenario opens
   its source in the editor unrun; Run is a keypress away, but it is the reader's
   keypress. The browser uses Pyodide's asynchronous Fetch client, so a D1

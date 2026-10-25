@@ -59,6 +59,9 @@ against that here is a 64 KiB cap and the absence of any way to delete or
 overwrite. Rate limiting belongs in front of `POST` before this is public; see
 below.
 
+**Nothing fetched executes on arrival.** The web testbed opens imported source
+read-only and unrun. Run is explicit; Fork first makes an editable copy.
+
 ## Running it
 
 Needs **Node 22 or newer**. If the only node on your `PATH` is older, emsdk
@@ -118,5 +121,3 @@ D1 until the Worker has a custom-domain cache.
 - **`GET /recent`**, which the `created_at` index is already there for. Left out
   while ids are the only names a scenario has -- a list of hashes is not a
   gallery.
-- **Nothing fetched executes on arrival.** The web testbed opens imported source
-  read-only and unrun. Run is explicit; Fork first makes an editable copy.
