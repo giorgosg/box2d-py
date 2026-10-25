@@ -10,7 +10,7 @@ set, and so do these now.
 
 import pytest
 
-from box2d import CollisionFilter, ShapeProxy
+from box2d import CollisionCategoryRegistry, CollisionFilter, ShapeProxy
 from box2d._box2d import lib
 
 #: Box2D's mask fields are uint64_t.
@@ -134,3 +134,15 @@ def test_a_mask_without_the_bit_lets_a_high_category_through(world):
         world, CollisionFilter(mask=0xFFFF), CollisionFilter(category=HIGH)
     )
     assert height < 0.0, "the box should fall through the ground"
+
+
+# --- a registry names every bit -----------------------------------------------
+
+
+def test_registry_names_all_64_bits():
+    registry = CollisionCategoryRegistry()
+    bits = [registry.define(f"c{i}") for i in range(64)]
+    assert bits == [1 << i for i in range(64)]
+    assert CollisionFilter(category="c63", registry=registry).category == TOP
+    with pytest.raises(ValueError, match="64"):
+        registry.define("one too many")

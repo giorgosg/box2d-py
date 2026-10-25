@@ -20,15 +20,17 @@ Example usage:
 import warnings
 from ._checked import ffi
 
+#: The highest bit of Box2D's 64-bit category and mask fields.
+_LAST_BIT = 1 << 63
+
 
 class CollisionCategoryRegistry:
     """
     A registry to manage named collision categories.
 
-    Each category is automatically assigned a unique bit. The registry
-    hands out bits 0x0001 to 0x8000, so it holds at most 16 categories.
-    Box2D's category and mask fields are 64 bits wide; a bit above 0x8000
-    can still be given to :class:`CollisionFilter` as an integer.
+    Each category is automatically assigned a unique bit, lowest first. The
+    registry hands out every bit of Box2D's 64-bit category field, ``0x1`` to
+    ``1 << 63``, so it holds at most 64 categories.
 
     By default, auto_create is disabled (False) so that
     category names must be explicitly defined. This prevents typos from
@@ -53,7 +55,7 @@ class CollisionCategoryRegistry:
             The bitmask value assigned to this category.
 
         Raises:
-            ValueError: If the registry's 16 categories are already in use.
+            ValueError: If the registry's 64 categories are already in use.
 
         Example:
             >>> reg = CollisionCategoryRegistry()
@@ -64,8 +66,8 @@ class CollisionCategoryRegistry:
         """
         if name in self._categories:
             return self._categories[name]
-        if self._next_bit > 0x8000:  # Maximum available bits (16 categories)
-            raise ValueError("Maximum number of collision categories reached (16).")
+        if self._next_bit > _LAST_BIT:
+            raise ValueError("Maximum number of collision categories reached (64).")
         self._categories[name] = self._next_bit
         self._next_bit <<= 1
         return self._categories[name]
