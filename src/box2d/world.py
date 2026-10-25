@@ -1476,9 +1476,10 @@ class World(FixedAttributes):
     def get_joint_events(self) -> list:
         """Joints that passed their force or torque threshold last step.
 
-        A joint reports nothing unless its definition set ``force_threshold`` or
-        ``torque_threshold``, so this is how a breakable construction learns
-        which of its joints is about to give.
+        A joint reports nothing until its ``force_threshold`` or
+        ``torque_threshold`` is set, on the joint once it has been made, so
+        this is how a breakable construction learns which of its joints is
+        about to give.
 
         Returns:
             list[JointEvent]: One per joint that reported. A joint destroyed
