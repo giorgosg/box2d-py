@@ -1110,11 +1110,13 @@ class Body(FixedAttributes):
         if raw is None:
             return
         # Box2D destroys the attached joints with the body, so their wrappers
-        # are looked up first, while the ids still lead to them.
+        # are looked up first, while the ids still lead to them. A joint the
+        # world cannot place is skipped rather than raised: nothing should
+        # leave a body impossible to destroy.
         joints = []
         if self.is_valid:
             self.world._refuse_while_locked("body")
-            joints = self._read_joints()
+            joints = self._read_joints(strict=False)
             lib.b2DestroyBody(raw)
         world = self.world
         world._untrack_body(raw)
@@ -1302,8 +1304,12 @@ class Body(FixedAttributes):
         """,
     )
 
-    def _read_joints(self) -> List[Joint]:
+    def _read_joints(self, strict: bool = True) -> List[Joint]:
         """Get the joints attached to this body.
+
+        Args:
+            strict: Raise LookupError for a joint not in the world's table,
+                rather than leave it out.
 
         Returns:
             List of Joint objects attached to this body.
@@ -1315,8 +1321,11 @@ class Body(FixedAttributes):
         joint_ids = ffi.new("b2JointId[]", count)
         actual_count = lib.b2Body_GetJoints(self._body_id, joint_ids, count)
 
-        require = self.world._joints.require
-        return [require(joint_ids[i]) for i in range(actual_count)]
+        table = self.world._joints
+        if strict:
+            return [table.require(joint_ids[i]) for i in range(actual_count)]
+        found = (table.find(joint_ids[i]) for i in range(actual_count))
+        return [joint for joint in found if joint is not None]
 
     @property
     def joints(self) -> List[Joint]:

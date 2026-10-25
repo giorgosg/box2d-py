@@ -199,3 +199,41 @@ def test_polygon_validity_still_matches_box2d():
         "b2IsValidPolygon changed: update _is_valid_polygon in "
         "box2d/shapedef.py to match, then the copy here"
     )
+
+
+# --- a failed check belongs to the thread that made it ----------------------
+
+
+def test_a_failed_check_on_another_thread_is_not_raised_here(world):
+    """Box2D logs from its worker threads too. A failed check reported on one
+    thread must not be raised by the next checked call on another, which had
+    nothing to do with it."""
+    import threading
+
+    message = ffi.new("char[]", b"invalid input: x in b2Body_SetLinearVelocity")
+    elsewhere = threading.Thread(target=_on_log, args=(message,))
+    elsewhere.start()
+    elsewhere.join()
+
+    world.gravity = (0, -5)  # A checked call, which finds nothing pending here.
+    body = world.add_body(body_type="dynamic")
+    assert body.is_valid
+    assert world.gravity.y == -5
+
+
+def test_a_failed_check_is_still_raised_on_its_own_thread(world):
+    import threading
+
+    raised = []
+
+    def bad_setter():
+        body = world.add_body(body_type="dynamic")
+        try:
+            body.linear_velocity = (NAN, 0)
+        except InvalidInputError as error:
+            raised.append(error)
+
+    thread = threading.Thread(target=bad_setter)
+    thread.start()
+    thread.join()
+    assert len(raised) == 1

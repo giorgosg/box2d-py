@@ -399,3 +399,91 @@ def test_a_contact_does_not_keep_its_world_alive():
     assert gone() is None
     assert contact.is_valid is False
     assert contact.data is None
+
+
+# --- a missing entry never makes something undestroyable --------------------
+
+
+def test_a_body_whose_joint_is_missing_can_still_be_destroyed(world, scene):
+    """body.joints raises for a joint it cannot place, but destroying the body
+    has to go ahead regardless, taking the joint with it."""
+    stick, hinge = scene["stick"], scene["hinge"]
+    world._joints.remove(hinge._joint_id)
+    with pytest.raises(LookupError, match="joint"):
+        stick.joints
+    stick.destroy()
+    assert not stick.is_valid
+    assert not hinge.is_valid
+
+
+# --- query callbacks hand their errors back ---------------------------------
+
+
+#: cffi reports an exception raised in a callback as unraisable, and carries
+#: on with a default answer. pytest turns that into this warning, which these
+#: tests make an error.
+_NOT_LEFT_TO_CFFI = pytest.mark.filterwarnings(
+    "error::pytest.PytestUnraisableExceptionWarning"
+)
+
+
+@pytest.fixture
+def failing_require(monkeypatch):
+    """Make every strict shape lookup fail with something other than a
+    LookupError, as a bug in the binding would."""
+
+    def broken(self, object_id):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(type(World()._shapes), "require", broken)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        lambda w: w.query_aabb(AABB(lower=Vec2(-1, 2), upper=Vec2(1, 4))),
+        lambda w: w.query_circle((0, 3), 0.1),
+        lambda w: w.query_shape(ShapeProxy.circle(0.1, (0, 3))),
+        lambda w: w.cast_ray((0, 10), (0, -20)),
+        lambda w: w.cast_shape(ShapeProxy.circle(0.1, (0, 10)), (0, -20)),
+    ],
+)
+@_NOT_LEFT_TO_CFFI
+def test_any_error_in_a_query_callback_is_raised_by_the_query(
+    world, scene, failing_require, query
+):
+    with pytest.raises(RuntimeError, match="boom"):
+        query(world)
+
+
+@_NOT_LEFT_TO_CFFI
+def test_the_callback_factories_collect_errors_without_a_list(world, scene):
+    """Used on their own, without an errors list, the callbacks still stop the
+    query rather than let cffi print and carry on with a default answer."""
+    from box2d.world import make_overlap_callback
+
+    results = []
+    callback = make_overlap_callback(results, world=world)
+    world._shapes.clear()  # Every shape is now missing.
+    lib.b2World_OverlapAABB(
+        world._world_id,
+        Vec2(0, 0).b2Vec2[0],
+        AABB(lower=Vec2(-50, -50), upper=Vec2(50, 50)).b2AABB[0],
+        lib.b2DefaultQueryFilter(),
+        callback,
+        ffi.NULL,
+    )
+    assert results == []
+
+
+# --- a mouse joint that cannot be made leaves nothing behind ----------------
+
+
+def test_a_mouse_joint_that_fails_to_create_destroys_its_proxy(world, scene):
+    from box2d import InvalidInputError
+
+    bodies = list(world.bodies)
+    with pytest.raises(InvalidInputError):
+        world.add_mouse_joint(scene["ball"], target=(0, 3), hertz=float("nan"))
+    assert world.bodies == bodies
+    assert scene["ball"].joints == []

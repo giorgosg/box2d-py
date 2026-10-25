@@ -197,7 +197,7 @@ class ContactData:
 
         Args:
             contact_data: A ``b2ContactData``.
-            shapes: The :class:`~box2d.lifetime.IdTable` of shapes of the
+            shapes: The ``_IdTable`` of shapes of the
                 world the contact is in.
 
         Raises:

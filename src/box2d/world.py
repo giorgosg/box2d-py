@@ -62,7 +62,7 @@ from .jointdef import (
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
 from .shape import Shape
-from .lifetime import IdRef, IdTable, raw_id, is_live, new_liveness
+from .lifetime import IdRef, _IdTable, raw_id, is_live, new_liveness
 from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
 from typing import Optional
@@ -101,34 +101,47 @@ class SensorEvents:
     end: list[SensorEvent]
 
 
+def _hold_back(errors):
+    """Keep the exception being handled for after the query.
+
+    Box2D calls a query's callback from C, where an exception cannot pass:
+    cffi would report it as unraisable and carry on with a default answer. So
+    the callback keeps it, stops the query, and the query raises it once
+    Box2D has returned. Without a list to keep it in, it is printed.
+    """
+    if errors is None:
+        traceback.print_exc()
+    else:
+        errors.append(sys.exc_info()[1])
+
+
 def make_ray_cast_callback(results: list, *, world: "World", errors: list = None):
     """Create a ray cast callback function.
 
     Args:
         results: A list to collect a :class:`RayCastResult` per hit.
         world: The world being cast in, whose shapes the hits are.
-        errors: Optional list to put an exception in, rather than raise it
-            from the callback, where cffi would only print it. The cast is
-            stopped there; the caller raises it once Box2D returns.
+        errors: Optional list for an exception raised while handling a hit.
+            The cast stops there, and the caller raises it once Box2D
+            returns, as the world's own queries do. Without one it is
+            printed, and the cast still stops.
     """
     require = world._shapes.require
 
     @ffi.callback("float(b2ShapeId, b2Vec2, b2Vec2, float, void*)")
     def ray_cast_callback(shape_id, point, normal, fraction, _):
         try:
-            shape = require(shape_id)
-        except LookupError as error:
-            if errors is None:
-                raise
-            errors.append(error)
+            results.append(
+                RayCastResult(
+                    shape=require(shape_id),
+                    point=Vec2(point.x, point.y),
+                    normal=Vec2(normal.x, normal.y),
+                    fraction=fraction,
+                )
+            )
+        except Exception:
+            _hold_back(errors)
             return 0.0  # Stop the cast
-        result = RayCastResult(
-            shape=shape,
-            point=Vec2(point.x, point.y),
-            normal=Vec2(normal.x, normal.y),
-            fraction=fraction,
-        )
-        results.append(result)
         return 1.0  # Continue querying
 
     return ray_cast_callback
@@ -160,13 +173,10 @@ def make_overlap_callback(
     @ffi.callback("bool(b2ShapeId, void*)")
     def overlap_callback(shape_id, _):
         try:
-            shape = require(shape_id)
-        except LookupError as error:
-            if errors is None:
-                raise
-            errors.append(error)
+            results.append(require(shape_id))
+        except Exception:
+            _hold_back(errors)
             return False  # Stop querying
-        results.append(shape)
         if max_results is not None and len(results) >= max_results:
             return False  # Stop querying further shapes
         return True  # Continue querying
@@ -261,9 +271,9 @@ class World(FixedAttributes):
 
         # Every live body, shape and joint, keyed by id: how an id Box2D
         # reports becomes the object the caller made. See box2d.lifetime.
-        self._bodies = IdTable("body")
-        self._shapes = IdTable("shape")
-        self._joints = IdTable("joint")
+        self._bodies = _IdTable("body")
+        self._shapes = _IdTable("shape")
+        self._joints = _IdTable("joint")
 
         # Callbacks, with the cffi trampolines that must outlive them.
         self._custom_filter = self._custom_filter_trampoline = None

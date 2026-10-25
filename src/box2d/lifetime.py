@@ -22,7 +22,7 @@ only while that world is. The flag is a plain Python one, which
 about the world instead would cost a second call on every property read.
 
 Going the other way, from an id Box2D hands back to the wrapper it belongs to,
-is an :class:`IdTable` on the world: one for bodies, one for shapes (chain
+is an ``_IdTable`` on the world: one for bodies, one for shapes (chain
 segments included) and one for joints. Each wrapper is entered when it is made
 and taken out on every path that destroys it -- on its own, with its body or
 chain, or with the world -- so a table holds exactly the objects Box2D still
@@ -146,7 +146,7 @@ def is_live(obj, name: str, is_valid) -> bool:
     return raw is not None and obj._world_alive[0] and bool(is_valid(raw))
 
 
-class IdTable(dict):
+class _IdTable(dict):
     """A world's wrappers of one kind, keyed by their Box2D ids.
 
     The key is the id's slot, world and generation. Box2D bumps the generation

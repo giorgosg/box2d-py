@@ -378,19 +378,26 @@ class MouseJoint(Joint):
             body_type="kinematic", position=target, enable_sleep=False
         )
 
-        defn = lib.b2DefaultMotorJointDef()
-        defn.base.bodyIdA = self._proxy._body_id
-        defn.base.bodyIdB = body._body_id
-        defn.base.localFrameB.p = body.get_local_point(target).b2Vec2[0]
-        defn.base.collideConnected = False
-        defn.linearHertz = hertz
-        defn.linearDampingRatio = damping_ratio
-        defn.maxSpringForce = max_force
-        self._def = defn
+        # Nothing else holds the proxy, so if the joint cannot be made -- a
+        # NaN spring setting, say -- it is destroyed rather than left behind.
+        try:
+            defn = lib.b2DefaultMotorJointDef()
+            defn.base.bodyIdA = self._proxy._body_id
+            defn.base.bodyIdB = body._body_id
+            defn.base.localFrameB.p = body.get_local_point(target).b2Vec2[0]
+            defn.base.collideConnected = False
+            defn.linearHertz = hertz
+            defn.linearDampingRatio = damping_ratio
+            defn.maxSpringForce = max_force
+            self._def = defn
 
-        self._joint_id = lib.b2CreateMotorJoint(
-            self.world._world_id, ffi.addressof(self._def)
-        )
+            self._joint_id = lib.b2CreateMotorJoint(
+                self.world._world_id, ffi.addressof(self._def)
+            )
+        except BaseException:
+            proxy, self._proxy = self._proxy, None
+            proxy.destroy()
+            raise
         self._register()
         self.wake_bodies()
 
