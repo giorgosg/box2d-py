@@ -74,7 +74,7 @@ Simulation Parameters
 * ``world.enable_continuous`` - Toggle continuous collision detection
 * ``world.contact_hertz`` - Get/set contact stiffness (Hz, default 30)
 * ``world.contact_damping_ratio`` - Get/set contact bounciness (non-dimensional, default 10)
-* ``world.contact_push_velocity`` - Get/set the cap on overlap resolution speed (m/s, default 3)
+* ``world.contact_push_speed`` - Get/set the cap on overlap resolution speed (m/s, default 3)
 * ``world.restitution_threshold`` - Get/set minimum speed for restitution effects
 * ``world.hit_event_threshold`` - Get/set minimum collision speed for hit events
 

@@ -1117,7 +1117,7 @@ class Ragdoll(BaseTest, category="Joints", name="Ragdoll"):
         # ground does not sink into it before being pushed back out.
         self.world.contact_hertz = 240.0
         self.world.contact_damping_ratio = 0.0
-        self.world.contact_push_velocity = 2.0
+        self.world.contact_push_speed = 2.0
 
         self.human = Human(
             self.world,

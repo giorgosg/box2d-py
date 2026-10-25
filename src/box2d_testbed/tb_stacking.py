@@ -375,7 +375,7 @@ class Confined(BaseTest, category="Stacking", name="Confined"):
     tightly as circles go they would need two fifths more room than the box
     has, so they can never all be clear of each other. With gravity off there is
     no floor to settle onto either. Box2D pushes overlapping shapes apart no
-    faster than the world's contact push velocity, 3 m/s, so the overlap
+    faster than the world's contact push speed, 3 m/s, so the overlap
     turns into a gentle shove rather than speed that would make the pile
     jitter or burst: it comes to rest, overlaps and all, and falls asleep a
     little over a second in.
