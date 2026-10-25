@@ -20,15 +20,17 @@ Example usage:
 import warnings
 from ._checked import ffi
 
+#: The highest bit of Box2D's 64-bit category and mask fields.
+_LAST_BIT = 1 << 63
+
 
 class CollisionCategoryRegistry:
     """
     A registry to manage named collision categories.
 
-    Each category is automatically assigned a unique bit. The registry
-    hands out bits 0x0001 to 0x8000, so it holds at most 16 categories.
-    Box2D's category and mask fields are 64 bits wide; a bit above 0x8000
-    can still be given to :class:`CollisionFilter` as an integer.
+    Each category is automatically assigned a unique bit, lowest first. The
+    registry hands out every bit of Box2D's 64-bit category field, ``0x1`` to
+    ``1 << 63``, so it holds at most 64 categories.
 
     By default, auto_create is disabled (False) so that
     category names must be explicitly defined. This prevents typos from
@@ -53,7 +55,7 @@ class CollisionCategoryRegistry:
             The bitmask value assigned to this category.
 
         Raises:
-            ValueError: If the registry's 16 categories are already in use.
+            ValueError: If the registry's 64 categories are already in use.
 
         Example:
             >>> reg = CollisionCategoryRegistry()
@@ -64,8 +66,8 @@ class CollisionCategoryRegistry:
         """
         if name in self._categories:
             return self._categories[name]
-        if self._next_bit > 0x8000:  # Maximum available bits (16 categories)
-            raise ValueError("Maximum number of collision categories reached (16).")
+        if self._next_bit > _LAST_BIT:
+            raise ValueError("Maximum number of collision categories reached (64).")
         self._categories[name] = self._next_bit
         self._next_bit <<= 1
         return self._categories[name]
@@ -167,17 +169,16 @@ class CollisionFilter:
     The API is chainable and accepts categories (and masks) as either integers or names (resolved
     via a registry). The group is strictly an integer.
 
-    Box2D's category and mask are 64-bit fields, but this class's defaults use
-    only the low 16 bits: ``CollisionFilter()`` has category ``0x1`` and mask
-    :attr:`ALL`, which is ``0xFFFF`` rather than every bit, and a registry
-    names categories ``0x1`` to ``0x8000``. Integers with higher bits are
-    passed to Box2D as given.
+    Box2D's category and mask are 64-bit fields, and the defaults are Box2D's
+    own: ``CollisionFilter()`` has category ``0x1`` and mask :attr:`ALL`,
+    every one of the 64 bits, the same as ``b2DefaultFilter`` and
+    ``b2DefaultQueryFilter``.
 
     Used as the filter of a world query or cast, where ``CollisionFilter()``
-    is the default, it finds shapes that have a category bit within ``0xFFFF``
-    and whose own mask includes category ``0x1``. That covers every shape made
-    with a default filter, Box2D's or this class's. The group plays no part in
-    queries.
+    is the default, it finds every shape whose own mask includes category
+    ``0x1`` -- whatever that shape's categories, high bits included. That
+    covers every shape made with a default filter, Box2D's or this class's.
+    The group plays no part in queries.
 
     Examples (Fluent Interface):
         >>> f1 = CollisionFilter("player").allow_collision_with("enemy")
@@ -192,10 +193,9 @@ class CollisionFilter:
         False
     """
 
-    #: The default mask, covering the low 16 bits, which are the categories a
-    #: registry can name. Box2D's masks are 64 bits wide, so this is not
-    #: every bit.
-    ALL = 0xFFFF
+    #: The default mask, with every one of the 64 bits Box2D's masks have set,
+    #: as in its own default filters.
+    ALL = 0xFFFF_FFFF_FFFF_FFFF
     DEFAULT_CATEGORY = 0x0001  # Default category if none is provided
 
     def __init__(
@@ -231,7 +231,7 @@ class CollisionFilter:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
             >>> filter_a = CollisionFilter(category=0x1, mask=CollisionFilter.ALL, group=0, registry=reg)
             >>> filter_a
-            CollisionFilter(category=0x1, mask=0xFFFF, group=0)
+            CollisionFilter(category=0x1, mask=0xFFFFFFFFFFFFFFFF, group=0)
             >>> filter_b = CollisionFilter(category=["player", "ally"], mask=["enemy", "projectile"], registry=reg)
             >>> filter_b
             CollisionFilter(category=0x3, mask=0xC, group=0)
@@ -270,7 +270,7 @@ class CollisionFilter:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
             >>> filter_a = CollisionFilter(category="player", registry=reg)
             >>> filter_a.add_category("ally", "powerup")
-            CollisionFilter(category=0x7, mask=0xFFFF, group=0)
+            CollisionFilter(category=0x7, mask=0xFFFFFFFFFFFFFFFF, group=0)
         """
         for cat in cats:
             self.category |= self.registry.parse(cat)
@@ -294,7 +294,7 @@ class CollisionFilter:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
             >>> filter_a = CollisionFilter(category="player", registry=reg)
             >>> filter_a.remove_category("player")
-            CollisionFilter(category=0x0, mask=0xFFFF, group=0)
+            CollisionFilter(category=0x0, mask=0xFFFFFFFFFFFFFFFF, group=0)
         """
         for cat in cats:
             bit = self.registry.parse(cat)
@@ -343,9 +343,9 @@ class CollisionFilter:
 
         Example:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
-            >>> filter_a = CollisionFilter(category="player", mask=0xFFFF, registry=reg)
+            >>> filter_a = CollisionFilter(category="player", registry=reg)
             >>> filter_a.block_collision_with("enemy")
-            CollisionFilter(category=0x1, mask=0xFFFD, group=0)
+            CollisionFilter(category=0x1, mask=0xFFFFFFFFFFFFFFFD, group=0)
         """
         for cat in cats:
             self.mask &= ~self.registry.parse(cat)
@@ -370,7 +370,7 @@ class CollisionFilter:
             >>> reg = CollisionCategoryRegistry(auto_create=True)
             >>> filter_a = CollisionFilter(category="player", registry=reg)
             >>> filter_a.set_group(5)
-            CollisionFilter(category=0x1, mask=0xFFFF, group=5)
+            CollisionFilter(category=0x1, mask=0xFFFFFFFFFFFFFFFF, group=5)
         """
         self.group = group
         return self
@@ -438,7 +438,7 @@ class CollisionFilter:
             >>> filter_a = CollisionFilter(category="player", registry=reg)
             >>> filter_b = CollisionFilter(category="powerup", group=5, registry=reg)
             >>> filter_a | filter_b
-            CollisionFilter(category=0x3, mask=0xFFFF, group=0)
+            CollisionFilter(category=0x3, mask=0xFFFFFFFFFFFFFFFF, group=0)
         """
         return CollisionFilter(
             category=self.category | other.category,
