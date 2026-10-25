@@ -882,8 +882,9 @@ class PrismaticJoint(Joint):
             target_motor_speed (float): Desired motor speed in metres per second
             max_motor_force (float): Maximum motor force in newtons
             enable_motor (bool): Whether to enable the joint motor
-            reference_angle (float): Accepted but ignored: the axis sets the
-                joint frame's rotation, so a value here has no effect.
+            reference_angle (float): The angle body_b is held at relative to
+                body_a, body_b's angle less body_a's, in radians. Defaults to
+                0, which turns the bodies to the same angle.
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring oscillation frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
@@ -912,16 +913,18 @@ class PrismaticJoint(Joint):
         defn.base.collideConnected = collide_connected
         defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
         defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
-        # 3.2 removed localAxisA: the axis is the rotation of the local frames.
+        # 3.2 removed localAxisA and referenceAngle. The axis is frame A's
+        # rotation, and the joint holds the two frames at the same rotation in
+        # the world, so body_b rests turned from body_a by frame A's angle less
+        # frame B's. Turning frame B back from the axis by the reference angle
+        # makes that difference the reference angle, leaving the axis alone.
         axis = self._local_axis_a
-        axis_rotation = Rot.from_sincos(axis.y, axis.x).b2Rot[0]
-        defn.base.localFrameA.q = axis_rotation
-        defn.base.localFrameB.q = axis_rotation
-
-        # reference_angle is deliberately not applied here. In 3.2 the frame
-        # rotation carries the axis, and a prismatic joint has no orientation
-        # left over to hold a separate reference angle. Setting it would
-        # silently overwrite the axis and break the joint.
+        axis_rotation = Rot.from_sincos(axis.y, axis.x)
+        frame_b_rotation = axis_rotation
+        if self._reference_angle:
+            frame_b_rotation = Rot(math.atan2(axis.y, axis.x) - self._reference_angle)
+        defn.base.localFrameA.q = axis_rotation.b2Rot[0]
+        defn.base.localFrameB.q = frame_b_rotation.b2Rot[0]
         if self._enable_limit is not None:
             defn.enableLimit = self._enable_limit
         if self._lower_limit is not None:

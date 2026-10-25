@@ -166,8 +166,9 @@ class PrismaticJointDef(JointDef):
         target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         enable_motor: Whether the motor drives the joint.
-        reference_angle: Accepted but ignored: the axis sets the joint frame's
-            rotation, so a value here has no effect.
+        reference_angle: The angle body_b is held at relative to body_a,
+            body_b's angle less body_a's, in radians. Defaults to 0, which
+            turns the bodies to the same angle.
         enable_spring: Whether a spring pulls the joint toward its rest length.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
