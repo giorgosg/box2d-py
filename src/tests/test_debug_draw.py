@@ -233,3 +233,43 @@ def test_draw_string_has_the_same_default_everywhere():
 
     # The base implementation itself must tolerate it too.
     DebugDraw().draw_string((0, 0), "no colour given")
+
+
+def test_every_callback_is_one_box2d_calls():
+    """Each draw_* method a subclass can override is wired to a b2DebugDraw
+    callback, and every b2DebugDraw callback has one.
+
+    draw_capsule had no callback behind it -- Box2D 3.2 draws capsules only
+    solid -- so a renderer overriding it waited for calls that never came.
+    """
+    import inspect
+    import re
+
+    from box2d._box2d import ffi
+
+    # Named after what Box2D draws with it rather than after the C field.
+    renamed = {"DrawLineFcn": "draw_segment"}
+
+    def python_name(field):
+        if field in renamed:
+            return renamed[field]
+        words = re.findall("[A-Z][a-z]*", field.removesuffix("Fcn"))
+        return "_".join(word.lower() for word in words)
+
+    callbacks = {
+        field for field in dir(ffi.new("b2DebugDraw*")) if field.endswith("Fcn")
+    }
+    methods = {
+        name
+        for name, value in vars(DebugDraw).items()
+        if name.startswith("draw_") and inspect.isfunction(value)
+    }
+    assert methods == {python_name(field) for field in callbacks}
+
+    # And each is bound to this module's callback of the same name, not left
+    # as the stub b2DefaultDebugDraw installs.
+    installed = DebugDraw()._debug_draw
+    for field in callbacks:
+        bound = ffi.cast("void *", getattr(installed, field))
+        ours = ffi.cast("void *", getattr(debug_draw, python_name(field)))
+        assert bound == ours, f"{field} is not bound to {python_name(field)}"

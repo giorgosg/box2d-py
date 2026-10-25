@@ -440,22 +440,11 @@ class DebugDraw:
         """
         pass
 
-    def draw_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
-        """Callback for drawing capsule outlines (line segment with radius).
-
-        Box2D's debug draw has no capsule outline callback, so the world never
-        calls this. Capsule shapes are drawn through :meth:`draw_solid_capsule`.
-
-        Args:
-            p1: First endpoint of the capsule's centerline
-            p2: Second endpoint of the capsule's centerline
-            radius: Radius of the capsule (extends beyond endpoints)
-            color: Outline color
-        """
-        pass
-
     def draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
         """Draw filled capsule shapes (triggered by draw_shapes for capsule shapes).
+
+        Box2D draws capsules only this way: it has no capsule outline
+        callback, so there is no ``draw_capsule`` to override.
 
         Args:
             p1: First endpoint of the capsule's axis
