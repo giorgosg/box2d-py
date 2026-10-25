@@ -16,6 +16,7 @@ import math
 import pytest
 
 from box2d import AABB, MAX_PROXY_POINTS, ShapeProxy, Vec2, World
+from box2d._checked import ffi, lib
 
 
 @pytest.fixture
@@ -124,6 +125,51 @@ def test_max_results_holds_across_body_types(world):
     ]
     for query in queries:
         assert [len(query(cap)) for cap in (0, 1, 2, 4, None)] == [0, 1, 2, 4, 9]
+
+
+def test_an_error_stops_every_tree_not_only_the_one_it_was_in(world, monkeypatch):
+    """The same three trees: a lookup that fails has to stop the whole query,
+    or each later tree would fail again and add an error of its own."""
+    from box2d.world import make_overlap_callback
+
+    for body_type in ("static", "kinematic", "dynamic"):
+        world.add_body(body_type=body_type).add_circle(radius=0.4)
+
+    def broken(self, object_id):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(type(world._shapes), "require", broken)
+    results, errors = [], []
+    callback = make_overlap_callback(results, world=world, errors=errors)
+    lib.b2World_OverlapAABB(
+        world._world_id,
+        Vec2(0, 0).b2Vec2[0],
+        AABB(lower=(-5, -5), upper=(5, 5)).b2AABB[0],
+        lib.b2DefaultQueryFilter(),
+        callback,
+        ffi.NULL,
+    )
+    assert results == []
+    assert [str(error) for error in errors] == ["boom"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        lambda world, cap: world.query_aabb(
+            AABB(lower=(-1, -1), upper=(1, 1)), None, cap
+        ),
+        lambda world, cap: world.query_circle((0, 0), 1, max_results=cap),
+        lambda world, cap: world.query_shape(ShapeProxy.box(2, 2), max_results=cap),
+    ],
+)
+@pytest.mark.parametrize(
+    "cap, error",
+    [(-1, ValueError), (1.5, TypeError), ("2", TypeError), (True, TypeError)],
+)
+def test_max_results_must_be_a_count(world, query, cap, error):
+    with pytest.raises(error, match="max_results"):
+        query(world, cap)
 
 
 def test_query_circle_still_works_through_the_proxy(world, ground):

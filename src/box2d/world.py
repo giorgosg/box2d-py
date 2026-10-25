@@ -167,26 +167,48 @@ def make_overlap_callback(
 
     Returns:
         A Box2D-compatible callback function.
+
+    Raises:
+        TypeError: If ``max_results`` is not an int or None.
+        ValueError: If ``max_results`` is negative.
     """
+    _check_max_results(max_results)
     require = world._shapes.require
+    # Box2D searches its static, kinematic and dynamic trees in turn, and
+    # returning False ends only the one it is in. So once the query has
+    # stopped, for the cap or for an error, every later call answers False
+    # at once, or each later tree would add a shape or an error of its own.
+    stopped = max_results == 0
 
     @ffi.callback("bool(b2ShapeId, void*)")
     def overlap_callback(shape_id, _):
-        # Box2D searches its static, kinematic and dynamic trees in turn, and
-        # returning False ends only the one it is in. So the cap is checked
-        # before taking a shape too, or each later tree would add one more.
-        if max_results is not None and len(results) >= max_results:
+        nonlocal stopped
+        if stopped:
             return False
         try:
             results.append(require(shape_id))
         except Exception:
             _hold_back(errors)
-            return False  # Stop querying
+            stopped = True
+            return False
         if max_results is not None and len(results) >= max_results:
-            return False  # Stop querying further shapes
+            stopped = True
+            return False
         return True  # Continue querying
 
     return overlap_callback
+
+
+def _check_max_results(max_results):
+    """Refuse a cap that is not a count: None, or an int from zero up."""
+    if max_results is None:
+        return
+    if isinstance(max_results, bool) or not isinstance(max_results, int):
+        raise TypeError(
+            f"max_results must be an int or None, not {type(max_results).__name__}"
+        )
+    if max_results < 0:
+        raise ValueError(f"max_results cannot be negative, got {max_results}")
 
 
 def _raise_first(errors: list):
@@ -822,7 +844,8 @@ class World(FixedAttributes):
             filter: Optional CollisionFilter instance for filtering.
                 If None, ``CollisionFilter()`` is used; see
                 :class:`.CollisionFilter` for which shapes that matches.
-            max_results: Optional maximum number of shapes to return.
+            max_results: Optional maximum number of shapes to return, an
+                int from zero up.
 
         Returns:
             list: The overlapping shapes.
@@ -874,8 +897,8 @@ class World(FixedAttributes):
             filter: Optional CollisionFilter instance for filtering.
                 If None, ``CollisionFilter()`` is used; see
                 :class:`.CollisionFilter` for which shapes that matches.
-            max_results: Optional maximum number of shapes to return.
-                The query stops when this limit is reached.
+            max_results: Optional maximum number of shapes to return, an
+                int from zero up. The query stops when this limit is reached.
 
         Returns:
             list: The overlapping shapes.
@@ -910,7 +933,7 @@ class World(FixedAttributes):
         Args:
             proxy: The region to test, in world coordinates.
             filter: Optional CollisionFilter controlling which shapes are tested.
-            max_results: Stop after this many shapes.
+            max_results: Stop after this many shapes, an int from zero up.
 
         Returns:
             list: The overlapping shapes.
