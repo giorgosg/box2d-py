@@ -28,6 +28,12 @@ QUICKSTART = DOCS / "getting_started" / "quickstart.rst"
 #: Every page whose Python is run, the front page included.
 PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE]
 
+
+def _page_id(path):
+    """A page's test id, its path under docs/source, e.g. glance/index.rst."""
+    return path.relative_to(DOCS).as_posix()
+
+
 _MARKDOWN_BLOCK = re.compile(
     r"(?P<before>[^\n]*)\n```python\n(?P<code>.*?)\n```", re.DOTALL
 )
@@ -109,7 +115,7 @@ def test_the_blocks_are_found():
     assert len(rst_blocks(QUICKSTART)) >= 8
 
 
-@pytest.mark.parametrize("path", PAGES, ids=lambda path: path.name)
+@pytest.mark.parametrize("path", PAGES, ids=_page_id)
 def test_every_python_block_is_run(path):
     """A block of Python the tests do not find would go unchecked: one with an
     option such as ``:caption:``, indented, or under another directive."""
@@ -137,6 +143,6 @@ def test_readme_examples_run(scenario_registry_left_as_it_was):
     world.destroy()
 
 
-@pytest.mark.parametrize("path", PAGES, ids=lambda path: path.name)
+@pytest.mark.parametrize("path", PAGES, ids=_page_id)
 def test_page_examples_run(path):
     run_blocks(path, rst_blocks(path))

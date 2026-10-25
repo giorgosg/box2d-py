@@ -3,8 +3,8 @@ Quickstart
 
 This page builds a small scene and works through what most programs do with
 one: step it, read where things are, join two bodies, cast a ray, and hear
-about collisions. Each block carries on from the ones before it, so they can
-be pasted into a Python prompt in order.
+about collisions. Each block carries on from the ones before it, so run in
+order they build up one scene.
 
 A world
 -------
@@ -48,21 +48,23 @@ Stepping
 :meth:`~box2d.world.World.step` advances the world by a time step, in
 seconds. Use the same step every time, typically 1/60 of a second, rather
 than the time a frame happened to take: Box2D is tuned for a fixed step, and
-a varying one makes the simulation jittery. The second argument is the
+a varying one makes the simulation jittery. In a game loop, add each frame's
+elapsed time to an accumulator, step once for every whole time step it holds,
+and carry what is left over to the next frame. The second argument is the
 number of substeps, which trade speed for accuracy; 4 is the usual choice.
 
 .. code-block:: python
 
-    for _ in range(90):
+    for _ in range(120):
         world.step(1 / 60, 4)
 
 Reading positions
 -----------------
 
 A body's ``position`` is its origin in world coordinates, a
-:class:`~box2d.math.Vec2`, and ``rotation`` is its angle in radians. After a
-second and a half, the boxes have landed: each centre is half a metre above
-the ground's top surface.
+:class:`~box2d.math.Vec2`, and ``rotation`` is its angle in radians. After
+two seconds, the boxes have landed: each centre is half a metre above the
+ground's top surface.
 
 .. code-block:: python
 
@@ -106,31 +108,13 @@ degrees:
         .build()
     )
 
-Adding a shape later
---------------------
-
-A body does not need its shapes at the start. ``add_box``, ``add_circle`` and
-the other ``add_*`` methods attach one to a body that already exists, and its
-mass follows the shapes it has:
-
-.. code-block:: python
-
-    >>> ball = world.new_body().dynamic().position(-3, 8).build()
-    >>> ball.mass
-    0.0
-    >>> circle = ball.add_circle(radius=0.5, enable_contact_events=True)
-    >>> round(ball.mass, 3)  # the circle's area, at a density of 1
-    0.785
-
-``enable_contact_events`` is for `Contact events`_, below.
-
 A joint
 -------
 
 A joint constrains how two bodies move relative to each other. A revolute
 joint pins them together at a point they both turn about; here it hangs a
-small weight 2 m from a pivot on the ground body, as a pendulum. ``anchor``
-is the pivot in world coordinates:
+small weight 2 m from a pivot fixed to the ground body, as a pendulum.
+``anchor`` is the pivot in world coordinates:
 
 .. code-block:: python
 
@@ -169,8 +153,8 @@ the closest hit:
     True
     >>> hit.point
     Vec2(3.0, 1.5)
-    >>> hit.normal
-    Vec2(0.0, 1.0)
+    >>> round(hit.normal.y, 3)  # the box's top face points straight up
+    1.0
 
 Without it, every shape along the ray is returned, nearest first: here, the
 box and then the ground beneath it.
@@ -180,17 +164,35 @@ box and then the ground beneath it.
     >>> [hit.shape.body for hit in world.cast_ray((3, 10), (0, -20))] == [boxes[2], ground]
     True
 
+Adding a shape later
+--------------------
+
+A body does not need its shapes at the start. ``add_box``, ``add_circle`` and
+the other ``add_*`` methods attach one to a body that already exists, and its
+mass follows the shapes it has:
+
+.. code-block:: python
+
+    >>> ball = world.new_body().dynamic().position(-3, 8).build()
+    >>> ball.mass
+    0.0
+    >>> circle = ball.add_circle(radius=0.5, enable_contact_events=True)
+    >>> round(ball.mass, 3)  # the circle's area, at a density of 1
+    0.785
+
+``enable_contact_events`` is for the next section.
+
 Contact events
 --------------
 
 After each step, :meth:`~box2d.world.World.get_contact_events` lists the
 contacts that began, ended or hit hard during it. Box2D only reports contacts
 for shapes that ask, so a shape opts in with ``enable_contact_events=True``,
-as the ball's circle did above; one of the two shapes opting in is enough.
+as the ball's circle did; one of the two shapes opting in is enough.
 Box2D leaves it off by default because reporting every contact costs time.
 
 The events describe the last step only, and the next step replaces them, so
-read them after every step. Dropped from 8 m, the ball lands on the left-hand
+read them after every step. Let go 8 m up, the ball falls onto the left-hand
 box:
 
 .. code-block:: python

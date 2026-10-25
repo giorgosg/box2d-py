@@ -13,8 +13,9 @@ copyright = "2025–2026, Giorgos Giagas"
 author = "Giorgos Giagas"
 
 # The package's own version, which it reads from the installed metadata, so
-# that pyproject.toml stays the one place a version is written. `version` is
-# the short form Sphinx shows beside the title: 3.2 for 3.2.0rc1 or 3.2.0.1.
+# that pyproject.toml stays the one place a version is written. `release` is
+# the full version, the one each page's <title> shows; `version` is the short
+# major.minor form Sphinx offers as |version|: 3.2 for 3.2.0rc1 or 3.2.0.1.
 release = box2d.__version__
 version = ".".join(release.split(".")[:2])
 

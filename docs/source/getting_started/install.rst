@@ -52,8 +52,8 @@ covers building for WebAssembly.
 Versions
 --------
 
-The binding's version follows Box2D's. Its releases for Box2D v3.2.0 are
-numbered:
+From its first release for Box2D v3.2.0, the binding's version follows
+Box2D's. Its releases for Box2D v3.2.0 are numbered:
 
 - ``3.2.0rc1``, ``3.2.0rc2`` and so on, for release candidates;
 - ``3.2.0``, the release;
@@ -61,9 +61,10 @@ numbered:
   against the same Box2D.
 
 These are ordinary `PEP 440 <https://peps.python.org/pep-0440/>`_ versions,
-so pip orders them as listed, and ``box2d-python>=3.2,<3.3`` asks for any
-release for Box2D v3.2. Versions before this scheme, 0.x, were numbered
-independently of Box2D.
+so pip orders them as listed. ``box2d-python>=3.2.0rc1,<3.3`` asks for any of
+them. The release candidate has to be named in the lower bound: PEP 440 sorts
+``3.2.0rc1`` before ``3.2``, and pip skips pre-releases unless a specifier
+names one, so ``>=3.2`` alone would leave the candidates out.
 
 Two values tell the versions apart at runtime. ``box2d.__version__`` is the
 binding's, read from the installed package; imported from a source tree that
