@@ -22,11 +22,18 @@ To include the testbed:
 pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
 ```
 
-Or Install from pypi:
+Installing from git builds Box2D from source, so it needs git, a C compiler
+and CMake 3.22 or newer, as described under
+[Building from source](#building-from-source).
+
+Or install from PyPI:
 
 ```bash
-pip install box2d-python[testbed]
+pip install "box2d-python[testbed]"
 ```
+
+The release on PyPI, 0.1.2, predates the Box2D v3.2.0 port this README
+describes, so its API differs from what is documented here.
 
 ## Building from source
 
@@ -320,8 +327,8 @@ Box2D's other diagnostics, such as a body going unstable, are logged to the
 Built against Box2D's v3.2.0 release (`box2d.BOX2D_VERSION`); the `box2d`
 submodule is pinned to that tag.
 
-Bound and covered by tests on Linux, macOS and Windows for Python 3.12 and
-3.13, and in WebAssembly:
+Bound and covered by tests on Linux, macOS and Windows for Python 3.12, 3.13
+and 3.14, and in WebAssembly:
 
 - bodies, every shape, and chains
 - every joint type -- distance, filter, motor, mover, pogo, prismatic,
