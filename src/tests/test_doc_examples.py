@@ -32,6 +32,7 @@ GUIDES = [
         "concepts",
         "lifetime",
         "events",
+        "queries",
     ]
 ]
 #: Every page whose Python is run, the front page included.
