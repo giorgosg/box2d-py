@@ -6,7 +6,6 @@ They used to be reachable only through ``box2d.shapedef`` and
 public API -- reached into submodules for them.
 """
 
-import doctest
 import importlib
 import math
 
@@ -171,8 +170,3 @@ def test_the_placed_polygon_must_be_finite(body, placement, valid):
     )
     assert polygon.is_valid == valid
     assert _adds(body, triangle, **placement) == valid
-
-
-def test_doctests():
-    results = doctest.testmod(box2d.shapedef)
-    assert results.failed == 0

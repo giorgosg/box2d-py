@@ -236,6 +236,7 @@ simulation. `test`, `world`, `state` and `app` are bound to what is running and
 rebound after every rebuild, `box2d` and `Vec2` are imported, and names you
 define stay defined.
 
+<!-- not run: a session at the running testbed's console -->
 ```python
 >>> len(list(world.bodies))
 41
