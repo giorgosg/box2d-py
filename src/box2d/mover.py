@@ -115,6 +115,7 @@ def solve_planes(target_delta, planes: List[CollisionPlane]) -> MoverResult:
         updated in place, which is what :func:`clip_vector` then reads.
 
     Example:
+        >>> from box2d import World
         >>> world = World()
         >>> planes = world.collide_mover((0, 1), (0, 2), 0.5)
         >>> result = solve_planes((0.1, -0.2), planes)

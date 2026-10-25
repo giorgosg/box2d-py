@@ -266,6 +266,7 @@ class Shape(FixedAttributes):
             wake: Wake the body if it is asleep.
 
         Example:
+            >>> from box2d import World
             >>> world = World()
             >>> body = world.add_body(body_type='dynamic', position=(0, 5))
             >>> shape = body.add_box(2, 0.2)

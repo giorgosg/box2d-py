@@ -2,7 +2,6 @@
 Tests for the CollisionFilter module.
 
 This file:
-  - Runs the module's doctests.
   - Verifies the string representation.
   - Tests chaining methods (e.g. add/remove, allow/block).
   - Verifies operator overloading for union (|) and collision testing (&).
@@ -12,20 +11,11 @@ This file:
 """
 
 import pytest
-import doctest
 
 from box2d.collision_filter import (
     CollisionFilter,
     CollisionCategoryRegistry,
 )
-
-
-def test_collision_filter_docstrings():
-    """Run the doctests defined in the collision_filter module."""
-    import box2d.collision_filter as cf
-
-    results = doctest.testmod(cf)
-    assert results.failed == 0, "Doctests failed in the collision_filter module."
 
 
 def test_collision_filter_repr():

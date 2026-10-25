@@ -1,13 +1,6 @@
 # tests/test_debug_draw.py
-import doctest
 from box2d import DebugDraw, World, Vec2
 import box2d.debug_draw as debug_draw
-
-
-def test_doctests():
-    # Run doctests for the specific submodule
-    results = doctest.testmod(debug_draw)
-    assert results.failed == 0
 
 
 class MockDebugDraw(DebugDraw):
