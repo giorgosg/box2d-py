@@ -19,13 +19,17 @@ def format_num(n: float) -> str:
     """
     Format a float with 3 decimal places but trim trailing zeros.
 
+    A value that rounds to zero is shown as ``0.0`` whatever its sign, so a
+    tiny negative such as -0.0001, or -0.0 itself, does not print as ``-0.0``.
+
     Args:
         n (float): The number to format.
 
     Returns:
         str: The formatted number as a string.
     """
-    s = f"{n:.3f}".rstrip("0").rstrip(".")
+    # Adding 0.0 turns -0.0 into 0.0 and leaves everything else alone.
+    s = f"{round(n, 3) + 0.0:.3f}".rstrip("0").rstrip(".")
     return f"{s}.0" if "." not in s else s
 
 
@@ -765,7 +769,7 @@ class Rot:
 
         Example:
             >>> Rot(0).y_axis
-            Vec2(-0.0, 1.0)
+            Vec2(0.0, 1.0)
             >>> Rot(math.pi/2).y_axis
             Vec2(-1.0, 0.0)
         """
@@ -2136,7 +2140,7 @@ class Mat22:
 
         Example:
             >>> Mat22(1,1,0,1).inverse
-            Mat22(Vec2(1.0, -1.0), Vec2(-0.0, 1.0))
+            Mat22(Vec2(1.0, -1.0), Vec2(0.0, 1.0))
 
         Note:
             Returns identity matrix for singular matrices (det ≈ 0)

@@ -124,3 +124,14 @@ def test_mat22_solve_rejects_a_non_vector_even_when_singular():
         Mat22(1, 1, 1, 1).solve("ab")
     with pytest.raises((TypeError, ValueError)):
         Mat22(2, 0, 0, 2).solve((1, 2, 3))
+
+
+@pytest.mark.parametrize("value", [-0.0, -0.0001, -0.0004999])
+def test_vec2_repr_shows_what_rounds_to_zero_without_a_sign(value):
+    """Three decimals hide the difference between -0.0001 and 0, so the sign
+    should go with it: a body resting at x = 0 prints as 0.0, not -0.0."""
+    assert repr(Vec2(value, 1)) == "Vec2(0.0, 1.0)"
+
+
+def test_vec2_repr_keeps_the_sign_of_what_does_not_round_to_zero():
+    assert repr(Vec2(-0.0005, -2.5)) == "Vec2(-0.001, -2.5)"
