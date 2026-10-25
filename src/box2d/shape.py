@@ -2,7 +2,8 @@
 This module defines high-level shape objects for Box2D.
 Each shape's constructor accepts a body and a shape definition.
 Each shape (except Chain) subclasses a common base that implements common properties.
-Each shape also has a classmethod "create" that matches the signature from before.
+Each shape also has a classmethod ``create`` that takes the geometry as arguments
+and ShapeDef fields as keywords; the Body ``add_*`` methods call it.
 Chain is implemented as a separate class.
 """
 
@@ -150,10 +151,9 @@ class Shape(FixedAttributes):
     enable_sensor_events = b2_bool(
         lib.b2Shape_AreSensorEventsEnabled,
         lib.b2Shape_EnableSensorEvents,
-        doc="""Get or set whether sensors may detect this shape.
+        doc="""Get or set whether this shape takes part in sensor events.
 
-        Box2D 3.2 made this opt-in on the visiting shape. It was previously
-        settable only when the shape was created.
+        A sensor reports a shape only when both of them have this set.
         """,
     )
     enable_contact_events = b2_bool(
@@ -181,7 +181,8 @@ class Shape(FixedAttributes):
         lib.b2Shape_GetType,
         doc="""The kind of shape this is.
 
-        One of Box2D's shape type constants: circle, capsule, segment or polygon.
+        One of Box2D's shape type constants: circle, capsule, segment, polygon
+        or chain segment.
         """,
     )
 
@@ -560,7 +561,10 @@ class Circle(Shape):
     ):
         """
         Create and attach a circle shape to a body.
-        The parameters are the same as the previous initializer.
+
+        ``body`` is the body to attach it to. The other arguments are the
+        geometry, as in :class:`.CircleDef`, and any remaining keyword is a
+        :class:`.ShapeDef` field.
         """
         circledef = CircleDef(radius, center)
         shapedef = ShapeDef(**shapedef_kwargs)
@@ -638,7 +642,10 @@ class Capsule(Shape):
     ):
         """
         Create and attach a capsule shape to a body.
-        The parameters are the same as the previous initializer.
+
+        ``body`` is the body to attach it to. The other arguments are the
+        geometry, as in :class:`.CapsuleDef`, and any remaining keyword is a
+        :class:`.ShapeDef` field.
         """
         capsuledef = CapsuleDef(point1, point2, radius)
         shapedef = ShapeDef(**shapedef_kwargs)
@@ -703,7 +710,10 @@ class Segment(Shape):
     ):
         """
         Create and attach a segment shape to a body.
-        The parameters are the same as the previous initializer.
+
+        ``body`` is the body to attach it to. The other arguments are the
+        geometry, as in :class:`.SegmentDef`, and any remaining keyword is a
+        :class:`.ShapeDef` field.
         """
         segmentdef = SegmentDef(point1, point2)
         shapedef = ShapeDef(**shapedef_kwargs)
@@ -778,7 +788,10 @@ class Polygon(Shape):
     ):
         """
         Create and attach a polygon shape to a body.
-        The parameters are the same as the previous initializer.
+
+        ``body`` is the body to attach it to. The other arguments are the
+        geometry, as in :class:`.PolygonDef`, and any remaining keyword is a
+        :class:`.ShapeDef` field.
         """
         polygondef = PolygonDef(
             vertices,
@@ -811,7 +824,10 @@ class Box(Polygon):
     ):
         """
         Create and attach a box shape to a body.
-        The parameters are the same as the previous initializer.
+
+        ``body`` is the body to attach it to. The other arguments are the
+        geometry, as in :class:`.BoxDef`, and any remaining keyword is a
+        :class:`.ShapeDef` field.
         """
         # Built directly rather than through Polygon's hull, which has a
         # minimum feature size that very thin boxes fall below.

@@ -38,13 +38,16 @@ class ShapeDef:
             contacts. The callback runs only if at least one of the two shapes
             asks for it. default=False
         is_sensor: True if this shape is a sensor (generates events but no collision response). default=False
-        enable_sensor_events: True if sensors may detect this shape. Box2D 3.1 made this
-            opt-in and defaults it to False; box2d-py keeps it True so that sensors
-            behave as they did before the 3.1 upgrade. default=True
+        enable_sensor_events: True if this shape takes part in sensor events. A sensor
+            reports a shape only when both of them have it set. Box2D defaults it to
+            False; box2d-py defaults it to True. default=True
         enable_contact_events: True to enable contact events for this shape. default=False
         enable_hit_events: True to enable hit events for this shape. default=False
         enable_pre_solve_events: True to enable pre-solve events (expensive). default=False
-        invoke_contact_creation: True to force contact creation even for static bodies. default=False
+        invoke_contact_creation: For a shape on a static body, True to look for contacts
+            with existing shapes at the next step. Turning it off makes creating many
+            static shapes cheaper. Ignored on dynamic and kinematic bodies, which always
+            look. default=True
         update_body_mass: True if the body should update mass properties when this shape is created. default=True
     """
 
@@ -387,8 +390,9 @@ class PolygonDef:
     """
     Definition for a polygon shape.
 
-    A polygon is a convex polygon defined by a list of vertices.
-    The vertices must define a convex polygon in counter-clockwise order.
+    Box2D builds the polygon from the convex hull of the vertices, so they
+    may come in any order and winding, and points inside the hull are
+    dropped. Between 3 and 8 (B2_MAX_POLYGON_VERTICES) vertices are accepted.
 
     Attributes:
         vertices: List of points defining the polygon vertices
@@ -530,8 +534,8 @@ class ChainDef:
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data, kept as the created chain's
             ``user_data``.
-        enable_sensor_events: True if sensors may detect this chain. See ShapeDef
-            for why this defaults to True rather than Box2D's False. default=True
+        enable_sensor_events: True if sensors may detect this chain. Box2D defaults
+            it to False; box2d-py defaults it to True. default=True
     """
 
     vertices: Sequence[VectorLike]
