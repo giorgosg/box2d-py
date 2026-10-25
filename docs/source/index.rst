@@ -31,8 +31,11 @@ WebAssembly under Pyodide. It installs as ``box2d-python`` and imports as
    getting_started/install
    getting_started/quickstart
 
-.. A "Guides" toctree goes here, between Getting started and Overviews, once
-   there are guides to put in it.
+.. toctree::
+   :maxdepth: 2
+   :caption: Guides
+
+   guides/concepts
 
 .. toctree::
    :maxdepth: 2

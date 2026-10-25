@@ -25,8 +25,15 @@ DOCS = ROOT / "docs" / "source"
 GLANCE = sorted((DOCS / "glance").glob("*.rst"))
 INSTALL = DOCS / "getting_started" / "install.rst"
 QUICKSTART = DOCS / "getting_started" / "quickstart.rst"
+#: The guides, in the order the front page lists them.
+GUIDES = [
+    DOCS / "guides" / f"{name}.rst"
+    for name in [
+        "concepts",
+    ]
+]
 #: Every page whose Python is run, the front page included.
-PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE]
+PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE, *GUIDES]
 
 
 def _page_id(path):
@@ -113,6 +120,7 @@ def test_the_blocks_are_found():
     assert sum(len(rst_blocks(path)) for path in GLANCE) >= 3
     assert len(rst_blocks(INSTALL)) >= 2
     assert len(rst_blocks(QUICKSTART)) >= 8
+    assert all(rst_blocks(path) for path in GUIDES)
 
 
 @pytest.mark.parametrize("path", PAGES, ids=_page_id)
