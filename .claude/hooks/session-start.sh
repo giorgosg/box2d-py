@@ -14,7 +14,7 @@ cd "$CLAUDE_PROJECT_DIR"
 git submodule update --init --recursive
 
 # Creates .venv, builds Box2D with CMake, compiles the CFFI module
-# and installs the package in editable mode -- the same as the README.
+# and installs the package in editable mode -- the same as CONTRIBUTING.md.
 uv sync --python 3.13 --extra dev --extra testbed
 
 # The Cloudflare Worker in server/ has its own vitest suite. npm ci rather
