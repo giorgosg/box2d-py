@@ -1602,7 +1602,7 @@ class World(FixedAttributes):
         self._set_contact_tuning(1, value)
 
     @property
-    def contact_push_velocity(self) -> float:
+    def contact_push_speed(self) -> float:
         """The fastest overlap is resolved, usually in m/s. Box2D's default
         is 3.
 
@@ -1612,14 +1612,14 @@ class World(FixedAttributes):
 
         Example:
             >>> world = World()
-            >>> world.contact_push_velocity
+            >>> world.contact_push_speed
             3.0
-            >>> world.contact_push_velocity = 1.0  # Push overlaps apart gently
+            >>> world.contact_push_speed = 1.0  # Push overlaps apart gently
         """
         return self._contact_tuning()[2]
 
-    @contact_push_velocity.setter
-    def contact_push_velocity(self, value: float):
+    @contact_push_speed.setter
+    def contact_push_speed(self, value: float):
         self._set_contact_tuning(2, value)
 
     # --- diagnostics --------------------------------------------------------

@@ -346,7 +346,7 @@ WORLD_SETTINGS = (
     "hit_event_threshold",
     "contact_hertz",
     "contact_damping_ratio",
-    "contact_push_velocity",
+    "contact_push_speed",
     "max_linear_speed",
     "contact_recycle_distance",
     "user_data",

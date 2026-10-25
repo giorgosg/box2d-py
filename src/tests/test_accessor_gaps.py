@@ -50,14 +50,14 @@ def test_world_settings_are_not_a_python_mirror(world):
     assert world.restitution_threshold == pytest.approx(2.0)
 
 
-CONTACT_TUNING = ("contact_hertz", "contact_damping_ratio", "contact_push_velocity")
+CONTACT_TUNING = ("contact_hertz", "contact_damping_ratio", "contact_push_speed")
 
 
 def test_contact_tuning_starts_at_box2d_defaults(world):
     defaults = lib.b2DefaultWorldDef()
     assert world.contact_hertz == pytest.approx(defaults.contactHertz)
     assert world.contact_damping_ratio == pytest.approx(defaults.contactDampingRatio)
-    assert world.contact_push_velocity == pytest.approx(defaults.contactSpeed)
+    assert world.contact_push_speed == pytest.approx(defaults.contactSpeed)
 
 
 @pytest.mark.parametrize("name", CONTACT_TUNING)
@@ -79,14 +79,14 @@ def test_contact_tuning_is_read_from_box2d(world):
     lib.b2World_SetContactTuning(world._world_id, 12.0, 0.5, 1.5)
     assert world.contact_hertz == pytest.approx(12.0)
     assert world.contact_damping_ratio == pytest.approx(0.5)
-    assert world.contact_push_velocity == pytest.approx(1.5)
+    assert world.contact_push_speed == pytest.approx(1.5)
     assert not hasattr(world, "_contact_hertz")
 
 
 def test_contact_tuning_reads_what_box2d_kept(world):
     """Box2D clamps a negative value to zero; a cache would show -1."""
-    world.contact_push_velocity = -1.0
-    assert world.contact_push_velocity == 0.0
+    world.contact_push_speed = -1.0
+    assert world.contact_push_speed == 0.0
 
 
 # --- body ------------------------------------------------------------------
