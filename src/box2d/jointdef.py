@@ -166,15 +166,12 @@ class PrismaticJointDef(JointDef):
         target_motor_speed: The speed the motor drives towards.
         max_motor_force: Force the motor may apply, in newtons.
         enable_motor: Whether the motor drives the joint.
+        reference_angle: Accepted but ignored: the axis sets the joint frame's
+            rotation, so a value here has no effect.
         enable_spring: Whether a spring pulls the joint toward its rest length.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
         target_translation: Where along the axis the spring pulls towards.
-
-    There is no ``reference_angle``, unlike the revolute and weld definitions:
-    the axis is the rotation of the joint's local frames, which leaves no
-    orientation over for one, and the bodies cannot turn relative to each
-    other anyway. Giving one raises TypeError.
     """
 
     axis: VectorLike = (1, 0)
@@ -184,6 +181,7 @@ class PrismaticJointDef(JointDef):
     target_motor_speed: Optional[float] = None
     max_motor_force: Optional[float] = None
     enable_motor: Optional[bool] = None
+    reference_angle: Optional[float] = None
     enable_spring: Optional[bool] = None
     spring_hertz: Optional[float] = None
     spring_damping_ratio: Optional[float] = None
