@@ -657,3 +657,50 @@ def test_a_definition_copies_and_compares_by_value(bodies):
     assert duplicate == made
     duplicate.target_motor_speed = 3.0
     assert made.target_motor_speed == 2.0
+
+
+# --- a prismatic joint's reference angle --------------------------------------
+# Box2D 3.2 has no referenceAngle field, but a prismatic joint holds the two
+# bodies' frames at the same rotation, so the reference angle is the
+# difference between the frames' rotations: frame A carries the axis, and
+# frame B is turned back from it by the reference angle.
+
+
+def _slider(world, angle_b, axis=(1, 0), **settings):
+    """A static body at the origin and a dynamic one at (2, 0), turned by
+    angle_b, joined by a prismatic joint."""
+    base = world.new_body().static().position(0, 0).box(0.5, 0.5).build()
+    slider = (
+        world.new_body().dynamic().position(2, 0).rotation(angle_b).box(1, 0.5).build()
+    )
+    joint = world.add_prismatic_joint(
+        base, slider, anchor=(2, 0), axis=axis, **settings
+    )
+    return slider, joint
+
+
+def _run(world, steps=120):
+    for _ in range(steps):
+        world.step(1 / 60, 4)
+
+
+def test_prismatic_reference_angle_holds_the_bodies_at_that_angle(world):
+    slider, _ = _slider(world, 0.7, reference_angle=0.7)
+    _run(world)
+    assert slider.rotation == pytest.approx(0.7, abs=1e-3)
+
+
+def test_prismatic_default_reference_angle_turns_the_bodies_level(world):
+    slider, _ = _slider(world, 0.7)
+    _run(world)
+    assert slider.rotation == pytest.approx(0.0, abs=1e-3)
+
+
+def test_prismatic_reference_angle_leaves_the_axis_alone(world):
+    """On a vertical axis the slider still drops along it, turned as given."""
+    slider, joint = _slider(world, 0.7, axis=(0, 1), reference_angle=0.7)
+    _run(world, 30)
+    assert slider.position.x == pytest.approx(2.0, abs=1e-3)
+    assert slider.position.y < -0.5, "gravity should slide it down the axis"
+    assert joint.current_translation == pytest.approx(slider.position.y, abs=1e-3)
+    assert slider.rotation == pytest.approx(0.7, abs=1e-3)
