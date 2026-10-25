@@ -67,6 +67,9 @@ def run_blocks(path, blocks):
             runner = doctest.DocTestRunner()
             runner.run(test, out=output.write, clear_globs=False)
             assert runner.failures == 0, f"{where}\n{output.getvalue()}"
+            # A DocTest runs in a copy of the globals it is given, so what the
+            # session defined has to be carried back for the blocks after it.
+            namespace.update(test.globs)
         else:
             with contextlib.redirect_stdout(io.StringIO()):
                 exec(compile(code, where, "exec"), namespace)
