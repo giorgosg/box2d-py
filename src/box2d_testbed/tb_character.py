@@ -12,11 +12,13 @@ class Mover(BaseTest, category="Character", name="Mover"):
 
     Each step the character asks the world which surfaces a capsule at its
     position is up against, works out the movement closest to the one it
-    wants that clears all of them at once, and trims the parts of its
-    velocity that point into them. No solver is involved, so nothing pushes
-    it back or tips it over: it stops dead against the side of the ledge,
-    stands on top once it has jumped up, and walks straight up the ramp. It
-    turns green while it stands on something.
+    wants that clears all of them at once, sweeps the capsule along that
+    movement and takes only the part that is clear, so a fast fall cannot
+    pass through the ground, and trims the parts of its velocity that point
+    into the surfaces. No solver is involved, so nothing pushes it back or
+    tips it over: it stops dead against the side of the ledge, stands on top
+    once it has jumped up, and walks straight up the ramp. It turns green
+    while it stands on something.
 
     Move with the left and right arrow keys, or A and D, and jump with space
     from the ground. Speed is how fast it walks and Jump Speed how fast a
@@ -39,6 +41,10 @@ class Mover(BaseTest, category="Character", name="Mover"):
     #: A surface whose normal points up at least this much is ground: slopes
     #: up to about 45 degrees. Box2D's movers use the same number.
     MIN_GROUND_NORMAL_Y = 0.7
+    #: How many times a step may collide, solve and sweep, and the movement
+    #: below which it stops early, in m: the numbers Box2D's sample uses.
+    MAX_ITERATIONS = 5
+    TOLERANCE = 0.01
 
     def setup(self):
         terrain = self.world.new_body().static()
@@ -68,14 +74,27 @@ class Mover(BaseTest, category="Character", name="Mover"):
             self.velocity.y - self.gravity * dt,
         )
 
-        point1, point2 = self.capsule()
-        planes = self.world.collide_mover(point1, point2, self.RADIUS)
+        # The planes say only what the capsule touches now, so a movement that
+        # clears them can still pass through something it does not touch yet,
+        # such as the ground below a fast fall. So the movement is swept, and
+        # only the clear part taken; that leaves the capsule touching what
+        # stopped it, so it asks again, as Box2D's own mover sample does.
+        target = self.position + self.velocity * dt
+        for _ in range(self.MAX_ITERATIONS):
+            point1, point2 = self.capsule()
+            planes = self.world.collide_mover(point1, point2, self.RADIUS)
+            result = solve_planes(target - self.position, planes)
+            fraction = self.world.cast_mover(
+                point1, point2, self.RADIUS, result.translation
+            )
+            moved = result.translation * fraction
+            self.position = self.position + moved
+            if moved.length < self.TOLERANCE:
+                break
+
         self.on_ground = any(
             plane.plane.normal.y > self.MIN_GROUND_NORMAL_Y for plane in planes
         )
-
-        result = solve_planes(self.velocity * dt, planes)
-        self.position = self.position + result.translation
         self.velocity = clip_vector(self.velocity, planes)
 
     def on_key_down(self, key):
