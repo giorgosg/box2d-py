@@ -34,6 +34,7 @@ GUIDES = [
         "events",
         "queries",
         "callbacks_threading",
+        "character_movement",
     ]
 ]
 #: Every page whose Python is run, the front page included.

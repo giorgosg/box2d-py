@@ -40,6 +40,7 @@ WebAssembly under Pyodide. It installs as ``box2d-python`` and imports as
    guides/events
    guides/queries
    guides/callbacks_threading
+   guides/character_movement
 
 .. toctree::
    :maxdepth: 2
