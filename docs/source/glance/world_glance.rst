@@ -176,11 +176,12 @@ Spatial queries:
 
 .. code-block:: python
 
-    # Find objects in an area
-    overlapping_shapes = world.query_circle(position=(10, 5), radius=3)
-    
-    # Cast a ray and find intersections
-    ray_hits = world.cast_ray(origin=(0, 0), translation=(10, 10))
+    # Find the shapes overlapping a circle: the falling box
+    overlapping_shapes = world.query_circle(position=box.position, radius=1)
+
+    # Cast a ray straight down from above everything. It passes through the
+    # pendulum, the box and the ground, and reports each, nearest first.
+    ray_hits = world.cast_ray(origin=(0, 20), translation=(0, -40))
     for hit in ray_hits:
         print(f"Hit at {hit.point}, normal: {hit.normal}")
 

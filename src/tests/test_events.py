@@ -238,3 +238,24 @@ def test_sensor_events_can_be_toggled_after_creation(world):
     visitor.enable_sensor_events = True
     world.step(1 / 60, 4)
     assert len(sensor.sensor_overlaps) == 1
+
+
+def test_begin_and_hit_events_name_a_shape_destroyed_since_the_step_as_none():
+    """The events describe the step just finished; a shape destroyed after it
+    can no longer be handed back, so the event says None, as end events do."""
+    world = World()
+    world.hit_event_threshold = 0.1
+    ball_body = world.add_body(body_type="dynamic", position=(0, 0.9))
+    ball = ball_body.add_circle(
+        radius=0.5, enable_contact_events=True, enable_hit_events=True
+    )
+    ball_body.linear_velocity = (0, -20)
+    ground = world.add_body(position=(0, 0)).add_box(20, 1)
+    world.step(1 / 60, 4)
+
+    ball.destroy()
+    events = world.get_contact_events()
+
+    assert [{e.shape_a, e.shape_b} for e in events.begin] == [{ground, None}]
+    assert [{e.shape_a, e.shape_b} for e in events.hit] == [{ground, None}]
+    world.destroy()
