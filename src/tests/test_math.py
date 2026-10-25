@@ -118,3 +118,17 @@ def test_mat22_multiplies_any_vector_like():
     expected = mat * Vec2(1, 1)
     assert mat * (1, 1) == expected
     assert mat * [1, 1] == expected
+
+
+@pytest.mark.parametrize("b", [(4, 6), [4, 6], Vec2(4, 6)])
+def test_mat22_solve_accepts_any_vector_like(b):
+    assert Mat22(2, 0, 0, 2).solve(b) == Vec2(2, 3)
+
+
+def test_mat22_solve_rejects_a_non_vector_even_when_singular():
+    # The right-hand side is converted before the singular check, so a bad
+    # argument is refused whatever the matrix.
+    with pytest.raises((TypeError, ValueError)):
+        Mat22(1, 1, 1, 1).solve("ab")
+    with pytest.raises((TypeError, ValueError)):
+        Mat22(2, 0, 0, 2).solve((1, 2, 3))
