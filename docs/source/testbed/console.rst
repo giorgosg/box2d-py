@@ -31,7 +31,8 @@ never one a reset has destroyed. ``box2d`` and ``Vec2`` are imported, and
 names you define stay defined from one command to the next. **Reset names**
 clears everything you defined, leaving just these.
 
-Say the ``Drop`` scenario from :doc:`scenarios` is running. Its world, and
+Say the ``Drop`` scenario from :doc:`scenarios` is open, and paused with
+``P``, so that nothing moves between one command and the next. Its world, and
 anything in it, can be read and changed directly:
 
 .. code-block:: python
@@ -51,7 +52,7 @@ anything in it, can be read and changed directly:
 
 Setting one of its controls moves the control in its panel and runs its
 callback, as dragging the slider would, so this rebuilds the scene with the
-box 15 m up:
+box 15 m up -- where it stays, until the simulation is resumed:
 
 .. code-block:: python
 
@@ -61,7 +62,8 @@ box 15 m up:
 
 What a command prints, and the value of an expression, appear in the panel
 above the prompt, and so does the traceback of a command that raises.
-Nothing typed here can close the window: ``exit()`` is reported and ignored.
+Nothing typed here can close the window: ``exit()``, or anything else that
+raises ``SystemExit``, is reported and ignored.
 
 Keys
 ----
@@ -101,7 +103,7 @@ as they have in common, and lists them under the prompt, the first twelve and
 a count of the rest. Since completing evaluates everything before the last
 dot, complete a name rather than the result of a call: ``test.box.`` is
 cheap to evaluate, but whatever is left of the dot runs each time Tab is
-pressed. If evaluating it fails, the console says so and completes nothing.
+pressed. If evaluating it fails, nothing is completed.
 
 Copying
 -------

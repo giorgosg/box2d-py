@@ -3,7 +3,11 @@ Writing scenarios
 
 A scenario is a class, and a scenario file is a Python module that defines
 one or more. The testbed's own, in ``box2d_testbed/tb_*.py``, are written the
-way this page describes, and open in its editor to read or to copy from.
+way this page describes, and open in its editor to read or to copy from. As
+examples of the library they also keep to a few conventions of their own,
+which the project's `CONTRIBUTING.md
+<https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md#shipped-scenarios>`_
+lists.
 
 What a scenario looks like
 --------------------------
@@ -139,7 +143,9 @@ length in seconds. It is where a scenario does what Box2D does not: reads
 events, moves a kinematic body, or steers a character.
 
 ``on_key_down(key)`` and ``on_key_up(key)`` are called with the name of a key
-pressed or released over the simulation: a letter ``"a"`` to ``"z"``, a digit
+pressed or released while the Simulation tab is showing and no text field has
+the keyboard, wherever the pointer is; while the Editor tab is in front of it,
+they are not called. The name is a letter ``"a"`` to ``"z"``, a digit
 ``"0"`` to ``"9"``, or one of ``"space"``, ``"left"``, ``"right"``, ``"up"``,
 ``"down"``, ``"escape"``, ``"enter"`` and ``"tab"``. ``P``, ``O`` and ``R``
 also reach the testbed, which pauses, steps and resets on them, so a scenario
@@ -207,8 +213,9 @@ The ``BOX2D_TESTBED_SCENARIOS`` environment variable points the testbed at
 another directory instead, such as one in a project of your own. The Scenario
 menu shows which directory is in use.
 
-A file's name, less the ``.py``, has to be a Python identifier of up to 64
-characters; other files there are left alone. A file is run on its own rather
+A file's name, less the ``.py``, has to be up to 64 ASCII letters, digits and
+underscores, not starting with a digit; other files there are left alone. A
+file is run on its own rather
 than as part of a package, so it imports the testbed as any other program
 would, with ``from box2d_testbed.base_test import BaseTest, UI`` rather than a
 relative import. A file that does not load at startup is skipped, with a line
@@ -234,7 +241,9 @@ browser, scenarios opened from a link are listed too (``shared/``);
   one** finds the file behind what is on screen.
 - **Save**, or ``Ctrl+S`` while the editor has the keyboard, writes the file
   and runs it.
-- **Run** runs what is in the editor without writing it.
+- **Run** runs what is in the editor without writing it. It is greyed out
+  for a shipped scenario, whose relative imports only work inside the
+  package: fork it first.
 - **Revert** throws the edits away, back to the file as last saved, and
   **Delete** deletes the file, after asking.
 
@@ -253,8 +262,9 @@ fix is inside the testbed, so the testbed catches the errors a scenario
 makes at the points it is most likely to make them:
 
 - **A file that will not compile, or raises as it runs**, is reported in the
-  editor: the message above the source, a marker on the line, and the
-  traceback under it. Whatever was registered and running before stays as it
+  editor: the message above the source, with the traceback in a collapsible
+  "traceback" node under it, and a marker on the line. Whatever was
+  registered and running before stays as it
   was. Saving still writes the file, so nothing typed is lost.
 - **A setup that raises**, when the testbed opens a scenario or runs its
   file, stops the scenario there: whatever it built before raising stays in

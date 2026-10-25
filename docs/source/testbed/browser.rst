@@ -32,8 +32,9 @@ What is different
 Sharing a scenario
 ------------------
 
-The page has two more buttons in the editor's toolbar, for the sharing server
-it is served from.
+The page adds **Share** and **Open link** to the editor's toolbar, for the
+sharing server it is served from, and **Copy link** once something has been
+shared.
 
 **Share** uploads what is in the editor, saved or not, and copies its link.
 **Copy link** copies the last link again. A link is the full SHA-256 hash of

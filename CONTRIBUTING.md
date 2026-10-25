@@ -116,9 +116,10 @@ The examples are tests, so they cannot drift from the code unnoticed:
   GitHub and PyPI:
 
   ````markdown
-  <!-- not run: a session at the running testbed's console -->
+  <!-- not run: opens the testbed's window -->
   ```python
-  >>> len(list(world.bodies))
+  from box2d_testbed import main
+  main()
   ```
   ````
 

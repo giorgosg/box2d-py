@@ -39,10 +39,10 @@ The column on the right holds, from the top:
 - **Controls**, which run the testbed itself: pause and single step, the
   simulation settings below, and a reminder of the keys.
 - **Tests**, every scenario by category. Clicking one opens it.
-- **The scenario's own panel**, headed with its name. It holds the controls
-  the scenario declares, after the **Reset** and **Reset View** buttons every
-  scenario has. A scenario that failed to build shows the traceback here
-  instead.
+- **Test UI**, the scenario's own panel, whose first line names the
+  scenario: ``Test: Drop``. It holds the controls the scenario declares,
+  after the **Reset** and **Reset View** buttons every scenario has. A
+  scenario that failed to build shows the traceback here instead.
 - **Performance**: how long the last step and the last frame's drawing took
   -- current, smoothed and the most since the scenario opened, in ms -- then
   Box2D's own timing of the step and its four slowest stages, and its
@@ -96,8 +96,9 @@ stay as they are when another is opened.
      - The world's ``enable_continuous``, ``enable_sleeping`` and
        ``enable_warm_starting``.
 
-The last five are set on the running world from the next step, and every
-world the testbed makes afterwards starts with them.
+Max speed, Recycle dist and the three checkboxes are set on the running
+world from the next step, and every world the testbed makes afterwards starts
+with them.
 
 Keys
 ----
@@ -122,10 +123,11 @@ driven without the mouse:
        at the ends.
 
 A scenario can take keys of its own, which its docstring lists; the
-Scenario menu's **Edit the running one** opens it. None of the testbed's
-keys or a scenario's reach the simulation while the editor, the console or
-another text field has the keyboard, so typing ``pr`` into the console does
-not pause the simulation and restart the scenario.
+Scenario menu's **Edit the running one** opens it. The testbed's keys and a
+scenario's work while the Simulation tab is showing, wherever the pointer is,
+and not while the Editor tab is in front of it. Nor do they while the editor,
+the console or another text field has the keyboard, so typing ``pr`` into the
+console does not pause the simulation and restart the scenario.
 
 The mouse
 ---------
@@ -151,6 +153,7 @@ the first time, unless it was built from Python's random numbers, which come
 out differently each time. A few of the shipped scenarios are, such as
 Rounded's pile of random polygons, and come back different on each reset.
 
-**Reset View**, or ``Home``, frames the scenario as it opened, which is also
-what opening a scenario does. Reset does not, so a scene can be reset over and
-over in the view you have set up.
+**Reset View**, or ``Home``, frames the scenario the way opening it does:
+at the view it declares, or, if it declares none, around what can move in it
+now. Reset does not, so a scene can be reset over and over in the view you
+have set up.
