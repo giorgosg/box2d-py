@@ -657,3 +657,28 @@ def test_a_definition_copies_and_compares_by_value(bodies):
     assert duplicate == made
     duplicate.target_motor_speed = 3.0
     assert made.target_motor_speed == 2.0
+
+
+# --- a prismatic joint has no reference angle --------------------------------
+# Box2D 3.2 carries a prismatic joint's axis in the rotation of its local
+# frames, which leaves no orientation over for a reference angle. The field
+# used to be accepted and ignored, so a value given there did nothing.
+
+
+def test_prismatic_definition_refuses_a_reference_angle(bodies):
+    with pytest.raises(TypeError, match="reference_angle"):
+        PrismaticJointDef(*bodies, reference_angle=0.5)
+    made = PrismaticJointDef(*bodies)
+    with pytest.raises(AttributeError):
+        made.reference_angle = 0.5
+
+
+def test_add_prismatic_joint_refuses_a_reference_angle(world, bodies):
+    with pytest.raises(TypeError, match="reference_angle"):
+        world.add_prismatic_joint(*bodies, reference_angle=0.5)
+    assert bodies[0].joints == []
+
+
+def test_prismatic_joint_refuses_a_reference_angle(world, bodies):
+    with pytest.raises(TypeError, match="reference_angle"):
+        PrismaticJoint(world, *bodies, (0, 0), (0, 0), (1, 0), reference_angle=0.5)

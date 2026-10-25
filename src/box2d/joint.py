@@ -843,6 +843,10 @@ class PrismaticJoint(Joint):
     - Linear limits to restrict range of motion
     - Motor to drive relative motion
     - Spring to create soft constraints
+
+    Unlike the revolute and weld joints it takes no ``reference_angle``: the
+    axis is the rotation of its local frames, so there is no orientation left
+    over for one.
     """
 
     def __init__(
@@ -860,7 +864,6 @@ class PrismaticJoint(Joint):
         target_motor_speed=None,
         max_motor_force=None,
         enable_motor=None,
-        reference_angle=None,
         enable_spring=None,
         spring_hertz=None,
         spring_damping_ratio=None,
@@ -882,8 +885,6 @@ class PrismaticJoint(Joint):
             target_motor_speed (float): Desired motor speed in metres per second
             max_motor_force (float): Maximum motor force in newtons
             enable_motor (bool): Whether to enable the joint motor
-            reference_angle (float): Accepted but ignored: the axis sets the
-                joint frame's rotation, so a value here has no effect.
             enable_spring (bool): Enable spring behavior
             spring_hertz (float): Spring oscillation frequency in Hz
             spring_damping_ratio (float): Spring damping ratio
@@ -901,7 +902,6 @@ class PrismaticJoint(Joint):
         self._target_motor_speed = target_motor_speed
         self._max_motor_force = max_motor_force
         self._enable_motor = enable_motor
-        self._reference_angle = reference_angle
         self._enable_spring = enable_spring
         self._hertz = spring_hertz
         self._damping_ratio = spring_damping_ratio
@@ -918,10 +918,9 @@ class PrismaticJoint(Joint):
         defn.base.localFrameA.q = axis_rotation
         defn.base.localFrameB.q = axis_rotation
 
-        # reference_angle is deliberately not applied here. In 3.2 the frame
-        # rotation carries the axis, and a prismatic joint has no orientation
-        # left over to hold a separate reference angle. Setting it would
-        # silently overwrite the axis and break the joint.
+        # There is no reference_angle to apply: in 3.2 the frame rotation
+        # carries the axis, and a prismatic joint has no orientation left over
+        # to hold one. It is refused rather than accepted and ignored.
         if self._enable_limit is not None:
             defn.enableLimit = self._enable_limit
         if self._lower_limit is not None:
