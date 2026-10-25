@@ -6,10 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import box2d
+
 project = "box2d-python"
-copyright = "2025, Giorgos Giagas"
+copyright = "2025–2026, Giorgos Giagas"
 author = "Giorgos Giagas"
-release = "2025"
+
+# The package's own version, which it reads from the installed metadata, so
+# that pyproject.toml stays the one place a version is written. `release` is
+# the full version, the one each page's <title> shows; `version` is the short
+# major.minor form Sphinx offers as |version|: 3.2 for 3.2.0rc1 or 3.2.0.1.
+release = box2d.__version__
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

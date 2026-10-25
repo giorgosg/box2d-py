@@ -1,5 +1,5 @@
 # tests/test_doc_examples.py
-"""The Python in the README and the glance pages runs.
+"""The Python in the README and the documentation pages runs.
 
 Each file's blocks run in order in one namespace, as a reader working down the
 page would run them: a later block may use what an earlier one made. A block
@@ -21,7 +21,18 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
-GLANCE = sorted((ROOT / "docs" / "source" / "glance").glob("*.rst"))
+DOCS = ROOT / "docs" / "source"
+GLANCE = sorted((DOCS / "glance").glob("*.rst"))
+INSTALL = DOCS / "getting_started" / "install.rst"
+QUICKSTART = DOCS / "getting_started" / "quickstart.rst"
+#: Every page whose Python is run, the front page included.
+PAGES = [DOCS / "index.rst", INSTALL, QUICKSTART, *GLANCE]
+
+
+def _page_id(path):
+    """A page's test id, its path under docs/source, e.g. glance/index.rst."""
+    return path.relative_to(DOCS).as_posix()
+
 
 _MARKDOWN_BLOCK = re.compile(
     r"(?P<before>[^\n]*)\n```python\n(?P<code>.*?)\n```", re.DOTALL
@@ -29,6 +40,12 @@ _MARKDOWN_BLOCK = re.compile(
 _RST_BLOCK = re.compile(
     r"^\.\. code-block:: python\n\n(?P<code>(?:(?:[ \t]+[^\n]*)?\n)+)", re.MULTILINE
 )
+_RST_DIRECTIVE = re.compile(
+    r"^[ \t]*\.\. (?:code-block|code|sourcecode|doctest)::[ \t]*(?P<language>\S*)",
+    re.MULTILINE,
+)
+#: Languages a page may show without running: commands for a shell.
+NOT_PYTHON = {"bash", "console", "text"}
 
 
 def _line_of(text, offset):
@@ -67,6 +84,9 @@ def run_blocks(path, blocks):
             runner = doctest.DocTestRunner()
             runner.run(test, out=output.write, clear_globs=False)
             assert runner.failures == 0, f"{where}\n{output.getvalue()}"
+            # A DocTest runs in a copy of the globals it is given, so what the
+            # session defined has to be carried back for the blocks after it.
+            namespace.update(test.globs)
         else:
             with contextlib.redirect_stdout(io.StringIO()):
                 exec(compile(code, where, "exec"), namespace)
@@ -91,6 +111,18 @@ def test_the_blocks_are_found():
     """A change of fence or directive must not leave nothing to run."""
     assert len(markdown_blocks(README)) == 3
     assert sum(len(rst_blocks(path)) for path in GLANCE) >= 3
+    assert len(rst_blocks(INSTALL)) >= 2
+    assert len(rst_blocks(QUICKSTART)) >= 8
+
+
+@pytest.mark.parametrize("path", PAGES, ids=_page_id)
+def test_every_python_block_is_run(path):
+    """A block of Python the tests do not find would go unchecked: one with an
+    option such as ``:caption:``, indented, or under another directive."""
+    text = path.read_text(encoding="utf-8")
+    languages = [match["language"] for match in _RST_DIRECTIVE.finditer(text)]
+    assert set(languages) <= NOT_PYTHON | {"python"}, path.name
+    assert languages.count("python") == len(rst_blocks(path)), path.name
 
 
 def test_readme_examples_run(scenario_registry_left_as_it_was):
@@ -111,6 +143,6 @@ def test_readme_examples_run(scenario_registry_left_as_it_was):
     world.destroy()
 
 
-@pytest.mark.parametrize("path", GLANCE, ids=lambda path: path.name)
-def test_glance_examples_run(path):
+@pytest.mark.parametrize("path", PAGES, ids=_page_id)
+def test_page_examples_run(path):
     run_blocks(path, rst_blocks(path))
