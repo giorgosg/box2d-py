@@ -5,5 +5,4 @@ Debug Draw Module
    :members:
    :undoc-members:
    :inherited-members:
-   :private-members:
    :show-inheritance:

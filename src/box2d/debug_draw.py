@@ -4,12 +4,31 @@ from .math import Vec2, Transform, AABB
 
 
 class Color:
+    """An RGBA colour with 0-255 components, as debug draw callbacks receive it.
+
+    Box2D passes colours as ``b2HexColor``, a 0xRRGGBB integer with no alpha,
+    so a colour that came from Box2D is always opaque.
+
+    Args:
+        r: Red, 0-255.
+        g: Green, 0-255.
+        b: Blue, 0-255.
+        a: Alpha, 0-255. Defaults to opaque.
+
+    Example:
+        >>> Color.from_b2HexColor(0xFF8000)
+        Color(r=255, g=128, b=0, a=255)
+        >>> hex(Color(255, 128, 0).hex)
+        '0xff8000'
+    """
+
     def __init__(self, r: int, g: int, b: int, a: int = 0xFF):
         self.r, self.g, self.b, self.a = r, g, b, a
         self.hexcolor = None
 
     @classmethod
     def from_b2HexColor(cls, hex_color: int):
+        """Make an opaque Color from a 0xRRGGBB integer, such as a b2HexColor."""
         r = (hex_color >> 16) & 0xFF
         g = (hex_color >> 8) & 0xFF
         b = hex_color & 0xFF
@@ -19,6 +38,7 @@ class Color:
 
     @property
     def b2HexColor(self) -> int:
+        """The colour as a 0xRRGGBB integer, Box2D's b2HexColor. Alpha is dropped."""
         hexcolor = (self.r << 16) | (self.g << 8) | self.b
         return hexcolor
 
@@ -191,11 +211,27 @@ class DebugDraw:
     Set boolean flags (draw_shapes, draw_aabbs etc.) to control which elements are rendered.
     Uses Box2D's b2DebugDraw callbacks internally.
 
-    Example:
-        class MyDebugDraw(DebugDraw):
-            def _draw_polygon(self, vertices, color):
-                # Implement polygon drawing with your graphics API
+    Each callback receives Python values -- :class:`.Vec2`, :class:`.Transform`,
+    :class:`Color` -- and does nothing unless overridden.
 
+    Example:
+        >>> from box2d import World
+        >>> class MyDebugDraw(DebugDraw):
+        ...     def __init__(self):
+        ...         super().__init__()
+        ...         self.polygons = []
+        ...
+        ...     def draw_solid_polygon(self, transform, vertices, radius, color):
+        ...         # Draw with your graphics API. The vertices are local to
+        ...         # the transform, so apply it to get world coordinates.
+        ...         self.polygons.append([transform(v) for v in vertices])
+        >>> world = World()
+        >>> ground = world.new_body().position(0, 0).box(2, 2).build()
+        >>> draw = MyDebugDraw()
+        >>> draw.draw_shapes = True
+        >>> world.draw(draw)
+        >>> draw.polygons
+        [[Vec2(-1.0, -1.0), Vec2(1.0, -1.0), Vec2(1.0, 1.0), Vec2(-1.0, 1.0)]]
     """
 
     def __init__(self):
@@ -286,9 +322,12 @@ class DebugDraw:
 
     # Internal callback handlers (override these in subclasses)
     def draw_polygon(self, transform: Transform, vertices: list[Vec2], color: Color):
-        """Draw wireframe polygon outlines (AABBs and shape outlines when draw_bounds/shapes enabled).
+        """Draw a polygon outline.
 
-        Box2D 3.2 added the transform argument; the vertices are in local space.
+        The world calls this for weld joints when draw_joints is on, as a small
+        box at each joint frame. Shapes are drawn through
+        :meth:`draw_solid_polygon`, and bounding boxes through
+        :meth:`draw_bounds`. The vertices are local to the transform.
 
         Args:
             transform: Position and rotation the vertices are relative to
@@ -374,7 +413,7 @@ class DebugDraw:
         """Visualize contact points (draw_contacts) or mass centers (draw_mass).
 
         Args:
-            position: World coordinates of the point
+            p: World coordinates of the point
             size: Diameter to render the point (screen pixels or meters)
             color: RGB color of the point
 
@@ -404,19 +443,19 @@ class DebugDraw:
     def draw_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
         """Callback for drawing capsule outlines (line segment with radius).
 
+        Box2D's debug draw has no capsule outline callback, so the world never
+        calls this. Capsule shapes are drawn through :meth:`draw_solid_capsule`.
+
         Args:
             p1: First endpoint of the capsule's centerline
             p2: Second endpoint of the capsule's centerline
             radius: Radius of the capsule (extends beyond endpoints)
             color: Outline color
-
-        Note:
-            Used for character controllers or rounded collision shapes
         """
         pass
 
     def draw_solid_capsule(self, p1: Vec2, p2: Vec2, radius: float, color: Color):
-        """Draw filled capsule shapes (triggered by draw_shapes for capsule fixtures).
+        """Draw filled capsule shapes (triggered by draw_shapes for capsule shapes).
 
         Args:
             p1: First endpoint of the capsule's axis
@@ -432,9 +471,9 @@ class DebugDraw:
     def draw_solid_circle(
         self, transform: Transform, center: Vec2, radius: float, color: Color
     ):
-        """Draw filled circles with orientation marker (used for circular fixtures when draw_shapes enabled).
+        """Draw filled circles with orientation marker (used for circle shapes when draw_shapes enabled).
 
-        Box2D 3.2 added the center argument, which is relative to the transform.
+        The center is relative to the transform.
 
         Args:
             transform: Position and rotation (rotation affects orientation line)
@@ -445,10 +484,12 @@ class DebugDraw:
         pass
 
     def draw_transform(self, transform: Transform):
-        """Visualize coordinate frames for joint anchors (requires draw_joint_extras flag).
+        """Draw a coordinate frame.
+
+        The world calls this when draw_mass is on, at each dynamic body's
+        centre of mass. No colour is passed; the renderer picks its own.
 
         Args:
-            transform: Contains position and rotation matrix
-            color: Base color for the axes (often overridden)
+            transform: Position and rotation of the frame
         """
         pass
