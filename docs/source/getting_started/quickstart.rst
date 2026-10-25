@@ -47,11 +47,12 @@ Stepping
 
 :meth:`~box2d.world.World.step` advances the world by a time step, in
 seconds. Use the same step every time, typically 1/60 of a second, rather
-than the time a frame happened to take: Box2D is tuned for a fixed step, and
-a varying one makes the simulation jittery. In a game loop, add each frame's
-elapsed time to an accumulator, step once for every whole time step it holds,
-and carry what is left over to the next frame. The second argument is the
-number of substeps, which trade speed for accuracy; 4 is the usual choice.
+than the time a frame happened to take: as Box2D's own manual puts it, a time
+step that varies gives results that vary, which makes the simulation hard to
+debug. In a game loop, add each frame's elapsed time to an accumulator, step
+once for every whole time step it holds, and carry what is left over to the
+next frame. The second argument is the number of substeps, which trade speed
+for accuracy; 4 is the usual choice.
 
 .. code-block:: python
 
