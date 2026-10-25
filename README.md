@@ -156,9 +156,10 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
 ```
 
 - **`setup`** builds the scene. Reset and `self.rebuild()` throw it away and
-  call `setup` again in a new world, keeping the controls and the view, so set
-  anything the scene needs on the world here, and read `self.world` rather
-  than keeping it.
+  call `setup` again in a new world, keeping the controls and the view, so a
+  reset scene runs exactly as it first did -- unless it is built from Python's
+  random numbers. Set anything the scene needs on the world here, and read
+  `self.world` rather than keeping it.
 - **Controls** (`UI.float`, `UI.int`, `UI.bool`, `UI.select`, `UI.button`)
   appear in the scenario's panel and read as attributes. A callback runs when
   one changes, never before `setup`: one that changes how the scene is built
@@ -173,7 +174,7 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
   copies the current view as these two lines.
 
 The shipped scenarios keep to a few conventions of their own, as examples of
-the library; [CONTRIBUTING.md](CONTRIBUTING.md#shipped-scenarios) lists them.
+the library; [CONTRIBUTING.md](https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md#shipped-scenarios) lists them.
 
 ### The console
 
@@ -212,8 +213,8 @@ uploads the editor's buffer and copies a link to it, and **Open link** loads
 one, read-only and not run until you press **Run**. Every shared scenario is
 public to anyone with its link.
 
-[`web/README.md`](web/README.md) covers building and serving it, and
-[`server/README.md`](server/README.md) the store that sharing talks to.
+[`web/README.md`](https://github.com/giorgosg/box2d-py/blob/main/web/README.md) covers building and serving it, and
+[`server/README.md`](https://github.com/giorgosg/box2d-py/blob/main/server/README.md) the store that sharing talks to.
 
 ## Development status
 
@@ -238,7 +239,7 @@ and 3.14, and in WebAssembly:
 
 Not bound yet: world snapshots, and recording and replay.
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the tests and
+[CONTRIBUTING.md](https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md) covers building from source, the tests and
 the project's conventions.
 
 ## Links
@@ -246,4 +247,4 @@ the project's conventions.
 [Documentation](https://box2d-py.readthedocs.io/) |
 [Box2D](https://box2d.org/) |
 [Box2D on GitHub](https://github.com/erincatto/box2d) |
-[Contributing](CONTRIBUTING.md)
+[Contributing](https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md)
