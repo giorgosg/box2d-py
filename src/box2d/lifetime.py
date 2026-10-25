@@ -1,5 +1,5 @@
 """
-Lifetime tracking for Box2D handles.
+Lifetime tracking for Box2D ids.
 
 Box2D objects are not pointers, they are small value ids naming a slot in
 storage the engine owns. Once the thing an id names is gone -- destroyed on its
@@ -22,15 +22,18 @@ only while that world is. The flag is a plain Python one, which
 about the world instead would cost a second call on every property read.
 
 Going the other way, from an id Box2D hands back to the wrapper it belongs to,
-relies on the user data each wrapper gives Box2D: a cffi handle to itself. A
-handle does not keep its object alive, so every wrapper is held by its owner
-for as long as Box2D has it -- the world holds bodies and joints, a body its
-shapes and chains, a chain its segments -- and released when it is destroyed.
+is an ``_IdTable`` on the world: one for bodies, one for shapes (chain
+segments included) and one for joints. Each wrapper is entered when it is made
+and taken out on every path that destroys it -- on its own, with its body or
+chain, or with the world -- so a table holds exactly the objects Box2D still
+has, and keeps their wrappers alive meanwhile. Box2D's own user data is left
+empty. It used to hold a cffi handle to each wrapper, which had to be checked
+with Box2D before it could be followed, and which aborted the interpreter when
+followed to a wrapper already collected; a table lookup is no slower than the
+two together, and has nothing to dangle.
 """
 
-from typing import Callable, Optional
-
-from ._checked import ffi
+from typing import Optional
 
 #: Where a wrapper keeps its world's liveness flag. A World keeps its own
 #: there too, so its own IdRef reads it the same way.
@@ -143,27 +146,74 @@ def is_live(obj, name: str, is_valid) -> bool:
     return raw is not None and obj._world_alive[0] and bool(is_valid(raw))
 
 
-def wrapper_for(
-    object_id,
-    is_valid: Callable[..., bool],
-    get_user_data: Callable[..., object],
-) -> Optional[object]:
-    """The wrapper an id Box2D reported belongs to, or None if it is gone.
+class _IdTable(dict):
+    """A world's wrappers of one kind, keyed by their Box2D ids.
 
-    Box2D's events are a record of the step that has finished, so they can
-    name an object destroyed since. Its wrapper has been released by then, and
-    following its handle would read freed memory, so the id is checked first.
+    The key is the id's slot, world and generation. Box2D bumps the generation
+    each time it reuses a slot, so an id of something destroyed never finds
+    whatever took its place, and two worlds' objects never meet in one table,
+    even where their ids differ only in the world. The world part is needed
+    for that: worlds built the same way hand out the same slots and
+    generations.
+
+    Every id this is asked about comes from Box2D, which can report objects
+    destroyed since -- an event is a record of the step that has finished --
+    so :meth:`find` answers None for an id not in the table, which is how a
+    destroyed object reads in events. Where Box2D can only be naming something
+    live, :meth:`require` raises instead, as a missing entry there is a bug.
 
     Args:
-        object_id: The id, e.g. a ``b2ShapeId`` from a sensor event.
-        is_valid: The Box2D validity function for this id type.
-        get_user_data: The matching user data getter, e.g.
-            ``lib.b2Shape_GetUserData``.
-
-    Returns:
-        The wrapper, or None if the id is no longer valid or has no handle.
+        kind: What the table holds, for error messages, e.g. ``"shape"``.
     """
-    if not is_valid(object_id):
-        return None
-    data = get_user_data(object_id)
-    return ffi.from_handle(data) if data != ffi.NULL else None
+
+    # Weak-referenceable, so a Contact can reach its world's shapes without
+    # keeping the world alive.
+    __slots__ = ("_kind", "__weakref__")
+
+    def __init__(self, kind: str):
+        super().__init__()
+        self._kind = kind
+
+    def add(self, object_id, wrapper) -> None:
+        """Enter ``wrapper`` under ``object_id``. Called once it exists."""
+        self[object_id.index1, object_id.world0, object_id.generation] = wrapper
+
+    def remove(self, object_id) -> None:
+        """Take out whatever is under ``object_id``, if anything.
+
+        Taking out what is not there is not an error, so every destroy path
+        can call this without knowing whether another got there first. An id
+        of None -- one already let go of -- is not there either.
+        """
+        if object_id is None:
+            return
+        self.pop((object_id.index1, object_id.world0, object_id.generation), None)
+
+    def holds(self, wrapper, object_id) -> bool:
+        """Whether ``wrapper`` itself is in the table under ``object_id``."""
+        found = self.get((object_id.index1, object_id.world0, object_id.generation))
+        return found is wrapper
+
+    def find(self, object_id) -> Optional[object]:
+        """The wrapper of ``object_id``, or None if it is not in the table.
+
+        Args:
+            object_id: An id Box2D reported, e.g. a ``b2ShapeId`` from an event.
+        """
+        return self.get((object_id.index1, object_id.world0, object_id.generation))
+
+    def require(self, object_id):
+        """The wrapper of ``object_id``, which must be in the table.
+
+        Raises:
+            LookupError: If it is not. Box2D said the object is live, so this
+                is a bug in the binding or an id from another world.
+        """
+        key = (object_id.index1, object_id.world0, object_id.generation)
+        found = self.get(key)
+        if found is None:
+            raise LookupError(
+                f"Box2D reported a {self._kind} (id {key}) that this world has "
+                f"no object for"
+            )
+        return found

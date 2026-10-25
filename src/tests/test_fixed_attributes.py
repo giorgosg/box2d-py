@@ -168,10 +168,11 @@ def test_an_empty_name_raises_attribute_error(objects):
 
 
 # --- user_data at creation ----------------------------------------------------
-# Box2D's own userData slot holds the handle that maps an id back to its Python
+# Box2D's own userData slot is a void pointer, which cannot hold a Python
 # object, so user_data given at creation is kept on the object instead. For
 # shapes and chains it used to go into that slot: anything but a C pointer
-# raised, and anything else was overwritten by the handle straight after.
+# raised, and anything else was overwritten by the wrapper's own cffi handle,
+# which that slot held at the time.
 
 
 @pytest.mark.parametrize(

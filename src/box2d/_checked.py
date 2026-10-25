@@ -22,6 +22,7 @@ build -- are warnings rather than errors, and go to the ``box2d`` logger.
 
 import logging
 import re
+import threading
 import types
 
 from ._box2d import ffi, lib as _raw_lib
@@ -43,9 +44,21 @@ class InvalidInputError(ValueError):
 InvalidInputError.__module__ = "box2d"
 
 
-#: Failed checks reported by the log callback and not yet raised. A list
-#: rather than a flag so that nothing is lost if two arrive together.
-_pending = []
+class _Pending(threading.local):
+    """Failed checks reported by the log callback and not yet raised.
+
+    Kept per thread: Box2D logs on whichever thread made the call that failed
+    -- one of its own workers, during a multithreaded step -- and a failure
+    belongs to the call on that thread, not to whatever another thread checks
+    next. A list rather than a flag so that nothing is lost if two arrive
+    together.
+    """
+
+    def __init__(self):
+        self.checks = []
+
+
+_pending = _Pending()
 
 _INVALID_INPUT = re.compile(r"invalid input: (?P<condition>.*) in (?P<function>\w+)")
 
@@ -54,7 +67,7 @@ _INVALID_INPUT = re.compile(r"invalid input: (?P<condition>.*) in (?P<function>\
 def _on_log(message):
     text = ffi.string(message).decode("utf-8", "replace").strip()
     if text.startswith("invalid input"):
-        _pending.append(text)
+        _pending.checks.append(text)
     else:
         log.warning(text)
 
@@ -69,8 +82,8 @@ def _raise_pending(called):
     internal helper -- every create-shape function checks the density in
     b2CreateShape -- so the helper is mentioned after the public name.
     """
-    messages = list(_pending)
-    _pending.clear()
+    messages = list(_pending.checks)
+    _pending.checks.clear()
     described = []
     for text in messages:
         match = _INVALID_INPUT.match(text)
@@ -94,7 +107,7 @@ def is_checked(name: str) -> bool:
 def _checked(function, name):
     def call(*args):
         result = function(*args)
-        if _pending:
+        if _pending.checks:
             _raise_pending(name)
         return result
 

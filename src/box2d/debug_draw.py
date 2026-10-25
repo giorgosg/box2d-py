@@ -201,8 +201,6 @@ class DebugDraw:
     def __init__(self):
         # Create a C b2DebugDraw instance
         self._debug_draw = lib.b2DefaultDebugDraw()
-        # Assign context handle to retrieve instance in callbacks
-        self._debug_draw.context = ffi.new_handle(self)
 
         # Assign decorated callbacks
         self._debug_draw.DrawPolygonFcn = draw_polygon
@@ -216,7 +214,9 @@ class DebugDraw:
         self._debug_draw.DrawTransformFcn = draw_transform
         self._debug_draw.DrawBoundsFcn = draw_bounds
 
-        # Store a handle to this Python object for context
+        # Box2D hands the context to every callback, which is how they find
+        # this object again. The handle is kept here, as the struct's pointer
+        # does not keep it alive.
         self._context_handle = ffi.new_handle(self)
         self._debug_draw.context = self._context_handle
 

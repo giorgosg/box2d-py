@@ -1,14 +1,15 @@
 # tests/test_ownership.py
-"""A wrapper must stay alive for as long as Box2D holds its handle.
+"""A wrapper must stay alive for as long as Box2D has its object.
 
-Box2D's user data on each body, shape and joint is a cffi handle to the Python
-wrapper, which is how an id coming back from Box2D -- in a ray cast, an event,
-``body.joints`` -- turns into the object the caller made. A handle does not
-keep its object alive, so if the caller drops the wrapper and it is collected,
-the next lookup through that handle reads freed memory and cffi aborts the
-interpreter: ``Fatal Python error: ffi.from_handle() ... points to garbage``.
+An id coming back from Box2D -- in a ray cast, an event, ``body.joints`` --
+turns into the object the caller made through its world's id tables. These
+began as regression tests for the cffi handles that did that job before: a
+handle in Box2D's user data did not keep its object alive, so once the caller
+dropped the wrapper and it was collected, the next lookup read freed memory
+and cffi aborted the interpreter: ``Fatal Python error: ffi.from_handle() ...
+points to garbage``. They now hold the tables to keeping every wrapper.
 
-The crashes cannot be caught, so each is reproduced in a child interpreter and
+A crash cannot be caught, so each scenario runs in a child interpreter and
 the test asserts it exits cleanly.
 """
 

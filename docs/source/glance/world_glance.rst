@@ -172,5 +172,5 @@ Properties
 Utility Functions
 -----------------
 
-* ``make_overlap_callback(results, max_results=None)`` - Create callback for overlap queries
-* ``make_ray_cast_callback(results)`` - Create callback for ray casting
+* ``make_overlap_callback(results, max_results=None, *, world, errors=None)`` - Create callback for overlap queries in ``world``
+* ``make_ray_cast_callback(results, *, world, errors=None)`` - Create callback for ray casting in ``world``

@@ -571,16 +571,12 @@ class Body(FixedAttributes):
         world._refuse_while_locked("body", "create")
         self.world = world
         join_world(self, world)
-        self._handle = ffi.new_handle(self)
 
-        # Box2D's userData carries the handle that maps an id back to this
-        # object, so the caller's own user_data lives on the Body instead.
-        # Setting it on the definition would both overwrite the handle and
-        # corrupt a definition the caller may want to reuse.
+        # The caller's user_data lives on the Body: Box2D's userData is a
+        # void pointer, which cannot hold a Python object by itself.
         self.user_data = body_def.user_data
 
         b2BodyDef = body_def.b2BodyDef
-        b2BodyDef.userData = self._handle
         self._body_id = lib.b2CreateBody(self.world._world_id, ffi.addressof(b2BodyDef))
         self._shapes = []
         self._chains = []
@@ -1114,13 +1110,23 @@ class Body(FixedAttributes):
         if raw is None:
             return
         # Box2D destroys the attached joints with the body, so their wrappers
-        # are looked up first, while the ids still lead to them.
+        # are looked up first, while the ids still lead to them. A joint the
+        # world cannot place is skipped rather than raised: nothing should
+        # leave a body impossible to destroy.
         joints = []
         if self.is_valid:
             self.world._refuse_while_locked("body")
-            joints = self._read_joints()
+            joints = self._read_joints(strict=False)
             lib.b2DestroyBody(raw)
-        self.world._untrack_body(raw)
+        world = self.world
+        world._untrack_body(raw)
+        # Box2D took the shapes and chains down with the body.
+        untrack_shape = world._untrack_shape
+        for shape in self._shapes:
+            untrack_shape(raw_id(shape, "_shape_id"))
+        for chain in self._chains:
+            for segment in chain.segments:
+                untrack_shape(raw_id(segment, "_shape_id"))
         self._forget_ids()
         for joint in joints:
             joint._release()
@@ -1298,8 +1304,12 @@ class Body(FixedAttributes):
         """,
     )
 
-    def _read_joints(self) -> List[Joint]:
+    def _read_joints(self, strict: bool = True) -> List[Joint]:
         """Get the joints attached to this body.
+
+        Args:
+            strict: Raise LookupError for a joint not in the world's table,
+                rather than leave it out.
 
         Returns:
             List of Joint objects attached to this body.
@@ -1311,14 +1321,11 @@ class Body(FixedAttributes):
         joint_ids = ffi.new("b2JointId[]", count)
         actual_count = lib.b2Body_GetJoints(self._body_id, joint_ids, count)
 
-        joints = []
-        for i in range(actual_count):
-            joint_data = lib.b2Joint_GetUserData(joint_ids[i])
-            if joint_data:
-                joint = ffi.from_handle(joint_data)
-                joints.append(joint)
-
-        return joints
+        table = self.world._joints
+        if strict:
+            return [table.require(joint_ids[i]) for i in range(actual_count)]
+        found = (table.find(joint_ids[i]) for i in range(actual_count))
+        return [joint for joint in found if joint is not None]
 
     @property
     def joints(self) -> List[Joint]:
@@ -1353,8 +1360,11 @@ class Body(FixedAttributes):
         count = lib.b2Body_GetContactData(self._body_id, contact_data_array, capacity)
 
         contacts = []
+        shapes = self.world._shapes
         for i in range(count):
-            contacts.append(ContactData.from_b2ContactData(contact_data_array[i]))
+            contacts.append(
+                ContactData.from_b2ContactData(contact_data_array[i], shapes)
+            )
 
         return contacts
 
