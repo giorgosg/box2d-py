@@ -2158,13 +2158,15 @@ class Mat22:
         Solve the linear system A * x = b.
 
         Args:
-            b: Right-hand side, as a Vec2. It is read through ``b.x`` and
-                ``b.y`` without conversion, so a tuple or list raises
-                AttributeError (except for a singular matrix, which returns
-                before reading it).
+            b: Right-hand side, any vector-like: a Vec2, or a tuple or list
+                of two numbers.
 
         Returns:
             Vec2: Solution vector x if matrix is invertible
+
+        Raises:
+            TypeError, ValueError: If ``b`` is not vector-like, whether or not
+                the matrix is singular.
 
         Note:
             Returns zero vector if matrix is singular (det ≈ 0)
@@ -2176,7 +2178,10 @@ class Mat22:
             >>> singular = Mat22(1, 1, 1, 1)
             >>> singular.solve(Vec2(1, 1))  # Returns zero for singular matrix
             Vec2(0.0, 0.0)
+            >>> m.solve((4, 6))  # Any vector-like
+            Vec2(2.0, 3.0)
         """
+        b = Vec2(b)
         det = self.determinant
         if abs(det) < 1e-8:
             return Vec2.zero()

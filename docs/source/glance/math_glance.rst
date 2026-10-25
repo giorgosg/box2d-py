@@ -188,7 +188,7 @@ Operations
 * ``m * v`` - Apply matrix to vector
 * ``m1 * m2`` - Matrix multiplication
 * ``transpose()`` - Get transposed matrix
-* ``solve(b)`` - Solve linear system A*x = b, with ``b`` a Vec2
+* ``solve(b)`` - Solve linear system A*x = b, with ``b`` any vector-like
 
 AABB
 ----
