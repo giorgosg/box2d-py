@@ -7,3 +7,8 @@ contact results, and the body definition behind
 
 .. automodule:: box2d.dataclasses
    :members:
+   :exclude-members: BodyType
+
+.. autoclass:: box2d.dataclasses.BodyType
+   :members:
+   :undoc-members:
