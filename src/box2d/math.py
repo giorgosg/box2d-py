@@ -43,7 +43,7 @@ class Vec2:
         - Component-wise operations
         - Tuple interoperability (+, -, etc.)
         - Rotation and projection operations
-        - Factory methods for common vectors (Zero, Right, Left, etc.)
+        - Factory methods for common vectors (zero, right, left, etc.)
 
     Example:
         >>> v = Vec2(1, 2)
@@ -593,7 +593,7 @@ class Rot:
         Initialize from rotation angle in radians.
 
         Args:
-            angle_radians (float): Initial angle in radians. Defaults to 0.0.
+            angle (float): Initial angle in radians. Defaults to 0.0.
 
         Example:
             >>> r = Rot(math.pi/2)
@@ -1956,13 +1956,14 @@ class Mat22:
 
         Args:
             *args: Supported formats:
-                - 4 scalars (a, b, c, d) => ::
+                - 4 scalars (a, b, c, d), taken column by column => ::
 
-                  [[a b]
-                   [c d]]
+                  [[a c]
+                   [b d]]
 
                 - 2 column vectors
-                - Single iterable with 4 elements
+                - Single iterable with 4 elements, in the same order as the
+                  scalars
 
         Example:
             >>> Mat22(1, 2, 3, 4)  # Scalar components
@@ -2157,7 +2158,10 @@ class Mat22:
         Solve the linear system A * x = b.
 
         Args:
-            b: Right-hand side vector (Vec2 or tuple/list)
+            b: Right-hand side, as a Vec2. It is read through ``b.x`` and
+                ``b.y`` without conversion, so a tuple or list raises
+                AttributeError (except for a singular matrix, which returns
+                before reading it).
 
         Returns:
             Vec2: Solution vector x if matrix is invertible
@@ -2170,7 +2174,7 @@ class Mat22:
             >>> m.solve(Vec2(4, 6))     # Should divide by 2
             Vec2(2.0, 3.0)
             >>> singular = Mat22(1, 1, 1, 1)
-            >>> singular.solve((1, 1))  # Returns zero for singular matrix
+            >>> singular.solve(Vec2(1, 1))  # Returns zero for singular matrix
             Vec2(0.0, 0.0)
         """
         det = self.determinant
