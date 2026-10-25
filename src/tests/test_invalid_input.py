@@ -204,6 +204,26 @@ def test_polygon_validity_still_matches_box2d():
 # --- a failed check belongs to the thread that made it ----------------------
 
 
+def _threads_can_start():
+    """Pyodide's CPython, built for WebAssembly without pthreads, raises
+    RuntimeError on Thread.start(); there is no other thread to test with."""
+    import threading
+
+    thread = threading.Thread(target=lambda: None)
+    try:
+        thread.start()
+    except RuntimeError:
+        return False
+    thread.join()
+    return True
+
+
+needs_threads = pytest.mark.skipif(
+    not _threads_can_start(), reason="this Python cannot start threads"
+)
+
+
+@needs_threads
 def test_a_failed_check_on_another_thread_is_not_raised_here(world):
     """Box2D logs from its worker threads too. A failed check reported on one
     thread must not be raised by the next checked call on another, which had
@@ -221,6 +241,7 @@ def test_a_failed_check_on_another_thread_is_not_raised_here(world):
     assert world.gravity.y == -5
 
 
+@needs_threads
 def test_a_failed_check_is_still_raised_on_its_own_thread(world):
     import threading
 
