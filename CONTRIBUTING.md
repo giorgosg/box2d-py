@@ -32,17 +32,24 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,testbed]"
 ```
 
-## Running the tests
+Either way, the testbed then runs from the clone:
 
 ```bash
 uv run box2d-testbed
+```
+
+## Running the tests
+
+```bash
 uv run pytest
 uv run pytest -m gui   # 3 more, each opening a real window
 ```
 
-The `gui` tests are left out by default because they need a display. They are
-the only thing that exercises the OpenGL renderer and the imgui shell, so they
-matter on an imgui_bundle upgrade; on a machine without a display,
+The `gui` tests are left out by default because they need a display. The
+headless tests run the whole imgui shell on null backends, drawing through
+imgui, but the `gui` tests are the only ones that open a real window and draw
+with the OpenGL renderer, so they matter on an imgui_bundle upgrade. On a
+machine without a display,
 `xvfb-run -a uv run pytest -m gui` gives them one. The testbed's other tests
 skip when the `testbed` extra is not installed, which is how most of the CI
 matrix runs them.
@@ -53,12 +60,15 @@ runs the suite inside Pyodide. [`server/README.md`](server/README.md) and
 [`web/README.md`](web/README.md) cover what each needs.
 
 The desktop testbed hides the editor's **Share** and **Open link** buttons,
-since its scenarios are already files. To try them against a local server:
+since its scenarios are already files. To try them, start the sharing server
+locally first -- `npm run dev` in `server/`, after the setup
+[`server/README.md`](server/README.md) describes -- and point the testbed at
+it:
 
 ```bash
 BOX2D_TESTBED_SHARING=desktop \
 BOX2D_TESTBED_SERVER=http://127.0.0.1:8787 \
-box2d-testbed
+uv run box2d-testbed
 ```
 
 ## Lint, formatting and the docs
@@ -94,6 +104,8 @@ The examples are tests, so they cannot drift from the code unnoticed:
   run by `src/tests/test_doc_examples.py`. Each file's blocks run in order in
   one namespace, as a reader working down the page would run them, and a block
   written as a `>>>` session runs as a doctest, so its output is checked too.
+  The pages are listed in its `PAGES`, so a new page with Python on it is added
+  there.
 - In the docs, Python goes in a plain `.. code-block:: python`, with no options,
   so the test finds it; shell commands are `bash`, `console` or `text`.
 - A README block that cannot run under pytest, such as a session at the
@@ -115,8 +127,9 @@ The examples are tests, so they cannot drift from the code unnoticed:
 
 Some rules hold across the whole API, and a test holds each one:
 
-- Anywhere box2d-py takes a point, it accepts any vector-like -- tuple, list,
-  `Vec2` or a raw `b2Vec2` -- or the two components as separate scalars.
+- Anywhere box2d-py takes a point, it accepts any vector-like: a tuple, a list,
+  a `Vec2` or a raw `b2Vec2`. `Vec2` itself, and the body builder's `position`
+  and `linear_velocity`, also take the two components as separate scalars.
   `src/tests/test_point_conformance.py` tries every point-taking parameter with
   every form, and fails when a new one appears without being added to it.
 - Engine objects refuse attributes they do not define, so a misspelt property
@@ -133,9 +146,11 @@ Some rules hold across the whole API, and a test holds each one:
   after the test, and `random_left_as_it_was` for a test that seeds Python's
   `random`. It also points `BOX2D_TESTBED_SCENARIOS` at a temporary directory
   for the whole session, so no test reads or writes your own scenarios.
-- A test that needs the testbed starts with
-  `pytest.importorskip("imgui_bundle", reason="needs the testbed extra")`, and
-  one that opens a window is marked `gui`.
+- A test module that needs the testbed's imgui starts with
+  `pytest.importorskip("imgui_bundle", reason="needs the testbed extra")`. In
+  a module where only some tests need it, those few carry a `skipif` mark
+  instead, as `needs_gui_stack` does in `test_testbed.py`, so the rest still
+  run without the extra. A test that opens a window is marked `gui`.
 
 ### Shipped scenarios
 
