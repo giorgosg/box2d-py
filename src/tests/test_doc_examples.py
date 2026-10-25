@@ -30,6 +30,7 @@ GUIDES = [
     DOCS / "guides" / f"{name}.rst"
     for name in [
         "concepts",
+        "lifetime",
     ]
 ]
 #: Every page whose Python is run, the front page included.

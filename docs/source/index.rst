@@ -36,6 +36,7 @@ WebAssembly under Pyodide. It installs as ``box2d-python`` and imports as
    :caption: Guides
 
    guides/concepts
+   guides/lifetime
 
 .. toctree::
    :maxdepth: 2
