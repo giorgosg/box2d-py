@@ -172,6 +172,11 @@ def make_overlap_callback(
 
     @ffi.callback("bool(b2ShapeId, void*)")
     def overlap_callback(shape_id, _):
+        # Box2D searches its static, kinematic and dynamic trees in turn, and
+        # returning False ends only the one it is in. So the cap is checked
+        # before taking a shape too, or each later tree would add one more.
+        if max_results is not None and len(results) >= max_results:
+            return False
         try:
             results.append(require(shape_id))
         except Exception:

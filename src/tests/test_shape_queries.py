@@ -15,7 +15,7 @@ import math
 
 import pytest
 
-from box2d import MAX_PROXY_POINTS, ShapeProxy, Vec2, World
+from box2d import AABB, MAX_PROXY_POINTS, ShapeProxy, Vec2, World
 
 
 @pytest.fixture
@@ -107,6 +107,23 @@ def test_query_shape_respects_max_results(world):
         body = world.add_body(body_type="dynamic", position=(x * 2, 0))
         body.add_circle(radius=0.4)
     assert len(world.query_shape(ShapeProxy.box(40, 4), max_results=3)) == 3
+
+
+def test_max_results_holds_across_body_types(world):
+    """Box2D keeps static, kinematic and dynamic shapes in three trees and
+    searches them in turn, and stopping a query ends only the tree it is in.
+    So the cap has to hold across all three, for every overlap query."""
+    for body_type in ("static", "kinematic", "dynamic"):
+        for x in range(3):
+            body = world.add_body(body_type=body_type, position=(x * 2, 0))
+            body.add_circle(radius=0.4)
+    queries = [
+        lambda cap: world.query_aabb(AABB(lower=(-20, -20), upper=(20, 20)), None, cap),
+        lambda cap: world.query_circle((0, 0), 20, max_results=cap),
+        lambda cap: world.query_shape(ShapeProxy.box(40, 4), max_results=cap),
+    ]
+    for query in queries:
+        assert [len(query(cap)) for cap in (0, 1, 2, 4, None)] == [0, 1, 2, 4, 9]
 
 
 def test_query_circle_still_works_through_the_proxy(world, ground):
