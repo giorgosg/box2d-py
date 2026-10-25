@@ -45,6 +45,15 @@ WebAssembly under Pyodide. It installs as ``box2d-python`` and imports as
 
 .. toctree::
    :maxdepth: 2
+   :caption: Testbed
+
+   testbed/running
+   testbed/scenarios
+   testbed/console
+   testbed/browser
+
+.. toctree::
+   :maxdepth: 2
    :caption: Overviews
 
    glance/index
