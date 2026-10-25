@@ -133,8 +133,8 @@ instead, as it does for a step from inside a step:
     True
 
 The way to react to something that happens during a step is to note it, and
-act once ``step()`` has returned. Events are made for that, being read after
-the step: here, each crate that lands is removed.
+act once ``step()`` has returned. :doc:`events` are made for that, being read
+after the step: here, each crate that lands is removed.
 
 .. code-block:: python
 

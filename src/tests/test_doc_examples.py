@@ -31,6 +31,7 @@ GUIDES = [
     for name in [
         "concepts",
         "lifetime",
+        "events",
     ]
 ]
 #: Every page whose Python is run, the front page included.

@@ -99,7 +99,8 @@ A shape also has a surface: ``friction``, 0.6 by default, ``restitution``, or
 bounciness, 0 by default, and ``rolling_resistance``. All of them are keyword
 arguments wherever a shape is made, along with the rest of
 :class:`~box2d.shapedef.ShapeDef`. A shape made with ``is_sensor=True`` is a
-sensor: it reports what overlaps it and never collides.
+sensor: it reports what overlaps it and never collides, as :doc:`events`
+describes.
 
 Joints
 ------
