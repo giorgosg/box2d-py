@@ -325,7 +325,8 @@ Box2D's other diagnostics, such as a body going unstable, are logged to the
 ⚠️ Early development preview - API subject to change
 
 Built against Box2D's v3.2.0 release (`box2d.BOX2D_VERSION`); the `box2d`
-submodule is pinned to that tag.
+submodule is pinned to that tag. The binding's own version is
+`box2d.__version__`.
 
 Bound and covered by tests on Linux, macOS and Windows for Python 3.12, 3.13
 and 3.14, and in WebAssembly:

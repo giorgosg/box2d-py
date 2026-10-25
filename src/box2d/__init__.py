@@ -60,6 +60,12 @@ from .jointdef import (
 )
 from .lifetime import DestroyedError
 from ._checked import InvalidInputError
+from ._version import find_version as _find_version
+
+#: This binding's version, such as ``"0.2.0"``: the installed box2d-python
+#: package's. Box2D's own version is BOX2D_VERSION.
+__version__ = _find_version()
+del _find_version
 
 __all__ = [
     # world
