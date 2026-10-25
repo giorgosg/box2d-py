@@ -9,12 +9,16 @@ All of them describe the step that just finished. Reading does not consume
 them, so asking twice between steps gives the same answer, but the next step
 replaces them -- read them between steps rather than storing them.
 
-Events are opt-in per shape, and Box2D defaults them off:
+Events are opt-in per shape:
 
-- contact begin and end need ``enable_contact_events`` on both shapes
-- hit events need ``enable_hit_events``, and only fire above the world's
-  :attr:`.World.hit_event_threshold` approach speed
-- sensor overlap needs ``enable_sensor_events`` on the visiting shape
+- contact begin and end need ``enable_contact_events`` on at least one of the
+  two shapes; it defaults off
+- hit events need ``enable_hit_events`` on at least one of the two shapes, and
+  only fire above the world's :attr:`.World.hit_event_threshold` approach
+  speed; it defaults off
+- sensor overlap needs ``enable_sensor_events`` on both the sensor and the
+  visiting shape. Box2D defaults it off, but box2d-py's shape definitions
+  default it on.
 """
 
 import weakref
@@ -127,12 +131,12 @@ class ContactBeginEvent:
 class ContactEndEvent:
     """Two shapes stopped touching.
 
-    A shape destroyed while touching another produces an end event whose
-    shape is already gone, so check :attr:`.Shape.is_valid` before using them.
+    A shape destroyed while touching another produces an end event in which
+    that shape is None, so check for None before using either shape.
 
     Attributes:
-        shape_a: One of the shapes that were touching, possibly destroyed.
-        shape_b: The other shape, possibly destroyed.
+        shape_a: One of the shapes that were touching, or None if destroyed.
+        shape_b: The other shape, or None if destroyed.
         contact: The contact that ended, matching an earlier begin event.
     """
 
