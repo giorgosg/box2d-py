@@ -9,7 +9,7 @@ This page provides a structured overview of the Box2D math classes. The math mod
 - **Immutable objects**: Most classes (Vec2, Rot, Transform, AABB) are immutable - operations return new instances rather than modifying existing ones
 - **Vector-like compatibility**: Functions accepting vector arguments can take any iterable with 2 floats (tuples, lists, Vec2, etc.)
 - **Pythonic interfaces**: Classes support Python protocols like operators, iteration, and unpacking
-- **Box2D integration**: All classes provide seamless conversion to and from Box2D's native types
+- **Box2D integration**: Vec2, Rot, Transform, AABB and Mat22 convert to and from Box2D's native C types; ScaledTransform has no Box2D counterpart
 
 Vec2
 ----
@@ -52,7 +52,7 @@ Vector Operations
 * ``x, y = vec`` - Unpacking into components
 * ``tuple(vec)`` - Convert to tuple
 * ``list(vec)`` - Convert to list
-* ``normalize()`` - Normalize vector in-place
+* ``normalize()`` - Return a new unit vector in the same direction
 * ``dot(other)`` - Dot product
 * ``cross(other)`` - Cross product (scalar result)
 * ``cross_scalar(s, direction)`` - Cross product with scalar
@@ -132,8 +132,7 @@ Operations
 ^^^^^^^^^^
 
 * ``t(point)`` - Apply transform to point (calling the transform)
-* ``t * point`` - Apply transform to point (multiplication syntax)
-* ``t1 * t2`` - Compose transforms
+* ``t1 * t2`` - Compose transforms; ``*`` does not apply a transform to a point
 
 ScaledTransform
 ---------------
@@ -157,8 +156,7 @@ Properties
 Operations
 ^^^^^^^^^^
 
-* ``st(point)`` - Apply scaled transform to point (calling the transform)
-* ``st * point`` - Apply scaled transform to point (multiplication syntax)
+* ``st(point)`` - Apply scaled transform to point (calling the transform); ``st * point`` is not supported
 
 Mat22
 -----
@@ -190,7 +188,7 @@ Operations
 * ``m * v`` - Apply matrix to vector
 * ``m1 * m2`` - Matrix multiplication
 * ``transpose()`` - Get transposed matrix
-* ``solve(b)`` - Solve linear system A*x = b
+* ``solve(b)`` - Solve linear system A*x = b, with ``b`` a Vec2
 
 AABB
 ----
