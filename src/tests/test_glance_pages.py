@@ -13,15 +13,20 @@ pages stay complete as the classes grow, and accurate as they change:
   constructor;
 - a bullet written as a call is a call in the code too, with the same
   parameters in the same order and the same defaults. ``...`` ends the list
-  where the page leaves the rest out.
+  where the page leaves the rest out;
+- a dataclass field whose bullet says ``(default X)`` has X as its default;
+- every public class of the modules the pages cover is on one of them.
 
 A member is public if its name does not start with an underscore. For a
 dataclass, its fields count too, since one without a default is not a class
-attribute and so is missing from ``dir()``.
+attribute and so is missing from ``dir()``; so do the attributes a class's own
+``__init__`` sets on ``self``, which ``dir()`` cannot see either.
 """
 
+import ast
 import dataclasses
 import inspect
+import textwrap
 import math
 import re
 from pathlib import Path
@@ -29,6 +34,13 @@ from pathlib import Path
 import pytest
 
 import box2d
+import box2d.body
+import box2d.joint
+import box2d.jointdef
+import box2d.material
+import box2d.shape
+import box2d.shapedef
+import box2d.world
 from box2d import (
     Body,
     BodyBuilder,
@@ -124,6 +136,17 @@ PAGES = {
     ],
 }
 
+#: The modules whose every public class has to be on one of the pages.
+MODULES = [
+    box2d.world,
+    box2d.body,
+    box2d.shape,
+    box2d.shapedef,
+    box2d.material,
+    box2d.joint,
+    box2d.jointdef,
+]
+
 CASES = [(page, cls) for page, classes in PAGES.items() for cls in classes]
 
 
@@ -136,11 +159,31 @@ def _case_id(case):
 
 
 def public_members(cls):
-    """The public names on ``cls``, its dataclass fields included."""
+    """The public names on ``cls``, its dataclass fields included, and the
+    attributes its own ``__init__`` gives each instance."""
     names = {name for name in dir(cls) if not name.startswith("_")}
     if dataclasses.is_dataclass(cls):
         names |= {f.name for f in dataclasses.fields(cls)}
-    return names
+    names |= _instance_attributes(cls)
+    return {name for name in names if not name.startswith("_")}
+
+
+def _instance_attributes(cls):
+    """The names ``cls.__init__`` assigns on ``self``, such as a builder's
+    ``world``, which ``dir()`` of the class cannot see."""
+    init = vars(cls).get("__init__")
+    try:
+        source = textwrap.dedent(inspect.getsource(init))
+    except (OSError, TypeError):  # none of its own, or generated
+        return set()
+    return {
+        node.attr
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.ctx, ast.Store)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    }
 
 
 def documented_members(cls):
@@ -155,9 +198,13 @@ def documented_members(cls):
     for name in public_members(cls) & inherited:
         if name not in vars(cls):
             continue
-        base = next(b for b in cls.__mro__[1:] if hasattr(b, name))
+        base = next((b for b in cls.__mro__[1:] if hasattr(b, name)), None)
+        if base is None:  # a dataclass field or instance attribute of a base
+            continue
         ours, theirs = _signature(cls, name), _signature(base, name)
-        if ours is not None and theirs is not None and ours != theirs:
+        # Compared as the page writes them, so a changed annotation alone
+        # does not make an override its own member.
+        if ours is not None and theirs is not None and _tokens(ours) != _tokens(theirs):
             required.add(name)
     return required
 
@@ -300,7 +347,9 @@ def _defaults_match(written, actual):
         value = eval(written, dict(_NAMES))  # noqa: S307 -- our own docs
     except Exception:
         return False
-    if isinstance(actual, (int, float)) and not isinstance(actual, bool):
+    if isinstance(actual, bool) or isinstance(value, bool):
+        return type(value) is type(actual) and value == actual
+    if isinstance(actual, (int, float)):
         return isinstance(value, (int, float)) and math.isclose(
             value, actual, rel_tol=1e-6
         )
@@ -387,6 +436,64 @@ def test_every_call_matches_the_code(case):
     assert not problems, f"{page}, {cls.__name__}:\n" + "\n".join(problems)
 
 
+_PROSE_DEFAULT = re.compile(r"\(default (?P<value>\([^()]*\)|[^();]+)[;)]")
+
+
+def prose_defaults(section):
+    """``(name, written default)`` for each bullet whose text says
+    ``(default X)``, as ``* ``friction`` - ... (default 0.6)`` does."""
+    found = []
+    for match in _BULLET.finditer(section):
+        # The bullet's text runs to the next bullet or the next blank line.
+        ends = [section.find(mark, match.end()) for mark in ("\n* ", "\n\n")]
+        end = min((end for end in ends if end >= 0), default=len(section))
+        text = section[match.end() : end]
+        default = _PROSE_DEFAULT.search(text)
+        if default:
+            for literal in _LITERAL.findall(match["lead"]):
+                if "(" not in literal:
+                    found.append((literal.rsplit(".", 1)[-1], default["value"]))
+    return found
+
+
+@pytest.mark.parametrize(
+    "case",
+    [case for case in CASES if dataclasses.is_dataclass(case[1])],
+    ids=_case_id,
+)
+def test_every_stated_default_matches_the_field(case):
+    """A field's ``(default X)`` is its default in the code.
+
+    A field whose default is None is skipped: None leaves the choice to the
+    joint or to Box2D, and the page states the value that results.
+    """
+    page, cls = case
+    defaults = {f.name: f.default for f in dataclasses.fields(cls)}
+    problems = [
+        f"{name}: the page says {written}, the code {defaults[name]!r}"
+        for name, written in prose_defaults(_section(page, cls))
+        if name in defaults
+        and defaults[name] is not None
+        and not _defaults_match(written, defaults[name])
+    ]
+    assert not problems, f"{page}, {cls.__name__}:\n" + "\n".join(problems)
+
+
+def test_every_class_is_on_a_page():
+    """A new joint, shape, definition or the like is added to PAGES."""
+    covered = {cls for classes in PAGES.values() for cls in classes}
+    missing = sorted(
+        f"{module.__name__}.{name}"
+        for module in MODULES
+        for name, value in vars(module).items()
+        if inspect.isclass(value)
+        and value.__module__ == module.__name__
+        and not name.startswith("_")
+        and value not in covered
+    )
+    assert not missing, f"on no overview page: {missing}"
+
+
 def test_every_page_is_checked():
     """A new overview page is added to PAGES, or it goes unchecked."""
     pages = {path.name for path in GLANCE.glob("*_glance.rst")}
@@ -455,7 +562,7 @@ def test_an_override_with_new_parameters_is_its_own_member():
         def make(self, a, b):
             pass
 
-        def keep(self, a):
+        def keep(self, a: int) -> None:  # annotated, but called the same way
             pass
 
     assert documented_members(Derived) == {"make"}
@@ -466,3 +573,33 @@ def test_defaults_are_compared_as_values():
     assert _defaults_match("(0, 0)", box2d.Vec2(0, 0))
     assert not _defaults_match("1", 0.0)
     assert _defaults_match("None", None)
+    assert not _defaults_match("1", True)
+    assert not _defaults_match("True", 1)
+    assert _defaults_match("False", False)
+
+
+def test_a_bullets_stated_default_is_read():
+    section = """
+* ``friction`` - Friction (default 0.6)
+* ``axis`` - The axis (default (1, 0))
+* ``flag`` - A flag (default True; Box2D's is False)
+* ``vertex1``, ``vertex2`` - Ends,
+  wrapped (default None)
+* ``other`` - No default
+"""
+    assert prose_defaults(section) == [
+        ("friction", "0.6"),
+        ("axis", "(1, 0)"),
+        ("flag", "True"),
+        ("vertex1", "None"),
+        ("vertex2", "None"),
+    ]
+
+
+def test_init_attributes_are_members():
+    class Thing:
+        def __init__(self):
+            self.world = 1
+            self._hidden = 2
+
+    assert "world" in public_members(Thing) and "_hidden" not in public_members(Thing)

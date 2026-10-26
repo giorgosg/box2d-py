@@ -30,8 +30,9 @@ Lifetime and Identity
 * ``body.is_valid`` - Whether the body is still live, i.e. has not been destroyed
 * ``body.world`` - The world the body belongs to
 * ``body.user_data`` - Any Python object to keep with the body
-* ``body.name`` - Get/set a name, which debug draw can show, or None; Box2D
-  keeps only its first 10 characters
+* ``body.name`` - Get/set a name, which debug draw can show, or None. Box2D
+  keeps its first 10 bytes of UTF-8; a longer name is cut at the last whole
+  character that fits, with a warning when assigned
 * ``body.get_next_body()`` - The body after this one in ``world.bodies``, or None
 
 Type
@@ -140,8 +141,8 @@ Continuous Collision
 
 Box2D sweeps a fast body against static shapes so it cannot pass through them.
 
-* ``body.is_bullet`` - Get/set whether the body is swept against dynamic
-  bodies too, for something small and fast
+* ``body.is_bullet`` - Get/set whether the body is swept against kinematic
+  and dynamic bodies too, but not other bullets, for something small and fast
 * ``body.safety_factor`` - Get/set how far the body may move in a step, as a
   fraction of its ``min_extent``, before it is swept (default 0.5)
 * ``body.min_extent`` - The least distance from the centre of mass to the edge of the shapes
@@ -184,7 +185,7 @@ Simulation
 * ``builder.enabled(enabled=True)`` - False to build the body disabled, out of the simulation
 * ``builder.enable_sleep(enable)`` - Whether the body may fall asleep
 * ``builder.sleep_threshold(threshold)`` - The speed below which it may fall asleep (m/s)
-* ``builder.bullet(bullet=True)`` - Sweep the body against dynamic bodies too
+* ``builder.bullet(bullet=True)`` - Sweep the body against kinematic and dynamic bodies too, but not other bullets
 * ``builder.safety_factor(factor)`` - The continuous collision safety factor; see ``body.safety_factor``
 * ``builder.allow_fast_rotation(allow=True)`` - Lift Box2D's cap on rotation speed, for wheels and other round things
 * ``builder.enable_contact_recycling(enable=True)`` - Whether the body's contacts may be reused between steps
@@ -192,7 +193,7 @@ Simulation
 Identity
 ^^^^^^^^
 
-* ``builder.name(name)`` - A name, which debug draw can show
+* ``builder.name(name)`` - A name, which debug draw can show; Box2D keeps its first 10 bytes of UTF-8
 * ``builder.user_data(data)`` - Any Python object to keep with the body
 
 Shapes
@@ -211,6 +212,7 @@ Building
 ^^^^^^^^
 
 * ``builder.build()`` - Make the body, with its shapes, and return it
+* ``builder.world`` - The world the builder makes bodies in
 * ``BodyBuilder.extend(func)`` - Decorator adding ``func`` to every builder as a
   method, which should return the builder so calls still chain
 

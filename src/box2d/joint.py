@@ -1099,9 +1099,12 @@ class WheelJoint(Joint):
             enable_motor (bool): Enable the joint motor
             target_motor_speed (float): Motor speed in radians/second
             max_motor_torque (float): Maximum motor torque in newton-metres
-            enable_spring (bool): Enable spring behavior
-            spring_hertz (float): Spring frequency in Hz
-            spring_damping_ratio (float): Spring damping ratio
+            enable_spring (bool): Enable spring behavior. Off by default,
+                where Box2D's wheel joint has it on.
+            spring_hertz (float): Spring frequency in Hz. 0 by default, where
+                Box2D's is 1.
+            spring_damping_ratio (float): Spring damping ratio. 0 by default,
+                where Box2D's is 0.7.
 
         Raises:
             ValueError: If lower_limit is above upper_limit.
@@ -1267,7 +1270,8 @@ class DistanceJoint(Joint):
             local_anchor_a (tuple): Local anchor point on body A (x,y)
             local_anchor_b (tuple): Local anchor point on body B (x,y)
             collide_connected (bool): Whether bodies can collide
-            rest_length (float): Rest length. Calculated from anchors if None.
+            rest_length (float): Rest length. If None, Box2D's default of
+                1 m, whatever the distance between the anchors.
             lower_limit (float): Shortest allowed length when using limits
             upper_limit (float): Longest allowed length when using limits
             enable_limit (bool): Whether to enable length limits
