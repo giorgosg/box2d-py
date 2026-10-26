@@ -3,7 +3,7 @@ from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .joint import Joint
 from typing import TYPE_CHECKING, Sequence, List
-from .dataclasses import MassData, ContactData, BodyDef
+from .dataclasses import MassData, ContactData, BodyDef, _NAME_LENGTH, _name_bytes
 from .accessors import b2_bool, b2_float, b2_value
 from .lifetime import IdRef, raw_id, is_live, join_world
 from ._fixed_attributes import FixedAttributes
@@ -202,7 +202,8 @@ class BodyBuilder:
         """Give the body a name, which debug draw can show.
 
         Args:
-            name: Up to 31 characters
+            name: Box2D keeps its first 10 bytes of UTF-8, cut at the last
+                whole character that fits
         Returns:
             The builder instance
         """
@@ -1413,17 +1414,23 @@ class Body(FixedAttributes):
         """Set the name of the body.
 
         Args:
-            value: The name to set for the body. Limited to 31 characters.
+            value: The name to set for the body. Box2D keeps its first 10
+                bytes of UTF-8; a longer name is cut at the last whole
+                character that fits, with a warning.
         """
         if value is None:
             lib.b2Body_SetName(self._body_id, ffi.NULL)
         else:
-            if len(value) > 31:
+            encoded, cut = _name_bytes(value)
+            if cut:
                 import warnings
 
-                warnings.warn("Body name truncated to 31 characters", stacklevel=2)
-                value = value[:31]
-            lib.b2Body_SetName(self._body_id, value.encode("utf-8"))
+                warnings.warn(
+                    f"Body name cut to Box2D's {_NAME_LENGTH} bytes: "
+                    f"{encoded.decode('utf-8')!r}",
+                    stacklevel=2,
+                )
+            lib.b2Body_SetName(self._body_id, encoded)
 
     def get_next_body(self):
         """Get the next body in the world's body list.

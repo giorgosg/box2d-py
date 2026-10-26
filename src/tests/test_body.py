@@ -571,3 +571,32 @@ def test_recycled_contacts_are_counted():
 
     assert recycled > 0, "a box resting on the ground should reuse its contacts"
     world.destroy()
+
+
+def test_a_long_name_keeps_box2ds_ten_bytes():
+    """Box2D keeps B2_NAME_LENGTH (10) bytes of a name, whichever way it is set."""
+    world = World()
+    built = world.new_body().name("abcdefghijklmnop").build()
+    added = world.add_body(name="abcdefghijklmnop")
+    assigned = world.add_body()
+    with pytest.warns(UserWarning, match="10 bytes"):
+        assigned.name = "abcdefghijklmnop"
+    assert built.name == added.name == assigned.name == "abcdefghij"
+
+
+def test_a_name_that_fits_is_kept_whole_without_a_warning(recwarn):
+    body = World().add_body()
+    body.name = "ten bytes!"
+    assert body.name == "ten bytes!"
+    assert not recwarn.list
+
+
+def test_a_long_name_is_not_cut_inside_a_character():
+    """'a' and four 'é' are 9 bytes, and a fifth 'é' would need 11, so it is
+    left out whole rather than split, which made the name unreadable."""
+    world = World()
+    built = world.new_body().name("aéééééé").build()
+    assigned = world.add_body()
+    with pytest.warns(UserWarning):
+        assigned.name = "aéééééé"
+    assert built.name == assigned.name == "aéééé"

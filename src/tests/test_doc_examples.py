@@ -200,6 +200,9 @@ def test_the_blocks_are_found():
     """A change of fence or directive must not leave nothing to run."""
     assert len(markdown_blocks(README)) == 3
     assert sum(len(rst_blocks(path)) for path in GLANCE) >= 3
+    # Every overview of a class has an example; the math page lists only.
+    overviews = [path for path in GLANCE if path.stem.endswith("_glance")]
+    assert all(rst_blocks(path) for path in overviews if path.stem != "math_glance")
     assert len(rst_blocks(INSTALL)) >= 2
     assert len(rst_blocks(QUICKSTART)) >= 8
     assert all(rst_blocks(path) for path in GUIDES)

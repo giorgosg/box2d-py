@@ -193,6 +193,11 @@ class PrismaticJointDef(JointDef):
 class WheelJointDef(JointDef):
     """A sliding axis with a spring, as between a chassis and a wheel.
 
+    A field left None takes the wheel joint's own default, not Box2D's: the
+    spring is off, at 0 Hz and a damping ratio of 0, where Box2D's wheel joint
+    starts with it on at 1 Hz and 0.7. Turning the spring on needs a
+    spring_hertz above zero too, or the wheel slides freely along the axis.
+
     Attributes:
         axis: The suspension axis, in body_a's local coordinates. Defaults to (1, 0).
         enable_limit: Whether the translation limits are enforced.
@@ -224,7 +229,8 @@ class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
     Attributes:
-        rest_length: The rest length between the anchors.
+        rest_length: The rest length between the anchors. Box2D's default
+            is 1 m, not the anchors' distance apart.
         lower_limit: Lower length limit.
         upper_limit: Upper length limit.
         enable_limit: Whether the length limits are enforced.
