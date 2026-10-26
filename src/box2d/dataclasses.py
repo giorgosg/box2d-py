@@ -7,6 +7,23 @@ from ._checked import lib, ffi
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .shape import Shape
 
+#: How many bytes of a body's name Box2D keeps: B2_NAME_LENGTH in its
+#: constants.h, which the compiled module does not expose.
+_NAME_LENGTH = 10
+
+
+def _name_bytes(name: str) -> tuple[bytes, bool]:
+    """A body name as the UTF-8 bytes Box2D will keep, and whether it was cut.
+
+    Box2D copies at most _NAME_LENGTH bytes, which can end partway through a
+    character and leave a name that no longer decodes. Cutting here, at the
+    last whole character that fits, keeps the name readable.
+    """
+    encoded = name.encode("utf-8")
+    if len(encoded) <= _NAME_LENGTH:
+        return encoded, False
+    return encoded[:_NAME_LENGTH].decode("utf-8", "ignore").encode("utf-8"), True
+
 
 @dataclass
 class MassData:
@@ -243,7 +260,8 @@ class BodyDef:
         sleep_threshold: Sleep speed threshold, default is 0.05 meters per second.
         safety_factor: Continuous collision safety factor. See
             :attr:`.Body.safety_factor`. Default 0.5.
-        name: Optional body name for debugging (up to 31 characters).
+        name: Optional body name for debugging. Box2D keeps its first 10 bytes
+            of UTF-8; a longer one is cut at the last whole character that fits.
         user_data: Application specific body data.
         enable_sleep: Set to false if this body should never fall asleep.
         is_awake: Is this body initially awake or sleeping?
@@ -307,7 +325,7 @@ class BodyDef:
 
         if self.name is not None:
             # Need to keep a reference to the C string
-            self._name_string = ffi.new("char[]", self.name.encode("utf-8"))
+            self._name_string = ffi.new("char[]", _name_bytes(self.name)[0])
             body_def.name = self._name_string
 
         # user_data is deliberately not written here: Box2D's userData is a

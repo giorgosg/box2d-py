@@ -435,7 +435,8 @@ class World(FixedAttributes):
             sleep_threshold: Sleep speed threshold in meters per second.
             safety_factor: Continuous collision safety factor, from 0.01 to
                 0.5. See :attr:`.Body.safety_factor`.
-            name: Optional name for debugging, up to 31 characters.
+            name: Optional name for debugging. Box2D keeps its first 10 bytes
+                of UTF-8, cut at the last whole character that fits.
             user_data: Any Python object to associate with the body. Readable
                 afterwards as ``body.user_data``.
             enable_sleep: False if this body should never fall asleep.
