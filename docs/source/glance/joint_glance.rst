@@ -220,12 +220,12 @@ WheelJoint
 ----------
 
 A sliding axis with a spring, fixed in body_a, about which body_b turns
-freely: a wheel on its suspension. Unlike Box2D's, its spring is off unless it
-is set: ``enable_spring`` False, at 0 Hz and a damping ratio of 0.
+freely: a wheel on its suspension. As in Box2D, the spring is on unless it is
+turned off, at 1 Hz and a damping ratio of 0.7.
 
-* ``wheel.enable_spring`` - Get/set whether the suspension spring is active (default False)
-* ``wheel.spring_hertz`` - Get/set the suspension's frequency (Hz, default 0); the spring does nothing at 0
-* ``wheel.spring_damping_ratio`` - Get/set the suspension's damping ratio (default 0)
+* ``wheel.enable_spring`` - Get/set whether the suspension spring is active (default True)
+* ``wheel.spring_hertz`` - Get/set the suspension's frequency (Hz, default 1); the spring does nothing at 0
+* ``wheel.spring_damping_ratio`` - Get/set the suspension's damping ratio (default 0.7)
 * ``wheel.enable_limit`` - Get/set whether the translation limits are enforced
 * ``wheel.lower_limit``, ``wheel.upper_limit`` - Get/set the translation limits along the axis (m)
 * ``wheel.set_limits(lower, upper)`` - Set both limits at once
@@ -240,8 +240,8 @@ JointDef
 The fields every definition but ``MouseJointDef`` shares, before its own.
 Definitions have slots, so assigning a field one does not have raises
 ``AttributeError``. A field left None takes Box2D's own default, but for
-two: a wheel joint's spring is off unless set (see ``WheelJointDef``), and a
-pogo's normal points straight up.
+one: a pogo's normal points straight up, where Box2D's is a zero vector the
+spring cannot push along.
 
 * ``JointDef(body_a, body_b, local_anchor_a=None, local_anchor_b=None, anchor=None, collide_connected=False)`` - The shared fields, in order
 * ``body_a``, ``body_b`` - The two bodies to connect
@@ -362,16 +362,14 @@ WeldJointDef
 WheelJointDef
 -------------
 
-The spring is the one place a definition does not take Box2D's default: left
-unset, ``enable_spring`` is False and ``spring_hertz`` and
-``spring_damping_ratio`` are 0, where Box2D's wheel joint starts sprung at
-1 Hz and 0.7. A spring turned on needs a ``spring_hertz`` above 0 as well, or
-the wheel slides freely along its axis.
+Left unset, the suspension is sprung as Box2D's is, at 1 Hz and a damping
+ratio of 0.7. With the spring off, or at 0 Hz, nothing but the limits holds
+the wheel along its axis.
 
 * ``WheelJointDef(body_a, body_b, ...)`` - The shared fields, then these
 * ``axis`` - The suspension axis, in body_a's coordinates (default (1, 0))
-* ``enable_spring`` - Make the suspension springy (default False)
-* ``spring_hertz``, ``spring_damping_ratio`` - The suspension's frequency and damping ratio (default 0)
+* ``enable_spring`` - Make the suspension springy (default True)
+* ``spring_hertz``, ``spring_damping_ratio`` - The suspension's frequency and damping ratio (default 1 Hz and 0.7)
 * ``enable_limit`` - Enforce the translation limits
 * ``lower_limit``, ``upper_limit`` - The translation limits along the axis
 * ``enable_motor`` - Spin the wheel with the motor
