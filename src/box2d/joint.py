@@ -59,8 +59,8 @@ def _distance_bounds():
     linear slop (0.005 m) and at most B2_HUGE (100 km).
     """
     floor = float(ffi.cast("float", 0.005 * lib.b2GetLengthUnitsPerMeter()))
-    cap = lib.b2DefaultDistanceJointDef().maxLength  # B2_HUGE
-    return floor, cap
+    default = lib.b2DefaultDistanceJointDef()
+    return floor, default.maxLength  # B2_HUGE
 
 
 def _distance_limits(lower, upper):
