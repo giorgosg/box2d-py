@@ -906,6 +906,209 @@ def test_a_hook_that_raises_is_reported_once_and_then_left_alone(scenario_dir):
     assert seen["scene"] == 1, "and the scene it built is still there to look at"
 
 
+@pytest.fixture
+def raises_on_input(scenario_dir):
+    """A scenario that raises from every input handler and from its control,
+    and from setup once ``fail_setup`` is set -- which Reset then runs again.
+
+    Declared here rather than at module level, where declaring it would
+    register it for every other test in the process to open.
+    """
+    from box2d_testbed.base_test import BaseTest, UI
+
+    class RaisesOnInput(BaseTest, category="_Raises", name="Raises On Input"):
+        explode = UI.button("Explode")
+        fail_setup = False
+
+        def setup(self):
+            self.world.new_body().static().segment((-5, 0), (5, 0)).build()
+            if RaisesOnInput.fail_setup:
+                raise ValueError("bad rebuild")
+
+        def on_key_down(self, key):
+            # Not every key: R reaches the scenario as well as resetting it.
+            if key == "a":
+                raise ValueError(f"bad key {key}")
+
+        def on_mouse_down(self, pos):
+            raise ValueError("bad click")
+
+        @explode.callback
+        def on_explode(self, key, value):
+            raise ValueError("bad control")
+
+    return RaisesOnInput
+
+
+def open_in_front(app, cls):
+    """Open ``cls``, with the Simulation tab in front to take the input.
+
+    Call it on the second frame or later. On the first, the layout being
+    loaded wins: in a second run in the same process the Simulation tab then
+    stays behind and its window -- which delivers the input -- is not drawn.
+    """
+    from box2d_testbed.testbed_state import state
+
+    state.current_test_cls = cls
+    app.simulation.init_test()
+    app.runner_params.docking_params.focus_dockable_window("Simulation")
+
+
+def test_a_key_handler_that_raises_does_not_take_the_app_down(raises_on_input):
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed_state import state
+
+    seen = {}
+
+    def script(app, frame):
+        io = imgui.get_io()
+        if frame == 2:
+            open_in_front(app, raises_on_input)
+        elif frame == 4:
+            io.add_key_event(imgui.Key.a, True)
+        elif frame == 5:
+            io.add_key_event(imgui.Key.a, False)
+        elif frame == 8:
+            seen["error"] = state.scenario_error
+            seen["set_aside"] = app.simulation.is_set_aside("on_key_down")
+
+    frames, _ = run_headless(10, script)
+
+    assert frames >= 10, "the window survived a key handler that raised"
+    assert "ValueError: bad key a" in seen["error"]
+    assert seen["set_aside"]
+
+
+def test_a_mouse_handler_that_raises_does_not_take_the_app_down(raises_on_input):
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed_state import state
+
+    seen = {}
+
+    def script(app, frame):
+        io = imgui.get_io()
+        if frame == 2:
+            open_in_front(app, raises_on_input)
+        elif frame == 4:
+            window = imgui.internal.find_window_by_name("Simulation")
+            io.add_mouse_pos_event(window.pos.x + 80, window.pos.y + 80)
+        elif frame == 5:
+            io.add_mouse_button_event(0, True)
+        elif frame == 6:
+            io.add_mouse_button_event(0, False)
+        elif frame == 9:
+            seen["error"] = state.scenario_error
+
+    frames, _ = run_headless(11, script)
+
+    assert frames >= 11, "the window survived a mouse handler that raised"
+    assert "ValueError: bad click" in seen["error"]
+
+
+def test_a_control_that_raises_is_reported_and_greyed_out_in_its_panel(
+    bare_imgui, raises_on_input, monkeypatch
+):
+    """Clicked in the scenario's panel, a control whose callback raises is
+    reported there and greyed out, rather than closing the app.
+
+    Driven in imgui frames of its own, as the status test is: a second
+    run_headless in the same process draws the scenario's panel once at most.
+    """
+    import box2d_testbed.testbed as testbed_module
+    from box2d_testbed.testbed_simulation import TestbedSimulation
+    from box2d_testbed.testbed_state import state
+
+    imgui = bare_imgui
+    for name in ("current_test_obj", "scenario_error", "center", "scale"):
+        monkeypatch.setattr(state, name, getattr(state, name))
+    monkeypatch.setattr(state, "current_test_cls", raises_on_input)
+
+    # The simulation without a renderer or the user's scenarios.
+    simulation = TestbedSimulation.__new__(TestbedSimulation)
+    simulation.world = simulation._applied_settings = simulation.debug_draw = None
+    simulation.init_test()
+    app = testbed_module.TestbedApp.__new__(testbed_module.TestbedApp)
+    app.simulation = simulation
+
+    clicked = {"label": None}
+    disabled = []
+    real_button, real_begin_disabled = imgui.button, imgui.begin_disabled
+
+    def button(label, *args):
+        return real_button(label, *args) or label == clicked["label"]
+
+    def begin_disabled(flag=True):
+        disabled.append(flag)
+        real_begin_disabled(flag)
+
+    monkeypatch.setattr(testbed_module.imgui, "button", button)
+    monkeypatch.setattr(testbed_module.imgui, "begin_disabled", begin_disabled)
+
+    def draw_panel():
+        imgui.new_frame()
+        imgui.begin("Panel")
+        try:
+            app.render_test_ui()
+        finally:
+            imgui.end()
+            imgui.end_frame()
+
+    try:
+        clicked["label"] = "Explode"
+        draw_panel()
+        assert "ValueError: bad control" in state.scenario_error
+        assert simulation.is_set_aside("explode")
+
+        clicked["label"] = None
+        disabled.clear()
+        draw_panel()
+        # Reset, Reset View, then Explode, greyed out.
+        assert disabled == [False, False, True]
+    finally:
+        simulation.world.destroy()
+
+
+def test_a_rebuild_that_raises_does_not_take_the_app_down(raises_on_input):
+    """R runs setup again, as Reset does; a setup that raises then is reported
+    in the panel, and R again tries once more."""
+    from imgui_bundle import imgui
+
+    from box2d_testbed.testbed_state import state
+
+    seen = {}
+
+    def press_r(io, frame, at):
+        if frame == at:
+            io.add_key_event(imgui.Key.r, True)
+        elif frame == at + 1:
+            io.add_key_event(imgui.Key.r, False)
+
+    def script(app, frame):
+        io = imgui.get_io()
+        if frame == 2:
+            open_in_front(app, raises_on_input)
+            raises_on_input.fail_setup = True
+        press_r(io, frame, 4)
+        if frame == 8:
+            seen["error"] = state.scenario_error
+            seen["object"] = state.current_test_obj
+            raises_on_input.fail_setup = False
+        press_r(io, frame, 10)
+        if frame == 14:
+            seen["recovered"] = state.scenario_error
+            seen["bodies"] = body_count(app)
+
+    frames, _ = run_headless(16, script)
+
+    assert frames >= 16, "the window survived a rebuild that raised"
+    assert "ValueError: bad rebuild" in seen["error"]
+    assert seen["object"] is not None, "still open, so R can try again"
+    assert seen["recovered"] is None
+    assert seen["bodies"] == 1
+
+
 def test_the_editor_and_console_panels_draw(scenario_dir):
     """Both panels, drawn by the real app for real frames.
 

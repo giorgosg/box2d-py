@@ -127,7 +127,9 @@ class Drop(BaseTest, category="Bodies", name="Drop"):
 files in a directory of your own, which the **Editor** tab, beside the
 simulation, edits: `Ctrl+S` saves the file, runs it, and puts its scenario on
 screen, with nothing restarted. **Fork** copies any scenario, the shipped
-ones included, into a file of your own to change.
+ones included, into a file of your own to change. A scenario that raises, while
+building or from any of its methods or controls, has the traceback shown in its
+panel rather than closing the window.
 [Writing scenarios](https://box2d-py.readthedocs.io/en/latest/testbed/scenarios.html) covers all of it.
 
 ### The console

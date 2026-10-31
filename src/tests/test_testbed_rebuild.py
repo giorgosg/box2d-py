@@ -266,3 +266,191 @@ def test_reset_in_the_testbed_makes_the_world_with_the_panels_settings(simulatio
     # Ragdoll's setup stiffens the contacts; the new world gets that from
     # setup running again.
     assert world.contact_hertz == pytest.approx(240.0)
+
+
+# --- what a scenario raises, in the testbed ---------------------------------
+
+
+@pytest.fixture
+def open_scenario(simulation):
+    """Open a scenario class in the testbed; its registration goes after."""
+
+    def open_(cls):
+        state.current_test_cls = cls
+        simulation.init_test()
+        assert simulation.current_test_obj is not None, state.scenario_error
+        return simulation.current_test_obj
+
+    yield open_
+    BaseTest.registry.pop("_Raises", None)
+
+
+INPUT_HANDLERS = [
+    ("on_key_down", ("a",)),
+    ("on_key_up", ("a",)),
+    ("on_mouse_down", ((0.0, 0.0),)),
+    ("on_mouse_drag", ((0.0, 0.0), (1.0, 0.0))),
+    ("on_mouse_release", ((0.0, 0.0),)),
+]
+
+
+@pytest.mark.parametrize("handler, args", INPUT_HANDLERS)
+def test_an_input_handler_that_raises_is_reported_and_set_aside(
+    simulation, open_scenario, handler, args
+):
+    """As a per-frame hook is: once, in the panel, and not again until Reset."""
+    calls = []
+
+    def raising(self, *args):
+        calls.append(args)
+        raise ValueError(f"bad {handler}")
+
+    cls = type(
+        "Handles",
+        (BaseTest,),
+        {"setup": lambda self: None, handler: raising},
+        category="_Raises",
+        name="Handles",
+    )
+    test = open_scenario(cls)
+
+    simulation.run_hook(handler, *args)
+    simulation.run_hook(handler, *args)
+
+    assert len(calls) == 1, "set aside after raising"
+    assert f"ValueError: bad {handler}" in state.scenario_error
+    assert simulation.is_set_aside(handler)
+    assert state.current_test_obj is test, "and the scenario carries on"
+
+    simulation.press("reset")
+    assert state.scenario_error is None
+    simulation.run_hook(handler, *args)
+    assert len(calls) == 2, "a rebuilt scene gives it another go"
+
+
+def test_a_view_that_raises_leaves_the_scenario_open(simulation, open_scenario):
+    """view() frames the scenario as it opens, and on Home: a scenario can
+    override it, and one that raises is reported, as the hooks are."""
+
+    class Unframed(BaseTest, category="_Raises", name="Unframed"):
+        def setup(self):
+            pass
+
+        def view(self):
+            raise ValueError("bad view")
+
+    test = open_scenario(Unframed)
+
+    assert "ValueError: bad view" in state.scenario_error
+    assert state.current_test_obj is test
+    simulation.reset_view()  # Home: set aside, so nothing more is raised
+
+
+def test_a_control_callback_that_raises_is_reported_and_greyed_out(
+    simulation, open_scenario
+):
+    from box2d_testbed.ui import UI
+
+    class Controlled(BaseTest, category="_Raises", name="Controlled"):
+        count = UI.int(1, 0, 10)
+        other = UI.bool(False)
+        seen = []
+
+        def setup(self):
+            pass
+
+        @count.callback
+        def on_count(self, key, value):
+            raise ValueError("bad count")
+
+        @other.callback
+        def on_other(self, key, value):
+            Controlled.seen.append(value)
+
+    test = open_scenario(Controlled)
+
+    simulation.set_control("count", 3)
+
+    assert "ValueError: bad count" in state.scenario_error
+    assert test.count == 3, "the value was taken before the callback raised"
+    assert simulation.is_set_aside("count"), "so the panel greys it out"
+    simulation.set_control("count", 4)
+    assert test.count == 3, "and nothing reaches it while it is"
+
+    simulation.set_control("other", True)
+    assert Controlled.seen == [True], "the other controls still work"
+
+    simulation.press("reset")
+    assert not simulation.is_set_aside("count")
+    assert state.scenario_error is None
+
+
+@pytest.fixture
+def setup_fails(open_scenario):
+    """A scenario open in the testbed that built once and now raises on every
+    rebuild, until its ``fail`` is cleared. Declared here, as the others are,
+    so it is registered only while the test runs."""
+    from box2d_testbed.ui import UI
+
+    class SetupFails(BaseTest, category="_Raises", name="Setup Fails"):
+        builds = 0
+        fail = False
+        hook_calls = 0
+        rebuild_now = UI.button("Rebuild")
+
+        def setup(self):
+            SetupFails.builds += 1
+            self.world.new_body().dynamic().circle(0.5).build()
+            if SetupFails.fail:
+                raise ValueError("bad rebuild")
+            self.ready = True
+
+        @rebuild_now.callback
+        def on_rebuild_now(self, key, value):
+            self.rebuild()
+
+        def after_step(self, dt):
+            SetupFails.hook_calls += 1
+            self.ready  # what setup had yet to build when it raised
+
+        status = on_key_down = after_step
+
+    test = open_scenario(SetupFails)
+    SetupFails.fail = True
+    SetupFails.hook_calls = 0
+    return test
+
+
+@pytest.mark.parametrize("button", ["reset", "rebuild_now"])
+def test_a_rebuild_that_raises_is_reported_and_reset_tries_again(
+    simulation, setup_fails, button
+):
+    """Reported in the panel as a failed first build is, but the scenario
+    stays open, with its controls, so Reset can build it again."""
+    test = setup_fails
+    SetupFails = type(test)
+
+    simulation.press(button)
+
+    assert "ValueError: bad rebuild" in state.scenario_error
+    assert state.current_test_obj is test, "still there to press Reset on"
+    assert test.world is simulation.world and simulation.world.is_valid
+    assert not simulation.is_set_aside(button), "the failure is setup's"
+
+    # The hooks would see a scene setup did not finish; they wait for one
+    # that it did, and the build's traceback is not replaced by theirs.
+    simulation.update_physics()
+    simulation.status_lines()
+    simulation.run_hook("on_key_down", "a")
+    assert SetupFails.hook_calls == 0
+    assert "ValueError: bad rebuild" in state.scenario_error
+
+    simulation.press("reset")
+    assert SetupFails.builds == 3, "Reset tried again, and it raised again"
+    assert "ValueError: bad rebuild" in state.scenario_error
+
+    SetupFails.fail = False
+    simulation.press("reset")
+    assert state.scenario_error is None
+    simulation.update_physics()
+    assert SetupFails.hook_calls == 1, "a whole scene runs its hooks again"

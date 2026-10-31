@@ -145,35 +145,80 @@ class TestbedSimulation:
         world.contact_recycle_distance = state.contact_recycle_distance
 
     def reset_view(self):
-        """Point the camera at the current scenario."""
-        if self.current_test_obj is not None:
-            self.current_test_obj.apply_view()
+        """Point the camera at the current scenario.
 
-    def _run_hook(self, name, *args):
-        """Call one of the scenario's per-frame hooks.
+        Through run_hook, as it runs the scenario's view(), which it may
+        override.
+        """
+        self.run_hook("apply_view")
 
-        A hook that raises is not called again until the scenario is rebuilt.
-        Left to raise it would either take the app down or, once caught, print
-        a traceback per frame for as long as the window is open -- and the
-        scene is still worth looking at while the hook driving it is broken.
+    def run_hook(self, name, *args):
+        """Call one of the scenario's own methods: a per-frame hook like
+        after_step, or an input handler like on_key_down.
 
-        Returns what the hook returned, or None if it was not called.
+        A method that raises is not called again until the scenario is
+        rebuilt. Left to raise it would either take the app down or, once
+        caught, print a traceback per frame for as long as the window is open
+        -- and the scene is still worth looking at while the method driving it
+        is broken. None of them is called on a scene whose rebuild raised
+        halfway: they may rely on what setup had yet to build.
+
+        Returns what the method returned, or None if it was not called.
+        """
+        test = self.current_test_obj
+        if test is None or name in self._failed_hooks or _half_built(test):
+            return None
+        return self._guarded(test, name, getattr(test, name), *args)
+
+    def set_control(self, name, value):
+        """Set one of the scenario's controls, as its panel does.
+
+        The control's callbacks run as setting it runs them, and one that
+        raises is set aside as a hook is: the control is greyed out until the
+        scenario is rebuilt. Unlike the hooks, the controls are offered on a
+        half-built scene, since Reset is how it gets another go.
         """
         test = self.current_test_obj
         if test is None or name in self._failed_hooks:
-            return None
+            return
+        self._guarded(test, name, setattr, test, name, value)
+
+    def press(self, name):
+        """Press one of the scenario's buttons, as its panel does."""
+        test = self.current_test_obj
+        if test is not None:
+            self.set_control(name, (getattr(test, name) or 1) + 1)
+
+    def is_set_aside(self, name):
+        """Whether the hook or control ``name`` raised and is not being called."""
+        return name in self._failed_hooks
+
+    def _guarded(self, test, name, function, *args):
+        """Call ``function`` for ``test``'s ``name``, reporting what it raises.
+
+        What it raised goes in the scenario's panel and the terminal. Raised
+        by setup -- run again by Reset, or by whatever else rebuilt the scene
+        -- it is reported as a failed first build is, and nothing is set
+        aside, so Reset can try again. Raised by the method itself, that
+        method is set aside until the next rebuild.
+        """
         try:
-            return getattr(test, name)(*args)
+            return function(*args)
         except BaseException:
-            self._failed_hooks.add(name)
-            state.scenario_error = traceback.format_exc()
-            print(
-                f"{name} raised; not calling it again:\n{state.scenario_error}", end=""
-            )
+            # Read after the rebuild that may have raised has cleared the last
+            # one, so this is the error shown.
+            error = traceback.format_exc()
+            if _half_built(test):
+                print(f"rebuilding {test.name} failed:\n{error}", end="")
+            else:
+                self._failed_hooks.add(name)
+                print(f"{name} raised; not calling it again:\n{error}", end="")
+            state.scenario_error = error
+            return None
 
     def status_lines(self):
         """The scenario's status() as a list of lines, empty for none."""
-        status = self._run_hook("status")
+        status = self.run_hook("status")
         if status is None:
             return []
         if isinstance(status, str):
@@ -194,7 +239,7 @@ class TestbedSimulation:
         start = time.perf_counter()
         self.world.step(1 / state.hertz, state.substeps)
         elapsed = (time.perf_counter() - start) * 1000.0  # elapsed time in ms
-        self._run_hook("after_step", 1 / state.hertz)
+        self.run_hook("after_step", 1 / state.hertz)
         smoothing = state.perf.smoothing_avg
         state.perf.physics_ms = elapsed
         state.perf.physics_ms_avg *= smoothing
@@ -208,5 +253,11 @@ class TestbedSimulation:
     def draw(self):
         self.debug_draw.start_frame()
         self.world.draw(self.debug_draw)
-        self._run_hook("debug_draw", self.debug_draw)
+        self.run_hook("debug_draw", self.debug_draw)
         self.debug_draw.end_frame()
+
+
+def _half_built(test):
+    """Whether ``test``'s setup has run and not finished: it raised, so the
+    scene is whatever it built before that."""
+    return getattr(test, "_setup_started", False) and not test.is_set_up

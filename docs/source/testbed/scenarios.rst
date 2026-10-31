@@ -258,8 +258,8 @@ When something goes wrong
 -------------------------
 
 A scenario being edited is a scenario that breaks, and the editor holding the
-fix is inside the testbed, so the testbed catches the errors a scenario
-makes at the points it is most likely to make them:
+fix is inside the testbed, so the testbed catches what a scenario raises
+wherever it calls the scenario:
 
 - **A file that will not compile, or raises as it runs**, is reported in the
   editor: the message above the source, with the traceback in a collapsible
@@ -270,12 +270,19 @@ makes at the points it is most likely to make them:
   file, stops the scenario there: whatever it built before raising stays in
   the world, but none of the scenario's methods are called, and the
   traceback is in its panel and the terminal. Fix the file and run it again.
+- **A setup that raises when it runs again** -- by Reset or ``R``, or by a
+  control's callback calling ``rebuild`` -- is reported the same way, but
+  the scenario stays open with its controls, so Reset can try again. Until a
+  rebuild finishes, none of its other methods are called: they could rely on
+  something setup had yet to build.
 - **after_step, status or debug_draw raising** is reported once, in the
   scenario's panel and the terminal, and that one method is not called again
   until the scene is built again, by Reset or by running the file. The rest
   of the scenario carries on, so a broken status line neither stops the
   scene nor prints a traceback every frame.
-
-Other exceptions are not caught. One raised by a control's callback, by a key
-or mouse handler, or by ``setup`` when Reset or a callback runs it again,
-closes the testbed, with the traceback in the terminal.
+- **A key or mouse handler raising**, or ``view`` when the testbed frames
+  the scenario, is treated the same way: reported once, and not called again
+  until the scene is built again.
+- **A control's callback raising** is reported too, and the control is
+  greyed out until the scene is built again. Its new value was stored before
+  the callback ran, so setup reads it on the next build.
