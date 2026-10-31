@@ -183,17 +183,19 @@ class TestbedApp:
 
         # If a current test exists and the simulation window is hovered,
         # convert mouse coordinates to world coordinates and call test mouse events.
+        # The handlers go through the simulation, which reports what they
+        # raise in the scenario's panel rather than letting it close the app.
         if state.current_test_obj and imgui.is_window_hovered():
             mouse_pos = Vec2(io.mouse_pos.x, io.mouse_pos.y) - Vec2(pos.x, pos.y)
             world_pos = self.debug_draw.camera.convert_screen_to_world(mouse_pos)
             # Check left mouse button events.
             if io.mouse_clicked[0]:
-                state.current_test_obj.on_mouse_down(world_pos)
+                self.simulation.run_hook("on_mouse_down", world_pos)
             elif io.mouse_down[0]:
                 delta = Vec2(io.mouse_delta.x, io.mouse_delta.y)
-                state.current_test_obj.on_mouse_drag(world_pos, delta)
+                self.simulation.run_hook("on_mouse_drag", world_pos, delta)
             if io.mouse_released[0]:
-                state.current_test_obj.on_mouse_release(world_pos)
+                self.simulation.run_hook("on_mouse_release", world_pos)
 
         self.debug_draw.camera.set_view(state.center, state.scale, size.x, size.y)
 
@@ -263,13 +265,13 @@ class TestbedApp:
             if imgui.is_key_pressed(key, repeat=False):
                 action()
 
+        if self.simulation is None:
+            return
         for key_code, key_name in key_map.items():
             if imgui.is_key_pressed(key_code, repeat=False):
-                if state.current_test_obj:
-                    state.current_test_obj.on_key_down(key_name)
+                self.simulation.run_hook("on_key_down", key_name)
             if imgui.is_key_released(key_code):
-                if state.current_test_obj:
-                    state.current_test_obj.on_key_up(key_name)
+                self.simulation.run_hook("on_key_up", key_name)
 
     def update_physics_timer(self):
         if self.simulation is None:
@@ -367,7 +369,7 @@ class TestbedApp:
         return self._dockable_window(label, "RightPanel2", self.render_test_ui)
 
     def render_test_ui(self):
-        if state.current_test_cls is None:
+        if state.current_test_cls is None or self.simulation is None:
             return
         imgui.text(f"Test: {state.current_test_cls.name}")
         imgui.separator()
@@ -382,7 +384,11 @@ class TestbedApp:
                 return
             imgui.separator()
 
-        # Iterate through UI elements defined in the current test.
+        # Iterate through UI elements defined in the current test. Each is set
+        # through the simulation, which reports what its callbacks raise and
+        # sets aside a control whose callback did, greyed out here until the
+        # scene is rebuilt.
+        simulation = self.simulation
         previous_was_button = False
         for _name, elem in state.current_test_obj.ui_elements:
             # Buttons declared next to each other share a row, so Reset and
@@ -392,11 +398,11 @@ class TestbedApp:
                 imgui.same_line()
             previous_was_button = is_button
 
+            set_aside = simulation.is_set_aside(elem.name)
+            imgui.begin_disabled(set_aside)
             if elem.type == "button":
                 if imgui.button(elem.label):
-                    v = getattr(state.current_test_obj, elem.name)
-                    v = v or 1
-                    setattr(state.current_test_obj, elem.name, v + 1)
+                    simulation.press(elem.name)
             elif elem.type == "int":
                 # Get current value from state if exists, default otherwise.
                 current_val = elem.value
@@ -405,7 +411,7 @@ class TestbedApp:
                     elem.label, current_val, elem.min_value, elem.max_value
                 )
                 if changed:
-                    setattr(state.current_test_obj, elem.name, new_val)
+                    simulation.set_control(elem.name, new_val)
             elif elem.type == "float":
                 current_val = elem.value
                 imgui.set_next_item_width(50)
@@ -417,24 +423,21 @@ class TestbedApp:
                     format="%.1f",
                 )
                 if changed:
-                    setattr(state.current_test_obj, elem.name, new_val)
+                    simulation.set_control(elem.name, new_val)
             elif elem.type == "select":
                 current_val = elem.value
                 current_item = elem.options.index(current_val)
                 changed, new_val = imgui.combo(elem.label, current_item, elem.options)
                 if changed:
-                    setattr(
-                        state.current_test_obj,
-                        elem.name,
-                        elem.options[new_val],
-                    )
+                    simulation.set_control(elem.name, elem.options[new_val])
             elif elem.type == "bool":
                 current_val = elem.value
                 changed, new_val = imgui.checkbox(elem.label, current_val)
                 if changed:
-                    setattr(state.current_test_obj, elem.name, new_val)
+                    simulation.set_control(elem.name, new_val)
             else:
-                print(f"Unknown control type: {elem.control_type}")
+                print(f"Unknown control type: {elem.type}")
+            imgui.end_disabled()
 
     def global_shortcuts(self):
         """Keyboard shortcuts for the testbed's own controls.
@@ -465,8 +468,8 @@ class TestbedApp:
 
     def restart_test(self):
         """Rebuild the current scenario, as the Reset button does."""
-        if state.current_test_obj is not None:
-            state.current_test_obj.on_reset("reset", None)
+        if self.simulation is not None:
+            self.simulation.press("reset")
 
     def reset_view(self):
         if self.simulation is not None:
