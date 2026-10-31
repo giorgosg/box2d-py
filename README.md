@@ -13,18 +13,27 @@ window of example scenarios to run and edit, and to write your own in.
 ## Installation
 
 ```bash
-pip install "git+https://github.com/giorgosg/box2d-py.git"
+pip install --pre box2d-python
 ```
 
 The testbed is the `testbed` extra:
 
 ```bash
+pip install --pre "box2d-python[testbed]"
+```
+
+`--pre` is there while the release is a candidate, 3.2.0rc1. Wheels are built
+for Linux, macOS and Windows, so nothing is compiled. The current `main`
+installs from git instead, building Box2D from source with git, a C compiler
+and CMake 3.22 or newer:
+
+```bash
 pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
 ```
 
-Either builds Box2D from source, so it needs git, a C compiler and CMake 3.22
-or newer. The releases on PyPI, 0.1.x, predate the Box2D v3.2.0 port this
-README describes, and their API differs from it.
+The 0.1.x releases on PyPI predate the Box2D v3.2 port and have a different
+API. What changes between releases is in
+[CHANGELOG.md](https://github.com/giorgosg/box2d-py/blob/main/CHANGELOG.md).
 [Installation](https://box2d-py.readthedocs.io/en/latest/getting_started/install.html)
 in the documentation has the rest: building from a clone, and how the
 versions are numbered.
@@ -151,7 +160,8 @@ building and serving it.
 
 ## Development status
 
-⚠️ Early development preview - API subject to change
+3.2.0rc1 is the first release of these bindings for Box2D v3.2, and a release
+candidate: the API may still change before 3.2.0.
 
 Built against Box2D's v3.2.0 release (`box2d.BOX2D_VERSION`); the `box2d`
 submodule is pinned to that tag. The binding's own version is
