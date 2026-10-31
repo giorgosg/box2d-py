@@ -531,7 +531,9 @@ class ChainDef:
         is_loop: True if the chain is closed by joining the last point back to
             the first.
         ghost1: The ghost before the first point of an open chain. Defaults to
-            continuing the first segment straight on. Ignored for loops.
+            continuing the first segment straight on. Ignored for loops. This
+            default is box2d-py's own: Box2D leaves the ghosts at infinity, a
+            sentinel it refuses to build an open chain with.
         ghost2: The ghost after the last point of an open chain. Defaults to
             continuing the last segment straight on. Ignored for loops.
         materials: One SurfaceMaterial for the whole chain, or one per segment.
@@ -660,8 +662,5 @@ class ChainDef:
             chain_def.filter = self.filter.b2Filter[0]
         else:
             chain_def.filter = lib.b2DefaultFilter()
-
-        # Set internal value to mark as valid
-        chain_def.internalValue = 1
 
         return chain_def

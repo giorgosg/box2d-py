@@ -14,8 +14,9 @@ import math
 
 import pytest
 
-from box2d import DistanceJointDef, World, WheelJointDef
+from box2d import DistanceJointDef, SurfaceMaterial, World, WheelJointDef
 from box2d.dataclasses import BodyDef
+from box2d.shapedef import ChainDef, ShapeDef
 from box2d._box2d import ffi, lib
 from box2d.joint import DistanceJoint, WheelJoint
 
@@ -316,3 +317,78 @@ def test_the_bodies_stay_where_they_were_put(world, three_apart):
     for _ in range(60):
         world.step(1 / 60, 4)
     assert (b.position - a.position).length == pytest.approx(3.0, abs=1e-3)
+
+
+# --- shapes and chains -------------------------------------------------------
+
+#: Where a shape's default is box2d-py's own rather than Box2D's, and why.
+_SHAPE_DIFFERENCES = {
+    # Kept on so a sensor sees shapes without each opting in.
+    "enableSensorEvents",
+}
+
+
+def test_a_shape_definition_left_to_its_defaults_is_box2d_s():
+    differences = _differences(ShapeDef().b2ShapeDef, lib.b2DefaultShapeDef())
+    assert set(differences) == _SHAPE_DIFFERENCES
+
+
+def test_a_shape_made_with_no_settings_has_box2d_s(world):
+    box2d = lib.b2DefaultShapeDef()
+    body = world.new_body().dynamic().build()
+    for shape in (
+        body.add_circle(0.5),
+        body.add_box(1, 1),
+        body.add_capsule((0, 0), (1, 0), 0.25),
+        body.add_polygon([(0, 0), (1, 0), (0, 1)]),
+        body.add_segment((0, 0), (1, 0)),
+    ):
+        assert shape.friction == pytest.approx(box2d.material.friction)
+        assert shape.restitution == box2d.material.restitution
+        assert shape.rolling_resistance == box2d.material.rollingResistance
+        assert shape.tangent_speed == box2d.material.tangentSpeed
+        assert shape.user_material == box2d.material.userMaterialId
+        assert shape.density == box2d.density
+        assert shape.is_sensor == box2d.isSensor
+        assert shape.enable_contact_events == box2d.enableContactEvents
+        assert shape.enable_hit_events == box2d.enableHitEvents
+        assert shape.enable_pre_solve_events == box2d.enablePreSolveEvents
+        filter = shape.filter
+        assert filter.category == box2d.filter.categoryBits
+        assert filter.mask == box2d.filter.maskBits
+        assert filter.group == box2d.filter.groupIndex
+
+
+#: A chain's fields that hold what the call supplies: its points.
+_CHAIN_FROM_THE_CALL = ("pointCount",)
+
+#: Where a chain's default is box2d-py's own rather than Box2D's, and why.
+_CHAIN_DIFFERENCES = {
+    # Box2D leaves the ghosts at infinity, a sentinel it refuses to build an
+    # open chain with, so box2d-py carries each end segment straight on.
+    "ghost1.x",
+    "ghost1.y",
+    "ghost2.x",
+    "ghost2.y",
+    # Kept on so a sensor sees chains without each opting in.
+    "enableSensorEvents",
+}
+
+
+def test_a_chain_definition_left_to_its_defaults_is_box2d_s():
+    ours = ChainDef([(0, 0), (1, 0), (2, 0)]).b2ChainDef
+    box2d = lib.b2DefaultChainDef()
+    differences = _differences(ours, box2d, _CHAIN_FROM_THE_CALL)
+    assert set(differences) == _CHAIN_DIFFERENCES
+    assert ours.materialCount == box2d.materialCount == 1
+    assert _differences(ours.materials[0], box2d.materials[0]) == []
+
+
+def test_a_material_left_to_its_defaults_is_box2d_s_but_for_its_id():
+    """Each material gets its own id, so SurfaceMaterial.get_by_id finds it."""
+    material = SurfaceMaterial()
+    differences = _differences(
+        material.b2SurfaceMaterial, lib.b2DefaultSurfaceMaterial()
+    )
+    assert differences == ["userMaterialId"]
+    assert SurfaceMaterial.get_by_id(material.user_material) is material
