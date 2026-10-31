@@ -102,3 +102,16 @@ def _with_fields(material: SurfaceMaterial, given: Mapping[str, Any]):
     """
     changes = {name: value for name, value in given.items() if value is not None}
     return replace(material, **changes) if changes else material
+
+
+def _check_material(material, where):
+    """Refuse anything but a SurfaceMaterial, saying what to pass instead.
+
+    A bare int was once taken as the material id, so say where that goes now.
+    """
+    if not isinstance(material, SurfaceMaterial):
+        raise TypeError(
+            f"{where} takes a SurfaceMaterial, not {type(material).__name__}; "
+            "for a material id, pass SurfaceMaterial(user_material=...) or "
+            "the user_material= keyword"
+        )

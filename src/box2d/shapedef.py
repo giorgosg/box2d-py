@@ -6,7 +6,7 @@ A shape definition is used to create shapes with specific properties.
 from dataclasses import dataclass, field
 from typing import Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
-from .material import SurfaceMaterial, _MATERIAL_FIELDS, _with_fields
+from .material import SurfaceMaterial, _MATERIAL_FIELDS, _check_material, _with_fields
 from .collision_filter import CollisionFilter
 from .math import Vec2, VectorLike, Rot
 
@@ -29,13 +29,13 @@ class ShapeDef:
     ``body.add_box()``, take each material field as a keyword too
     (``friction=0.2``), which fills that field of the material. Given with
     ``material=``, a keyword overrides that one field, and the material passed
-    is left unchanged; a keyword given as None is ignored.
+    is left unchanged; a material keyword given as None is ignored.
 
     Attributes:
         user_data: Application specific shape data, kept as the created shape's
             ``user_data``.
-        material: The surface, as a :class:`.SurfaceMaterial`. default=Box2D's
-            default material, ``SurfaceMaterial()``
+        material: The surface, as a :class:`.SurfaceMaterial`; None is the
+            default. default=Box2D's default material, ``SurfaceMaterial()``
         density: The density in kg/m^2. default=1.0
         filter: Collision filtering data as a CollisionFilter object
         enable_custom_filtering: True to consult World.custom_filter for this shape's
@@ -74,6 +74,10 @@ class ShapeDef:
     update_body_mass: bool = _default_shape_def.updateBodyMass
 
     def __post_init__(self):
+        # None is Box2D's default material, as leaving it out is, so a caller
+        # can pass material=None to mean "no particular material".
+        if self.material is None:
+            self.material = SurfaceMaterial()
         _check_material(self.material, "ShapeDef.material")
 
     @classmethod
@@ -126,19 +130,6 @@ class ShapeDef:
         shape_def.updateBodyMass = self.update_body_mass
 
         return shape_def
-
-
-def _check_material(material, where):
-    """Refuse anything but a SurfaceMaterial, saying what to pass instead.
-
-    A bare int was once taken as the material id, so say where that goes now.
-    """
-    if not isinstance(material, SurfaceMaterial):
-        raise TypeError(
-            f"{where} takes a SurfaceMaterial, not {type(material).__name__}; "
-            "for a material id, pass SurfaceMaterial(user_material=...) or "
-            "the user_material= keyword"
-        )
 
 
 @dataclass

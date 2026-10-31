@@ -230,3 +230,20 @@ def test_a_chain_made_with_no_material_settings_has_box2d_s_material(ground):
     assert chain.get_surface_material(0) == SurfaceMaterial.from_b2SurfaceMaterial(
         box2d
     )
+
+
+# --- None, and what is not a material ----------------------------------------
+
+
+def test_a_shape_definition_given_no_material_has_box2d_s():
+    assert ShapeDef(material=None).material == SurfaceMaterial()
+
+
+def test_a_shape_made_with_no_material_has_box2d_s(body):
+    shape = body.add_box(1, 1, material=None, friction=0.75)
+    assert shape.surface_material == SurfaceMaterial(friction=0.75)
+
+
+def test_a_chain_given_a_bare_id_says_what_to_pass(ground):
+    with pytest.raises(TypeError, match="user_material"):
+        ground.add_chain(POINTS, materials=[3], friction=0.25)

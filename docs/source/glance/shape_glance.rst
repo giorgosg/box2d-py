@@ -184,12 +184,13 @@ Each field is also a keyword to ``body.add_box()``, ``Circle.create()`` and
 the other shape-making calls, which make the ``ShapeDef`` from them. So is
 each field of ``SurfaceMaterial``: ``friction=0.2`` fills that field of the
 material. Given with ``material=``, such a keyword overrides that one field,
-and the material passed is left unchanged. A keyword given as None is ignored.
+and the material passed is left unchanged. A material keyword given as None
+is ignored.
 
 Surface
 ^^^^^^^
 
-* ``material`` - The surface, as a ``SurfaceMaterial``: friction, restitution and the rest (default ``SurfaceMaterial()``, Box2D's)
+* ``material`` - The surface, as a ``SurfaceMaterial``: friction, restitution and the rest; None is the default (default ``SurfaceMaterial()``, Box2D's)
 
 Mass
 ^^^^
@@ -278,7 +279,7 @@ ChainDef
 * ``is_loop`` - Whether the last point joins back to the first
 * ``ghost1``, ``ghost2`` - Points beyond each end of an open chain, saying
   where the surface carries on; they default to carrying the end segments straight on
-* ``materials`` - One ``SurfaceMaterial`` for the whole chain, or one per segment
+* ``materials`` - One ``SurfaceMaterial`` for the whole chain, or one per segment, in a sequence
 * ``filter`` - The ``CollisionFilter`` for every segment
 * ``user_data`` - Any Python object, kept as the chain's ``user_data``
 * ``enable_sensor_events`` - Whether the segments take part in sensor events (default False)

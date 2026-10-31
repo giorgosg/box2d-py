@@ -26,7 +26,7 @@ from .shapedef import (
     PolygonDef,
     ChainDef,
 )
-from .material import SurfaceMaterial, _with_fields
+from .material import SurfaceMaterial, _check_material, _with_fields
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ContactData
 from .accessors import b2_value
@@ -968,6 +968,8 @@ class Chain(FixedAttributes):
         if any(value is not None for value in given.values()):
             if materials is None:
                 materials = [SurfaceMaterial()]
+            for material in materials:
+                _check_material(material, "ChainDef.materials")
             materials = [_with_fields(material, given) for material in materials]
         options = {}
         if enable_sensor_events is not None:
