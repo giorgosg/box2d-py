@@ -24,7 +24,8 @@ from box2d.joint import DistanceJoint, WheelJoint
 def _differences(ours, theirs, skip=(), path=""):
     """The dotted paths of the fields where two C structs differ.
 
-    Nested structs are compared field by field. Pointers are not compared:
+    Nested structs are compared field by field, and primitive and enum fields
+    by value. Pointers are not compared:
     they hold data the call supplies, or an address of box2d-py's own.
     """
     found = []
@@ -36,7 +37,7 @@ def _differences(ours, theirs, skip=(), path=""):
         kind = field.type.kind
         if kind == "struct":
             found += _differences(mine, box2d, skip, f"{where}.")
-        elif kind == "primitive":
+        elif kind in ("primitive", "enum"):
             both_nan = (
                 isinstance(mine, float) and math.isnan(mine) and math.isnan(box2d)
             )
@@ -374,6 +375,43 @@ def test_a_chain_definition_left_to_its_defaults_is_box2d_s():
     assert set(differences) == _CHAIN_DIFFERENCES
     assert ours.materialCount == box2d.materialCount == 1
     assert _differences(ours.materials[0], box2d.materials[0]) == []
+
+
+def test_a_chain_made_with_no_settings_has_box2d_s(world):
+    """Each segment has Box2D's chain material, id included, and filter.
+
+    Chain.create made a new SurfaceMaterial for every chain, so each chain's
+    segments carried an id of their own -- 1, 2, 3 -- rather than Box2D's 0.
+    """
+    box2d = lib.b2DefaultChainDef()
+    material, filter = box2d.materials[0], box2d.filter
+    body = world.new_body().static().build()
+    built = world.new_body().static().chain([(0, 1), (1, 1), (2, 1)]).build().chains[0]
+    for chain in (body.add_chain([(0, 0), (1, 0), (2, 0)]), built):
+        for segment in chain.segments:
+            assert segment.user_material == material.userMaterialId == 0
+            assert segment.friction == pytest.approx(material.friction)
+            assert segment.restitution == material.restitution
+            assert segment.rolling_resistance == material.rollingResistance
+            assert segment.tangent_speed == material.tangentSpeed
+            assert segment.enable_sensor_events == box2d.enableSensorEvents
+            assert segment.filter.category == filter.categoryBits
+            assert segment.filter.mask == filter.maskBits
+            assert segment.filter.group == filter.groupIndex
+
+
+def test_a_chain_given_one_material_field_keeps_box2d_s_others(world):
+    chain = world.new_body().static().build().add_chain([(0, 0), (1, 0)], friction=0.1)
+    box2d = lib.b2DefaultChainDef().materials[0]
+    segment = chain.segments[0]
+    assert segment.friction == pytest.approx(0.1)
+    assert segment.restitution == box2d.restitution
+
+
+def test_a_differing_enum_field_is_found():
+    """b2BodyDef.type is an enum, which cffi reports apart from primitives."""
+    ours = BodyDef(type=lib.b2_dynamicBody).b2BodyDef
+    assert _differences(ours, lib.b2DefaultBodyDef()) == ["type"]
 
 
 def test_a_material_left_to_its_defaults_is_box2d_s_but_for_its_id():

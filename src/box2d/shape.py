@@ -459,6 +459,10 @@ class Shape(FixedAttributes):
         Convenience property that automatically determines the capacity
         and returns all overlapping Shape objects.
 
+        Sensor events are opt-in on both sides, as in Box2D: a sensor sees
+        nothing unless it has ``enable_sensor_events`` set itself, and then
+        only the shapes that have it set too. Both default to off.
+
         Returns an empty list if this shape is not a sensor.
         """
         return self._read_sensor_overlaps()
@@ -938,24 +942,28 @@ class Chain(FixedAttributes):
         tangent_speed=None,
         custom_color=None,
         user_data=None,
-        enable_sensor_events=False,
+        enable_sensor_events=None,
     ):
         """
         Create and attach a chain shape to a body.
 
         The arguments are :class:`.ChainDef`'s, with the material's fields
-        given one by one when ``materials`` is not given.
+        given one by one when ``materials`` is not given. Anything left None
+        takes ChainDef's default, which is Box2D's: with no material fields
+        either, the chain gets Box2D's default material, id 0 included.
         """
-        if materials is None:
-            materials = [
-                SurfaceMaterial(
-                    friction=friction,
-                    restitution=restitution,
-                    tangent_speed=tangent_speed,
-                    rolling_resistance=rolling_resistance,
-                    custom_color=custom_color,
-                )
-            ]
+        material_fields = {
+            "friction": friction,
+            "restitution": restitution,
+            "tangent_speed": tangent_speed,
+            "rolling_resistance": rolling_resistance,
+            "custom_color": custom_color,
+        }
+        if materials is None and any(v is not None for v in material_fields.values()):
+            materials = [SurfaceMaterial(**material_fields)]
+        options = {}
+        if enable_sensor_events is not None:
+            options["enable_sensor_events"] = enable_sensor_events
         shapedef = ChainDef(
             vertices,
             loop,
@@ -964,7 +972,7 @@ class Chain(FixedAttributes):
             filter=filter,
             materials=materials,
             user_data=user_data,
-            enable_sensor_events=enable_sensor_events,
+            **options,
         )
         return cls(body, shapedef)
 

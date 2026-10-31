@@ -150,7 +150,7 @@ Chain
 A run of one-sided segments joined end to end, open or closed into a loop, for
 static terrain. Bodies slide across the joins without catching on them.
 
-* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None, user_data=None, enable_sensor_events=False)`` -
+* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None, user_data=None, enable_sensor_events=None)`` -
   Make and attach one; ``body.add_chain()`` calls this. ``friction`` and the
   rest make one material for the whole chain, when ``materials`` is not given
 * ``chain.segments`` - The chain's ``ChainSegment`` shapes, in order
