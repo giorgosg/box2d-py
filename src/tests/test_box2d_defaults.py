@@ -14,10 +14,10 @@ import math
 
 import pytest
 
-from box2d import World, WheelJointDef
+from box2d import DistanceJointDef, World, WheelJointDef
 from box2d.dataclasses import BodyDef
 from box2d._box2d import ffi, lib
-from box2d.joint import WheelJoint
+from box2d.joint import DistanceJoint, WheelJoint
 
 
 def _differences(ours, theirs, skip=(), path=""):
@@ -101,6 +101,11 @@ _STORED_THE_SAME = {
 #: Where a joint's default is box2d-py's own rather than Box2D's, and why.
 #: Each is explained where the default is chosen, and in the docstrings.
 _JOINT_DIFFERENCES = {
+    "DistanceJoint": {
+        # Box2D's rest length is 1 m, wherever the anchors are; box2d-py's is
+        # how far apart they are, 3 m here.
+        "length",
+    },
     "PogoJoint": {
         # Box2D's normal is (0, 0), along which the spring pushes nowhere,
         # so box2d-py's points straight up.
@@ -247,3 +252,67 @@ def test_a_world_made_with_no_arguments_has_box2d_s_settings():
             assert ours == pytest.approx(getattr(box2d, field)), setting
     finally:
         world.destroy()
+
+
+# --- a distance joint's rest length ------------------------------------------
+
+
+def test_a_distance_joint_holds_its_bodies_as_far_apart_as_they_are(world, three_apart):
+    """Not Box2D's 1 m, which would pull bodies 3 m apart together at once."""
+    for joint in (
+        world.add_distance_joint(*three_apart),
+        world.add_joint(DistanceJointDef(*three_apart)),
+        DistanceJoint(world, *three_apart, (0, 0), (0, 0)),
+    ):
+        assert joint.rest_length == pytest.approx(3.0)
+        assert joint.current_length == pytest.approx(3.0)
+
+
+def test_the_rest_length_is_between_the_anchors_not_the_bodies(world):
+    a = world.new_body().dynamic().position(0, 0).build()
+    # Turned a quarter turn, so its local x axis points along the world's y.
+    b = world.new_body().dynamic().position(3, 0).rotation(math.pi / 2).build()
+    joint = world.add_distance_joint(
+        a, b, local_anchor_a=(0.5, 0), local_anchor_b=(1, 0.5)
+    )
+    # Anchor a is at (0.5, 0); anchor b at (3 - 0.5, 1).
+    assert joint.rest_length == pytest.approx(math.hypot(2.0, 1.0))
+    assert joint.rest_length == pytest.approx(joint.current_length)
+
+
+def test_a_rest_length_given_is_kept(world, three_apart):
+    assert world.add_distance_joint(*three_apart, rest_length=2.0).rest_length == (
+        pytest.approx(2.0)
+    )
+    joint = world.add_joint(DistanceJointDef(*three_apart, rest_length=5.0))
+    assert joint.rest_length == pytest.approx(5.0)
+
+
+def test_a_distance_joint_with_both_anchors_at_one_point_rests_at_the_floor(
+    world, three_apart
+):
+    """Box2D holds a rest length to at least its linear slop, 0.005 m."""
+    joint = world.add_distance_joint(*three_apart, anchor=(1, 0))
+    assert joint.rest_length == pytest.approx(0.005)
+
+
+def test_a_rest_length_from_anchors_past_the_cap_is_lowered_to_it(world):
+    """Box2D holds a rest length to at most B2_HUGE, 100 km."""
+    a = world.new_body().dynamic().position(0, 0).build()
+    b = world.new_body().dynamic().position(200_000, 0).build()
+    joint = world.add_distance_joint(a, b)
+    assert joint.rest_length == pytest.approx(100_000.0)
+
+
+def test_a_rest_length_from_anchors_still_has_its_limits_checked(world, three_apart):
+    with pytest.raises(ValueError, match="lower 4.0 is above upper 2.0"):
+        world.add_distance_joint(*three_apart, lower_limit=4.0, upper_limit=2.0)
+
+
+def test_the_bodies_stay_where_they_were_put(world, three_apart):
+    a, b = three_apart
+    world.gravity = (0, 0)
+    world.add_distance_joint(a, b)
+    for _ in range(60):
+        world.step(1 / 60, 4)
+    assert (b.position - a.position).length == pytest.approx(3.0, abs=1e-3)

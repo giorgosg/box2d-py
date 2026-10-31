@@ -240,8 +240,9 @@ JointDef
 The fields every definition but ``MouseJointDef`` shares, before its own.
 Definitions have slots, so assigning a field one does not have raises
 ``AttributeError``. A field left None takes Box2D's own default, but for
-one: a pogo's normal points straight up, where Box2D's is a zero vector the
-spring cannot push along.
+two: a distance joint's rest length is how far apart its anchors are, where
+Box2D's is 1 m, and a pogo's normal points straight up, where Box2D's is a
+zero vector the spring cannot push along.
 
 * ``JointDef(body_a, body_b, local_anchor_a=None, local_anchor_b=None, anchor=None, collide_connected=False)`` - The shared fields, in order
 * ``body_a``, ``body_b`` - The two bodies to connect
@@ -256,7 +257,8 @@ DistanceJointDef
 ----------------
 
 * ``DistanceJointDef(body_a, body_b, ...)`` - The shared fields, then these
-* ``rest_length`` - The length to hold; Box2D's 1 m if None, however far apart the anchors are
+* ``rest_length`` - The length to hold; if None, how far apart the anchors are
+  as the joint is made (Box2D's own default is 1 m, wherever they are)
 * ``enable_spring`` - Make a spring rather than a rod
 * ``spring_hertz``, ``spring_damping_ratio`` - The spring's frequency and damping ratio
 * ``lower_spring_force``, ``upper_spring_force`` - The most the spring may pull and push

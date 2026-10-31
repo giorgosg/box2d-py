@@ -229,8 +229,12 @@ class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
     Attributes:
-        rest_length: The rest length between the anchors. Box2D's default
-            is 1 m, not the anchors' distance apart.
+        rest_length: The rest length between the anchors. If None, how far
+            apart the anchors are in the world when the joint is made, so it
+            holds the bodies where they are. This is box2d-py's default, not
+            Box2D's, which is 1 m wherever the anchors are and so pulls bodies
+            set out at any other distance together, or apart, on the first
+            step.
         lower_limit: Lower length limit.
         upper_limit: Upper length limit.
         enable_limit: Whether the length limits are enforced.

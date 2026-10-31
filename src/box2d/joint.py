@@ -52,18 +52,26 @@ def _ordered(lower, upper, what):
 _UNSET_LIMITS = "joint limits (a limit not given is 0)"
 
 
+def _distance_bounds():
+    """``(floor, cap)``: the shortest and longest a distance joint's lengths are.
+
+    Box2D holds a distance joint's rest length and limits to at least its
+    linear slop (0.005 m) and at most B2_HUGE (100 km).
+    """
+    floor = float(ffi.cast("float", 0.005 * lib.b2GetLengthUnitsPerMeter()))
+    cap = lib.b2DefaultDistanceJointDef().maxLength  # B2_HUGE
+    return floor, cap
+
+
 def _distance_limits(lower, upper):
     """``(lower, upper)`` as Box2D will store a distance joint's limits.
 
-    Box2D holds each to at least its linear slop (0.005 m) and at most
-    B2_HUGE (100 km), so the ordering check compares those values: an upper
-    limit of 0.003 is no limit below the 0.005 lower default. The error,
-    though, names the values that were given. A value that is not finite is
-    passed through for Box2D to refuse.
+    Box2D holds each to :func:`_distance_bounds`, so the ordering check
+    compares those values: an upper limit of 0.003 is no limit below the
+    0.005 lower default. The error, though, names the values that were given.
+    A value that is not finite is passed through for Box2D to refuse.
     """
-    floor = float(ffi.cast("float", 0.005 * lib.b2GetLengthUnitsPerMeter()))
-    default = lib.b2DefaultDistanceJointDef()
-    cap = default.maxLength  # B2_HUGE
+    floor, cap = _distance_bounds()
     given = float(lower), float(upper)
     stored = tuple(
         min(max(bound, floor), cap) if math.isfinite(bound) else bound
@@ -75,6 +83,18 @@ def _distance_limits(lower, upper):
         raise ValueError(
             f"distance joint limits: lower {given[0]} is above upper {given[1]}"
         ) from None
+
+
+def _anchor_distance(body_a, local_anchor_a, body_b, local_anchor_b):
+    """How far apart two local anchors are in the world, as a rest length.
+
+    Held to :func:`_distance_bounds`, as Box2D holds a rest length it is given.
+    """
+    distance = (
+        body_b.get_world_point(local_anchor_b) - body_a.get_world_point(local_anchor_a)
+    ).length
+    floor, cap = _distance_bounds()
+    return min(max(distance, floor), cap)
 
 
 class Joint(FixedAttributes):
@@ -1272,8 +1292,10 @@ class DistanceJoint(Joint):
             local_anchor_a (tuple): Local anchor point on body A (x,y)
             local_anchor_b (tuple): Local anchor point on body B (x,y)
             collide_connected (bool): Whether bodies can collide
-            rest_length (float): Rest length. If None, Box2D's default of
-                1 m, whatever the distance between the anchors.
+            rest_length (float): Rest length. If None, the distance between
+                the two anchors in world space as the joint is made, so the
+                joint holds the bodies where they are. Box2D's own default is
+                1 m, wherever the anchors are.
             lower_limit (float): Shortest allowed length when using limits
             upper_limit (float): Longest allowed length when using limits
             enable_limit (bool): Whether to enable length limits
@@ -1313,8 +1335,14 @@ class DistanceJoint(Joint):
         defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
         defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
 
-        if self._rest_length is not None:
-            defn.length = self._rest_length
+        # Not Box2D's default of 1 m: a joint made between bodies set out
+        # where they should be is meant to keep them there, not to pull them
+        # to 1 m apart on the first step.
+        defn.length = (
+            _anchor_distance(body_a, self._local_anchor_a, body_b, self._local_anchor_b)
+            if self._rest_length is None
+            else self._rest_length
+        )
         if self._lower_limit is not None:
             defn.minLength = self._lower_limit
         if self._upper_limit is not None:
