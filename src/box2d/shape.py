@@ -3,10 +3,11 @@ This module defines high-level shape objects for Box2D.
 Each shape's constructor accepts a body and a shape definition.
 Each shape (except Chain) subclasses a common base that implements common properties.
 Each shape also has a classmethod ``create`` that takes the geometry as arguments
-and ShapeDef fields as keywords; the Body ``add_*`` methods call it.
-Chain is implemented as a separate class, and its ``create`` takes the chain's
-own options -- loop, ghosts, filter, materials or one material's friction and
-the like, user_data -- rather than ShapeDef fields; see :class:`.ChainDef`.
+and ShapeDef fields as keywords, with SurfaceMaterial's fields, such as
+``friction``, filling those of its ``material``; the Body ``add_*`` methods call
+it. Chain is implemented as a separate class, and its ``create`` takes the
+chain's own options -- loop, ghosts, filter, materials or SurfaceMaterial's
+fields, user_data -- rather than ShapeDef fields; see :class:`.ChainDef`.
 
 ``Polygon.create`` and ``Box.create`` call the shape's rotation ``angle``, in
 radians, where :class:`.PolygonDef` and :class:`.BoxDef` call it ``rotation``.
@@ -25,7 +26,7 @@ from .shapedef import (
     PolygonDef,
     ChainDef,
 )
-from .material import SurfaceMaterial
+from .material import SurfaceMaterial, _check_material, _with_fields
 from .collision_filter import CollisionFilter
 from .dataclasses import MassData, CastResult, ContactData
 from .accessors import b2_value
@@ -113,22 +114,20 @@ class Shape(FixedAttributes):
     @property
     def user_material(self) -> int:
         """
-        Get or set the shape material identifier.
+        Get or set the id of the shape's material, its ``user_material``.
 
-        The material is used to customize friction, restitution, and other material properties
-        through custom callbacks. When setting, you can use either a material ID (int)
-        or a SurfaceMaterial object.
+        The world's friction and restitution mixers are given it, to tell
+        materials apart. Set it to an int, or to a :class:`.SurfaceMaterial`,
+        whose ``user_material`` is taken and nothing else: set
+        :attr:`surface_material` to take the whole material.
         """
         return lib.b2Shape_GetUserMaterial(self._shape_id)
 
     @user_material.setter
     def user_material(self, value: Union[int, SurfaceMaterial]) -> None:
-        if hasattr(value, "user_material"):
-            # If it's a SurfaceMaterial object
-            lib.b2Shape_SetUserMaterial(self._shape_id, value.user_material)
-        else:
-            # If it's a material ID
-            lib.b2Shape_SetUserMaterial(self._shape_id, int(value))
+        if isinstance(value, SurfaceMaterial):
+            value = value.user_material
+        lib.b2Shape_SetUserMaterial(self._shape_id, int(value))
 
     @property
     def filter(self) -> CollisionFilter:
@@ -317,16 +316,15 @@ class Shape(FixedAttributes):
         del self._shape_id
 
     @property
-    def surface_material(self):
-        """Get or set every surface property at once, as a SurfaceMaterial."""
-        material = lib.b2Shape_GetSurfaceMaterial(self._shape_id)
-        return SurfaceMaterial(
-            user_material=material.userMaterialId,
-            friction=material.friction,
-            restitution=material.restitution,
-            rolling_resistance=material.rollingResistance,
-            tangent_speed=material.tangentSpeed,
-            custom_color=material.customColor,
+    def surface_material(self) -> SurfaceMaterial:
+        """Get or set every surface property at once, as a SurfaceMaterial.
+
+        Reading gives a copy, so changing it does not change the shape;
+        set it back for that. Setting it sets every field, the id and the
+        debug colour included.
+        """
+        return SurfaceMaterial.from_b2SurfaceMaterial(
+            lib.b2Shape_GetSurfaceMaterial(self._shape_id)
         )
 
     @surface_material.setter
@@ -575,10 +573,11 @@ class Circle(Shape):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.CircleDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field.
+        :class:`.ShapeDef` field or, filling that field of its ``material``, a
+        :class:`.SurfaceMaterial` field.
         """
         circledef = CircleDef(radius, center)
-        shapedef = ShapeDef(**shapedef_kwargs)
+        shapedef = ShapeDef._from_keywords(**shapedef_kwargs)
         return cls(body, shapedef, circledef)
 
 
@@ -656,10 +655,11 @@ class Capsule(Shape):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.CapsuleDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field.
+        :class:`.ShapeDef` field or, filling that field of its ``material``, a
+        :class:`.SurfaceMaterial` field.
         """
         capsuledef = CapsuleDef(point1, point2, radius)
-        shapedef = ShapeDef(**shapedef_kwargs)
+        shapedef = ShapeDef._from_keywords(**shapedef_kwargs)
         return cls(body, shapedef, capsuledef)
 
 
@@ -724,10 +724,11 @@ class Segment(Shape):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.SegmentDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field.
+        :class:`.ShapeDef` field or, filling that field of its ``material``, a
+        :class:`.SurfaceMaterial` field.
         """
         segmentdef = SegmentDef(point1, point2)
-        shapedef = ShapeDef(**shapedef_kwargs)
+        shapedef = ShapeDef._from_keywords(**shapedef_kwargs)
         return cls(body, shapedef, segmentdef)
 
 
@@ -802,7 +803,8 @@ class Polygon(Shape):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.PolygonDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field. ``angle`` is the definition's ``rotation``:
+        :class:`.ShapeDef` field or, filling that field of its ``material``, a
+        :class:`.SurfaceMaterial` field. ``angle`` is the definition's ``rotation``:
         the polygon's rotation relative to the body, in radians.
         """
         polygondef = PolygonDef(
@@ -811,9 +813,7 @@ class Polygon(Shape):
             offset=offset,
             rotation=angle,
         )
-        shapedef = ShapeDef(
-            **shapedef_kwargs,
-        )
+        shapedef = ShapeDef._from_keywords(**shapedef_kwargs)
         return cls(body, shapedef, polygondef)
 
 
@@ -839,13 +839,14 @@ class Box(Polygon):
 
         ``body`` is the body to attach it to. The other arguments are the
         geometry, as in :class:`.BoxDef`, and any remaining keyword is a
-        :class:`.ShapeDef` field. ``angle`` is the definition's ``rotation``:
+        :class:`.ShapeDef` field or, filling that field of its ``material``, a
+        :class:`.SurfaceMaterial` field. ``angle`` is the definition's ``rotation``:
         the box's rotation relative to the body, in radians.
         """
         # Built directly rather than through Polygon's hull, which has a
         # minimum feature size that very thin boxes fall below.
         boxdef = BoxDef(width, height, radius=radius, offset=offset, rotation=angle)
-        shapedef = ShapeDef(**shapedef_kwargs)
+        shapedef = ShapeDef._from_keywords(**shapedef_kwargs)
         return cls(body, shapedef, boxdef)
 
 
@@ -940,6 +941,7 @@ class Chain(FixedAttributes):
         restitution=None,
         rolling_resistance=None,
         tangent_speed=None,
+        user_material=None,
         custom_color=None,
         user_data=None,
         enable_sensor_events=None,
@@ -947,20 +949,28 @@ class Chain(FixedAttributes):
         """
         Create and attach a chain shape to a body.
 
-        The arguments are :class:`.ChainDef`'s, with the material's fields
-        given one by one when ``materials`` is not given. Anything left None
-        takes ChainDef's default, which is Box2D's: with no material fields
-        either, the chain gets Box2D's default material, id 0 included.
+        The arguments are :class:`.ChainDef`'s, with the fields of
+        :class:`.SurfaceMaterial` too. Each of those fills that field of every
+        material in ``materials``, overriding it there without changing the
+        materials passed, or, with no ``materials``, of one material for the
+        whole chain that is otherwise Box2D's default. Anything left None
+        takes ChainDef's default, which is Box2D's: with no material settings
+        at all, the chain gets Box2D's default material.
         """
-        material_fields = {
+        given = {
             "friction": friction,
             "restitution": restitution,
-            "tangent_speed": tangent_speed,
             "rolling_resistance": rolling_resistance,
+            "tangent_speed": tangent_speed,
+            "user_material": user_material,
             "custom_color": custom_color,
         }
-        if materials is None and any(v is not None for v in material_fields.values()):
-            materials = [SurfaceMaterial(**material_fields)]
+        if any(value is not None for value in given.values()):
+            if materials is None:
+                materials = [SurfaceMaterial()]
+            for material in materials:
+                _check_material(material, "ChainDef.materials")
+            materials = [_with_fields(material, given) for material in materials]
         options = {}
         if enable_sensor_events is not None:
             options["enable_sensor_events"] = enable_sensor_events

@@ -96,9 +96,12 @@ weighs 1 kg plus the two wheels' area:
     (3, 1.393)
 
 A shape also has a surface: ``friction``, 0.6 by default, ``restitution``, or
-bounciness, 0 by default, and ``rolling_resistance``. All of them are keyword
-arguments wherever a shape is made, along with the rest of
-:class:`~box2d.shapedef.ShapeDef`. A shape made with ``is_sensor=True`` is a
+bounciness, 0 by default, and ``rolling_resistance``. As in Box2D, these are
+the fields of a :class:`~box2d.material.SurfaceMaterial`, the ``material`` of
+the shape's :class:`~box2d.shapedef.ShapeDef`. Wherever a shape is made, its
+``ShapeDef`` fields are keyword arguments, and so is each material field, on
+its own: ``friction=0.2`` fills that field of the material, and overrides it
+when a ``material=`` is given too. A shape made with ``is_sensor=True`` is a
 sensor: it reports what overlaps it and never collides, as :doc:`events`
 describes.
 

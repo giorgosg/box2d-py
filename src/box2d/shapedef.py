@@ -3,13 +3,12 @@ This module defines the ShapeDef class for configuring shapes in Box2D.
 A shape definition is used to create shapes with specific properties.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
-from .material import SurfaceMaterial
+from .material import SurfaceMaterial, _MATERIAL_FIELDS, _check_material, _with_fields
 from .collision_filter import CollisionFilter
 from .math import Vec2, VectorLike, Rot
-from .debug_draw import Color
 
 _default_shape_def = lib.b2DefaultShapeDef()
 _default_chain_def = lib.b2DefaultChainDef()
@@ -24,17 +23,21 @@ class ShapeDef:
     for shapes. You can safely reuse shape definitions to create multiple shapes.
     Shapes are added to bodies after the body is created.
 
+    The fields are Box2D's ``b2ShapeDef``'s. As there, the surface -- friction,
+    restitution, rolling resistance, tangent speed, material id and debug
+    colour -- is the ``material``. The shape-making calls, such as
+    ``body.add_box()``, take each material field as a keyword too
+    (``friction=0.2``), which fills that field of the material. Given with
+    ``material=``, a keyword overrides that one field, and the material passed
+    is left unchanged; a material keyword given as None is ignored.
+
     Attributes:
         user_data: Application specific shape data, kept as the created shape's
             ``user_data``.
-        friction: The Coulomb (dry) friction coefficient, usually in the range [0,1]. default=0.6
-        restitution: The coefficient of restitution (bounce), usually in the range [0,1]. default=0.0
-        rolling_resistance: The rolling resistance coefficient, usually in the range [0,1]. default=0.0
-        tangent_speed: The tangent speed for conveyor belt effects. default=0.0
-        material: Material identifier or SurfaceMaterial object. default=0
+        material: The surface, as a :class:`.SurfaceMaterial`; None is the
+            default. default=Box2D's default material, ``SurfaceMaterial()``
         density: The density in kg/m^2. default=1.0
         filter: Collision filtering data as a CollisionFilter object
-        custom_color: Custom debug draw color (optional hex color value)
         enable_custom_filtering: True to consult World.custom_filter for this shape's
             contacts. The callback runs only if at least one of the two shapes
             asks for it. default=False
@@ -50,17 +53,17 @@ class ShapeDef:
             static shapes cheaper. Ignored on dynamic and kinematic bodies, which always
             look. default=True
         update_body_mass: True if the body should update mass properties when this shape is created. default=True
+
+    Example:
+        >>> from box2d import ShapeDef, SurfaceMaterial
+        >>> ShapeDef(material=SurfaceMaterial(friction=0.2)).material.friction
+        0.2
     """
 
     user_data: Optional[Any] = None
-    friction: float = _default_shape_def.material.friction
-    restitution: float = _default_shape_def.material.restitution
-    rolling_resistance: float = _default_shape_def.material.rollingResistance
-    tangent_speed: float = _default_shape_def.material.tangentSpeed
-    material: SurfaceMaterial | int = _default_shape_def.material.userMaterialId
+    material: SurfaceMaterial = field(default_factory=SurfaceMaterial)
     density: float = _default_shape_def.density
     filter: Optional[CollisionFilter] = None
-    custom_color: int = _default_shape_def.material.customColor
     enable_custom_filtering: bool = _default_shape_def.enableCustomFiltering
     is_sensor: bool = _default_shape_def.isSensor
     enable_sensor_events: bool = _default_shape_def.enableSensorEvents
@@ -70,13 +73,32 @@ class ShapeDef:
     invoke_contact_creation: bool = _default_shape_def.invokeContactCreation
     update_body_mass: bool = _default_shape_def.updateBodyMass
 
+    def __post_init__(self):
+        # None is Box2D's default material, as leaving it out is, so a caller
+        # can pass material=None to mean "no particular material".
+        if self.material is None:
+            self.material = SurfaceMaterial()
+        _check_material(self.material, "ShapeDef.material")
+
+    @classmethod
+    def _from_keywords(cls, **keywords) -> "ShapeDef":
+        """The definition the shape-making calls make from their keywords.
+
+        The keywords are ShapeDef's fields and SurfaceMaterial's. Each material
+        keyword fills that field of ``material``, or of Box2D's default
+        material when there is none, leaving the given material unchanged.
+        """
+        given = {
+            name: keywords.pop(name) for name in _MATERIAL_FIELDS if name in keywords
+        }
+        shape_def = cls(**keywords)
+        shape_def.material = _with_fields(shape_def.material, given)
+        return shape_def
+
     @property
     def b2ShapeDef(self):
         """
         Creates and returns the C structure for this shape definition.
-
-        Uses b2DefaultShapeDef() to get default values and only
-        overrides properties that have been explicitly set.
 
         Returns:
             A b2ShapeDef C structure representing this shape definition
@@ -88,38 +110,7 @@ class ShapeDef:
         # which cannot hold a Python object by itself, so the shape keeps the
         # application's user_data instead.
 
-        shape_def.material.friction = self.friction
-        shape_def.material.restitution = self.restitution
-        shape_def.material.rollingResistance = self.rolling_resistance
-        shape_def.material.tangentSpeed = self.tangent_speed
-
-        # Handle material - either an int or SurfaceMaterial object
-        if self.material is not None:
-            if isinstance(self.material, SurfaceMaterial):
-                shape_def.material.userMaterialId = self.material.user_material
-                # Apply any material properties if the corresponding ShapeDef property is None
-                if self.friction is None and self.material.friction is not None:
-                    shape_def.material.friction = self.material.friction
-                if self.restitution is None and self.material.restitution is not None:
-                    shape_def.material.restitution = self.material.restitution
-                if (
-                    self.rolling_resistance is None
-                    and self.material.rolling_resistance is not None
-                ):
-                    shape_def.material.rollingResistance = (
-                        self.material.rolling_resistance
-                    )
-                if (
-                    self.tangent_speed is None
-                    and self.material.tangent_speed is not None
-                ):
-                    shape_def.material.tangentSpeed = self.material.tangent_speed
-                if self.custom_color is None and self.material.custom_color is not None:
-                    if isinstance(self.material.custom_color, int):
-                        shape_def.material.customColor = self.material.custom_color
-            else:
-                shape_def.material.userMaterialId = self.material
-
+        shape_def.material = self.material.b2SurfaceMaterial
         shape_def.density = self.density
 
         # Handle CollisionFilter
@@ -129,14 +120,6 @@ class ShapeDef:
             shape_def.filter.maskBits = filter.maskBits
             shape_def.filter.groupIndex = filter.groupIndex
 
-        # None means "no custom colour", which is what the material branch
-        # above already assumes; assigning it straight through raised instead.
-        if self.custom_color is not None:
-            shape_def.material.customColor = (
-                self.custom_color.b2HexColor
-                if isinstance(self.custom_color, Color)
-                else self.custom_color
-            )
         shape_def.enableCustomFiltering = self.enable_custom_filtering
         shape_def.isSensor = self.is_sensor
         shape_def.enableSensorEvents = self.enable_sensor_events
@@ -537,7 +520,9 @@ class ChainDef:
             sentinel it refuses to build an open chain with.
         ghost2: The ghost after the last point of an open chain. Defaults to
             continuing the last segment straight on. Ignored for loops.
-        materials: One SurfaceMaterial for the whole chain, or one per segment.
+        materials: One SurfaceMaterial for the whole chain, or one per segment,
+            in a sequence. default=None, Box2D's default material for the
+            whole chain
         filter: Collision filtering data as a CollisionFilter object
         user_data: Application specific data, kept as the created chain's
             ``user_data``.
@@ -551,7 +536,7 @@ class ChainDef:
     is_loop: bool = False
     ghost1: Optional[VectorLike] = None
     ghost2: Optional[VectorLike] = None
-    materials: Sequence[SurfaceMaterial] = None
+    materials: Optional[Sequence[SurfaceMaterial]] = None
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
     enable_sensor_events: bool = _default_chain_def.enableSensorEvents
@@ -578,12 +563,14 @@ class ChainDef:
         self.ghost1 = Vec2(self.ghost1)
         self.ghost2 = Vec2(self.ghost2)
 
-        if self.materials is not None and len(self.materials) > 1:
-            if len(self.materials) != self.segment_count:
+        if self.materials is not None:
+            if len(self.materials) > 1 and len(self.materials) != self.segment_count:
                 raise ValueError(
                     f"a chain takes 1 material or one per segment "
                     f"({self.segment_count}), got {len(self.materials)}"
                 )
+            for material in self.materials:
+                _check_material(material, "ChainDef.materials")
 
     @property
     def segment_count(self) -> int:
@@ -627,34 +614,8 @@ class ChainDef:
             materials = ffi.new("b2SurfaceMaterial[]", material_count)
             self.b2_materials = materials
 
-            for i, mat in enumerate(self.materials):
-                materials[i].friction = (
-                    mat.friction
-                    if mat.friction is not None
-                    else lib.b2DefaultSurfaceMaterial().friction
-                )
-                materials[i].restitution = (
-                    mat.restitution
-                    if mat.restitution is not None
-                    else lib.b2DefaultSurfaceMaterial().restitution
-                )
-                materials[i].rollingResistance = (
-                    mat.rolling_resistance
-                    if mat.rolling_resistance is not None
-                    else lib.b2DefaultSurfaceMaterial().rollingResistance
-                )
-                materials[i].tangentSpeed = (
-                    mat.tangent_speed
-                    if mat.tangent_speed is not None
-                    else lib.b2DefaultSurfaceMaterial().tangentSpeed
-                )
-                materials[i].userMaterialId = mat.user_material
-
-                if mat.custom_color is not None:
-                    if isinstance(mat.custom_color, int):
-                        materials[i].customColor = mat.custom_color
-                    elif isinstance(mat.custom_color, Color):
-                        materials[i].customColor = mat.custom_color.b2HexColor
+            for i, material in enumerate(self.materials):
+                materials[i] = material.b2SurfaceMaterial
             chain_def.materials = materials
             chain_def.materialCount = material_count
 

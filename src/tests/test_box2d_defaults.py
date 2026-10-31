@@ -414,14 +414,16 @@ def test_a_differing_enum_field_is_found():
     assert _differences(ours, lib.b2DefaultBodyDef()) == ["type"]
 
 
-def test_a_material_left_to_its_defaults_is_box2d_s_but_for_its_id():
-    """Each material gets its own id, so SurfaceMaterial.get_by_id finds it."""
+def test_a_material_left_to_its_defaults_is_box2d_s():
+    """Its id included: 0, as in Box2D.
+
+    Each material used to number itself from a counter, 1, 2, 3, so that a
+    registry could find it by its id, where Box2D's default id is 0.
+    """
     material = SurfaceMaterial()
-    differences = _differences(
-        material.b2SurfaceMaterial, lib.b2DefaultSurfaceMaterial()
+    assert (
+        _differences(material.b2SurfaceMaterial, lib.b2DefaultSurfaceMaterial()) == []
     )
-    assert differences == ["userMaterialId"]
-    assert SurfaceMaterial.get_by_id(material.user_material) is material
 
 
 # --- sensor events -----------------------------------------------------------

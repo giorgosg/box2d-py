@@ -1,75 +1,68 @@
 """
-This module defines the SurfaceMaterial class for managing physical materials in Box2D.
-A material defines the friction, restitution, and other properties of a surface.
+This module defines SurfaceMaterial, Box2D's ``b2SurfaceMaterial``: the
+friction, restitution and other properties of a shape's surface.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, ClassVar
-from weakref import WeakValueDictionary
+from dataclasses import dataclass, fields, replace
+from typing import Any, Mapping
 from ._checked import lib
 from .debug_draw import Color
+
+_default_material = lib.b2DefaultSurfaceMaterial()
 
 
 @dataclass
 class SurfaceMaterial:
     """
-    A material defines the physical properties of a surface in the simulation.
+    The physical properties of a shape's surface, Box2D's ``b2SurfaceMaterial``.
 
-    Materials are used to customize how objects interact when they collide.
-    When shapes with different materials collide, Box2D can use custom
-    callbacks to determine the resulting friction and restitution.
+    A shape is made with one, as :class:`.ShapeDef`'s ``material``, and a
+    chain with one per segment or one for them all, as :class:`.ChainDef`'s
+    ``materials``. The fields and their defaults are Box2D's, in Box2D's
+    order, so ``SurfaceMaterial()`` is Box2D's default material.
+
+    A material is plain data. Making a shape copies its values into Box2D, so
+    changing a material afterwards does not change shapes already made with
+    it: set the shape's ``surface_material`` for that.
 
     Attributes:
-        user_material: User material identifier passed with query results.
-            Auto-generated if not set: a new id for each material, where
-            Box2D's default is 0, so that :meth:`get_by_id` can find it.
-        friction: The Coulomb (dry) friction coefficient, usually in the range [0,1]. default=0.6
-        restitution: The coefficient of restitution (bounce), usually in the range [0,1]. default=0.0
-        rolling_resistance: The rolling resistance coefficient, usually in the range [0,1]. default=0.0
+        friction: The Coulomb (dry) friction coefficient, usually in the range
+            [0,1]. default=0.6
+        restitution: The coefficient of restitution (bounce), usually in the
+            range [0,1]. default=0.0
+        rolling_resistance: The rolling resistance coefficient, usually in the
+            range [0,1]. default=0.0
         tangent_speed: The tangent speed for conveyor belt effects. default=0.0
-        custom_color: Custom debug draw color used for visualization.
+        user_material: An id of the application's own, which the world's
+            friction and restitution mixers are given to tell materials apart.
+            default=0
+        custom_color: A colour for debug draw, as a 0xRRGGBB int or a
+            :class:`.Color`; 0 draws the shape in the default colours.
+            default=0
+
+    Example:
+        >>> from box2d import SurfaceMaterial
+        >>> ice = SurfaceMaterial(friction=0.02, user_material=1)
+        >>> ice.restitution, ice.user_material
+        (0.0, 1)
     """
 
-    # Class variable to track the next available material ID
-    _next_material_id: ClassVar[int] = 1
-
-    # Registry to keep track of all created materials by their ID
-    # Using WeakValueDictionary so materials can be garbage collected when no longer used
-    _materials_registry: ClassVar[WeakValueDictionary] = WeakValueDictionary()
-
-    # Auto-increment material ID by default, rather than Box2D's 0: the
-    # registry finds a material by its id, so each needs its own.
-    user_material: int = field(default_factory=lambda: SurfaceMaterial._get_next_id())
-    friction: Optional[float] = None
-    restitution: Optional[float] = None
-    rolling_resistance: Optional[float] = None
-    tangent_speed: Optional[float] = None
-    custom_color: Optional[Color | int] = None
-
-    @classmethod
-    def _get_next_id(cls) -> int:
-        """Generate the next unique material ID."""
-        material_id = cls._next_material_id
-        cls._next_material_id += 1
-        return material_id
-
-    def __post_init__(self):
-        # Register this material in the registry
-        self._materials_registry[self.user_material] = self
+    friction: float = _default_material.friction
+    restitution: float = _default_material.restitution
+    rolling_resistance: float = _default_material.rollingResistance
+    tangent_speed: float = _default_material.tangentSpeed
+    user_material: int = _default_material.userMaterialId
+    custom_color: Color | int = _default_material.customColor
 
     @classmethod
     def from_b2SurfaceMaterial(cls, material) -> "SurfaceMaterial":
-        """Build one from a C struct, as read back out of Box2D.
-
-        The id comes from the struct rather than the auto-increment counter,
-        so a material read back keeps the identity it was stored under.
-        """
+        """Build one from a C struct, as read back out of Box2D."""
         return cls(
-            user_material=material.userMaterialId,
             friction=material.friction,
             restitution=material.restitution,
             rolling_resistance=material.rollingResistance,
             tangent_speed=material.tangentSpeed,
+            user_material=material.userMaterialId,
             custom_color=material.customColor,
         )
 
@@ -78,74 +71,47 @@ class SurfaceMaterial:
         """
         Creates and returns the C structure for this surface material.
 
-        Uses b2DefaultSurfaceMaterial() to get default values and only
-        overrides properties that have been explicitly set.
-
         Returns:
             A b2SurfaceMaterial C structure representing this material
         """
-        # Start with defaults
         material = lib.b2DefaultSurfaceMaterial()
-
-        # Always set the material ID, even if using the auto-generated one
+        material.friction = self.friction
+        material.restitution = self.restitution
+        material.rollingResistance = self.rolling_resistance
+        material.tangentSpeed = self.tangent_speed
         material.userMaterialId = self.user_material
-
-        # Override with any explicitly set values
-        if self.friction is not None:
-            material.friction = self.friction
-        if self.restitution is not None:
-            material.restitution = self.restitution
-        if self.rolling_resistance is not None:
-            material.rollingResistance = self.rolling_resistance
-        if self.tangent_speed is not None:
-            material.tangentSpeed = self.tangent_speed
-        if self.custom_color is not None:
-            if isinstance(self.custom_color, Color):
-                material.customColor = self.custom_color.b2HexColor
-            else:
-                material.customColor = self.custom_color
-
+        material.customColor = (
+            self.custom_color.b2HexColor
+            if isinstance(self.custom_color, Color)
+            else self.custom_color
+        )
         return material
 
-    @classmethod
-    def default(cls):
-        """
-        Creates a SurfaceMaterial with Box2D default values.
 
-        Uses b2DefaultSurfaceMaterial() to get the default values from Box2D.
+#: The SurfaceMaterial fields, which the shape-making calls also take as
+#: keywords.
+_MATERIAL_FIELDS = tuple(field.name for field in fields(SurfaceMaterial))
 
-        Returns:
-            A SurfaceMaterial instance with default values
-        """
-        default_mat = lib.b2DefaultSurfaceMaterial()
-        return cls(
-            user_material=cls._get_next_id(),  # Still use auto-generated ID
-            friction=default_mat.friction,
-            restitution=default_mat.restitution,
-            rolling_resistance=default_mat.rollingResistance,
-            tangent_speed=default_mat.tangentSpeed,
-            custom_color=default_mat.customColor,
+
+def _with_fields(material: SurfaceMaterial, given: Mapping[str, Any]):
+    """``material`` with the fields in ``given`` replaced.
+
+    A field given as None is left as the material has it, so a caller can
+    pass ``custom_color=colour if colourful else None``. ``material`` itself
+    is not changed: a new one is made whenever a field is.
+    """
+    changes = {name: value for name, value in given.items() if value is not None}
+    return replace(material, **changes) if changes else material
+
+
+def _check_material(material, where):
+    """Refuse anything but a SurfaceMaterial, saying what to pass instead.
+
+    A bare int was once taken as the material id, so say where that goes now.
+    """
+    if not isinstance(material, SurfaceMaterial):
+        raise TypeError(
+            f"{where} takes a SurfaceMaterial, not {type(material).__name__}; "
+            "for a material id, pass SurfaceMaterial(user_material=...) or "
+            "the user_material= keyword"
         )
-
-    @classmethod
-    def get_by_id(cls, material_id: int) -> Optional["SurfaceMaterial"]:
-        """
-        Find a material in the registry by its material ID.
-
-        Args:
-            material_id: The material identifier to search for
-
-        Returns:
-            The SurfaceMaterial with the specified ID, or None if not found
-        """
-        return cls._materials_registry.get(material_id)
-
-    @classmethod
-    def clear_registry(cls):
-        """
-        Clear the materials registry.
-
-        This removes all references to materials from the registry but doesn't
-        affect any materials still being used by Box2D objects.
-        """
-        cls._materials_registry.clear()

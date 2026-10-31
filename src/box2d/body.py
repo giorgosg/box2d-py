@@ -369,7 +369,9 @@ class BodyBuilder:
             offset: The offset of the box from the body's position (default: (0, 0)).
             angle: The box's rotation relative to the body, in radians
                 (default: 0.0). :class:`.BoxDef` calls this ``rotation``.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
         Returns:
             Self for method chaining.
         """
@@ -398,7 +400,9 @@ class BodyBuilder:
         Args:
             radius: Radius of the circle.
             center: Local center position (x, y).
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
         Returns:
             Self for method chaining.
         """
@@ -430,7 +434,9 @@ class BodyBuilder:
             point2: The second endpoint of the capsule, in local coordinates.
             radius: Radius of the capsule (half its thickness), which is also
                 the radius of its rounded ends.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
         Returns:
             Self for method chaining.
         """
@@ -459,7 +465,9 @@ class BodyBuilder:
         Args:
             vertices: List of points that define the polygon shape.
             radius: The radius of the rounded corners (default: 0.0).
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             Self for method chaining.
@@ -489,7 +497,9 @@ class BodyBuilder:
         Args:
             point1: The first endpoint, in local coordinates.
             point2: The second endpoint, in local coordinates.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
         Returns:
             Self for method chaining.
         """
@@ -516,7 +526,8 @@ class BodyBuilder:
             vertices: The chain's points: at least 2 for an open chain, 3 for a loop.
             loop: Boolean indicating whether the chain should be closed (looped). Default is False.
             **chaindef_args: Additional parameters for the shape definition, such as
-                ``ghost1``/``ghost2`` or ``materials``. See :class:`.ChainDef`.
+                ``ghost1``/``ghost2``, ``materials`` or ``friction``. See
+                :meth:`.Chain.create`.
         Returns:
             Self for method chaining.
         """
@@ -953,7 +964,9 @@ class Body(FixedAttributes):
             offset: The offset of the box from the body's position (default: (0, 0)).
             angle: The box's rotation relative to the body, in radians
                 (default: 0.0). :class:`.BoxDef` calls this ``rotation``.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             The created box shape.
@@ -981,7 +994,9 @@ class Body(FixedAttributes):
         Args:
             radius: Radius of the circle.
             center: Center of the circle (default: (0, 0)).
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             The created circle shape.
@@ -1008,7 +1023,9 @@ class Body(FixedAttributes):
             point1: First endpoint of the capsule.
             point2: Second endpoint of the capsule.
             radius: Radius of the capsule.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             The created capsule shape.
@@ -1034,7 +1051,9 @@ class Body(FixedAttributes):
         Args:
             vertices: List of vertices defining the polygon.
             radius: Optional radius for rounded corners (default: 0.0).
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             The created polygon shape.
@@ -1059,7 +1078,9 @@ class Body(FixedAttributes):
         Args:
             point1: Starting point of the segment.
             point2: Ending point of the segment.
-            **shapedef_args: Additional parameters for the shape definition.
+            **shapedef_args: :class:`.ShapeDef` fields, such as ``density``, and
+                :class:`.SurfaceMaterial` fields, such as ``friction``, which fill
+                those of its ``material``.
 
         Returns:
             The created segment shape.
@@ -1085,7 +1106,8 @@ class Body(FixedAttributes):
             vertices: The chain's points: at least 2 for an open chain, 3 for a loop.
             loop: Boolean indicating whether the chain should be closed (looped).
             **chaindef_args: Additional parameters for the chain, such as
-                ``ghost1``/``ghost2`` or ``materials``. See :class:`.ChainDef`.
+                ``ghost1``/``ghost2``, ``materials`` or ``friction``. See
+                :meth:`.Chain.create`.
 
         Returns:
             The created chain shape.
