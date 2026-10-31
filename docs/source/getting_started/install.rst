@@ -19,9 +19,10 @@ The testbed, a window of example scenarios to run and edit, is the
     pip install --pre "box2d-python[testbed]"
 
 ``--pre`` is needed while the release is a candidate, 3.2.0rc1: pip skips
-pre-releases unless asked. Wheels are built for Linux (x86_64, i686 and
-aarch64, glibc and musl), macOS (arm64 and x86_64) and Windows (AMD64), so
-nothing is compiled. The 0.1.x releases on PyPI predate the Box2D v3.2 port
+pre-releases unless asked. Wheels are built for Linux (x86_64 and aarch64,
+glibc and musl), macOS (arm64 and x86_64) and Windows (AMD64), so nothing is
+compiled there; elsewhere pip builds the source package, which needs the tools
+listed under building from source. The 0.1.x releases on PyPI predate the Box2D v3.2 port
 and have a different API.
 
 From git
