@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box2d-python"
-version = "0.2.0"
-description = "Bindings for box2d v3"
+version = "3.2.0rc1"
+description = "Python bindings for the Box2D v3.2 physics engine"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -16,7 +16,14 @@ maintainers = [
   { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
 ]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Games/Entertainment :: Simulation",
+  "Topic :: Scientific/Engineering :: Physics",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]

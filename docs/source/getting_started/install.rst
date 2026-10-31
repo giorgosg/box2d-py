@@ -4,25 +4,35 @@ Installation
 box2d-python needs Python 3.12, 3.13 or 3.14, on Linux, macOS or Windows. It
 also runs in WebAssembly, under Pyodide.
 
-From git
---------
+From PyPI
+---------
 
 .. code-block:: bash
 
-    pip install "git+https://github.com/giorgosg/box2d-py.git"
+    pip install --pre box2d-python
 
 The testbed, a window of example scenarios to run and edit, is the
 ``testbed`` extra:
 
 .. code-block:: bash
 
+    pip install --pre "box2d-python[testbed]"
+
+``--pre`` is needed while the release is a candidate, 3.2.0rc1: pip skips
+pre-releases unless asked. Wheels are built for Linux (x86_64, i686 and
+aarch64, glibc and musl), macOS (arm64 and x86_64) and Windows (AMD64), so
+nothing is compiled. The 0.1.x releases on PyPI predate the Box2D v3.2 port
+and have a different API.
+
+From git
+--------
+
+The current ``main``, built from source, so it needs the same tools as
+building from source does, below:
+
+.. code-block:: bash
+
     pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
-
-Either builds Box2D from source, so it needs the same tools as building from
-source does, below.
-
-The releases on PyPI, 0.1.x, predate the Box2D v3.2.0 port these pages
-describe, and their API differs from what is documented here.
 
 From source
 -----------
