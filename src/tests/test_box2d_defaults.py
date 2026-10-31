@@ -321,16 +321,9 @@ def test_the_bodies_stay_where_they_were_put(world, three_apart):
 
 # --- shapes and chains -------------------------------------------------------
 
-#: Where a shape's default is box2d-py's own rather than Box2D's, and why.
-_SHAPE_DIFFERENCES = {
-    # Kept on so a sensor sees shapes without each opting in.
-    "enableSensorEvents",
-}
-
 
 def test_a_shape_definition_left_to_its_defaults_is_box2d_s():
-    differences = _differences(ShapeDef().b2ShapeDef, lib.b2DefaultShapeDef())
-    assert set(differences) == _SHAPE_DIFFERENCES
+    assert _differences(ShapeDef().b2ShapeDef, lib.b2DefaultShapeDef()) == []
 
 
 def test_a_shape_made_with_no_settings_has_box2d_s(world):
@@ -350,6 +343,7 @@ def test_a_shape_made_with_no_settings_has_box2d_s(world):
         assert shape.user_material == box2d.material.userMaterialId
         assert shape.density == box2d.density
         assert shape.is_sensor == box2d.isSensor
+        assert shape.enable_sensor_events == box2d.enableSensorEvents
         assert shape.enable_contact_events == box2d.enableContactEvents
         assert shape.enable_hit_events == box2d.enableHitEvents
         assert shape.enable_pre_solve_events == box2d.enablePreSolveEvents
@@ -370,8 +364,6 @@ _CHAIN_DIFFERENCES = {
     "ghost1.y",
     "ghost2.x",
     "ghost2.y",
-    # Kept on so a sensor sees chains without each opting in.
-    "enableSensorEvents",
 }
 
 
@@ -392,3 +384,51 @@ def test_a_material_left_to_its_defaults_is_box2d_s_but_for_its_id():
     )
     assert differences == ["userMaterialId"]
     assert SurfaceMaterial.get_by_id(material.user_material) is material
+
+
+# --- sensor events -----------------------------------------------------------
+
+
+def _seen_by(world, sensor_flag, visitor_flags):
+    """The visitors a sensor box at the origin reports over half a second.
+
+    Each visitor is a small ball inside the box, with its own
+    enable_sensor_events setting.
+    """
+    world.new_body().static().box(
+        4, 4, is_sensor=True, enable_sensor_events=sensor_flag
+    ).build()
+    visitors = [
+        world.new_body()
+        .dynamic()
+        .position(index - 1, 0)
+        .circle(0.25, enable_sensor_events=flag)
+        .build()
+        .shapes[0]
+        for index, flag in enumerate(visitor_flags)
+    ]
+    seen = []
+    for _ in range(30):
+        world.step(1 / 60, 4)
+        seen += [event.visitor for event in world.get_sensor_events().begin]
+    return [visitors.index(visitor) for visitor in seen]
+
+
+def test_a_sensor_sees_only_the_shapes_that_opt_in(world):
+    assert _seen_by(world, True, [False, True]) == [1]
+
+
+def test_a_sensor_that_has_not_opted_in_sees_nothing(world):
+    """Sensor events are opt-in on both shapes, as in Box2D."""
+    assert _seen_by(world, False, [True, True]) == []
+
+
+def test_a_chain_can_opt_in_to_sensor_events(world):
+    chain = (
+        world.new_body()
+        .static()
+        .build()
+        .add_chain([(-1, 0), (1, 0)], enable_sensor_events=True)
+    )
+    assert all(segment.enable_sensor_events for segment in chain.segments)
+    assert ChainDef([(0, 0), (1, 0)]).enable_sensor_events is False

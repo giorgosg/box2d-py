@@ -938,9 +938,13 @@ class Chain(FixedAttributes):
         tangent_speed=None,
         custom_color=None,
         user_data=None,
+        enable_sensor_events=False,
     ):
         """
         Create and attach a chain shape to a body.
+
+        The arguments are :class:`.ChainDef`'s, with the material's fields
+        given one by one when ``materials`` is not given.
         """
         if materials is None:
             materials = [
@@ -960,6 +964,7 @@ class Chain(FixedAttributes):
             filter=filter,
             materials=materials,
             user_data=user_data,
+            enable_sensor_events=enable_sensor_events,
         )
         return cls(body, shapedef)
 

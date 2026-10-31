@@ -12,6 +12,7 @@ from .math import Vec2, VectorLike, Rot
 from .debug_draw import Color
 
 _default_shape_def = lib.b2DefaultShapeDef()
+_default_chain_def = lib.b2DefaultChainDef()
 
 
 @dataclass
@@ -39,8 +40,8 @@ class ShapeDef:
             asks for it. default=False
         is_sensor: True if this shape is a sensor (generates events but no collision response). default=False
         enable_sensor_events: True if this shape takes part in sensor events. A sensor
-            reports a shape only when both of them have it set. Box2D defaults it to
-            False; box2d-py defaults it to True. default=True
+            reports a shape only when both of them have it set, so a sensor sees
+            only the shapes that opt in. default=False, as in Box2D
         enable_contact_events: True to enable contact events for this shape. default=False
         enable_hit_events: True to enable hit events for this shape. default=False
         enable_pre_solve_events: True to enable pre-solve events (expensive). default=False
@@ -62,7 +63,7 @@ class ShapeDef:
     custom_color: int = _default_shape_def.material.customColor
     enable_custom_filtering: bool = _default_shape_def.enableCustomFiltering
     is_sensor: bool = _default_shape_def.isSensor
-    enable_sensor_events: bool = True
+    enable_sensor_events: bool = _default_shape_def.enableSensorEvents
     enable_contact_events: bool = _default_shape_def.enableContactEvents
     enable_hit_events: bool = _default_shape_def.enableHitEvents
     enable_pre_solve_events: bool = _default_shape_def.enablePreSolveEvents
@@ -542,8 +543,8 @@ class ChainDef:
             ``user_data``.
         enable_sensor_events: True if this chain takes part in sensor events. A
             sensor reports the chain only when both of them have it set: this
-            flag on the chain, and the same flag on the sensor shape. Box2D
-            defaults it to False; box2d-py defaults it to True. default=True
+            flag on the chain, and the same flag on the sensor shape.
+            default=False, as in Box2D
     """
 
     vertices: Sequence[VectorLike]
@@ -553,7 +554,7 @@ class ChainDef:
     materials: Sequence[SurfaceMaterial] = None
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
-    enable_sensor_events: bool = True
+    enable_sensor_events: bool = _default_chain_def.enableSensorEvents
 
     def __post_init__(self):
         self.vertices = [Vec2(v) for v in self.vertices]

@@ -67,7 +67,7 @@ Events
 
 * ``shape.enable_contact_events`` - Get/set whether the shape reports touches beginning and ending
 * ``shape.enable_hit_events`` - Get/set whether it reports hits above the world's ``hit_event_threshold``
-* ``shape.enable_sensor_events`` - Get/set whether it takes part in sensor events (default True)
+* ``shape.enable_sensor_events`` - Get/set whether it takes part in sensor events (default False)
 * ``shape.enable_pre_solve_events`` - Get/set whether the world's ``pre_solve`` callback runs for it
 * ``shape.contact_data`` - The shape's touching contacts, as a list of ``ContactData``
 * ``shape.contact_capacity`` - The most contacts ``contact_data`` can hold (read-only)
@@ -150,7 +150,7 @@ Chain
 A run of one-sided segments joined end to end, open or closed into a loop, for
 static terrain. Bodies slide across the joins without catching on them.
 
-* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None, user_data=None)`` -
+* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None, user_data=None, enable_sensor_events=False)`` -
   Make and attach one; ``body.add_chain()`` calls this. ``friction`` and the
   rest make one material for the whole chain, when ``materials`` is not given
 * ``chain.segments`` - The chain's ``ChainSegment`` shapes, in order
@@ -208,7 +208,7 @@ Events
 
 * ``enable_contact_events`` - Report touches beginning and ending (default False)
 * ``enable_hit_events`` - Report hits (default False)
-* ``enable_sensor_events`` - Take part in sensor events (default True; Box2D's own default is False)
+* ``enable_sensor_events`` - Take part in sensor events, which a sensor and a shape both have to (default False)
 * ``enable_pre_solve_events`` - Run the world's ``pre_solve`` callback for this shape (default False)
 
 Other
@@ -270,7 +270,7 @@ Importable from ``box2d.shapedef``.
 ChainDef
 --------
 
-* ``ChainDef(vertices, is_loop=False, ghost1=None, ghost2=None, materials=None, filter=None, user_data=None, enable_sensor_events=True)`` -
+* ``ChainDef(vertices, is_loop=False, ghost1=None, ghost2=None, materials=None, filter=None, user_data=None, enable_sensor_events=False)`` -
   A chain's points and options. An open chain needs 2 points, a loop 3
 * ``vertices`` - The chain's points, in order; each is a real vertex
 * ``is_loop`` - Whether the last point joins back to the first
@@ -279,7 +279,7 @@ ChainDef
 * ``materials`` - One ``SurfaceMaterial`` for the whole chain, or one per segment
 * ``filter`` - The ``CollisionFilter`` for every segment
 * ``user_data`` - Any Python object, kept as the chain's ``user_data``
-* ``enable_sensor_events`` - Whether the segments take part in sensor events (default True)
+* ``enable_sensor_events`` - Whether the segments take part in sensor events (default False)
 * ``chain_def.segment_count`` - How many segments the chain will have
 * ``chain_def.b2ChainDef`` - The Box2D structure
 

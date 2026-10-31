@@ -259,7 +259,7 @@ def test_body_events_after_the_body_is_destroyed():
 _SENSED_BALL = """
 world = World(gravity=(0, 0))
 ground = world.new_body().static().build()
-sensor = ground.add_circle(radius=2, is_sensor=True)
+sensor = ground.add_circle(radius=2, is_sensor=True, enable_sensor_events=True)
 ball = world.new_body().dynamic().build()
 visitor = ball.add_circle(radius=0.5, enable_sensor_events=True)
 world.step(1 / 60)

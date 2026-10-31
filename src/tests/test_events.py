@@ -227,7 +227,7 @@ def test_thresholds_round_trip(world):
 
 def test_sensor_events_can_be_toggled_after_creation(world):
     sensor_body = world.add_body(position=(0, 0))
-    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+    sensor = sensor_body.add_box(4, 4, is_sensor=True, enable_sensor_events=True)
     visitor_body = world.add_body(body_type="dynamic", position=(0, 0))
     visitor = visitor_body.add_circle(radius=0.5)
 

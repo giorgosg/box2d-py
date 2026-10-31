@@ -341,13 +341,13 @@ def test_sensor_actually_detects_overlap(world):
 
     The pre-existing sensor tests only assert types, so they stayed green when
     Box2D 3.1 made shape.enable_sensor_events opt-in and sensors silently
-    stopped detecting anything.
+    stopped detecting anything. Both shapes opt in, as Box2D asks.
     """
     sensor_body = world.new_body().static().position(0, 0).build()
-    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+    sensor = sensor_body.add_box(4, 4, is_sensor=True, enable_sensor_events=True)
 
     visitor = world.new_body().dynamic().position(0, 0).build()
-    visitor.add_circle(radius=0.5)
+    visitor.add_circle(radius=0.5, enable_sensor_events=True)
 
     world.step(1 / 60, 4)
 
@@ -358,7 +358,7 @@ def test_sensor_actually_detects_overlap(world):
 def test_sensor_events_can_be_disabled_per_shape(world):
     """A shape opting out of sensor events must not be detected."""
     sensor_body = world.new_body().static().position(0, 0).build()
-    sensor = sensor_body.add_box(4, 4, is_sensor=True)
+    sensor = sensor_body.add_box(4, 4, is_sensor=True, enable_sensor_events=True)
 
     visitor = world.new_body().dynamic().position(0, 0).build()
     visitor.add_circle(radius=0.5, enable_sensor_events=False)
