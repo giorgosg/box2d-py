@@ -113,8 +113,10 @@ def test_each_shape_definition_has_a_material_of_its_own():
 
 
 def test_a_shape_definition_s_material_reaches_its_struct():
-    c = ShapeDef(material=ODD).b2ShapeDef.material
-    assert SurfaceMaterial.from_b2SurfaceMaterial(c) == ODD
+    # Kept in a local: the material is a view into the struct, which has to
+    # outlive it.
+    shape_def = ShapeDef(material=ODD).b2ShapeDef
+    assert SurfaceMaterial.from_b2SurfaceMaterial(shape_def.material) == ODD
 
 
 def test_a_shape_definition_refuses_a_bare_material_id():
