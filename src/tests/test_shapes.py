@@ -204,10 +204,10 @@ def test_material_property(dynamic_body):
     shape.user_material = 42
     assert shape.user_material == 42
 
-    # Test with SurfaceMaterial object
-    custom_material = SurfaceMaterial(friction=0.8)
+    # Test with SurfaceMaterial object, whose id is taken
+    custom_material = SurfaceMaterial(friction=0.8, user_material=7)
     shape.user_material = custom_material
-    assert shape.user_material == custom_material.user_material
+    assert shape.user_material == 7
 
 
 def test_shape_collision_filter(dynamic_body):
@@ -397,8 +397,8 @@ def test_shape_multiple_materials(static_body):
     vertices = [(0, 0), (3, 0), (3, 3), (0, 3)]
 
     # Create two different materials
-    mat1 = SurfaceMaterial(friction=0.1, restitution=0.9)
-    mat2 = SurfaceMaterial(friction=0.9, restitution=0.1)
+    mat1 = SurfaceMaterial(friction=0.1, restitution=0.9, user_material=1)
+    mat2 = SurfaceMaterial(friction=0.9, restitution=0.1, user_material=2)
 
     # One material per point, which for a loop is also one per segment. This
     # used to pass five for a four-point loop, which Box2D asserts against.

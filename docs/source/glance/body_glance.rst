@@ -90,8 +90,9 @@ Shapes
 ^^^^^^
 
 Each ``add_*`` method attaches one shape and returns it. The keywords after
-the geometry are ``ShapeDef`` fields -- ``density``, ``friction``,
-``is_sensor`` and the rest -- or, for a chain, ``ChainDef`` options; see
+the geometry are ``ShapeDef`` fields -- ``density``, ``is_sensor``,
+``material`` and the rest -- and the fields of its ``SurfaceMaterial``, such
+as ``friction``, or, for a chain, ``ChainDef`` options; see
 :doc:`shape_glance`.
 
 * ``body.add_box(width, height, radius=0.0, offset=(0, 0), angle=0.0, **shapedef_args)`` - Attach a ``Box``, rounded by ``radius``

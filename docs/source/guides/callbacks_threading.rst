@@ -122,10 +122,10 @@ Box2D takes the geometric mean of the frictions, ``sqrt(friction_a *
 friction_b)``, and the larger of the restitutions.
 :attr:`~box2d.world.World.friction_mixer` and
 :attr:`~box2d.world.World.restitution_mixer` replace those rules, given each
-shape's value and its material: the integer it was made with as
-``material=``, 0 by default, or the id of the
-:class:`~box2d.material.SurfaceMaterial` given there. A material is what makes
-a rule like "nothing grips ice" possible:
+shape's value and its material id: the ``user_material`` of the
+:class:`~box2d.material.SurfaceMaterial` it was made with, 0 by default, which
+the ``user_material=`` keyword sets on its own. A material id is what makes a
+rule like "nothing grips ice" possible:
 
 .. code-block:: python
 
@@ -141,7 +141,7 @@ a rule like "nothing grips ice" possible:
     >>> crate = world.new_body().dynamic().position(-5, 1).linear_velocity(3, 0).box(1, 1).build()
     >>> puck = (
     ...     world.new_body().dynamic().position(0, 1).linear_velocity(3, 0)
-    ...     .box(1, 1, material=ICE).build()
+    ...     .box(1, 1, user_material=ICE).build()
     ... )
     >>> world.friction_mixer = friction
     >>> for _ in range(60):

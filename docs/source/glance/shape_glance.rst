@@ -10,7 +10,11 @@ gives a body its extent, its mass and something to collide with:
   class method is what those call
 - **Geometry plus a ShapeDef**: a shape is made from its geometry -- a
   radius, two points, a list of vertices -- and the ``ShapeDef`` fields, given
-  as keywords: ``density``, ``friction``, ``is_sensor`` and the rest
+  as keywords: ``density``, ``is_sensor`` and the rest
+- **The surface is a SurfaceMaterial**: friction, restitution and the other
+  surface properties are a ``SurfaceMaterial``, ``ShapeDef``'s ``material``,
+  as in Box2D. Its fields are keywords too, ``friction=0.2``, which fill that
+  field of the material
 - **Chains are apart**: a ``Chain`` is not a ``Shape``. It is a run of
   one-sided ``ChainSegment`` shapes for terrain, and it takes ``ChainDef``
   options rather than ``ShapeDef`` fields
@@ -47,8 +51,8 @@ Surface
 * ``shape.restitution`` - Get/set the bounciness, usually 0 to 1 (default 0)
 * ``shape.rolling_resistance`` - Get/set the rolling resistance, usually 0 to 1
 * ``shape.tangent_speed`` - Get/set the speed the surface moves along itself, for conveyor belts (m/s)
-* ``shape.user_material`` - Get/set the material id passed to the world's mixers; takes an id or a ``SurfaceMaterial``
-* ``shape.surface_material`` - Get/set all of the above at once, as a ``SurfaceMaterial``
+* ``shape.user_material`` - Get/set the material id passed to the world's mixers; takes an id, or a ``SurfaceMaterial``, whose id alone is taken
+* ``shape.surface_material`` - Get/set all of the above at once, and the debug colour, as a ``SurfaceMaterial``; reading gives a copy
 
 Mass
 ^^^^
@@ -150,9 +154,10 @@ Chain
 A run of one-sided segments joined end to end, open or closed into a loop, for
 static terrain. Bodies slide across the joins without catching on them.
 
-* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None, user_data=None, enable_sensor_events=None)`` -
+* ``Chain.create(body, vertices, loop=False, ghost1=None, ghost2=None, filter=None, materials=None, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, user_material=None, custom_color=None, user_data=None, enable_sensor_events=None)`` -
   Make and attach one; ``body.add_chain()`` calls this. ``friction`` and the
-  rest make one material for the whole chain, when ``materials`` is not given
+  other material fields override that field of each of ``materials``, or,
+  without them, make one material for the whole chain
 * ``chain.segments`` - The chain's ``ChainSegment`` shapes, in order
 * ``chain.get_surface_material(segment_index=0)`` - A copy of one segment's ``SurfaceMaterial``
 * ``chain.set_surface_material(material, segment_index=None)`` - Change one segment's material, or every segment's
@@ -174,20 +179,17 @@ report like any other, whose ``parent_chain`` is its chain.
 ShapeDef
 --------
 
-The settings every shape but a chain is made with. Each field is also a
-keyword to ``body.add_box()``, ``Circle.create()`` and the other shape-making
-calls, which make the ``ShapeDef`` from them.
+The settings every shape but a chain is made with, Box2D's ``b2ShapeDef``.
+Each field is also a keyword to ``body.add_box()``, ``Circle.create()`` and
+the other shape-making calls, which make the ``ShapeDef`` from them. So is
+each field of ``SurfaceMaterial``: ``friction=0.2`` fills that field of the
+material. Given with ``material=``, such a keyword overrides that one field,
+and the material passed is left unchanged. A keyword given as None is ignored.
 
 Surface
 ^^^^^^^
 
-* ``friction`` - The friction coefficient (default 0.6)
-* ``restitution`` - The bounciness (default 0)
-* ``rolling_resistance`` - The rolling resistance (default 0)
-* ``tangent_speed`` - The conveyor speed along the surface (default 0)
-* ``material`` - A user material id, or a ``SurfaceMaterial`` whose id is
-  used; its friction and the rest are not (default 0)
-* ``custom_color`` - A colour for debug draw, as a hex int or ``Color``; 0 for the default colours
+* ``material`` - The surface, as a ``SurfaceMaterial``: friction, restitution and the rest (default ``SurfaceMaterial()``, Box2D's)
 
 Mass
 ^^^^
@@ -286,24 +288,25 @@ ChainDef
 SurfaceMaterial
 ---------------
 
-A surface's properties in one object, for a shape's ``surface_material``, a
-chain's ``materials``, and the world's friction and restitution mixers
-(:doc:`../guides/callbacks_threading`). A field left None takes Box2D's
-default.
+A surface's properties in one object, Box2D's ``b2SurfaceMaterial``: a
+``ShapeDef``'s ``material``, a shape's ``surface_material``, a chain's
+``materials``. The fields and their defaults are Box2D's, in Box2D's order,
+so ``SurfaceMaterial()`` is Box2D's default material. A material is plain
+data: shapes made with it copy its values, so changing it later changes none
+of them.
 
-* ``SurfaceMaterial(user_material=<new id>, friction=None, restitution=None, rolling_resistance=None, tangent_speed=None, custom_color=None)`` -
-  A material; each gets a new ``user_material`` id unless given one
-* ``user_material`` - The id the mixers are passed, to tell materials apart
-* ``friction`` - The friction coefficient
-* ``restitution`` - The bounciness
-* ``rolling_resistance`` - The rolling resistance
-* ``tangent_speed`` - The conveyor speed along the surface
-* ``custom_color`` - A colour for debug draw, as a hex int or ``Color``
-* ``SurfaceMaterial.default()`` - A material with Box2D's default values, and a new id
-* ``SurfaceMaterial.get_by_id(material_id)`` - The live material with this id, or None
-* ``SurfaceMaterial.clear_registry()`` - Forget every material ``get_by_id`` knows
+* ``SurfaceMaterial(friction=0.6, restitution=0.0, rolling_resistance=0.0, tangent_speed=0.0, user_material=0, custom_color=0)`` -
+  A material
+* ``friction`` - The friction coefficient (default 0.6)
+* ``restitution`` - The bounciness (default 0)
+* ``rolling_resistance`` - The rolling resistance (default 0)
+* ``tangent_speed`` - The conveyor speed along the surface (default 0)
+* ``user_material`` - An id of the application's own, which the world's
+  friction and restitution mixers are passed to tell materials apart
+  (:doc:`../guides/callbacks_threading`) (default 0)
+* ``custom_color`` - A colour for debug draw, as a hex int or ``Color``; 0 for the default colours (default 0)
 * ``material.b2SurfaceMaterial`` - The Box2D structure
-* ``SurfaceMaterial.from_b2SurfaceMaterial(material)`` - Read one back from Box2D's structure, keeping its id
+* ``SurfaceMaterial.from_b2SurfaceMaterial(material)`` - Read one back from Box2D's structure
 
 Examples
 --------
