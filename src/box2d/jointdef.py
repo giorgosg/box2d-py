@@ -193,10 +193,10 @@ class PrismaticJointDef(JointDef):
 class WheelJointDef(JointDef):
     """A sliding axis with a spring, as between a chassis and a wheel.
 
-    A field left None takes the wheel joint's own default, not Box2D's: the
-    spring is off, at 0 Hz and a damping ratio of 0, where Box2D's wheel joint
-    starts with it on at 1 Hz and 0.7. Turning the spring on needs a
-    spring_hertz above zero too, or the wheel slides freely along the axis.
+    A field left None takes Box2D's default: the spring is on, at 1 Hz and a
+    damping ratio of 0.7, and the limit and motor are off. With the spring
+    turned off, or at 0 Hz, nothing but the limits holds the wheel along the
+    axis.
 
     Attributes:
         axis: The suspension axis, in body_a's local coordinates. Defaults to (1, 0).
@@ -207,9 +207,9 @@ class WheelJointDef(JointDef):
         target_motor_speed: The speed the motor drives towards, in radians per
             second.
         max_motor_torque: Torque the motor may apply.
-        enable_spring: Whether the suspension spring is active.
-        spring_hertz: Spring frequency.
-        spring_damping_ratio: Spring damping ratio.
+        enable_spring: Whether the suspension spring is active. On by default.
+        spring_hertz: Spring frequency. 1 Hz by default.
+        spring_damping_ratio: Spring damping ratio. 0.7 by default.
     """
 
     axis: VectorLike = (1, 0)
@@ -229,8 +229,12 @@ class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
     Attributes:
-        rest_length: The rest length between the anchors. Box2D's default
-            is 1 m, not the anchors' distance apart.
+        rest_length: The rest length between the anchors. If None, how far
+            apart the anchors are in the world when the joint is made, so it
+            holds the bodies where they are. This is box2d-py's default, not
+            Box2D's, which is 1 m wherever the anchors are and so pulls bodies
+            set out at any other distance together, or apart, on the first
+            step.
         lower_limit: Lower length limit.
         upper_limit: Upper length limit.
         enable_limit: Whether the length limits are enforced.
@@ -336,7 +340,9 @@ class PogoJointDef(JointDef):
 
     Attributes:
         normal: The ground normal at the contact, in world coordinates.
-            Defaults to straight up.
+            Defaults to straight up, (0, 1). This is box2d-py's default, not
+            Box2D's: Box2D's is (0, 0), along which the spring pushes nowhere,
+            so the joint would do nothing, and box2d-py refuses a zero normal.
         spring_hertz: Spring frequency.
         spring_damping_ratio: Spring damping ratio.
         rest_length: Length the spring settles at.
@@ -364,7 +370,8 @@ class MouseJointDef:
     than two bodies together, so it does not share :class:`JointDef`'s fields.
 
     The joint it makes adds a kinematic proxy body to the world; see
-    :class:`.MouseJoint`.
+    :class:`.MouseJoint`. Box2D 3.2 has no mouse joint, and so no default
+    definition for one: these defaults are box2d-py's own.
 
     Attributes:
         body: The body to drag.

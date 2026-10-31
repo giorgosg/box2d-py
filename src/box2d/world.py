@@ -1100,8 +1100,10 @@ class World(FixedAttributes):
         Example:
             >>> world = World()
             >>> body = world.new_body().dynamic().position(0,0).build()
-            >>> # Create a sensor shape
-            >>> sensor = body.add_circle(radius=1.0, is_sensor=True)
+            >>> # A sensor sees shapes only once it, and they, opt in
+            >>> sensor = body.add_circle(
+            ...     radius=1.0, is_sensor=True, enable_sensor_events=True
+            ... )
             >>> # Run simulation
             >>> world.step(1/60)
             >>> # Get events

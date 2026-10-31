@@ -121,7 +121,7 @@ def test_queries_and_casts_return_the_shapes_made(world, scene):
 
 def test_events_and_contacts_return_the_objects_made(world, scene):
     sensor_body = world.add_body(position=(0, 1.5))
-    sensor = sensor_body.add_box(4, 1, is_sensor=True)
+    sensor = sensor_body.add_box(4, 1, is_sensor=True, enable_sensor_events=True)
     scene["circle"].enable_sensor_events = True
     scene["mouse"].destroy()  # let the box fall too
 
@@ -156,7 +156,7 @@ def test_events_and_contacts_return_the_objects_made(world, scene):
 
 def test_sensor_overlaps_return_the_shapes_made(world):
     holder = world.add_body(position=(0, 0))
-    sensor = holder.add_box(4, 4, is_sensor=True)
+    sensor = holder.add_box(4, 4, is_sensor=True, enable_sensor_events=True)
     ball = world.add_body(body_type="dynamic", position=(0, 0), gravity_scale=0)
     circle = ball.add_circle(radius=0.5, enable_sensor_events=True)
     world.step(1 / 60, 4)

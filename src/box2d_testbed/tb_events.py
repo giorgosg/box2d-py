@@ -29,14 +29,15 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
     FORCE = 50.0
 
     def setup(self):
-        # Chains opt in to sensor events like shapes do, and box2d-py
-        # defaults that to on, so the foot can see this one.
+        # Sensor events are opt-in on both sides: the foot sees the ground
+        # only because the chain and the foot both turn them on.
         (
             self.world.new_body()
             .static()
             .chain(
                 [(x, 0) for x in range(9, -10, -1)],
                 filter=CollisionFilter(category="ground", mask=["foot", "player"]),
+                enable_sensor_events=True,
             )
             .build()
         )
@@ -57,6 +58,7 @@ class FootSensor(BaseTest, category="Events", name="Foot Sensor"):
                 0.5,
                 offset=(0, -1),
                 is_sensor=True,
+                enable_sensor_events=True,
                 filter=CollisionFilter(category="foot", mask=["ground"]),
             )
             .build()
@@ -460,9 +462,9 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
 
     A sensor across the outlet reports what reaches it, and each figure is
     removed when it does -- which is the point: the sensor is what tells you
-    something arrived, without a collision response that would stop it. A
-    sensor only sees shapes that allow it with enable_sensor_events, which
-    box2d-py defaults to True; Box2D itself defaults it to False.
+    something arrived, without a collision response that would stop it.
+    Sensor events are opt-in on both sides, as in Box2D, so the sensor and
+    every shape of every figure turn on enable_sensor_events.
 
     Destruction is deferred until the events have all been read. A figure
     has eleven bodies and any of them can trip the sensor, so destroying it
@@ -510,7 +512,7 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
             self.world.new_body()
             .static()
             .chain(self.FUNNEL, loop=True, materials=[SurfaceMaterial(friction=0.2)])
-            .box(8, 2, offset=(0, -30.5), is_sensor=True)
+            .box(8, 2, offset=(0, -30.5), is_sensor=True, enable_sensor_events=True)
             .build()
         )
 
@@ -568,9 +570,12 @@ class SensorFunnel(BaseTest, category="Events", name="Sensor Funnel"):
             element = bodies
 
         # Every body points back at what it belongs to, so a sensor event on
-        # any one of them identifies the whole thing.
+        # any one of them identifies the whole thing, and every shape opts in
+        # to sensor events, so the sensor sees it at all.
         for body in bodies:
             body.user_data = element
+            for shape in body.shapes:
+                shape.enable_sensor_events = True
 
         self.elements.append(element)
         self.side = -self.side

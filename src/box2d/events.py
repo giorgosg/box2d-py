@@ -17,8 +17,7 @@ Events are opt-in per shape:
   only fire above the world's :attr:`.World.hit_event_threshold` approach
   speed; it defaults off
 - sensor overlap needs ``enable_sensor_events`` on both the sensor and the
-  visiting shape. Box2D defaults it off, but box2d-py's shape definitions
-  default it on.
+  visiting shape; it defaults off
 """
 
 import weakref

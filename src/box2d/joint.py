@@ -52,18 +52,26 @@ def _ordered(lower, upper, what):
 _UNSET_LIMITS = "joint limits (a limit not given is 0)"
 
 
-def _distance_limits(lower, upper):
-    """``(lower, upper)`` as Box2D will store a distance joint's limits.
+def _distance_bounds():
+    """``(floor, cap)``: the shortest and longest a distance joint's lengths are.
 
-    Box2D holds each to at least its linear slop (0.005 m) and at most
-    B2_HUGE (100 km), so the ordering check compares those values: an upper
-    limit of 0.003 is no limit below the 0.005 lower default. The error,
-    though, names the values that were given. A value that is not finite is
-    passed through for Box2D to refuse.
+    Box2D holds a distance joint's rest length and limits to at least its
+    linear slop (0.005 m) and at most B2_HUGE (100 km).
     """
     floor = float(ffi.cast("float", 0.005 * lib.b2GetLengthUnitsPerMeter()))
     default = lib.b2DefaultDistanceJointDef()
-    cap = default.maxLength  # B2_HUGE
+    return floor, default.maxLength  # B2_HUGE
+
+
+def _distance_limits(lower, upper):
+    """``(lower, upper)`` as Box2D will store a distance joint's limits.
+
+    Box2D holds each to :func:`_distance_bounds`, so the ordering check
+    compares those values: an upper limit of 0.003 is no limit below the
+    0.005 lower default. The error, though, names the values that were given.
+    A value that is not finite is passed through for Box2D to refuse.
+    """
+    floor, cap = _distance_bounds()
     given = float(lower), float(upper)
     stored = tuple(
         min(max(bound, floor), cap) if math.isfinite(bound) else bound
@@ -75,6 +83,18 @@ def _distance_limits(lower, upper):
         raise ValueError(
             f"distance joint limits: lower {given[0]} is above upper {given[1]}"
         ) from None
+
+
+def _anchor_distance(body_a, local_anchor_a, body_b, local_anchor_b):
+    """How far apart two local anchors are in the world, as a rest length.
+
+    Held to :func:`_distance_bounds`, as Box2D holds a rest length it is given.
+    """
+    distance = (
+        body_b.get_world_point(local_anchor_b) - body_a.get_world_point(local_anchor_a)
+    ).length
+    floor, cap = _distance_bounds()
+    return min(max(distance, floor), cap)
 
 
 class Joint(FixedAttributes):
@@ -370,6 +390,9 @@ class MouseJoint(Joint):
         hertz=5.0,
     ):
         """Create a drag-and-move joint for interactive manipulation.
+
+        Box2D 3.2 has no mouse joint, so it has no defaults to follow here:
+        these are box2d-py's own.
 
         Args:
             world: The physics world where the joint exists
@@ -1073,17 +1096,21 @@ class WheelJoint(Joint):
         local_anchor_b: VectorLike,
         axis: VectorLike,
         collide_connected=False,
-        enable_limit=False,
-        lower_limit=0.0,
-        upper_limit=0.0,
-        enable_motor=False,
-        target_motor_speed=0.0,
-        max_motor_torque=0.0,
-        enable_spring=False,
-        spring_hertz=0.0,
-        spring_damping_ratio=0.0,
+        enable_limit=None,
+        lower_limit=None,
+        upper_limit=None,
+        enable_motor=None,
+        target_motor_speed=None,
+        max_motor_torque=None,
+        enable_spring=None,
+        spring_hertz=None,
+        spring_damping_ratio=None,
     ):
         """Initialize a wheel joint.
+
+        An argument left None takes Box2D's default, as in
+        ``b2DefaultWheelJointDef``: the suspension spring is on, at 1 Hz and a
+        damping ratio of 0.7, and the limit and motor are off.
 
         Args:
             world: The physics world instance
@@ -1099,12 +1126,11 @@ class WheelJoint(Joint):
             enable_motor (bool): Enable the joint motor
             target_motor_speed (float): Motor speed in radians/second
             max_motor_torque (float): Maximum motor torque in newton-metres
-            enable_spring (bool): Enable spring behavior. Off by default,
-                where Box2D's wheel joint has it on.
-            spring_hertz (float): Spring frequency in Hz. 0 by default, where
-                Box2D's is 1.
-            spring_damping_ratio (float): Spring damping ratio. 0 by default,
-                where Box2D's is 0.7.
+            enable_spring (bool): Enable spring behavior. On by default.
+                Turned off, nothing holds the wheel along the axis but the
+                limits.
+            spring_hertz (float): Spring frequency in Hz. 1 by default.
+            spring_damping_ratio (float): Spring damping ratio. 0.7 by default.
 
         Raises:
             ValueError: If lower_limit is above upper_limit.
@@ -1112,15 +1138,6 @@ class WheelJoint(Joint):
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
         self._local_axis_a = _unit_vector(axis)
-        self._enable_limit = enable_limit
-        self._lower_limit = lower_limit
-        self._upper_limit = upper_limit
-        self._enable_motor = enable_motor
-        self._target_motor_speed = target_motor_speed
-        self._max_motor_torque = max_motor_torque
-        self._enable_spring = enable_spring
-        self._spring_hertz = spring_hertz
-        self._spring_damping_ratio = spring_damping_ratio
         self._join(world)
 
         defn = lib.b2DefaultWheelJointDef()
@@ -1134,16 +1151,21 @@ class WheelJoint(Joint):
         axis_rotation = Rot.from_sincos(axis.y, axis.x).b2Rot[0]
         defn.base.localFrameA.q = axis_rotation
         defn.base.localFrameB.q = axis_rotation
-        defn.enableLimit = self._enable_limit
-        defn.lowerTranslation = self._lower_limit
-        defn.upperTranslation = self._upper_limit
+        # A setting left None keeps Box2D's default, as the other joints do.
+        for field, value in (
+            ("enableLimit", enable_limit),
+            ("lowerTranslation", lower_limit),
+            ("upperTranslation", upper_limit),
+            ("enableMotor", enable_motor),
+            ("motorSpeed", target_motor_speed),
+            ("maxMotorTorque", max_motor_torque),
+            ("enableSpring", enable_spring),
+            ("hertz", spring_hertz),
+            ("dampingRatio", spring_damping_ratio),
+        ):
+            if value is not None:
+                setattr(defn, field, value)
         _ordered(defn.lowerTranslation, defn.upperTranslation, f"wheel {_UNSET_LIMITS}")
-        defn.enableMotor = self._enable_motor
-        defn.motorSpeed = self._target_motor_speed
-        defn.maxMotorTorque = self._max_motor_torque
-        defn.enableSpring = self._enable_spring
-        defn.hertz = self._spring_hertz
-        defn.dampingRatio = self._spring_damping_ratio
         self._def = defn
         self._joint_id = lib.b2CreateWheelJoint(
             self.world._world_id, ffi.addressof(self._def)
@@ -1270,8 +1292,10 @@ class DistanceJoint(Joint):
             local_anchor_a (tuple): Local anchor point on body A (x,y)
             local_anchor_b (tuple): Local anchor point on body B (x,y)
             collide_connected (bool): Whether bodies can collide
-            rest_length (float): Rest length. If None, Box2D's default of
-                1 m, whatever the distance between the anchors.
+            rest_length (float): Rest length. If None, the distance between
+                the two anchors in world space as the joint is made, so the
+                joint holds the bodies where they are. Box2D's own default is
+                1 m, wherever the anchors are.
             lower_limit (float): Shortest allowed length when using limits
             upper_limit (float): Longest allowed length when using limits
             enable_limit (bool): Whether to enable length limits
@@ -1311,8 +1335,14 @@ class DistanceJoint(Joint):
         defn.base.localFrameA.p = self._local_anchor_a.b2Vec2[0]
         defn.base.localFrameB.p = self._local_anchor_b.b2Vec2[0]
 
-        if self._rest_length is not None:
-            defn.length = self._rest_length
+        # Not Box2D's default of 1 m: a joint made between bodies set out
+        # where they should be is meant to keep them there, not to pull them
+        # to 1 m apart on the first step.
+        defn.length = (
+            _anchor_distance(body_a, self._local_anchor_a, body_b, self._local_anchor_b)
+            if self._rest_length is None
+            else self._rest_length
+        )
         if self._lower_limit is not None:
             defn.minLength = self._lower_limit
         if self._upper_limit is not None:
@@ -1753,6 +1783,9 @@ class PogoJoint(Joint):
                 character, in body_b's local coordinates
             normal (vector-like): The ground normal at the contact, in world
                 coordinates. The spring pushes along it. Normalized here.
+                Straight up, (0, 1), by default, where Box2D's is (0, 0): the
+                spring pushes along the normal, so along a zero one it would
+                do nothing.
             spring_hertz (float): Spring frequency
             spring_damping_ratio (float): Spring damping ratio
             rest_length (float): Length the spring settles at
@@ -1772,6 +1805,9 @@ class PogoJoint(Joint):
         defn.base.localFrameA.p = Vec2(local_anchor_a).b2Vec2[0]
         defn.base.localFrameB.p = Vec2(local_anchor_b).b2Vec2[0]
         defn.base.collideConnected = collide_connected
+        # Not Box2D's default normal, (0, 0): the spring's force is its
+        # impulse along the normal, so a zero one makes a joint that does
+        # nothing. Straight up is the normal of level ground.
         defn.normal = _unit_vector(normal, "a pogo normal").b2Vec2[0]
         for field, value in (
             ("hertz", spring_hertz),

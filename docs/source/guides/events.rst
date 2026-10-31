@@ -32,10 +32,10 @@ Joints under strain    :meth:`~box2d.world.World.get_joint_events`     a joint's
 
 The shape flags are keyword arguments wherever a shape is made, and properties
 of the shape afterwards; ``body.enable_contact_events()`` and
-``body.enable_hit_events()`` set them on every shape of a body. Contact and
-hit events are off by default, since reporting every contact costs time.
-``enable_sensor_events`` is the other way round: Box2D defaults it off, but
-box2d-py defaults it on, so any shape is seen by a sensor unless it opts out.
+``body.enable_hit_events()`` set them on every shape of a body. All three
+flags are off by default, as in Box2D, since reporting costs time. So a sensor
+sees nothing until it turns on ``enable_sensor_events``, and then only the
+shapes that turn it on too.
 
 Contacts beginning and ending
 -----------------------------
@@ -147,20 +147,24 @@ bullets against every sensor not on a bullet, so a shape that crosses a
 sensor within a single step is still reported: it begins, and ends at the
 next step.
 
-A visitor is reported only if it also has ``enable_sensor_events``, so a shape
-made with it off passes through unseen. Here a ghost and a rock fall into a
-sensor, and only the rock is reported:
+Sensor events are opt-in on both sides: the sensor needs
+``enable_sensor_events``, and a visitor is reported only if it has it too, so a
+shape left without it passes through unseen. Here a ghost and a rock fall into
+a sensor, and only the rock, which opts in, is reported:
 
 .. code-block:: python
 
     >>> world.destroy()
     >>> world = World()
-    >>> zone = world.new_body().static().position(0, 2).box(4, 2, is_sensor=True).build()
-    >>> ghost = (
-    ...     world.new_body().dynamic().position(-1, 6)
-    ...     .circle(0.25, enable_sensor_events=False).build()
+    >>> zone = (
+    ...     world.new_body().static().position(0, 2)
+    ...     .box(4, 2, is_sensor=True, enable_sensor_events=True).build()
     ... )
-    >>> rock = world.new_body().dynamic().position(1, 6).circle(0.25).build()
+    >>> ghost = world.new_body().dynamic().position(-1, 6).circle(0.25).build()
+    >>> rock = (
+    ...     world.new_body().dynamic().position(1, 6)
+    ...     .circle(0.25, enable_sensor_events=True).build()
+    ... )
     >>> entered = []
     >>> for _ in range(60):
     ...     world.step(1 / 60, 4)

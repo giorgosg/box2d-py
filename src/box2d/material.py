@@ -20,7 +20,9 @@ class SurfaceMaterial:
     callbacks to determine the resulting friction and restitution.
 
     Attributes:
-        user_material: User material identifier passed with query results. (auto-generated if not set)
+        user_material: User material identifier passed with query results.
+            Auto-generated if not set: a new id for each material, where
+            Box2D's default is 0, so that :meth:`get_by_id` can find it.
         friction: The Coulomb (dry) friction coefficient, usually in the range [0,1]. default=0.6
         restitution: The coefficient of restitution (bounce), usually in the range [0,1]. default=0.0
         rolling_resistance: The rolling resistance coefficient, usually in the range [0,1]. default=0.0
@@ -35,7 +37,8 @@ class SurfaceMaterial:
     # Using WeakValueDictionary so materials can be garbage collected when no longer used
     _materials_registry: ClassVar[WeakValueDictionary] = WeakValueDictionary()
 
-    # Auto-increment material ID by default
+    # Auto-increment material ID by default, rather than Box2D's 0: the
+    # registry finds a material by its id, so each needs its own.
     user_material: int = field(default_factory=lambda: SurfaceMaterial._get_next_id())
     friction: Optional[float] = None
     restitution: Optional[float] = None
