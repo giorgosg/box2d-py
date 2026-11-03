@@ -82,16 +82,18 @@ html_theme = "sphinx_rtd_theme"
 # Most engine properties are descriptors, B2Accessor and DebugDraw's flags,
 # annotated with the descriptor's own type -- `friction: B2Accessor[float,
 # float]` -- because that is what lets a type checker see what reading one
-# gives. A reader wants that type, float, so the header says it instead.
+# gives. A reader wants that type, float, so before autodoc reads the classes
+# their annotations are rewritten to it. This touches only the docs build's
+# own import of box2d, and works the same whichever autodoc Sphinx ships.
 
 
 def setup(app):
-    # Imported here, not at the top: test_version.py reads this file for its
-    # version settings where Sphinx is not installed, under Pyodide for one.
+    # Here rather than at the top: test_version.py runs this file to read its
+    # version settings, and must not change the classes it then tests.
+    import inspect
+    import pkgutil
+    from importlib import import_module
     from typing import get_args, get_origin
-
-    from sphinx.ext.autodoc import AttributeDocumenter
-    from sphinx.util.typing import stringify_annotation
 
     from box2d.accessors import B2Accessor
     from box2d.debug_draw import _DrawFlag
@@ -104,28 +106,11 @@ def setup(app):
             return bool
         return None
 
-    class DescriptorAttributeDocumenter(AttributeDocumenter):
-        def add_directive_header(self, sig):
-            start = len(self.directive.result)
-            super().add_directive_header(sig)
-            # The class's own annotations rather than get_type_hints, which
-            # would have to resolve the names imported only for type checkers.
-            name = self.objpath[-1]
-            annotation = next(
-                (
-                    vars(klass)["__annotations__"][name]
-                    for klass in getattr(self.parent, "__mro__", ())
-                    if name in vars(klass).get("__annotations__", {})
-                ),
-                None,
-            )
-            read = read_type(annotation)
-            if read is None:
-                return
-            lines = self.directive.result
-            for i in range(start, len(lines)):
-                indent, _, rest = lines[i].partition(":type: ")
-                if rest and not indent.strip():
-                    lines[i] = indent + ":type: " + stringify_annotation(read, "smart")
-
-    app.add_autodocumenter(DescriptorAttributeDocumenter, override=True)
+    for module_info in pkgutil.iter_modules(box2d.__path__, "box2d."):
+        module = import_module(module_info.name)
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            annotations = vars(cls).get("__annotations__", {})
+            for name, annotation in annotations.items():
+                read = read_type(annotation)
+                if read is not None:
+                    annotations[name] = read

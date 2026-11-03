@@ -17,7 +17,7 @@ rather than being kept and never read.
 """
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type
 
 from .math import VectorLike
 
@@ -50,7 +50,7 @@ class JointDef:
     collide_connected: bool = False
 
     #: The Joint subclass this definition builds. Set by each subclass.
-    joint_class: ClassVar[Optional[type["Joint"]]] = None
+    joint_class: ClassVar[Optional[Type["Joint"]]] = None
 
     def resolved_anchors(self) -> tuple[Optional[VectorLike], Optional[VectorLike]]:
         """Return the local anchors, converting a world anchor if one was given.
@@ -389,7 +389,7 @@ class MouseJointDef:
     damping_ratio: float = 0.7
     hertz: float = 5.0
 
-    joint_class: ClassVar[Optional[type["Joint"]]] = None
+    joint_class: ClassVar[Optional[Type["Joint"]]] = None
 
     def joint_arguments(self) -> dict[str, Any]:
         """Every field that is set; a mouse joint has no anchors to resolve."""
