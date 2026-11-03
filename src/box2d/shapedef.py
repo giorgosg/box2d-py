@@ -73,7 +73,7 @@ class ShapeDef:
     invoke_contact_creation: bool = _default_shape_def.invokeContactCreation
     update_body_mass: bool = _default_shape_def.updateBodyMass
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # None is Box2D's default material, as leaving it out is, so a caller
         # can pass material=None to mean "no particular material".
         if self.material is None:
@@ -96,7 +96,7 @@ class ShapeDef:
         return shape_def
 
     @property
-    def b2ShapeDef(self):
+    def b2ShapeDef(self) -> Any:
         """
         Creates and returns the C structure for this shape definition.
 
@@ -147,13 +147,13 @@ class CircleDef:
     radius: float
     center: VectorLike = Vec2(0, 0)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert center to Vec2 if it wasn't already"""
         self.center = Vec2(self.center)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
-    def b2Circle(self):
+    def b2Circle(self) -> Any:
         """
         Creates and returns the C structure for this circle.
 
@@ -166,7 +166,7 @@ class CircleDef:
         return circle
 
     @classmethod
-    def from_b2Circle(cls, circle):
+    def from_b2Circle(cls, circle: Any) -> "CircleDef":
         """
         Creates a CircleDef from a b2Circle C structure.
 
@@ -197,14 +197,14 @@ class CapsuleDef:
     vertex2: VectorLike
     radius: float
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert vertices to Vec2 if they weren't already"""
         self.vertex1 = Vec2(self.vertex1)
         self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
-    def b2Capsule(self):
+    def b2Capsule(self) -> Any:
         """
         Creates and returns the C structure for this capsule.
 
@@ -218,7 +218,7 @@ class CapsuleDef:
         return capsule
 
     @classmethod
-    def from_b2Capsule(cls, capsule):
+    def from_b2Capsule(cls, capsule: Any) -> "CapsuleDef":
         """
         Creates a CapsuleDef from a b2Capsule C structure.
 
@@ -251,14 +251,14 @@ class SegmentDef:
     vertex1: VectorLike
     vertex2: VectorLike
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert vertices to Vec2 if they weren't already"""
         self.vertex1 = Vec2(self.vertex1)
         self.vertex2 = Vec2(self.vertex2)
         super().__post_init__() if hasattr(super(), "__post_init__") else None
 
     @property
-    def b2Segment(self):
+    def b2Segment(self) -> Any:
         """
         Creates and returns the C structure for this segment.
 
@@ -271,7 +271,7 @@ class SegmentDef:
         return segment
 
     @classmethod
-    def from_b2Segment(cls, segment):
+    def from_b2Segment(cls, segment: Any) -> "SegmentDef":
         """
         Creates a SegmentDef from a b2Segment C structure.
 
@@ -352,7 +352,7 @@ class BoxDef:
     rotation: Optional[float | Rot] = None
 
     @property
-    def b2Polygon(self):
+    def b2Polygon(self) -> Any:
         """
         Creates and returns the C structure for this box.
 
@@ -394,7 +394,7 @@ class PolygonDef:
     offset: Optional[VectorLike] = None
     rotation: Optional[float | Rot] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert all vertices to Vec2 objects"""
         self.vertices = [Vec2(v) for v in self.vertices]
         super().__post_init__() if hasattr(super(), "__post_init__") else None
@@ -435,7 +435,7 @@ class PolygonDef:
         return polygon is not None and _is_valid_polygon(polygon)
 
     @property
-    def b2Polygon(self):
+    def b2Polygon(self) -> Any:
         """
         Creates and returns the C structure for this polygon.
 
@@ -471,7 +471,7 @@ class PolygonDef:
         )
 
     @classmethod
-    def from_b2Polygon(cls, polygon):
+    def from_b2Polygon(cls, polygon: Any) -> "PolygonDef":
         """
         Creates a PolygonDef from a b2Polygon C structure.
 
@@ -541,7 +541,7 @@ class ChainDef:
     user_data: Optional[Any] = None
     enable_sensor_events: bool = _default_chain_def.enableSensorEvents
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.vertices = [Vec2(v) for v in self.vertices]
 
         count = len(self.vertices)
@@ -579,7 +579,7 @@ class ChainDef:
         return count if self.is_loop else count - 1
 
     @property
-    def b2ChainDef(self):
+    def b2ChainDef(self) -> Any:
         """
         Creates and returns the C structure for this chain definition.
 

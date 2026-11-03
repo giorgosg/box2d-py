@@ -25,7 +25,7 @@ sets room aside up front, which helps it avoid allocating as it fills::
 """
 
 from dataclasses import dataclass, fields
-from typing import List
+from typing import Any, List, Optional
 
 
 @dataclass
@@ -63,12 +63,13 @@ class Profile:
     sensors: float = 0.0
 
     @classmethod
-    def from_b2Profile(cls, profile):
+    def from_b2Profile(cls, profile: Any) -> "Profile":
+        """Build one from Box2D's ``b2Profile``."""
         return cls(
             **{name: getattr(profile, c_name) for name, c_name in _PROFILE_FIELDS}
         )
 
-    def slowest(self, count: int = 5) -> List[tuple]:
+    def slowest(self, count: int = 5) -> List[tuple[str, float]]:
         """The phases that took longest, as ``(name, milliseconds)`` pairs.
 
         Excludes ``step``, which is the total and so always the largest.
@@ -116,12 +117,13 @@ class Counters:
     static_tree_height: int = 0
     tree_height: int = 0
     task_count: int = 0
-    color_counts: List[int] = None
+    color_counts: Optional[List[int]] = None
     awake_contact_count: int = 0
     recycled_contact_count: int = 0
 
     @classmethod
-    def from_b2Counters(cls, counters):
+    def from_b2Counters(cls, counters: Any) -> "Counters":
+        """Build one from Box2D's ``b2Counters``."""
         values = {name: getattr(counters, c_name) for name, c_name in _COUNTER_FIELDS}
         values["color_counts"] = list(counters.colorCounts)
         return cls(**values)
@@ -172,12 +174,13 @@ class Capacity:
     arena_byte_count: int = 0
 
     @classmethod
-    def from_b2Capacity(cls, capacity):
+    def from_b2Capacity(cls, capacity: Any) -> "Capacity":
+        """Build one from Box2D's ``b2Capacity``."""
         return cls(
             **{name: getattr(capacity, c_name) for name, c_name in _CAPACITY_FIELDS}
         )
 
-    def _write_to(self, c_capacity):
+    def _write_to(self, c_capacity) -> None:
         """Copy this capacity into a b2Capacity, checking each field first.
 
         Raises:

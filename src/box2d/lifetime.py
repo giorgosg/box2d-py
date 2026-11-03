@@ -33,7 +33,7 @@ followed to a wrapper already collected; a table lookup is no slower than the
 two together, and has nothing to dangle.
 """
 
-from typing import Optional
+from typing import Any, Callable, Optional, Self, overload
 
 #: Where a wrapper keeps its world's liveness flag. A World keeps its own
 #: there too, so its own IdRef reads it the same way.
@@ -45,7 +45,7 @@ _WORLD_SLOT = "_world_alive"
 _NO_WORLD = (True,)
 
 
-def new_liveness():
+def new_liveness() -> list[bool]:
     """A world's liveness flag: a one-item list, True until it is destroyed.
 
     A list rather than an attribute on the World so a wrapper can hold it
@@ -62,7 +62,7 @@ class DestroyedError(RuntimeError):
     """
 
 
-def raw_id(obj, name: str):
+def raw_id(obj: object, name: str) -> Any:
     """Read a stored id without validating it.
 
     Args:
@@ -75,7 +75,7 @@ def raw_id(obj, name: str):
     return getattr(obj, f"_raw{name}", None)
 
 
-def join_world(obj, world) -> None:
+def join_world(obj: object, world: Any) -> None:
     """Record ``world`` as the world ``obj`` belongs to.
 
     From then on ``obj``'s :class:`IdRef` and :func:`is_live` treat its id as
@@ -103,17 +103,23 @@ class IdRef:
 
     __slots__ = ("_is_valid", "_label", "_name", "_slot")
 
-    def __init__(self, is_valid, label: str):
+    def __init__(self, is_valid: Callable[[Any], Any], label: str) -> None:
         self._is_valid = is_valid
         self._label = label
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
         self._slot = f"_raw{name}"
         if not hasattr(owner, _WORLD_SLOT):
             setattr(owner, _WORLD_SLOT, _NO_WORLD)
 
-    def __get__(self, obj, objtype=None):
+    @overload
+    def __get__(self, obj: None, objtype: Optional[type] = None) -> Self: ...
+
+    @overload
+    def __get__(self, obj: object, objtype: Optional[type] = None) -> Any: ...
+
+    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
             return self
         raw = getattr(obj, self._slot, None)
@@ -123,14 +129,14 @@ class IdRef:
             )
         return raw
 
-    def __set__(self, obj, value):
+    def __set__(self, obj: object, value: Any) -> None:
         setattr(obj, self._slot, value)
 
-    def __delete__(self, obj):
+    def __delete__(self, obj: object) -> None:
         setattr(obj, self._slot, None)
 
 
-def is_live(obj, name: str, is_valid) -> bool:
+def is_live(obj: Any, name: str, is_valid: Callable[[Any], Any]) -> bool:
     """Report whether a stored id is still valid, without raising.
 
     Args:
@@ -170,7 +176,7 @@ class _IdTable(dict):
     # keeping the world alive.
     __slots__ = ("_kind", "__weakref__")
 
-    def __init__(self, kind: str):
+    def __init__(self, kind: str) -> None:
         super().__init__()
         self._kind = kind
 

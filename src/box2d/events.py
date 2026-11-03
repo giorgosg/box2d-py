@@ -22,7 +22,7 @@ Events are opt-in per shape:
 
 import weakref
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from ._checked import ffi, lib
 from .dataclasses import ContactData
@@ -32,6 +32,7 @@ if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
     from .joint import Joint
     from .shape import Shape
+    from .world import World
 
 
 class Contact:
@@ -48,7 +49,7 @@ class Contact:
 
     __slots__ = ("_id_copy", "_world_alive", "_shapes", "_key")
 
-    def __init__(self, contact_id, world):
+    def __init__(self, contact_id: Any, world: "World") -> None:
         """
         Args:
             contact_id: The ``b2ContactId`` Box2D reported.
@@ -75,7 +76,7 @@ class Contact:
         )
 
     @property
-    def _contact_id(self):
+    def _contact_id(self) -> Any:
         """The contact's ``b2ContactId``."""
         return self._id_copy[0]
 
@@ -100,13 +101,13 @@ class Contact:
             lib.b2Contact_GetData(self._contact_id), shapes
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Contact) and self._key == other._key
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         state = "valid" if self.is_valid else "stale"
         return f"<Contact {self._key} {state}>"
 
@@ -178,10 +179,10 @@ class ContactEvents:
     end: List[ContactEndEvent] = field(default_factory=list)
     hit: List[ContactHitEvent] = field(default_factory=list)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.begin or self.end or self.hit)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.begin) + len(self.end) + len(self.hit)
 
 

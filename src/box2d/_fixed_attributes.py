@@ -33,12 +33,12 @@ class FixedAttributes:
     __slots__ = ()
     _fixed = False
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         # __package__ rather than "box2d", so a vendored copy is still fixed.
         cls._fixed = cls.__module__.startswith(f"{__package__}.")
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: object) -> None:
         if self._fixed and not name.startswith("_"):
             owner = type(self)
             allowed = _settable.get((owner, name))

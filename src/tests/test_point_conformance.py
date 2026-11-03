@@ -285,7 +285,7 @@ def test_point_parameters_are_annotated_vector_like():
     annotation at all, so the signature said 'tuple' where a list, a Vec2 or a
     b2Vec2 was equally welcome.
     """
-    from typing import Sequence
+    from typing import Optional, Sequence
 
     import box2d.body, box2d.shape, box2d.world
     from box2d.math import VectorLike
@@ -318,9 +318,14 @@ def test_point_parameters_are_annotated_vector_like():
             ), f"{entry} names a parameter {method_name} does not have"
             continue
         annotation = parameters[param].annotation
+        # Optional only where None means "not given", as for a point a force
+        # acts at, which defaults to the centre of mass.
+        allowed = accepted | (
+            {Optional[VectorLike]} if parameters[param].default is None else set()
+        )
         if annotation is inspect.Parameter.empty:
             wrong.append(f"{entry}: not annotated")
-        elif annotation not in accepted:
+        elif annotation not in allowed:
             wrong.append(f"{entry}: annotated {annotation}")
     assert not wrong, "point parameters with the wrong annotation:\n  " + "\n  ".join(
         wrong

@@ -86,6 +86,17 @@ in `pyproject.toml`, the hook's `rev` in `.pre-commit-config.yaml`, and CI's
 lint job, which reads the first. So a formatter release cannot reformat files
 nobody touched.
 
+The package ships a `py.typed` marker, so every public function, method,
+property and attribute carries a complete annotation. CI's types job holds
+that, failing on anything pyright cannot fully type:
+
+```bash
+uv run pyright --verifytypes box2d --ignoreexternal
+```
+
+The report names each gap. pyright is pinned in the `dev` extra, which the
+types job reads, as the lint job reads ruff's.
+
 The documentation is Sphinx, published on
 [readthedocs](https://box2d-py.readthedocs.io/). CI builds it with warnings as
 errors and every unresolved reference reported:
