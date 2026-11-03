@@ -1,8 +1,10 @@
 # src/box2d/world.py
 
+import functools
 import math
 import sys
 import traceback
+from types import MappingProxyType
 
 from ._checked import lib, ffi
 
@@ -62,11 +64,30 @@ from .jointdef import (
 )
 from .debug_draw import DebugDraw
 from .collision_filter import CollisionFilter
-from .shape import Shape
+from .shape import (
+    Box,
+    Capsule,
+    Chain,
+    ChainSegment,
+    Circle,
+    Polygon,
+    Segment,
+    Shape,
+)
 from .lifetime import IdRef, _IdTable, raw_id, is_live, new_liveness
 from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Mapping,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 
 
 @dataclass
@@ -229,6 +250,117 @@ def _raise_first(errors: list) -> None:
         raise errors[0]
 
 
+#: Every library class a world makes, and so every class a class map can
+#: replace. Each is replaced only where that very class is made, so mapping
+#: Polygon leaves boxes as they are, though a Box is a Polygon.
+_MADE = (
+    Body,
+    Box,
+    Capsule,
+    Circle,
+    Polygon,
+    Segment,
+    Chain,
+    ChainSegment,
+    DistanceJoint,
+    FilterJoint,
+    MotorJoint,
+    MouseJoint,
+    MoverJoint,
+    PogoJoint,
+    PrismaticJoint,
+    RevoluteJoint,
+    WeldJoint,
+    WheelJoint,
+)
+
+_T = TypeVar("_T")
+
+#: An object a world makes, and so one its hooks report.
+_Made = Union[Body, Shape, Chain, Joint]
+
+
+def _made_as(cls: type) -> Optional[type]:
+    """The library class ``cls`` is made as: the nearest one of _MADE it is."""
+    return next((made for made in cls.__mro__ if made in _MADE), None)
+
+
+def _check_classes(classes: Mapping[Any, Any]) -> dict[type, type]:
+    """A class map, checked, so a bad one fails where the world is made.
+
+    Raises:
+        ValueError: For a key that is not a class a world makes.
+        TypeError: For a value that is not a subclass of its key -- or is one
+            only through another class a world makes, as Box is a Polygon:
+            something made as a polygon is not made the way a box is.
+    """
+    checked = {}
+    for base, cls in classes.items():
+        if base not in _MADE:
+            names = ", ".join(made.__name__ for made in _MADE)
+            raise ValueError(
+                f"a class map replaces classes a world makes, and {base!r} is "
+                f"not one: they are {names}"
+            )
+        made_as = _made_as(cls) if isinstance(cls, type) else None
+        if made_as is None:
+            raise TypeError(
+                f"a class map replaces {base.__name__} with a subclass of it, "
+                f"not {cls!r}"
+            )
+        if made_as is not base:
+            raise TypeError(
+                f"a class map can replace {base.__name__} only with what is "
+                f"made as one, and {cls.__name__} is made as "
+                f"{made_as.__name__}: map {made_as.__name__} to it instead"
+            )
+        checked[base] = cls
+    return checked
+
+
+@functools.cache
+def _mixed(mixin: type, base: type) -> type:
+    """``base`` with ``mixin`` in front of it, made once per pair."""
+    name = f"{mixin.__name__}{base.__name__}"
+    return type(name, (mixin, base), {"__module__": mixin.__module__})
+
+
+def classes_with(mixin: Type[Any], base: Type[Any]) -> Dict[Type[Any], Type[Any]]:
+    """A class map putting ``mixin`` into every kind of ``base`` a world makes.
+
+    For giving every shape, or every joint, the same extras without writing a
+    subclass of each kind by hand. The classes are made once and handed back
+    on every call, so two maps made this way agree.
+
+    Args:
+        mixin: The class to mix in. It comes first in each new class, so its
+            methods win; an ``__init__`` of its own must pass every argument
+            on to ``super().__init__``.
+        base: Body, Shape, Chain, Joint, or any one kind of them.
+
+    Returns:
+        ``{library class: mixed class}``, ready for ``World(classes=...)``,
+        or to merge into a larger map.
+
+    Raises:
+        ValueError: If a world makes nothing that is a ``base``.
+
+    Example:
+        >>> from box2d import Shape, World, classes_with
+        >>> class Tagged:
+        ...     tag = "untagged"
+        >>> world = World(classes=classes_with(Tagged, Shape))
+        >>> world.add_body().add_circle(radius=1).tag
+        'untagged'
+    """
+    kinds = [
+        made for made in _MADE if isinstance(base, type) and issubclass(made, base)
+    ]
+    if not kinds:
+        raise ValueError(f"a world makes nothing that is a {base!r}")
+    return {made: _mixed(mixin, made) for made in kinds}
+
+
 class World(FixedAttributes):
     """2D physics world containing bodies, joints, and simulation parameters.
 
@@ -249,6 +381,13 @@ class World(FixedAttributes):
 
     _world_id = IdRef(lib.b2World_IsValid, "world")
 
+    #: The classes this kind of world makes in place of the library's own, as
+    #: ``{library class: subclass}``: ``{Body: Ball}`` makes every body a Ball.
+    #: A subclass of World sets it, and ``World(classes=...)`` adds to it for
+    #: one world. Read on a world, it is that world's whole map, read-only: it
+    #: is fixed when the world is made.
+    classes: ClassVar[Mapping[Type[Any], Type[Any]]] = MappingProxyType({})
+
     #: True while Box2D is inside a step, which is when it calls the world's
     #: callbacks. Box2D locks the world for that time and quietly ignores a
     #: destroy, but has no getter for the lock, so it is mirrored here.
@@ -259,6 +398,7 @@ class World(FixedAttributes):
         gravity: VectorLike = (0, -10),
         threads: int = 1,
         capacity: Optional[Capacity] = None,
+        classes: Optional[Mapping[Type[Any], Type[Any]]] = None,
     ) -> None:
         """Initialize physics world with specified gravity vector.
 
@@ -271,11 +411,16 @@ class World(FixedAttributes):
                 avoid allocating as the scene fills: typically another
                 world's :attr:`max_capacity` after running the same scene.
                 None leaves Box2D's small starting sizes.
+            classes: Classes to make in place of the library's own, as
+                ``{library class: subclass}``, on top of the class's own
+                :attr:`classes`. See :doc:`/guides/own_classes`.
 
         Raises:
             TypeError: If ``capacity`` is not a :class:`.Capacity`, or one of
                 its fields is not an int.
-            ValueError: If one of its fields is negative or over its limit.
+            ValueError: If one of its fields is negative or over its limit,
+                or a key of ``classes`` is not a class a world makes.
+            TypeError: If a value of ``classes`` is not a subclass of its key.
             RuntimeError: If ``threads`` is above one and this build has no
                 thread support, as WebAssembly builds do not.
 
@@ -284,6 +429,12 @@ class World(FixedAttributes):
             >>> world.gravity
             Vec2(0.0, -9.8)
         """
+
+        # First, so that a bad map leaves no Box2D world behind. On the
+        # instance it hides the class's own, which this adds to; __setattr__
+        # refuses it, as nothing would read a map set later.
+        own = _check_classes({**type(self).classes, **(classes or {})})
+        object.__setattr__(self, "classes", MappingProxyType(own))
 
         world_def = lib.b2DefaultWorldDef()
         world_def.gravity.x, world_def.gravity.y = gravity
@@ -309,6 +460,10 @@ class World(FixedAttributes):
         # is destroyed: see box2d.lifetime.
         self._world_alive = new_liveness()
         self._world_id = lib.b2CreateWorld(ffi.addressof(world_def))
+
+        # What is being destroyed right now, by id(): destroying any of it
+        # again is a no-op, and nothing may be added to its bodies.
+        self._dying: set[int] = set()
 
         # Every live body, shape and joint, keyed by id: how an id Box2D
         # reports becomes the object the caller made. See box2d.lifetime.
@@ -518,7 +673,7 @@ class World(FixedAttributes):
         if allow_fast_rotation is not None:
             body_def.allow_fast_rotation = allow_fast_rotation
 
-        return Body(self, body_def)
+        return self._make(Body, self, body_def)
 
     def add_joint(self, joint_def: "JointDef | MouseJointDef") -> Joint:
         """Create a joint in this world from a joint definition.
@@ -547,7 +702,7 @@ class World(FixedAttributes):
             ... )
         """
         self._check_bodies(joint_def)
-        return joint_def.joint_class(self, **joint_def.joint_arguments())
+        return self._make(joint_def.joint_class, self, **joint_def.joint_arguments())
 
     def _check_bodies(self, joint_def) -> None:
         """Every body a joint connects has to live in this world."""
@@ -559,6 +714,7 @@ class World(FixedAttributes):
         for body in bodies:
             if not self._bodies.holds(body, body._body_id):
                 raise ValueError("Every body of a joint must belong to this world")
+        self._refuse_dying(*bodies)
 
     def add_mouse_joint(
         self,
@@ -660,29 +816,274 @@ class World(FixedAttributes):
         """Hold a character up on a spring. See :class:`.PogoJointDef`."""
         return self.add_joint(PogoJointDef(body_a, body_b, **kwargs))
 
+    def __setattr__(self, name: str, value: object) -> None:
+        # A plain class attribute, so FixedAttributes would let an assignment
+        # through -- to an instance attribute nothing reads again.
+        if name == "classes":
+            raise AttributeError(
+                "a world reads its classes when it is made: pass "
+                "World(classes=...), or set classes on a subclass of World",
+                name=name,
+            )
+        super().__setattr__(name, value)
+
+    def class_for(self, base: Type[_T]) -> Type[_T]:
+        """The class this world makes where the library would make ``base``.
+
+        ``base`` itself unless the world's class map names another.
+
+        Example:
+            >>> from box2d import Body, World
+            >>> class Ball(Body):
+            ...     pass
+            >>> World(classes={Body: Ball}).class_for(Body).__name__
+            'Ball'
+        """
+        return self.classes.get(base, base)
+
+    def object_created(self, obj: _Made) -> None:
+        """Called with each body, shape, chain and joint this world makes.
+
+        Does nothing; a subclass overrides it to keep a list of its own, or to
+        tell another part of the program. It runs once the object is fully
+        made, its class's ``__init__`` included, and in the order objects are
+        made: a body before the shapes added to it, a chain before its
+        segments, a mouse joint's proxy body before the joint.
+
+        It covers what the world's and bodies' own methods make: ``add_body``
+        and the builder, ``add_*`` on a body, and ``add_joint`` and the
+        ``add_*_joint`` methods. An object made otherwise -- by calling its
+        class, or a shape class's ``create`` -- is not reported, neither now
+        nor when it is destroyed. An exception from it reaches the caller once
+        everything made has been reported, and the objects stay made.
+
+        Args:
+            obj: The new body, shape, chain segment, chain or joint.
+        """
+
+    def object_destroyed(self, obj: _Made, cause: "Union[_Made, World]") -> None:
+        """Called with each body, shape, chain and joint as it is destroyed.
+
+        Does nothing; a subclass overrides it. Destroying one object can take
+        others with it -- a body its shapes, chains and joints, a chain its
+        segments, a mouse joint its proxy body, the world everything -- and
+        each is reported, children before parents, so a joint or shape can
+        still reach its body.
+
+        Each runs before Box2D lets go of anything, so the object is still
+        fully readable: its last position, a joint's last reaction force. It
+        raises :class:`.DestroyedError` from once the destroy has finished.
+        An exception from it does not stop the destroy: every object is still
+        reported and destroyed, and then the first exception is raised.
+
+        Only objects reported to :meth:`object_created` are reported here, and
+        each only once: destroying one again from inside this is a no-op. A
+        world garbage collected without :meth:`destroy` reports nothing.
+
+        Args:
+            obj: The object going.
+            cause: The object whose ``destroy()`` started it, ``obj`` itself
+                when it was destroyed on its own, or the world. Comparing it
+                with the world is how to skip a whole world's teardown.
+        """
+
+    def _make(
+        self, base: Type[_T], /, *args: Any, _via: Optional[str] = None, **kwargs: Any
+    ) -> _T:
+        """Make a ``base`` -- as the class map says -- and report it.
+
+        Every object the world and its bodies make comes through here, and
+        only what comes through here is reported, made and then destroyed.
+
+        Args:
+            base: The library class to make, or rather to have the class map
+                replace.
+            *args: For the class's constructor, or for ``_via``.
+            _via: The name of a classmethod to make it with instead of the
+                constructor, such as a shape's ``create``. Underscored, as
+                ``**kwargs`` carries a caller's own keywords.
+            **kwargs: As ``args``.
+        """
+        cls = self.class_for(base)
+        made = (getattr(cls, _via) if _via else cls)(*args, **kwargs)
+        # A mouse joint's proxy body was made first, and a chain's segments
+        # with it, so they are reported in that order. Every report is made
+        # even if one raises, so none of them goes unreported.
+        reported = [made]
+        if isinstance(made, MouseJoint):
+            reported.insert(0, made._proxy)
+        elif isinstance(made, Chain):
+            reported.extend(made.segments)
+        errors = []
+        for obj in reported:
+            obj._reported = True
+            try:
+                self.object_created(obj)
+            except BaseException as error:  # noqa: B036 -- re-raised after
+                errors.append(error)
+        if errors:
+            raise errors[0]
+        return made
+
+    def _refuse_dying(self, *bodies: "Body") -> None:
+        """Raise rather than add to a body that is being destroyed.
+
+        An :meth:`object_destroyed` override runs while the body is still
+        live, but Box2D is about to take everything on it down, and a shape or
+        joint added now would go without being reported or let go of.
+        """
+        for body in bodies:
+            if id(body) in self._dying:
+                raise RuntimeError("cannot add to a body while it is being destroyed")
+
+    def _doomed(self, root: _Made) -> list:
+        """What goes when ``root`` is destroyed, children before parents.
+
+        A body takes its joints, its chains and their segments, and its
+        shapes. A mouse joint takes its proxy body, which also means a dragged
+        body takes the drag's proxy. Each object is listed once, ``root``
+        included.
+        """
+        doomed = {}
+        bodies_seen = set()
+
+        def add(obj):
+            doomed.setdefault(id(obj), obj)
+
+        def body(b):
+            if id(b) in bodies_seen:
+                return
+            bodies_seen.add(id(b))
+            # A joint the world cannot place is left out, not raised: nothing
+            # should leave a body impossible to destroy.
+            for attached in b._read_joints(strict=False) if b.is_valid else ():
+                joint(attached)
+            for attached in b._chains:
+                chain(attached)
+            for shape in b._shapes:
+                add(shape)
+            add(b)
+
+        def joint(j):
+            if id(j) in doomed:
+                return
+            add(j)
+            proxy = getattr(j, "_proxy", None)
+            if proxy is not None:
+                body(proxy)
+
+        def chain(c):
+            for segment in c.segments:
+                add(segment)
+            add(c)
+
+        if isinstance(root, Body):
+            body(root)
+        elif isinstance(root, Joint):
+            joint(root)
+        elif isinstance(root, Chain):
+            chain(root)
+        else:
+            add(root)
+        return list(doomed.values())
+
+    def _report_destroyed(self, doomed: list, cause: "Union[_Made, World]") -> list:
+        """Call :meth:`object_destroyed` for each that was reported made.
+
+        Each is reported once: the mark comes off as it is reported.
+
+        Returns:
+            What the reports raised, for raising once the destroy is done.
+        """
+        errors = []
+        for obj in doomed:
+            if not getattr(obj, "_reported", False):
+                continue
+            obj._reported = False
+            try:
+                self.object_destroyed(obj, cause)
+            except BaseException as error:  # noqa: B036 -- re-raised after
+                errors.append(error)
+        return errors
+
+    def _destroy(self, root: _Made, what: str, kill: Callable[[], None]) -> None:
+        """Destroy ``root`` and everything that goes with it.
+
+        Every destroy path comes here: what goes is reported, then Box2D
+        destroys it, then each wrapper lets go -- in that order, whatever a
+        report raised. While that runs, destroying any of it again is a no-op,
+        as destroying twice is, so a report that does so changes nothing.
+
+        Args:
+            root: The object being destroyed.
+            what: What to call it in an error, e.g. ``"body"``.
+            kill: Destroys ``root`` in Box2D, which takes down its shapes,
+                joints or segments with it.
+
+        Raises:
+            RuntimeError: If called from a world callback during a step.
+        """
+        if id(root) in self._dying:
+            return
+        doomed = self._doomed(root)
+        if not root.is_valid:
+            # Box2D has already let go of it, so there is nothing to report.
+            for obj in doomed:
+                self._forget(obj, root)
+            return
+        self._refuse_while_locked(what)
+        dying = {id(obj) for obj in doomed}
+        self._dying |= dying
+        try:
+            errors = self._report_destroyed(doomed, root)
+            kill()
+            # Box2D does not take a mouse joint's proxy down with the joint.
+            for obj in doomed:
+                if isinstance(obj, Body) and obj.is_valid:
+                    lib.b2DestroyBody(obj._body_id)
+            for obj in doomed:
+                self._forget(obj, root)
+        finally:
+            self._dying -= dying
+        if errors:
+            raise errors[0]
+
+    def _forget(self, obj: _Made, cause: "Union[_Made, World]") -> None:
+        """Let go of an object Box2D no longer has.
+
+        Out of the world's table, out of its body's list when it went on its
+        own, and its id dropped, so that nothing can reach Box2D through it --
+        or, once its slot is reused, through it to something else.
+        """
+        if isinstance(obj, Body):
+            self._bodies.remove(raw_id(obj, "_body_id"))
+            del obj._body_id
+        elif isinstance(obj, Shape):
+            self._shapes.remove(raw_id(obj, "_shape_id"))
+            if obj is cause and obj in obj._body._shapes:
+                obj._body._shapes.remove(obj)
+            del obj._shape_id
+        elif isinstance(obj, Chain):
+            if obj is cause and obj in obj._body._chains:
+                obj._body._chains.remove(obj)
+            del obj._chain_id
+        elif isinstance(obj, Joint):
+            self._joints.remove(raw_id(obj, "_joint_id"))
+            del obj._joint_id
+            if isinstance(obj, MouseJoint):
+                obj._proxy = None
+
     def _track_body(self, body: "Body") -> None:
         """Hold a new body for as long as Box2D has it. Called by the Body."""
         self._bodies.add(body._body_id, body)
-
-    def _untrack_body(self, body_id) -> None:
-        """Let go of a body Box2D no longer has, by the id it was tracked under."""
-        self._bodies.remove(body_id)
 
     def _track_shape(self, shape: "Shape") -> None:
         """Hold a new shape, chain segments included, while Box2D has it."""
         self._shapes.add(shape._shape_id, shape)
 
-    def _untrack_shape(self, shape_id) -> None:
-        """Let go of a shape Box2D no longer has, by the id it was tracked under."""
-        self._shapes.remove(shape_id)
-
     def _track_joint(self, joint: "Joint") -> None:
         """Hold a new joint for as long as Box2D has it. Called by the Joint."""
         self._joints.add(joint._joint_id, joint)
-
-    def _untrack_joint(self, joint_id) -> None:
-        """Let go of a joint Box2D no longer has, by the id it was tracked under."""
-        self._joints.remove(joint_id)
 
     @property
     def bodies(self) -> list[Body]:
@@ -1530,7 +1931,9 @@ class World(FixedAttributes):
         """Destroy the world.
 
         Destroying a world also destroys every body, shape and joint in it.
-        Those objects raise :class:`.DestroyedError` if used afterwards.
+        Those objects raise :class:`.DestroyedError` if used afterwards. Each
+        is reported to :meth:`object_destroyed` first, with the world as the
+        cause.
 
         Raises:
             RuntimeError: If called from a callback during :meth:`step`.
@@ -1539,38 +1942,67 @@ class World(FixedAttributes):
             >>> world = World()
             >>> world.destroy()
         """
+        self._destroy_world(report=True)
+
+    def _destroy_world(self, report: bool) -> None:
+        """Destroy the world, reporting what goes only if ``report``.
+
+        Garbage collection destroys a world without reporting: by then the
+        world is unreachable, and an override running from ``__del__`` could
+        not raise to anyone.
+        """
         # Read past the validity check: destroy must stay callable (and a no-op)
         # on an already-destroyed world, since __del__ routes through here.
         raw = raw_id(self, "_world_id")
-        if raw is not None:
-            if lib.b2World_IsValid(raw):
-                self._refuse_while_locked("world")
-                # Gone from here: after a refusal, which leaves everything
-                # live, and before Box2D frees anything.
-                self._world_alive[0] = False
-                lib.b2DestroyWorld(raw)
-            # And if Box2D had already let go of it some other way.
+        if raw is None or id(self) in self._dying:
+            return
+        everything = self._everything()
+        errors = []
+        if lib.b2World_IsValid(raw):
+            self._refuse_while_locked("world")
+            dying = {id(self)} | {id(obj) for obj in everything}
+            self._dying |= dying
+            try:
+                if report:
+                    errors = self._report_destroyed(everything, self)
+            finally:
+                self._dying -= dying
+            # Gone from here: after a refusal or the reports, which leave
+            # everything live, and before Box2D frees anything.
             self._world_alive[0] = False
-            del self._world_id
-            # Box2D names a body, shape, chain or joint by the slot its world
-            # occupies rather than by the world, and the next world made takes
-            # the freed slot -- whose objects these ids would then name. So
-            # every wrapper lets go of its id now, and raises from here on.
-            for body in self._bodies.values():
-                body._forget_ids()
-            for joint in self._joints.values():
-                del joint._joint_id
-            # Box2D's objects went with the world, so nothing needs these kept.
-            self._bodies.clear()
-            self._shapes.clear()
-            self._joints.clear()
+            lib.b2DestroyWorld(raw)
+        # And if Box2D had already let go of it some other way.
+        self._world_alive[0] = False
+        del self._world_id
+        # Box2D names a body, shape, chain or joint by the slot its world
+        # occupies rather than by the world, and the next world made takes the
+        # freed slot -- whose objects these ids would then name. So every
+        # wrapper lets go of its id now, and raises from here on. Anything a
+        # report made in the meantime went with the world too; and with the
+        # world gone, a body no longer names its joints, so the table does.
+        remaining = {id(obj): obj for obj in everything}
+        for obj in [*self._joints.values(), *self._everything()]:
+            remaining.setdefault(id(obj), obj)
+        for obj in remaining.values():
+            self._forget(obj, self)
+        if errors:
+            raise errors[0]
+
+    def _everything(self) -> list:
+        """Every object in the world, children before parents, each once."""
+        everything = {}
+        for body in self._bodies.values():
+            for obj in self._doomed(body):
+                everything.setdefault(id(obj), obj)
+        return list(everything.values())
 
     def __del__(self) -> None:
         """Clean up world resources. Automatically called when instance is garbage collected.
 
-        Destroys Box2D world instance.
+        Destroys Box2D world instance, reporting nothing to
+        :meth:`object_destroyed`.
         """
-        self.destroy()
+        self._destroy_world(report=False)
 
     @property
     def enable_sleeping(self) -> bool:

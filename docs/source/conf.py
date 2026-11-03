@@ -53,8 +53,10 @@ nitpick_ignore = [
     ("py:class", "_cffi_backend._CDataBase"),
     ("py:class", "b2Filter"),
     ("py:class", "b2QueryFilter"),
-    # BodyBuilder.extend's type variable: "the function you decorated".
+    # Type variables: BodyBuilder.extend's "the function you decorated", and
+    # World.class_for's "the class you asked about".
     ("py:class", "box2d.body._F"),
+    ("py:class", "box2d.world._T"),
 ]
 
 # The compiled extension is not mocked: readthedocs builds it (see

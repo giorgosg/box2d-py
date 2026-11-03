@@ -55,6 +55,7 @@ class Shape(FixedAttributes):
     def __init__(self, body: "Body", user_data: Any = None) -> None:
         # Every shape's constructor comes here before asking Box2D for it.
         body.world._refuse_while_locked("shape", "create")
+        body.world._refuse_dying(body)
         self._body = body
         join_world(self, body.world)
         self.user_data = user_data
@@ -305,15 +306,9 @@ class Shape(FixedAttributes):
         raw = raw_id(self, "_shape_id")
         if raw is None:
             return
-        if self.is_valid:
-            self._body.world._refuse_while_locked("shape")
-            lib.b2DestroyShape(raw, bool(update_body_mass))
-        body = getattr(self, "_body", None)
-        if body is not None:
-            body.world._untrack_shape(raw)
-            if self in getattr(body, "_shapes", ()):
-                body._shapes.remove(self)
-        del self._shape_id
+        self._body.world._destroy(
+            self, "shape", lambda: lib.b2DestroyShape(raw, bool(update_body_mass))
+        )
 
     @property
     def surface_material(self) -> SurfaceMaterial:
@@ -913,6 +908,7 @@ class Chain(FixedAttributes):
 
     def __init__(self, body: "Body", chaindef: ChainDef) -> None:
         body.world._refuse_while_locked("chain", "create")
+        body.world._refuse_dying(body)
         self._body = body
         join_world(self, body.world)
         self.user_data = chaindef.user_data
@@ -926,11 +922,26 @@ class Chain(FixedAttributes):
         # Each id is copied into its own allocation rather than kept as a view
         # into this array. cffi does not keep the array alive for its elements,
         # so every segment id dangled the moment the array was collected and
-        # read as garbage once anything reused the memory.
-        self.segments = [
-            ChainSegment(ffi.new("b2ShapeId*", segments[i])[0], self)
-            for i in range(returned)
-        ]
+        # read as garbage once anything reused the memory. Box2D makes the
+        # segments, so they are of the class the world's class map says.
+        segment_class = body.world.class_for(ChainSegment)
+        made = []
+        try:
+            for i in range(returned):
+                made.append(segment_class(ffi.new("b2ShapeId*", segments[i])[0], self))
+        except BaseException:
+            # A segment class of the application's that failed: the chain goes,
+            # and the segments made so far with it, as if never made.
+            # The failing one has entered the world's table too, so every
+            # segment id leaves it.
+            lib.b2DestroyChain(self._chain_id)
+            for i in range(returned):
+                body.world._shapes.remove(segments[i])
+            for segment in made:
+                del segment._shape_id
+            del self._chain_id
+            raise
+        self.segments = made
         body._chains.append(self)
 
     @classmethod
@@ -1011,17 +1022,7 @@ class Chain(FixedAttributes):
         raw = raw_id(self, "_chain_id")
         if raw is None:
             return
-        if self.is_valid:
-            self._body.world._refuse_while_locked("chain")
-            lib.b2DestroyChain(raw)
-        chains = getattr(self._body, "_chains", ())
-        if self in chains:
-            chains.remove(self)
-        untrack_shape = self._body.world._untrack_shape
-        for segment in self.segments:
-            untrack_shape(raw_id(segment, "_shape_id"))
-            del segment._shape_id
-        del self._chain_id
+        self._body.world._destroy(self, "chain", lambda: lib.b2DestroyChain(raw))
 
     @property
     def is_valid(self) -> bool:

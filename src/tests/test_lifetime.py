@@ -7,6 +7,7 @@ body after its world was destroyed took the interpreter down with SIGSEGV
 """
 
 import functools
+import sys
 
 import pytest
 from box2d import World, DestroyedError
@@ -347,7 +348,15 @@ def test_the_flag_test_covers_every_joint_and_shape_class():
     finally:
         world.destroy()
     for base in (Joint, Shape):
-        missing = set(_all_subclasses(base)) - made - {ChainSegment} - {base}
+        # The library's own, which its modules define by name: tests and
+        # doctests elsewhere subclass these for class maps.
+        library = {
+            cls
+            for cls in _all_subclasses(base)
+            if getattr(sys.modules.get(cls.__module__), cls.__name__, None) is cls
+            and cls.__module__.startswith("box2d.")
+        }
+        missing = library - made - {ChainSegment} - {base}
         assert not missing, missing
     assert ChainSegment in made
 
