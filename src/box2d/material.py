@@ -55,7 +55,7 @@ class SurfaceMaterial:
     custom_color: Color | int = _default_material.customColor
 
     @classmethod
-    def from_b2SurfaceMaterial(cls, material) -> "SurfaceMaterial":
+    def from_b2SurfaceMaterial(cls, material: Any) -> "SurfaceMaterial":
         """Build one from a C struct, as read back out of Box2D."""
         return cls(
             friction=material.friction,
@@ -67,7 +67,7 @@ class SurfaceMaterial:
         )
 
     @property
-    def b2SurfaceMaterial(self):
+    def b2SurfaceMaterial(self) -> Any:
         """
         Creates and returns the C structure for this surface material.
 
@@ -104,7 +104,7 @@ def _with_fields(material: SurfaceMaterial, given: Mapping[str, Any]):
     return replace(material, **changes) if changes else material
 
 
-def _check_material(material, where):
+def _check_material(material, where) -> None:
     """Refuse anything but a SurfaceMaterial, saying what to pass instead.
 
     A bare int was once taken as the material id, so say where that goes now.

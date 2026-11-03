@@ -2,13 +2,34 @@ from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
 from .joint import Joint
-from typing import TYPE_CHECKING, Sequence, List
-from .dataclasses import MassData, ContactData, BodyDef, _NAME_LENGTH, _name_bytes
-from .accessors import b2_bool, b2_float, b2_value
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Optional,
+    Sequence,
+    List,
+    TypeVar,
+    Union,
+)
+from .dataclasses import (
+    MassData,
+    ContactData,
+    BodyDef,
+    BodyType,
+    _NAME_LENGTH,
+    _name_bytes,
+)
+from .accessors import B2Accessor, b2_bool, b2_float, b2_int
 from .lifetime import IdRef, raw_id, is_live, join_world
 from ._fixed_attributes import FixedAttributes
 
+#: What BodyBuilder.extend decorates, handed back unchanged.
+_F = TypeVar("_F", bound=Callable[..., Any])
+
 if TYPE_CHECKING:  # annotations only; these modules import this one
+    from .shape import Shape
     from .world import World
 
 
@@ -33,7 +54,7 @@ class BodyBuilder:
         2
     """
 
-    def __init__(self, world):
+    def __init__(self, world: "World") -> None:
         """Initialize the BodyBuilder with the world context.
 
         Args:
@@ -46,7 +67,7 @@ class BodyBuilder:
         self._shape_defs = []
 
     @classmethod
-    def extend(cls, func):
+    def extend(cls, func: _F) -> _F:
         """
         Decorator that adds a new method to the BodyBuilder class.
 
@@ -73,7 +94,7 @@ class BodyBuilder:
         setattr(cls, func.__name__, func)
         return func
 
-    def dynamic(self):
+    def dynamic(self) -> "BodyBuilder":
         """Set the body type to dynamic.
 
         Dynamic bodies are affected by forces and impulses. Returns the builder instance.
@@ -81,7 +102,7 @@ class BodyBuilder:
         self._body_args["body_type"] = "dynamic"
         return self
 
-    def static(self):
+    def static(self) -> "BodyBuilder":
         """Set the body type to static.
 
         Static bodies cannot move and are unaffected by forces. Returns the builder instance.
@@ -89,7 +110,7 @@ class BodyBuilder:
         self._body_args["body_type"] = "static"
         return self
 
-    def kinematic(self):
+    def kinematic(self) -> "BodyBuilder":
         """Set the body type to kinematic.
 
         Kinematic bodies are moved by setting their velocity. Returns the builder instance.
@@ -97,7 +118,7 @@ class BodyBuilder:
         self._body_args["body_type"] = "kinematic"
         return self
 
-    def lock_rotation(self, lock=True):
+    def lock_rotation(self, lock: bool = True) -> "BodyBuilder":
         """Prevent the body from rotating.
 
         Useful for objects like characters. See also lock_x and lock_y.
@@ -110,7 +131,7 @@ class BodyBuilder:
         self._body_args["lock_rotation"] = lock
         return self
 
-    def lock_x(self, lock=True):
+    def lock_x(self, lock: bool = True) -> "BodyBuilder":
         """Prevent the body from translating along the world x-axis.
 
         Args:
@@ -121,7 +142,7 @@ class BodyBuilder:
         self._body_args["lock_x"] = lock
         return self
 
-    def lock_y(self, lock=True):
+    def lock_y(self, lock: bool = True) -> "BodyBuilder":
         """Prevent the body from translating along the world y-axis.
 
         Args:
@@ -132,7 +153,7 @@ class BodyBuilder:
         self._body_args["lock_y"] = lock
         return self
 
-    def bullet(self, bullet=True):
+    def bullet(self, bullet: bool = True) -> "BodyBuilder":
         """Set whether the body is treated as a bullet.
 
         Bullet bodies perform continuous collision detection, suitable for fast-moving objects.
@@ -145,7 +166,7 @@ class BodyBuilder:
         self._body_args["is_bullet"] = bullet
         return self
 
-    def awake(self, awake=True):
+    def awake(self, awake: bool = True) -> "BodyBuilder":
         """Set whether the body starts awake.
 
         A body built asleep stays put until something touches it, which is how
@@ -159,7 +180,7 @@ class BodyBuilder:
         self._body_args["is_awake"] = awake
         return self
 
-    def enabled(self, enabled=True):
+    def enabled(self, enabled: bool = True) -> "BodyBuilder":
         """Set whether the body is enabled.
 
         A disabled body does not move or collide, and costs nothing to have
@@ -173,7 +194,7 @@ class BodyBuilder:
         self._body_args["is_enabled"] = enabled
         return self
 
-    def allow_fast_rotation(self, allow=True):
+    def allow_fast_rotation(self, allow: bool = True) -> "BodyBuilder":
         """Bypass the rotational speed limit for this body.
 
         Box2D caps rotation to keep collision reliable. Round things like
@@ -187,7 +208,7 @@ class BodyBuilder:
         self._body_args["allow_fast_rotation"] = allow
         return self
 
-    def enable_contact_recycling(self, enable=True):
+    def enable_contact_recycling(self, enable: bool = True) -> "BodyBuilder":
         """Set whether this body's contacts may be reused between steps.
 
         Args:
@@ -198,7 +219,7 @@ class BodyBuilder:
         self._body_args["enable_contact_recycling"] = enable
         return self
 
-    def name(self, name):
+    def name(self, name: str) -> "BodyBuilder":
         """Give the body a name, which debug draw can show.
 
         Args:
@@ -210,7 +231,7 @@ class BodyBuilder:
         self._body_args["name"] = name
         return self
 
-    def user_data(self, data):
+    def user_data(self, data: Any) -> "BodyBuilder":
         """Attach your own object to the body.
 
         Args:
@@ -221,7 +242,7 @@ class BodyBuilder:
         self._body_args["user_data"] = data
         return self
 
-    def gravity_scale(self, scale):
+    def gravity_scale(self, scale: float) -> "BodyBuilder":
         """Set the gravity scale for the body.
 
         Adjusts the effect of gravity on this body relative to the world gravity.
@@ -234,7 +255,9 @@ class BodyBuilder:
         self._body_args["gravity_scale"] = scale
         return self
 
-    def position(self, x, y: float = None):
+    def position(
+        self, x: Union[float, VectorLike], y: Optional[float] = None
+    ) -> "BodyBuilder":
         """Set the initial position of the body.
 
         Args:
@@ -252,7 +275,7 @@ class BodyBuilder:
         self._body_args["position"] = Vec2(x, y)
         return self
 
-    def rotation(self, rotation: float):
+    def rotation(self, rotation: float) -> "BodyBuilder":
         """Set the initial rotation of the body.
 
         Args:
@@ -263,7 +286,9 @@ class BodyBuilder:
         self._body_args["rotation"] = rotation
         return self
 
-    def linear_velocity(self, x, y: float = None):
+    def linear_velocity(
+        self, x: Union[float, VectorLike], y: Optional[float] = None
+    ) -> "BodyBuilder":
         """Set the initial linear velocity of the body.
 
         Args:
@@ -275,7 +300,7 @@ class BodyBuilder:
         self._body_args["linear_velocity"] = Vec2(x, y)
         return self
 
-    def angular_velocity(self, radians: float):
+    def angular_velocity(self, radians: float) -> "BodyBuilder":
         """Set the initial angular velocity of the body.
 
         Args:
@@ -286,7 +311,7 @@ class BodyBuilder:
         self._body_args["angular_velocity"] = radians
         return self
 
-    def linear_damping(self, damping: float):
+    def linear_damping(self, damping: float) -> "BodyBuilder":
         """Set the linear damping of the body.
 
         Damping reduces the linear velocity over time.
@@ -299,7 +324,7 @@ class BodyBuilder:
         self._body_args["linear_damping"] = damping
         return self
 
-    def angular_damping(self, damping: float):
+    def angular_damping(self, damping: float) -> "BodyBuilder":
         """Set the angular damping of the body.
 
         Damping reduces the angular velocity over time.
@@ -312,7 +337,7 @@ class BodyBuilder:
         self._body_args["angular_damping"] = damping
         return self
 
-    def enable_sleep(self, enable: bool):
+    def enable_sleep(self, enable: bool) -> "BodyBuilder":
         """Set whether the body is allowed to sleep.
 
         Sleeping bodies are skipped in simulations for performance optimization.
@@ -325,7 +350,7 @@ class BodyBuilder:
         self._body_args["enable_sleep"] = enable
         return self
 
-    def sleep_threshold(self, threshold: float):
+    def sleep_threshold(self, threshold: float) -> "BodyBuilder":
         """Set the sleep threshold for the body.
 
         The minimum velocity below which the body will go to sleep.
@@ -338,7 +363,7 @@ class BodyBuilder:
         self._body_args["sleep_threshold"] = threshold
         return self
 
-    def safety_factor(self, factor: float):
+    def safety_factor(self, factor: float) -> "BodyBuilder":
         """Set the continuous collision safety factor for the body.
 
         See :attr:`.Body.safety_factor`.
@@ -355,11 +380,11 @@ class BodyBuilder:
         self,
         width: float,
         height: float,
-        radius=0.0,
+        radius: float = 0.0,
         offset: VectorLike = (0, 0),
-        angle=0.0,
-        **shapedef_args,
-    ):
+        angle: float = 0.0,
+        **shapedef_args: Any,
+    ) -> "BodyBuilder":
         """Add a box shape to the body during construction.
 
         Args:
@@ -393,8 +418,8 @@ class BodyBuilder:
         self,
         radius: float,
         center: VectorLike = (0, 0),
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> "BodyBuilder":
         """Add a circle shape to the body during construction.
 
         Args:
@@ -422,8 +447,8 @@ class BodyBuilder:
         point1: VectorLike,
         point2: VectorLike,
         radius: float,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> "BodyBuilder":
         """Add a capsule shape: a segment between two points, rounded by a radius.
 
         The endpoints may be anywhere in the body's local frame, so the capsule
@@ -455,8 +480,8 @@ class BodyBuilder:
         self,
         vertices: Sequence[VectorLike],
         radius: float = 0.0,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> "BodyBuilder":
         """Add a convex polygon shape.
 
         The given vertices are processed to compute their convex hull. An exception will be raised
@@ -490,8 +515,8 @@ class BodyBuilder:
         self,
         point1: VectorLike,
         point2: VectorLike,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> "BodyBuilder":
         """Add a line segment shape with optional edge radius.
 
         Args:
@@ -518,8 +543,8 @@ class BodyBuilder:
         self,
         vertices: Sequence[VectorLike],
         loop: bool = False,
-        **chaindef_args,
-    ):
+        **chaindef_args: Any,
+    ) -> "BodyBuilder":
         """Add a chain shape to the body during construction.
 
         Args:
@@ -570,7 +595,7 @@ class Body(FixedAttributes):
     impulses, and constraints applied to them.
     """
 
-    types = {
+    types: ClassVar[dict[str, int]] = {
         "static": lib.b2_staticBody,
         "kinematic": lib.b2_kinematicBody,
         "dynamic": lib.b2_dynamicBody,
@@ -584,9 +609,9 @@ class Body(FixedAttributes):
     #: Any Python object the application wants kept with this body. Other
     #: attributes cannot be added: a misspelt property would silently do
     #: nothing, so setting an unknown one raises instead.
-    user_data = None
+    user_data: Any = None
 
-    def __init__(self, world: "World", body_def: BodyDef):
+    def __init__(self, world: "World", body_def: BodyDef) -> None:
         """
         Initialize a Body instance.
 
@@ -617,12 +642,12 @@ class Body(FixedAttributes):
         self.world._track_body(self)
 
     @property
-    def shapes(self):
+    def shapes(self) -> "List[Shape]":
         """Get the shapes attached to this body."""
         return self._shapes
 
     @property
-    def chains(self):
+    def chains(self) -> "List[Chain]":
         """Get the chains attached to this body.
 
         Chains are tracked separately from shapes: a chain is not a Shape, and
@@ -631,51 +656,51 @@ class Body(FixedAttributes):
         return self._chains
 
     @property
-    def position(self):
+    def position(self) -> Vec2:
         """Get the world position of the body."""
         pos = lib.b2Body_GetPosition(self._body_id)
         return Vec2(pos.x, pos.y)
 
     @position.setter
-    def position(self, value: VectorLike):
+    def position(self, value: VectorLike) -> None:
         """Set the world position of the body."""
         rot = lib.b2Body_GetRotation(self._body_id)
         value = Vec2(value)
         lib.b2Body_SetTransform(self._body_id, value.b2Vec2[0], rot)
 
     @property
-    def linear_velocity(self):
+    def linear_velocity(self) -> Vec2:
         """Get the linear velocity of the body."""
         vel = lib.b2Body_GetLinearVelocity(self._body_id)
         return Vec2(vel.x, vel.y)
 
     @linear_velocity.setter
-    def linear_velocity(self, value: VectorLike):
+    def linear_velocity(self, value: VectorLike) -> None:
         """Set the linear velocity of the body."""
         value = Vec2(value).b2Vec2[0]
         lib.b2Body_SetLinearVelocity(self._body_id, value)
 
-    angular_velocity = b2_float(
+    angular_velocity: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetAngularVelocity,
         lib.b2Body_SetAngularVelocity,
         doc="Get angular velocity in radians/sec.",
     )
-    linear_damping = b2_float(
+    linear_damping: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetLinearDamping,
         lib.b2Body_SetLinearDamping,
         doc="Get the current linear damping value.",
     )
-    angular_damping = b2_float(
+    angular_damping: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetAngularDamping,
         lib.b2Body_SetAngularDamping,
         doc="Get the current angular damping value.",
     )
-    sleep_threshold = b2_float(
+    sleep_threshold: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetSleepThreshold,
         lib.b2Body_SetSleepThreshold,
         doc="Get the sleep threshold value.",
     )
-    safety_factor = b2_float(
+    safety_factor: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetSafetyFactor,
         lib.b2Body_SetSafetyFactor,
         doc="""Get or set the continuous collision safety factor.
@@ -743,12 +768,12 @@ class Body(FixedAttributes):
     def lock_rotation(self, value: bool) -> None:
         self._set_motion_lock("angularZ", value)
 
-    is_bullet = b2_bool(
+    is_bullet: B2Accessor[bool, bool] = b2_bool(
         lib.b2Body_IsBullet,
         lib.b2Body_SetBullet,
         doc="Check if the body is treated as a bullet.",
     )
-    enable_contact_recycling = b2_bool(
+    enable_contact_recycling: B2Accessor[bool, bool] = b2_bool(
         lib.b2Body_IsContactRecyclingEnabled,
         lib.b2Body_EnableContactRecycling,
         doc="""Whether this body's contacts may be reused between steps.
@@ -767,12 +792,12 @@ class Body(FixedAttributes):
         takes effect for contacts made after it.
         """,
     )
-    gravity_scale = b2_value(
+    gravity_scale: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetGravityScale,
         lib.b2Body_SetGravityScale,
         doc="Get the gravity scale factor for this body.",
     )
-    awake = b2_bool(
+    awake: B2Accessor[bool, bool] = b2_bool(
         lib.b2Body_IsAwake,
         lib.b2Body_SetAwake,
         doc="""Get the awake state of the body.
@@ -783,7 +808,7 @@ class Body(FixedAttributes):
     )
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         """Get whether the body is enabled.
 
         Returns:
@@ -792,7 +817,7 @@ class Body(FixedAttributes):
         return lib.b2Body_IsEnabled(self._body_id)
 
     @enabled.setter
-    def enabled(self, value: bool):
+    def enabled(self, value: bool) -> None:
         """Set whether the body is enabled.
 
         Args:
@@ -804,7 +829,7 @@ class Body(FixedAttributes):
             lib.b2Body_Disable(self._body_id)
 
     @property
-    def rotation(self):
+    def rotation(self) -> float:
         """Get the world rotation of the body in radians.
 
         Returns:
@@ -814,7 +839,7 @@ class Body(FixedAttributes):
         return Rot.from_b2Rot(rot).angle_radians
 
     @rotation.setter
-    def rotation(self, angle: float):
+    def rotation(self, angle: float) -> None:
         """Set the world rotation of the body in radians.
 
         Args:
@@ -824,11 +849,11 @@ class Body(FixedAttributes):
         rot = Rot(angle).b2Rot
         lib.b2Body_SetTransform(self._body_id, pos, rot[0])
 
-    mass = b2_value(
+    mass: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetMass,
         doc="Get the mass of the body in kilograms",
     )
-    rotational_inertia = b2_value(
+    rotational_inertia: B2Accessor[float, float] = b2_float(
         lib.b2Body_GetRotationalInertia,
         doc="Get the rotational inertia of the body.",
     )
@@ -839,7 +864,7 @@ class Body(FixedAttributes):
         b2transform = lib.b2Body_GetTransform(self._body_id)
         return Transform.from_b2Transform(b2transform)
 
-    enable_sleeping = b2_bool(
+    enable_sleeping: B2Accessor[bool, bool] = b2_bool(
         lib.b2Body_IsSleepingEnabled,
         lib.b2Body_EnableSleeping,
         doc="Get or set whether this body is allowed to fall asleep.",
@@ -863,7 +888,7 @@ class Body(FixedAttributes):
 
     def set_target_transform(
         self, position: VectorLike, rotation: float, dt: float, wake: bool = True
-    ):
+    ) -> None:
         """Drive a kinematic body toward a pose over one step.
 
         Sets the velocities needed to arrive at the target after 'dt', which
@@ -905,7 +930,9 @@ class Body(FixedAttributes):
         """
         lib.b2Body_EnableHitEvents(self._body_id, bool(enable))
 
-    def apply_force(self, force: VectorLike, point: VectorLike = None, wake=True):
+    def apply_force(
+        self, force: VectorLike, point: Optional[VectorLike] = None, wake: bool = True
+    ) -> None:
         """Apply a force at a world point.
 
         Args:
@@ -919,7 +946,7 @@ class Body(FixedAttributes):
         else:
             lib.b2Body_ApplyForce(self._body_id, force, Vec2(point).b2Vec2[0], wake)
 
-    def apply_torque(self, torque, wake=True):
+    def apply_torque(self, torque: float, wake: bool = True) -> None:
         """Apply a torque to the body.
 
         Args:
@@ -929,8 +956,8 @@ class Body(FixedAttributes):
         lib.b2Body_ApplyTorque(self._body_id, torque, wake)
 
     def apply_linear_impulse(
-        self, impulse: VectorLike, point: VectorLike = None, wake=True
-    ):
+        self, impulse: VectorLike, point: Optional[VectorLike] = None, wake: bool = True
+    ) -> None:
         """Apply a linear impulse at a world point.
 
         Args:
@@ -953,8 +980,8 @@ class Body(FixedAttributes):
         radius: float = 0.0,
         offset: VectorLike = (0, 0),
         angle: float = 0.0,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> Box:
         """Add a box shape to the body.
 
         Args:
@@ -987,8 +1014,8 @@ class Body(FixedAttributes):
         self,
         radius: float,
         center: VectorLike = (0, 0),
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> Circle:
         """Add a circle shape to the body.
 
         Args:
@@ -1015,8 +1042,8 @@ class Body(FixedAttributes):
         point1: VectorLike,
         point2: VectorLike,
         radius: float,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> Capsule:
         """Add a capsule shape to the body.
 
         Args:
@@ -1044,8 +1071,8 @@ class Body(FixedAttributes):
         self,
         vertices: Sequence[VectorLike],
         radius: float = 0.0,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> Polygon:
         """Add a convex polygon shape to the body.
 
         Args:
@@ -1071,8 +1098,8 @@ class Body(FixedAttributes):
         self,
         point1: VectorLike,
         point2: VectorLike,
-        **shapedef_args,
-    ):
+        **shapedef_args: Any,
+    ) -> Segment:
         """Add a line segment shape to the body.
 
         Args:
@@ -1098,8 +1125,8 @@ class Body(FixedAttributes):
         self,
         vertices: Sequence[VectorLike],
         loop: bool = False,
-        **chaindef_args,
-    ):
+        **chaindef_args: Any,
+    ) -> Chain:
         """Add a chain shape to the body.
 
         Args:
@@ -1120,7 +1147,7 @@ class Body(FixedAttributes):
         )
         return chain
 
-    def remove_shape(self, shape):
+    def remove_shape(self, shape: "Shape") -> None:
         """Remove a shape from the body, updating the body's mass.
 
         The same as ``shape.destroy()``. A shape that is not on this body is
@@ -1134,7 +1161,7 @@ class Body(FixedAttributes):
         """Whether this body is still live, i.e. has not been destroyed."""
         return is_live(self, "_body_id", lib.b2Body_IsValid)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy this body and remove it from the world.
 
@@ -1174,7 +1201,7 @@ class Body(FixedAttributes):
         for joint in joints:
             joint._release()
 
-    def _forget_ids(self):
+    def _forget_ids(self) -> None:
         """Let go of the ids of this body, its shapes and its chains.
 
         For when Box2D has taken them all down at once, with the body or with
@@ -1268,7 +1295,7 @@ class Body(FixedAttributes):
         velocity = lib.b2Body_GetWorldPointVelocity(self._body_id, point[0])
         return Vec2.from_b2Vec2(velocity)
 
-    def apply_angular_impulse(self, impulse: float, wake: bool = True):
+    def apply_angular_impulse(self, impulse: float, wake: bool = True) -> None:
         """Apply an angular impulse to the body.
 
         Args:
@@ -1308,7 +1335,7 @@ class Body(FixedAttributes):
         return MassData.from_b2MassData(b2_mass_data)
 
     @mass_data.setter
-    def mass_data(self, mass_data: MassData):
+    def mass_data(self, mass_data: MassData) -> None:
         """Override the body's mass properties.
 
         Args:
@@ -1317,7 +1344,7 @@ class Body(FixedAttributes):
         b2_mass_data = mass_data.b2MassData
         lib.b2Body_SetMassData(self._body_id, b2_mass_data[0])
 
-    def update_mass_from_shapes(self):
+    def update_mass_from_shapes(self) -> None:
         """Update mass properties to the sum of the mass properties of the shapes.
 
         This normally doesn't need to be called unless you set :attr:`mass_data`
@@ -1338,7 +1365,7 @@ class Body(FixedAttributes):
             Vec2.from_b2Vec2(b2_aabb.upperBound),
         )
 
-    joint_count = b2_value(
+    joint_count: B2Accessor[int, int] = b2_int(
         lib.b2Body_GetJointCount,
         doc="""Get the number of joints attached to this body.
         
@@ -1379,7 +1406,7 @@ class Body(FixedAttributes):
         """
         return self._read_joints()
 
-    contact_capacity = b2_value(
+    contact_capacity: B2Accessor[int, int] = b2_int(
         lib.b2Body_GetContactCapacity,
         doc="""Get the maximum capacity for contacts on this body.
         
@@ -1432,7 +1459,7 @@ class Body(FixedAttributes):
         return ffi.string(name).decode("utf-8")
 
     @name.setter
-    def name(self, value: str):
+    def name(self, value: str) -> None:
         """Set the name of the body.
 
         Args:
@@ -1454,7 +1481,7 @@ class Body(FixedAttributes):
                 )
             lib.b2Body_SetName(self._body_id, encoded)
 
-    def get_next_body(self):
+    def get_next_body(self) -> Optional["Body"]:
         """Get the next body in the world's body list.
 
         Returns:
@@ -1470,7 +1497,7 @@ class Body(FixedAttributes):
         return bodies[index + 1] if index + 1 < len(bodies) else None
 
     @staticmethod
-    def resolve_type(body_type) -> int:
+    def resolve_type(body_type: "BodyType | str") -> int:
         """Convert a body type to the Box2D constant.
 
         Args:
@@ -1508,5 +1535,5 @@ class Body(FixedAttributes):
                 return name
 
     @type.setter
-    def type(self, body_type) -> None:
+    def type(self, body_type: "BodyType | str") -> None:
         lib.b2Body_SetType(self._body_id, Body.resolve_type(body_type))

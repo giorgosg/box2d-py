@@ -17,12 +17,13 @@ rather than being kept and never read.
 """
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 from .math import VectorLike
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
+    from .joint import Joint
 
 
 @dataclass(slots=True)
@@ -49,9 +50,9 @@ class JointDef:
     collide_connected: bool = False
 
     #: The Joint subclass this definition builds. Set by each subclass.
-    joint_class = None
+    joint_class: ClassVar[Optional[type["Joint"]]] = None
 
-    def resolved_anchors(self):
+    def resolved_anchors(self) -> tuple[Optional[VectorLike], Optional[VectorLike]]:
         """Return the local anchors, converting a world anchor if one was given.
 
         Raises:
@@ -71,7 +72,7 @@ class JointDef:
             self.body_b.transform.inverse(self.anchor),
         )
 
-    def joint_arguments(self):
+    def joint_arguments(self) -> dict[str, Any]:
         """The keyword arguments for this definition's joint class.
 
         'anchor' is resolved away here, so joints only ever see local anchors.
@@ -99,7 +100,8 @@ class FilterJointDef(JointDef):
     exists precisely to prevent the collision the flag would re-enable.
     """
 
-    def joint_arguments(self):
+    def joint_arguments(self) -> dict[str, Any]:
+        """Only the bodies: this joint has no anchors or other settings."""
         return {"body_a": self.body_a, "body_b": self.body_b}
 
 
@@ -295,7 +297,7 @@ class MotorJointDef(JointDef):
     angular_damping_ratio: Optional[float] = None
     max_spring_torque: Optional[float] = None
 
-    def joint_arguments(self):
+    def joint_arguments(self) -> dict[str, Any]:
         """The motor joint attaches at the bodies' origins, so it has no anchors."""
         # super() with arguments: slots=True makes a new class that a bare
         # super() in a method of the old one cannot see before Python 3.14.
@@ -321,7 +323,7 @@ class MoverJointDef(JointDef):
     linear_velocity: Optional[VectorLike] = None
     max_velocity_force: Optional[VectorLike] = None
 
-    def joint_arguments(self):
+    def joint_arguments(self) -> dict[str, Any]:
         """The mover joint drives velocity only, so it has no anchors."""
         # super() with arguments: slots=True makes a new class that a bare
         # super() in a method of the old one cannot see before Python 3.14.
@@ -387,9 +389,10 @@ class MouseJointDef:
     damping_ratio: float = 0.7
     hertz: float = 5.0
 
-    joint_class = None
+    joint_class: ClassVar[Optional[type["Joint"]]] = None
 
-    def joint_arguments(self):
+    def joint_arguments(self) -> dict[str, Any]:
+        """Every field that is set; a mouse joint has no anchors to resolve."""
         return {
             field.name: getattr(self, field.name)
             for field in fields(self)
@@ -399,7 +402,7 @@ class MouseJointDef:
 
 # Bound at import time rather than in each class body: jointdef must not import
 # joint at module level, since joint imports math and world imports both.
-def _bind_joint_classes():
+def _bind_joint_classes() -> None:
     from . import joint
 
     for definition, name in (

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 from enum import IntEnum
 from .math import Vec2, Rot
 from ._checked import lib, ffi
@@ -41,7 +41,8 @@ class MassData:
     rotational_inertia: float
 
     @classmethod
-    def from_b2MassData(cls, mass_data):
+    def from_b2MassData(cls, mass_data: Any) -> "MassData":
+        """Build one from Box2D's ``b2MassData``."""
         return cls(
             mass=mass_data.mass,
             center=Vec2.from_b2Vec2(mass_data.center),
@@ -49,7 +50,7 @@ class MassData:
         )
 
     @property
-    def b2MassData(self):
+    def b2MassData(self) -> Any:
         mass_data = ffi.new("b2MassData*")
         mass_data.mass = self.mass
         mass_data.center = self.center.b2Vec2
@@ -75,7 +76,8 @@ class CastResult:
     iterations: Optional[int] = None
 
     @classmethod
-    def from_b2CastOutput(cls, output):
+    def from_b2CastOutput(cls, output: Any) -> Optional["CastResult"]:
+        """Build one from Box2D's ``b2CastOutput``, or None if it missed."""
         if output.hit:
             return cls(
                 point=Vec2.from_b2Vec2(output.point),
@@ -124,7 +126,8 @@ class ManifoldPoint:
     persisted: bool
 
     @classmethod
-    def from_b2ManifoldPoint(cls, manifold_point):
+    def from_b2ManifoldPoint(cls, manifold_point: Any) -> "ManifoldPoint":
+        """Build one from Box2D's ``b2ManifoldPoint``."""
         return cls(
             anchor_a=Vec2.from_b2Vec2(manifold_point.anchorA),
             anchor_b=Vec2.from_b2Vec2(manifold_point.anchorB),
@@ -138,7 +141,7 @@ class ManifoldPoint:
             persisted=bool(manifold_point.persisted),
         )
 
-    def _write_to(self, c_point):
+    def _write_to(self, c_point) -> None:
         """Copy this point back into a b2ManifoldPoint."""
         c_point.anchorA = self.anchor_a.b2Vec2[0]
         c_point.anchorB = self.anchor_b.b2Vec2[0]
@@ -168,7 +171,8 @@ class Manifold:
     points: List[ManifoldPoint]
 
     @classmethod
-    def from_b2Manifold(cls, manifold):
+    def from_b2Manifold(cls, manifold: Any) -> "Manifold":
+        """Build one from Box2D's ``b2Manifold``."""
         normal = Vec2.from_b2Vec2(manifold.normal)
         rolling_impulse = manifold.rollingImpulse
         points = [
@@ -177,7 +181,7 @@ class Manifold:
         ]
         return cls(normal=normal, rolling_impulse=rolling_impulse, points=points)
 
-    def _write_to(self, c_manifold):
+    def _write_to(self, c_manifold) -> None:
         """Copy this manifold back into a b2Manifold, as pre-solve edits it.
 
         Points can be removed but not added: a b2Manifold holds two at most.
@@ -209,7 +213,7 @@ class ContactData:
     manifold: Manifold
 
     @classmethod
-    def from_b2ContactData(cls, contact_data, shapes):
+    def from_b2ContactData(cls, contact_data: Any, shapes: Any) -> "ContactData":
         """Build from Box2D's contact data.
 
         Args:
@@ -298,7 +302,7 @@ class BodyDef:
     allow_fast_rotation: bool = _default_body_def.allowFastRotation
 
     @property
-    def b2BodyDef(self):
+    def b2BodyDef(self) -> Any:
         """
         Creates and returns the C structure for this body definition.
 

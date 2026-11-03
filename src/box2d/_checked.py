@@ -24,6 +24,7 @@ import logging
 import re
 import threading
 import types
+from typing import Any, Callable, NoReturn
 
 from ._box2d import ffi, lib as _raw_lib
 
@@ -54,7 +55,7 @@ class _Pending(threading.local):
     together.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.checks = []
 
 
@@ -64,7 +65,7 @@ _INVALID_INPUT = re.compile(r"invalid input: (?P<condition>.*) in (?P<function>\
 
 
 @ffi.callback("b2LogCallbackFcn")
-def _on_log(message):
+def _on_log(message) -> None:
     text = ffi.string(message).decode("utf-8", "replace").strip()
     if text.startswith("invalid input"):
         _pending.checks.append(text)
@@ -75,7 +76,7 @@ def _on_log(message):
 _raw_lib.b2SetLogCallback(_on_log)
 
 
-def _raise_pending(called):
+def _raise_pending(called: str) -> NoReturn:
     """Raise for the failed checks, naming the function that was called.
 
     Box2D names the function the check is written in, which is sometimes an
@@ -104,8 +105,8 @@ def is_checked(name: str) -> bool:
     return name.startswith("b2") and not _UNCHECKED.search(name)
 
 
-def _checked(function, name):
-    def call(*args):
+def _checked(function: Callable[..., Any], name: str) -> Callable[..., Any]:
+    def call(*args: Any) -> Any:
         result = function(*args)
         if _pending.checks:
             _raise_pending(name)
@@ -124,7 +125,7 @@ class _CheckedLib:
     on first use; nothing else is, so a global variable is always read fresh.
     """
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         value = getattr(_raw_lib, name)
         # cffi cdata are all callable, constants included, so test for what
         # the library's functions actually are.
@@ -133,7 +134,7 @@ class _CheckedLib:
             setattr(self, name, value)
         return value
 
-    def __dir__(self):
+    def __dir__(self) -> list[str]:
         return dir(_raw_lib)
 
 

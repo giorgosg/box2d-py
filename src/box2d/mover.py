@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, List
 
 from ._checked import ffi, lib
-from .math import Vec2
+from .math import Vec2, VectorLike
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .shape import Shape
@@ -73,7 +73,7 @@ class CollisionPlane:
             shape=shape,
         )
 
-    def _to_b2(self, target):
+    def _to_b2(self, target) -> None:
         target.plane.normal = self.plane.normal.b2Vec2[0]
         target.plane.offset = self.plane.offset
         target.pushLimit = self.push_limit
@@ -103,7 +103,7 @@ def _pack_planes(planes):
     return array
 
 
-def solve_planes(target_delta, planes: List[CollisionPlane]) -> MoverResult:
+def solve_planes(target_delta: VectorLike, planes: List[CollisionPlane]) -> MoverResult:
     """Find the movement closest to the one asked for that clears every plane.
 
     Args:
@@ -134,7 +134,7 @@ def solve_planes(target_delta, planes: List[CollisionPlane]) -> MoverResult:
     )
 
 
-def clip_vector(vector, planes: List[CollisionPlane]) -> Vec2:
+def clip_vector(vector: VectorLike, planes: List[CollisionPlane]) -> Vec2:
     """Remove the parts of a vector that point into the given planes.
 
     Applied to velocity after :func:`solve_planes`, this is what stops a

@@ -63,7 +63,7 @@ def accessor_declarations():
     checked the same way.
     """
     package = PROJECT_ROOT / "src" / "box2d"
-    factories = {"b2_float", "b2_bool", "b2_int", "b2_vector", "b2_value", "B2Accessor"}
+    factories = {"b2_float", "b2_bool", "b2_int", "b2_vector", "B2Accessor"}
     for path in sorted(package.rglob("*.py")):
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):

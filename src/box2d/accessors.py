@@ -24,11 +24,19 @@ class for the :class:`~box2d.lifetime.IdRef` and reads through that, so the
 lifetime guard applies to every accessor without being repeated either.
 """
 
+from typing import Any, Callable, Generic, Optional, Self, TypeVar, overload
+
 from .lifetime import IdRef
-from .math import Vec2
+from .math import Vec2, VectorLike
+
+#: What reading the property gives.
+T = TypeVar("T")
+#: What assigning the property takes, which may be looser than what it gives:
+#: a Vec2 property takes any vector-like.
+S = TypeVar("S")
 
 
-def _find_id_attribute(owner):
+def _find_id_attribute(owner: type) -> str:
     """Return the name of the IdRef on this class, e.g. ``"_body_id"``."""
     for klass in owner.__mro__:
         for name, value in vars(klass).items():
@@ -40,7 +48,7 @@ def _find_id_attribute(owner):
     )
 
 
-class B2Accessor:
+class B2Accessor(Generic[T, S]):
     """A property reading and writing through a pair of Box2D functions.
 
     Args:
@@ -53,43 +61,52 @@ class B2Accessor:
         extra_set_args: Extra arguments the setter takes after the value, such
             as Box2D's updateBodyMass flag.
         doc: The property's docstring.
+
+    The two type parameters are what reading gives and what assigning takes,
+    so a type checker and an editor see an accessor as the property it is.
     """
 
     def __init__(
         self,
-        getter,
-        setter=None,
+        getter: Callable[..., Any],
+        setter: Optional[Callable[..., Any]] = None,
         *,
-        adapt_out=None,
-        adapt_in=None,
-        extra_set_args=(),
-        doc=None,
-    ):
+        adapt_out: Optional[Callable[[Any], T]] = None,
+        adapt_in: Optional[Callable[[S], Any]] = None,
+        extra_set_args: tuple[Any, ...] = (),
+        doc: Optional[str] = None,
+    ) -> None:
         self._getter = getter
         self._setter = setter
         self._adapt_out = adapt_out
         self._adapt_in = adapt_in
         self._extra = tuple(extra_set_args)
-        self._name = None
-        self._id = None
+        self._name: Optional[str] = None
+        self._id: Optional[str] = None
         self.__doc__ = doc
 
     @property
-    def settable(self):
+    def settable(self) -> bool:
         """Whether assigning this property does anything, rather than raise."""
         return self._setter is not None
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
         self._id = _find_id_attribute(owner)
 
-    def __get__(self, obj, objtype=None):
+    @overload
+    def __get__(self, obj: None, objtype: Optional[type] = None) -> Self: ...
+
+    @overload
+    def __get__(self, obj: object, objtype: Optional[type] = None) -> T: ...
+
+    def __get__(self, obj: object, objtype: Optional[type] = None) -> "T | Self":
         if obj is None:
             return self
         value = self._getter(getattr(obj, self._id))
         return self._adapt_out(value) if self._adapt_out is not None else value
 
-    def __set__(self, obj, value):
+    def __set__(self, obj: object, value: S) -> None:
         if self._setter is None:
             raise AttributeError(f"{type(obj).__name__}.{self._name} is read-only.")
         if self._adapt_in is not None:
@@ -97,38 +114,54 @@ class B2Accessor:
         self._setter(getattr(obj, self._id), value, *self._extra)
 
 
-def _to_b2vec2(value):
+def _to_b2vec2(value: VectorLike) -> Any:
     return Vec2(value).b2Vec2[0]
 
 
-def _from_b2vec2(value):
+def _from_b2vec2(value: Any) -> Vec2:
     return Vec2(value.x, value.y)
 
 
-def b2_float(getter, setter=None, *, extra_set_args=(), doc=None):
+def b2_float(
+    getter: Callable[..., Any],
+    setter: Optional[Callable[..., Any]] = None,
+    *,
+    extra_set_args: tuple[Any, ...] = (),
+    doc: Optional[str] = None,
+) -> B2Accessor[float, float]:
     """A float property. Assigned values are coerced with ``float``."""
     return B2Accessor(
         getter, setter, adapt_in=float, extra_set_args=extra_set_args, doc=doc
     )
 
 
-def b2_bool(getter, setter=None, *, doc=None):
+def b2_bool(
+    getter: Callable[..., Any],
+    setter: Optional[Callable[..., Any]] = None,
+    *,
+    doc: Optional[str] = None,
+) -> B2Accessor[bool, bool]:
     """A boolean property. Assigned values are coerced with ``bool``."""
     return B2Accessor(getter, setter, adapt_in=bool, doc=doc)
 
 
-def b2_int(getter, setter=None, *, doc=None):
+def b2_int(
+    getter: Callable[..., Any],
+    setter: Optional[Callable[..., Any]] = None,
+    *,
+    doc: Optional[str] = None,
+) -> B2Accessor[int, int]:
     """An integer property. Assigned values are coerced with ``int``."""
     return B2Accessor(getter, setter, adapt_in=int, doc=doc)
 
 
-def b2_vector(getter, setter=None, *, doc=None):
+def b2_vector(
+    getter: Callable[..., Any],
+    setter: Optional[Callable[..., Any]] = None,
+    *,
+    doc: Optional[str] = None,
+) -> B2Accessor[Vec2, VectorLike]:
     """A Vec2 property, accepting any vector-like when assigned."""
     return B2Accessor(
         getter, setter, adapt_out=_from_b2vec2, adapt_in=_to_b2vec2, doc=doc
     )
-
-
-def b2_value(getter, setter=None, *, doc=None):
-    """A property passed through untouched in both directions."""
-    return B2Accessor(getter, setter, doc=doc)

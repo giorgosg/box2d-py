@@ -42,6 +42,9 @@ dev = [
     # Pinned, as are the pre-commit hook and CI's lint job (which reads this
     # line), so a formatter release cannot reformat files nobody touched.
     "ruff==0.16.10",
+    # Pinned for the same reason: CI's types job reads this line, and a newer
+    # pyright can count a symbol as incompletely typed that this one accepts.
+    "pyright==1.1.414",
     "pcpp>=1.30",
     "setuptools>=75.8.0",
     "pre-commit",
@@ -58,7 +61,7 @@ where = ["src"]
 include = ["box2d*", "box2d_testbed*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs"]
+"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs", "py.typed"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

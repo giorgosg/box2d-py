@@ -4,12 +4,13 @@ import math
 
 from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike
-from .accessors import b2_bool, b2_float, b2_value
+from .accessors import B2Accessor, b2_bool, b2_float, b2_int
 from .lifetime import IdRef, raw_id, is_live, join_world
 from ._fixed_attributes import FixedAttributes
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:  # annotations only; world imports this module
+    from .body import Body
     from .world import World
 
 
@@ -112,9 +113,9 @@ class Joint(FixedAttributes):
     #: Any Python object the application wants kept with this joint. Other
     #: attributes cannot be added: a misspelt property would silently do
     #: nothing, so setting an unknown one raises instead.
-    user_data = None
+    user_data: Any = None
 
-    def _join(self, world):
+    def _join(self, world) -> None:
         """Make this joint part of ``world``, before anything is built for it.
 
         Box2D creates nothing while the world is stepping, so that is refused
@@ -125,7 +126,7 @@ class Joint(FixedAttributes):
         self.world = world
         join_world(self, world)
 
-    def _register(self):
+    def _register(self) -> None:
         """Enter this joint in its world's joint table.
 
         Called once the joint exists. The table is how a joint id read back
@@ -134,7 +135,7 @@ class Joint(FixedAttributes):
         """
         self.world._track_joint(self)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroy the joint and remove it from the world.
 
         Both bodies it connected are woken, so they can react to losing the
@@ -153,7 +154,7 @@ class Joint(FixedAttributes):
             lib.b2DestroyJoint(raw)
         self._release()
 
-    def _release(self):
+    def _release(self) -> None:
         """Let go of this joint once Box2D no longer has it.
 
         Box2D has no joint for the id any more, so it leaves the world's
@@ -164,7 +165,7 @@ class Joint(FixedAttributes):
         del self._joint_id
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """Check if the joint is currently active in the simulation.
 
         Returns:
@@ -174,7 +175,7 @@ class Joint(FixedAttributes):
         return is_live(self, "_joint_id", lib.b2Joint_IsValid)
 
     @property
-    def body_a(self):
+    def body_a(self) -> "Body":
         """Get the first body connected by this joint.
 
         Returns:
@@ -183,7 +184,7 @@ class Joint(FixedAttributes):
         return self.world._bodies.require(lib.b2Joint_GetBodyA(self._joint_id))
 
     @property
-    def body_b(self):
+    def body_b(self) -> "Body":
         """Get the second body connected by this joint.
 
         Returns:
@@ -192,7 +193,7 @@ class Joint(FixedAttributes):
         return self.world._bodies.require(lib.b2Joint_GetBodyB(self._joint_id))
 
     @property
-    def local_anchor_a(self):
+    def local_anchor_a(self) -> Vec2:
         """Local connection point on the first body.
 
         Setting this moves where the joint attaches without rebuilding it,
@@ -209,12 +210,12 @@ class Joint(FixedAttributes):
         return Vec2(frame.p.x, frame.p.y)
 
     @local_anchor_a.setter
-    def local_anchor_a(self, value: VectorLike):
+    def local_anchor_a(self, value: VectorLike) -> None:
         frame = self.local_frame_a
         self.local_frame_a = Transform(Vec2(value), frame.q)
 
     @property
-    def local_anchor_b(self):
+    def local_anchor_b(self) -> Vec2:
         """Local connection point on the second body.
 
         Settable, like :attr:`local_anchor_a`.
@@ -227,7 +228,7 @@ class Joint(FixedAttributes):
         return Vec2(frame.p.x, frame.p.y)
 
     @local_anchor_b.setter
-    def local_anchor_b(self, value: VectorLike):
+    def local_anchor_b(self, value: VectorLike) -> None:
         frame = self.local_frame_b
         self.local_frame_b = Transform(Vec2(value), frame.q)
 
@@ -242,7 +243,7 @@ class Joint(FixedAttributes):
         return Transform.from_b2Transform(lib.b2Joint_GetLocalFrameA(self._joint_id))
 
     @local_frame_a.setter
-    def local_frame_a(self, value: Transform):
+    def local_frame_a(self, value: Transform) -> None:
         lib.b2Joint_SetLocalFrameA(self._joint_id, value.b2Transform[0])
 
     @property
@@ -251,11 +252,11 @@ class Joint(FixedAttributes):
         return Transform.from_b2Transform(lib.b2Joint_GetLocalFrameB(self._joint_id))
 
     @local_frame_b.setter
-    def local_frame_b(self, value: Transform):
+    def local_frame_b(self, value: Transform) -> None:
         lib.b2Joint_SetLocalFrameB(self._joint_id, value.b2Transform[0])
 
     @property
-    def constraint_tuning(self) -> tuple:
+    def constraint_tuning(self) -> tuple[float, float]:
         """How stiffly the solver enforces this joint, as ``(hertz, damping_ratio)``.
 
         Giving a joint a low stiffness makes it soft, so it can be pulled out
@@ -274,14 +275,14 @@ class Joint(FixedAttributes):
         return (hertz[0], damping_ratio[0])
 
     @constraint_tuning.setter
-    def constraint_tuning(self, value):
+    def constraint_tuning(self, value: tuple[float, float]) -> None:
         hertz, damping_ratio = value
         lib.b2Joint_SetConstraintTuning(
             self._joint_id, float(hertz), float(damping_ratio)
         )
 
     @property
-    def constraint_force(self):
+    def constraint_force(self) -> Vec2:
         """Current force exerted by the joint to maintain its constraint.
 
         Returns:
@@ -290,7 +291,7 @@ class Joint(FixedAttributes):
         vec = lib.b2Joint_GetConstraintForce(self._joint_id)
         return Vec2(vec.x, vec.y)
 
-    constraint_torque = b2_value(
+    constraint_torque: B2Accessor[float, float] = b2_float(
         lib.b2Joint_GetConstraintTorque,
         doc="""Current torque exerted by the joint to maintain rotation constraints.
         
@@ -298,7 +299,7 @@ class Joint(FixedAttributes):
             float: Constraint torque value
         """,
     )
-    collide_connected = b2_value(
+    collide_connected: B2Accessor[bool, bool] = b2_bool(
         lib.b2Joint_GetCollideConnected,
         lib.b2Joint_SetCollideConnected,
         doc="""Check if connected bodies can collide with each other.
@@ -308,12 +309,12 @@ class Joint(FixedAttributes):
         """,
     )
 
-    joint_type = b2_value(
+    joint_type: B2Accessor[int, int] = b2_int(
         lib.b2Joint_GetType,
         doc="The Box2D constant identifying which kind of joint this is.",
     )
 
-    linear_separation = b2_value(
+    linear_separation: B2Accessor[float, float] = b2_float(
         lib.b2Joint_GetLinearSeparation,
         doc="""How far apart the joint's two frames have drifted, in metres.
 
@@ -322,12 +323,12 @@ class Joint(FixedAttributes):
         """,
     )
 
-    angular_separation = b2_value(
+    angular_separation: B2Accessor[float, float] = b2_float(
         lib.b2Joint_GetAngularSeparation,
         doc="The angular counterpart of linear_separation, in radians.",
     )
 
-    force_threshold = b2_float(
+    force_threshold: B2Accessor[float, float] = b2_float(
         lib.b2Joint_GetForceThreshold,
         lib.b2Joint_SetForceThreshold,
         doc="""Get or set the force above which this joint reports an event.
@@ -339,7 +340,7 @@ class Joint(FixedAttributes):
         """,
     )
 
-    torque_threshold = b2_float(
+    torque_threshold: B2Accessor[float, float] = b2_float(
         lib.b2Joint_GetTorqueThreshold,
         lib.b2Joint_SetTorqueThreshold,
         doc="""Get or set the torque above which this joint reports an event.
@@ -349,7 +350,7 @@ class Joint(FixedAttributes):
         """,
     )
 
-    def wake_bodies(self):
+    def wake_bodies(self) -> None:
         """Ensure connected bodies are active and responsive to movement.
 
         Useful when restarting dragging after bodies entered sleep state.
@@ -382,13 +383,13 @@ class MouseJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body,
+        world: "World",
+        body: "Body",
         target: VectorLike,
-        max_force=1000.0,
-        damping_ratio=0.7,
-        hertz=5.0,
-    ):
+        max_force: float = 1000.0,
+        damping_ratio: float = 0.7,
+        hertz: float = 5.0,
+    ) -> None:
         """Create a drag-and-move joint for interactive manipulation.
 
         Box2D 3.2 has no mouse joint, so it has no defaults to follow here:
@@ -435,7 +436,7 @@ class MouseJoint(Joint):
         self._register()
         self.wake_bodies()
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroy the joint and the kinematic proxy body backing it.
 
         Destroying twice is a no-op.
@@ -446,7 +447,7 @@ class MouseJoint(Joint):
         """
         super().destroy()
 
-    def _release(self):
+    def _release(self) -> None:
         """Release the joint, and destroy the proxy body only it was using.
 
         This runs however the joint went -- destroyed, or taken down with the
@@ -459,7 +460,7 @@ class MouseJoint(Joint):
             proxy.destroy()
 
     @property
-    def target(self):
+    def target(self) -> Vec2:
         """Current target position to drag toward.
 
         Returns:
@@ -468,7 +469,7 @@ class MouseJoint(Joint):
         return self._live_proxy().position
 
     @target.setter
-    def target(self, value):
+    def target(self, value: VectorLike) -> None:
         """Update the position being dragged toward.
 
         Args:
@@ -486,17 +487,17 @@ class MouseJoint(Joint):
         _ = self._joint_id  # raises if the joint is gone
         return self._proxy
 
-    max_force = b2_float(
+    max_force: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetMaxSpringForce,
         lib.b2MotorJoint_SetMaxSpringForce,
         doc="Maximum pulling force available to move the body.",
     )
-    damping_ratio = b2_float(
+    damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetLinearDampingRatio,
         lib.b2MotorJoint_SetLinearDampingRatio,
         doc="Spring damping controlling movement smoothness.",
     )
-    hertz = b2_float(
+    hertz: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetLinearHertz,
         lib.b2MotorJoint_SetLinearHertz,
         doc="Spring stiffness in Hz.",
@@ -515,7 +516,13 @@ class FilterJoint(Joint):
     pair rather than a computation.
     """
 
-    def __init__(self, world, body_a, body_b, collide_connected=False):
+    def __init__(
+        self,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
+        collide_connected: bool = False,
+    ) -> None:
         """Create a filter joint between two bodies.
 
         Args:
@@ -562,18 +569,18 @@ class WeldJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike,
         local_anchor_b: VectorLike,
-        collide_connected=False,
-        linear_hertz=None,
-        linear_damping_ratio=None,
-        angular_hertz=None,
-        angular_damping_ratio=None,
-        reference_angle=None,
-    ):
+        collide_connected: bool = False,
+        linear_hertz: Optional[float] = None,
+        linear_damping_ratio: Optional[float] = None,
+        angular_hertz: Optional[float] = None,
+        angular_damping_ratio: Optional[float] = None,
+        reference_angle: Optional[float] = None,
+    ) -> None:
         self._local_anchor_a = Vec2(local_anchor_a)
         self._local_anchor_b = Vec2(local_anchor_b)
         self._linear_hertz = linear_hertz
@@ -610,22 +617,22 @@ class WeldJoint(Joint):
         )
         self._register()
 
-    linear_hertz = b2_float(
+    linear_hertz: B2Accessor[float, float] = b2_float(
         lib.b2WeldJoint_GetLinearHertz,
         lib.b2WeldJoint_SetLinearHertz,
         doc="The linear stiffness (in Hertz) of the weld joint spring.",
     )
-    linear_damping_ratio = b2_float(
+    linear_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2WeldJoint_GetLinearDampingRatio,
         lib.b2WeldJoint_SetLinearDampingRatio,
         doc="The linear damping ratio (non-dimensional) of the weld joint spring.",
     )
-    angular_hertz = b2_float(
+    angular_hertz: B2Accessor[float, float] = b2_float(
         lib.b2WeldJoint_GetAngularHertz,
         lib.b2WeldJoint_SetAngularHertz,
         doc="The angular stiffness (in Hertz) of the weld joint.",
     )
-    angular_damping_ratio = b2_float(
+    angular_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2WeldJoint_GetAngularDampingRatio,
         lib.b2WeldJoint_SetAngularDampingRatio,
         doc="The angular damping ratio (non-dimensional) of the weld joint.",
@@ -641,24 +648,24 @@ class RevoluteJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike,
         local_anchor_b: VectorLike,
-        collide_connected=False,
-        lower_limit=None,
-        upper_limit=None,
-        enable_limit=None,
-        target_motor_speed=None,
-        max_motor_torque=None,
-        enable_motor=None,
-        reference_angle=None,
-        enable_spring=None,
-        spring_hertz=None,
-        spring_damping_ratio=None,
-        target_angle=None,
-    ):
+        collide_connected: bool = False,
+        lower_limit: Optional[float] = None,
+        upper_limit: Optional[float] = None,
+        enable_limit: Optional[bool] = None,
+        target_motor_speed: Optional[float] = None,
+        max_motor_torque: Optional[float] = None,
+        enable_motor: Optional[bool] = None,
+        reference_angle: Optional[float] = None,
+        enable_spring: Optional[bool] = None,
+        spring_hertz: Optional[float] = None,
+        spring_damping_ratio: Optional[float] = None,
+        target_angle: Optional[float] = None,
+    ) -> None:
         """
         Initialize a revolute joint with separate local anchor points for each body.
 
@@ -744,7 +751,7 @@ class RevoluteJoint(Joint):
         )
         self._register()
 
-    current_angle = b2_value(
+    current_angle: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetCurrentAngle,
         doc="""The joint's angle right now, in radians, wrapped into [-pi, pi].
 
@@ -754,7 +761,7 @@ class RevoluteJoint(Joint):
         was made with, and changes if local_frame_a or local_frame_b is set.
         """,
     )
-    current_speed = b2_value(
+    current_speed: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetCurrentSpeed,
         doc="""How fast the joint is turning right now, in radians per second.
 
@@ -763,7 +770,7 @@ class RevoluteJoint(Joint):
         asleep counts as not turning.
         """,
     )
-    target_motor_speed = b2_float(
+    target_motor_speed: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetTargetMotorSpeed,
         lib.b2RevoluteJoint_SetTargetMotorSpeed,
         doc="""The speed the motor drives the joint towards, in radians per second.
@@ -773,7 +780,7 @@ class RevoluteJoint(Joint):
         actually turning.
         """,
     )
-    max_motor_torque = b2_float(
+    max_motor_torque: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetMaxMotorTorque,
         lib.b2RevoluteJoint_SetMaxMotorTorque,
         doc="Maximum motor torque in newton-metres.",
@@ -785,7 +792,7 @@ class RevoluteJoint(Joint):
         return lib.b2RevoluteJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
-    def lower_limit(self, lower):
+    def lower_limit(self, lower: float) -> None:
         self.set_limits(lower, self.upper_limit)
 
     @property
@@ -794,10 +801,10 @@ class RevoluteJoint(Joint):
         return lib.b2RevoluteJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
-    def upper_limit(self, upper):
+    def upper_limit(self, upper: float) -> None:
         self.set_limits(self.lower_limit, upper)
 
-    def set_limits(self, lower, upper):
+    def set_limits(self, lower: float, upper: float) -> None:
         """
         Set the joint limits in radians.
 
@@ -811,36 +818,36 @@ class RevoluteJoint(Joint):
         lower, upper = _ordered(lower, upper, "revolute joint limits")
         lib.b2RevoluteJoint_SetLimits(self._joint_id, lower, upper)
 
-    enable_limit = b2_bool(
+    enable_limit: B2Accessor[bool, bool] = b2_bool(
         lib.b2RevoluteJoint_IsLimitEnabled,
         lib.b2RevoluteJoint_EnableLimit,
         doc="Get or set whether the joint limit is enforced.",
     )
-    enable_motor = b2_bool(
+    enable_motor: B2Accessor[bool, bool] = b2_bool(
         lib.b2RevoluteJoint_IsMotorEnabled,
         lib.b2RevoluteJoint_EnableMotor,
         doc="Get or set whether the motor drives the joint.",
     )
-    current_motor_torque = b2_value(
+    current_motor_torque: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetCurrentMotorTorque,
         doc="The torque the motor applied in the last step, in newton-metres.",
     )
-    enable_spring = b2_bool(
+    enable_spring: B2Accessor[bool, bool] = b2_bool(
         lib.b2RevoluteJoint_IsSpringEnabled,
         lib.b2RevoluteJoint_EnableSpring,
         doc="Get or set whether the joint's angular spring is active.",
     )
-    spring_hertz = b2_float(
+    spring_hertz: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetSpringHertz,
         lib.b2RevoluteJoint_SetSpringHertz,
         doc="Get or set the angular spring frequency in Hz.",
     )
-    spring_damping_ratio = b2_float(
+    spring_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetSpringDampingRatio,
         lib.b2RevoluteJoint_SetSpringDampingRatio,
         doc="Get or set the angular spring damping ratio.",
     )
-    target_angle = b2_float(
+    target_angle: B2Accessor[float, float] = b2_float(
         lib.b2RevoluteJoint_GetTargetAngle,
         lib.b2RevoluteJoint_SetTargetAngle,
         doc="""Get or set the angle the spring pulls towards, in radians.
@@ -870,25 +877,25 @@ class PrismaticJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike,
         local_anchor_b: VectorLike,
         axis: VectorLike,
-        collide_connected=False,
-        lower_limit=None,
-        upper_limit=None,
-        enable_limit=None,
-        target_motor_speed=None,
-        max_motor_force=None,
-        enable_motor=None,
-        reference_angle=None,
-        enable_spring=None,
-        spring_hertz=None,
-        spring_damping_ratio=None,
-        target_translation=None,
-    ):
+        collide_connected: bool = False,
+        lower_limit: Optional[float] = None,
+        upper_limit: Optional[float] = None,
+        enable_limit: Optional[bool] = None,
+        target_motor_speed: Optional[float] = None,
+        max_motor_force: Optional[float] = None,
+        enable_motor: Optional[bool] = None,
+        reference_angle: Optional[float] = None,
+        enable_spring: Optional[bool] = None,
+        spring_hertz: Optional[float] = None,
+        spring_damping_ratio: Optional[float] = None,
+        target_translation: Optional[float] = None,
+    ) -> None:
         """Initialize a prismatic joint between two bodies.
 
         Args:
@@ -979,11 +986,11 @@ class PrismaticJoint(Joint):
         )
         self._register()
 
-    current_translation = b2_value(
+    current_translation: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetCurrentTranslation,
         doc="How far along the axis the joint is right now, in metres.",
     )
-    current_speed = b2_value(
+    current_speed: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetCurrentSpeed,
         doc="""How fast the joint is sliding right now, in metres per second.
 
@@ -991,7 +998,7 @@ class PrismaticJoint(Joint):
         driving towards.
         """,
     )
-    enable_limit = b2_bool(
+    enable_limit: B2Accessor[bool, bool] = b2_bool(
         lib.b2PrismaticJoint_IsLimitEnabled,
         lib.b2PrismaticJoint_EnableLimit,
         doc="Check if the joint limit is enabled.",
@@ -1003,7 +1010,7 @@ class PrismaticJoint(Joint):
         return lib.b2PrismaticJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
-    def lower_limit(self, lower):
+    def lower_limit(self, lower: float) -> None:
         self.set_limits(lower, self.upper_limit)
 
     @property
@@ -1012,10 +1019,10 @@ class PrismaticJoint(Joint):
         return lib.b2PrismaticJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
-    def upper_limit(self, upper):
+    def upper_limit(self, upper: float) -> None:
         self.set_limits(self.lower_limit, upper)
 
-    def set_limits(self, lower, upper):
+    def set_limits(self, lower: float, upper: float) -> None:
         """Set the joint limits.
 
         Args:
@@ -1028,12 +1035,12 @@ class PrismaticJoint(Joint):
         lower, upper = _ordered(lower, upper, "prismatic joint limits")
         lib.b2PrismaticJoint_SetLimits(self._joint_id, lower, upper)
 
-    enable_motor = b2_bool(
+    enable_motor: B2Accessor[bool, bool] = b2_bool(
         lib.b2PrismaticJoint_IsMotorEnabled,
         lib.b2PrismaticJoint_EnableMotor,
         doc="Check if the joint motor is enabled.",
     )
-    target_motor_speed = b2_float(
+    target_motor_speed: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetTargetMotorSpeed,
         lib.b2PrismaticJoint_SetTargetMotorSpeed,
         doc="""The speed the motor drives the joint towards, in metres per second.
@@ -1043,26 +1050,26 @@ class PrismaticJoint(Joint):
         actually sliding.
         """,
     )
-    max_motor_force = b2_float(
+    max_motor_force: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetMaxMotorForce,
         lib.b2PrismaticJoint_SetMaxMotorForce,
         doc="Get maximum motor force in newtons.",
     )
-    current_motor_force = b2_value(
+    current_motor_force: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetCurrentMotorForce,
         doc="The force the motor applied in the last step, in newtons.",
     )
-    enable_spring = b2_bool(
+    enable_spring: B2Accessor[bool, bool] = b2_bool(
         lib.b2PrismaticJoint_IsSpringEnabled,
         lib.b2PrismaticJoint_EnableSpring,
         doc="Check if spring behavior is enabled.",
     )
-    spring_hertz = b2_float(
+    spring_hertz: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetSpringHertz,
         lib.b2PrismaticJoint_SetSpringHertz,
         doc="Get spring frequency in Hertz.",
     )
-    target_translation = b2_float(
+    target_translation: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetTargetTranslation,
         lib.b2PrismaticJoint_SetTargetTranslation,
         doc="""Where along the axis the spring pulls towards, in metres.
@@ -1073,7 +1080,7 @@ class PrismaticJoint(Joint):
         """,
     )
 
-    spring_damping_ratio = b2_float(
+    spring_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2PrismaticJoint_GetSpringDampingRatio,
         lib.b2PrismaticJoint_SetSpringDampingRatio,
         doc="Get spring damping ratio.",
@@ -1089,23 +1096,23 @@ class WheelJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike,
         local_anchor_b: VectorLike,
         axis: VectorLike,
-        collide_connected=False,
-        enable_limit=None,
-        lower_limit=None,
-        upper_limit=None,
-        enable_motor=None,
-        target_motor_speed=None,
-        max_motor_torque=None,
-        enable_spring=None,
-        spring_hertz=None,
-        spring_damping_ratio=None,
-    ):
+        collide_connected: bool = False,
+        enable_limit: Optional[bool] = None,
+        lower_limit: Optional[float] = None,
+        upper_limit: Optional[float] = None,
+        enable_motor: Optional[bool] = None,
+        target_motor_speed: Optional[float] = None,
+        max_motor_torque: Optional[float] = None,
+        enable_spring: Optional[bool] = None,
+        spring_hertz: Optional[float] = None,
+        spring_damping_ratio: Optional[float] = None,
+    ) -> None:
         """Initialize a wheel joint.
 
         An argument left None takes Box2D's default, as in
@@ -1172,22 +1179,22 @@ class WheelJoint(Joint):
         )
         self._register()
 
-    enable_spring = b2_bool(
+    enable_spring: B2Accessor[bool, bool] = b2_bool(
         lib.b2WheelJoint_IsSpringEnabled,
         lib.b2WheelJoint_EnableSpring,
         doc="Check if spring behavior is enabled.",
     )
-    spring_hertz = b2_float(
+    spring_hertz: B2Accessor[float, float] = b2_float(
         lib.b2WheelJoint_GetSpringHertz,
         lib.b2WheelJoint_SetSpringHertz,
         doc="Get spring frequency in Hertz.",
     )
-    spring_damping_ratio = b2_float(
+    spring_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2WheelJoint_GetSpringDampingRatio,
         lib.b2WheelJoint_SetSpringDampingRatio,
         doc="Get spring damping ratio (non-dimensional).",
     )
-    enable_limit = b2_bool(
+    enable_limit: B2Accessor[bool, bool] = b2_bool(
         lib.b2WheelJoint_IsLimitEnabled,
         lib.b2WheelJoint_EnableLimit,
         doc="Check if translation limits are enabled.",
@@ -1199,7 +1206,7 @@ class WheelJoint(Joint):
         return lib.b2WheelJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
-    def lower_limit(self, lower):
+    def lower_limit(self, lower: float) -> None:
         self.set_limits(lower, self.upper_limit)
 
     @property
@@ -1208,10 +1215,10 @@ class WheelJoint(Joint):
         return lib.b2WheelJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
-    def upper_limit(self, upper):
+    def upper_limit(self, upper: float) -> None:
         self.set_limits(self.lower_limit, upper)
 
-    def set_limits(self, lower, upper):
+    def set_limits(self, lower: float, upper: float) -> None:
         """Set the translation limits.
 
         Args:
@@ -1224,12 +1231,12 @@ class WheelJoint(Joint):
         lower, upper = _ordered(lower, upper, "wheel joint limits")
         lib.b2WheelJoint_SetLimits(self._joint_id, lower, upper)
 
-    enable_motor = b2_bool(
+    enable_motor: B2Accessor[bool, bool] = b2_bool(
         lib.b2WheelJoint_IsMotorEnabled,
         lib.b2WheelJoint_EnableMotor,
         doc="Check if joint motor is enabled.",
     )
-    target_motor_speed = b2_float(
+    target_motor_speed: B2Accessor[float, float] = b2_float(
         lib.b2WheelJoint_GetTargetMotorSpeed,
         lib.b2WheelJoint_SetTargetMotorSpeed,
         doc="""The speed the motor spins the wheel towards, in radians per second.
@@ -1238,12 +1245,12 @@ class WheelJoint(Joint):
         max_motor_torque allows.
         """,
     )
-    max_motor_torque = b2_float(
+    max_motor_torque: B2Accessor[float, float] = b2_float(
         lib.b2WheelJoint_GetMaxMotorTorque,
         lib.b2WheelJoint_SetMaxMotorTorque,
         doc="Get maximum motor torque in newton-metres.",
     )
-    current_motor_torque = b2_value(
+    current_motor_torque: B2Accessor[float, float] = b2_float(
         lib.b2WheelJoint_GetCurrentMotorTorque,
         doc="The torque the motor applied in the last step, in newton-metres.",
     )
@@ -1264,25 +1271,25 @@ class DistanceJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike,
         local_anchor_b: VectorLike,
-        collide_connected=False,
-        rest_length=None,
-        lower_limit=None,
-        upper_limit=None,
-        enable_limit=False,
-        enable_spring=False,
-        spring_hertz=None,
-        spring_damping_ratio=None,
-        enable_motor=False,
-        target_motor_speed=None,
-        max_motor_force=None,
-        lower_spring_force=None,
-        upper_spring_force=None,
-    ):
+        collide_connected: bool = False,
+        rest_length: Optional[float] = None,
+        lower_limit: Optional[float] = None,
+        upper_limit: Optional[float] = None,
+        enable_limit: bool = False,
+        enable_spring: bool = False,
+        spring_hertz: Optional[float] = None,
+        spring_damping_ratio: Optional[float] = None,
+        enable_motor: bool = False,
+        target_motor_speed: Optional[float] = None,
+        max_motor_force: Optional[float] = None,
+        lower_spring_force: Optional[float] = None,
+        upper_spring_force: Optional[float] = None,
+    ) -> None:
         """Initialize a distance joint between two bodies.
 
         Args:
@@ -1379,7 +1386,7 @@ class DistanceJoint(Joint):
         )
         self._register()
 
-    rest_length = b2_float(
+    rest_length: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetRestLength,
         lib.b2DistanceJoint_SetRestLength,
         doc="""The length the joint holds, or its spring settles at, in metres.
@@ -1387,26 +1394,26 @@ class DistanceJoint(Joint):
         current_length is how far apart the anchors actually are.
         """,
     )
-    current_length = b2_value(
+    current_length: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetCurrentLength,
         doc="Get the current distance between anchor points.",
     )
-    enable_spring = b2_bool(
+    enable_spring: B2Accessor[bool, bool] = b2_bool(
         lib.b2DistanceJoint_IsSpringEnabled,
         lib.b2DistanceJoint_EnableSpring,
         doc="Check if spring behavior is enabled.",
     )
-    spring_hertz = b2_float(
+    spring_hertz: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetSpringHertz,
         lib.b2DistanceJoint_SetSpringHertz,
         doc="Get spring frequency in Hertz.",
     )
-    spring_damping_ratio = b2_float(
+    spring_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetSpringDampingRatio,
         lib.b2DistanceJoint_SetSpringDampingRatio,
         doc="Get spring damping ratio.",
     )
-    spring_force = b2_value(
+    spring_force: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetSpringForce,
         doc="""The force the spring is exerting right now, in newtons.
 
@@ -1414,7 +1421,7 @@ class DistanceJoint(Joint):
         when the spring is disabled.
         """,
     )
-    enable_limit = b2_bool(
+    enable_limit: B2Accessor[bool, bool] = b2_bool(
         lib.b2DistanceJoint_IsLimitEnabled,
         lib.b2DistanceJoint_EnableLimit,
         doc="Check if length limits are enabled.",
@@ -1426,7 +1433,7 @@ class DistanceJoint(Joint):
         lib.b2DistanceJoint_GetSpringForceRange(self._joint_id, lower, upper)
         return lower[0], upper[0]
 
-    def _set_spring_force_range(self, lower, upper):
+    def _set_spring_force_range(self, lower, upper) -> None:
         lower, upper = _ordered(lower, upper, "distance joint spring force")
         lib.b2DistanceJoint_SetSpringForceRange(self._joint_id, lower, upper)
 
@@ -1441,7 +1448,7 @@ class DistanceJoint(Joint):
         return self._spring_force_range()[0]
 
     @lower_spring_force.setter
-    def lower_spring_force(self, value):
+    def lower_spring_force(self, value: float) -> None:
         self._set_spring_force_range(value, self.upper_spring_force)
 
     @property
@@ -1455,11 +1462,11 @@ class DistanceJoint(Joint):
         return self._spring_force_range()[1]
 
     @upper_spring_force.setter
-    def upper_spring_force(self, value):
+    def upper_spring_force(self, value: float) -> None:
         self._set_spring_force_range(self.lower_spring_force, value)
 
     @property
-    def lower_limit(self):
+    def lower_limit(self) -> float:
         """The shortest the joint may get, in metres, when the limit is enabled.
 
         At least 0.005 m (Box2D's linear slop), which is also the default; a
@@ -1468,11 +1475,11 @@ class DistanceJoint(Joint):
         return lib.b2DistanceJoint_GetLowerLimit(self._joint_id)
 
     @lower_limit.setter
-    def lower_limit(self, value):
+    def lower_limit(self, value: float) -> None:
         self.set_limits(value, self.upper_limit)
 
     @property
-    def upper_limit(self):
+    def upper_limit(self) -> float:
         """The longest the joint may get, in metres, when the limit is enabled.
 
         Between 0.005 m (Box2D's linear slop) and 100 km, which is also the
@@ -1482,10 +1489,10 @@ class DistanceJoint(Joint):
         return lib.b2DistanceJoint_GetUpperLimit(self._joint_id)
 
     @upper_limit.setter
-    def upper_limit(self, value):
+    def upper_limit(self, value: float) -> None:
         self.set_limits(self.lower_limit, value)
 
-    def set_limits(self, lower, upper):
+    def set_limits(self, lower: float, upper: float) -> None:
         """Set the shortest and longest the joint may get, in metres.
 
         Box2D holds both between 0.005 m (its linear slop) and 100 km, and
@@ -1502,12 +1509,12 @@ class DistanceJoint(Joint):
         lower, upper = _distance_limits(lower, upper)
         lib.b2DistanceJoint_SetLimits(self._joint_id, lower, upper)
 
-    enable_motor = b2_bool(
+    enable_motor: B2Accessor[bool, bool] = b2_bool(
         lib.b2DistanceJoint_IsMotorEnabled,
         lib.b2DistanceJoint_EnableMotor,
         doc="Check if the joint motor is enabled.",
     )
-    target_motor_speed = b2_float(
+    target_motor_speed: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetTargetMotorSpeed,
         lib.b2DistanceJoint_SetTargetMotorSpeed,
         doc="""The speed the motor drives the length towards, in metres per second.
@@ -1516,12 +1523,12 @@ class DistanceJoint(Joint):
         max_motor_force allows.
         """,
     )
-    max_motor_force = b2_float(
+    max_motor_force: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetMaxMotorForce,
         lib.b2DistanceJoint_SetMaxMotorForce,
         doc="Get maximum motor force in newtons.",
     )
-    current_motor_force = b2_value(
+    current_motor_force: B2Accessor[float, float] = b2_float(
         lib.b2DistanceJoint_GetCurrentMotorForce,
         doc="The force the motor applied in the last step, in newtons.",
     )
@@ -1544,21 +1551,21 @@ class MotorJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
-        linear_velocity: VectorLike = None,
-        angular_velocity=None,
-        max_velocity_force=None,
-        max_velocity_torque=None,
-        linear_hertz=None,
-        linear_damping_ratio=None,
-        max_spring_force=None,
-        angular_hertz=None,
-        angular_damping_ratio=None,
-        max_spring_torque=None,
-        collide_connected=False,
-    ):
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
+        linear_velocity: Optional[VectorLike] = None,
+        angular_velocity: Optional[float] = None,
+        max_velocity_force: Optional[float] = None,
+        max_velocity_torque: Optional[float] = None,
+        linear_hertz: Optional[float] = None,
+        linear_damping_ratio: Optional[float] = None,
+        max_spring_force: Optional[float] = None,
+        angular_hertz: Optional[float] = None,
+        angular_damping_ratio: Optional[float] = None,
+        max_spring_torque: Optional[float] = None,
+        collide_connected: bool = False,
+    ) -> None:
         """Initialize a motor joint.
 
         Args:
@@ -1611,55 +1618,55 @@ class MotorJoint(Joint):
         self._register()
 
     @property
-    def linear_velocity(self):
+    def linear_velocity(self) -> Vec2:
         """Get or set the desired relative linear velocity."""
         return Vec2.from_b2Vec2(lib.b2MotorJoint_GetLinearVelocity(self._joint_id))
 
     @linear_velocity.setter
-    def linear_velocity(self, value):
+    def linear_velocity(self, value: VectorLike) -> None:
         lib.b2MotorJoint_SetLinearVelocity(self._joint_id, Vec2(value).b2Vec2[0])
 
-    angular_velocity = b2_float(
+    angular_velocity: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetAngularVelocity,
         lib.b2MotorJoint_SetAngularVelocity,
         doc="Get or set the desired relative angular velocity in radians per second.",
     )
-    max_velocity_force = b2_float(
+    max_velocity_force: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetMaxVelocityForce,
         lib.b2MotorJoint_SetMaxVelocityForce,
         doc="Get or set the force cap for the linear velocity drive.",
     )
-    max_velocity_torque = b2_float(
+    max_velocity_torque: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetMaxVelocityTorque,
         lib.b2MotorJoint_SetMaxVelocityTorque,
         doc="Get or set the torque cap for the angular velocity drive.",
     )
-    linear_hertz = b2_float(
+    linear_hertz: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetLinearHertz,
         lib.b2MotorJoint_SetLinearHertz,
         doc="Get or set the linear spring frequency. Zero disables the spring.",
     )
-    linear_damping_ratio = b2_float(
+    linear_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetLinearDampingRatio,
         lib.b2MotorJoint_SetLinearDampingRatio,
         doc="Get or set the linear spring damping ratio.",
     )
-    max_spring_force = b2_float(
+    max_spring_force: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetMaxSpringForce,
         lib.b2MotorJoint_SetMaxSpringForce,
         doc="Get or set the force cap for the linear spring.",
     )
-    angular_hertz = b2_float(
+    angular_hertz: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetAngularHertz,
         lib.b2MotorJoint_SetAngularHertz,
         doc="Get or set the angular spring frequency. Zero disables the spring.",
     )
-    angular_damping_ratio = b2_float(
+    angular_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetAngularDampingRatio,
         lib.b2MotorJoint_SetAngularDampingRatio,
         doc="Get or set the angular spring damping ratio.",
     )
-    max_spring_torque = b2_float(
+    max_spring_torque: B2Accessor[float, float] = b2_float(
         lib.b2MotorJoint_GetMaxSpringTorque,
         lib.b2MotorJoint_SetMaxSpringTorque,
         doc="Get or set the torque cap for the angular spring.",
@@ -1681,13 +1688,13 @@ class MoverJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
-        linear_velocity: VectorLike = None,
-        max_velocity_force: VectorLike = None,
-        collide_connected=False,
-    ):
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
+        linear_velocity: Optional[VectorLike] = None,
+        max_velocity_force: Optional[VectorLike] = None,
+        collide_connected: bool = False,
+    ) -> None:
         """Initialize a mover joint.
 
         Args:
@@ -1723,7 +1730,7 @@ class MoverJoint(Joint):
         return Vec2.from_b2Vec2(lib.b2MoverJoint_GetLinearVelocity(self._joint_id))
 
     @linear_velocity.setter
-    def linear_velocity(self, value: VectorLike):
+    def linear_velocity(self, value: VectorLike) -> None:
         lib.b2MoverJoint_SetLinearVelocity(self._joint_id, Vec2(value).b2Vec2[0])
 
     @property
@@ -1732,7 +1739,7 @@ class MoverJoint(Joint):
         return Vec2.from_b2Vec2(lib.b2MoverJoint_GetMaxVelocityForce(self._joint_id))
 
     @max_velocity_force.setter
-    def max_velocity_force(self, value: VectorLike):
+    def max_velocity_force(self, value: VectorLike) -> None:
         lib.b2MoverJoint_SetMaxVelocityForce(self._joint_id, Vec2(value).b2Vec2[0])
 
 
@@ -1756,21 +1763,21 @@ class PogoJoint(Joint):
 
     def __init__(
         self,
-        world,
-        body_a,
-        body_b,
+        world: "World",
+        body_a: "Body",
+        body_b: "Body",
         local_anchor_a: VectorLike = (0, 0),
         local_anchor_b: VectorLike = (0, 0),
         normal: VectorLike = (0, 1),
-        spring_hertz=None,
-        spring_damping_ratio=None,
-        rest_length=None,
-        max_tension_force=None,
-        max_compression_force=None,
-        impulse=None,
-        velocity=None,
-        collide_connected=False,
-    ):
+        spring_hertz: Optional[float] = None,
+        spring_damping_ratio: Optional[float] = None,
+        rest_length: Optional[float] = None,
+        max_tension_force: Optional[float] = None,
+        max_compression_force: Optional[float] = None,
+        impulse: Optional[float] = None,
+        velocity: Optional[float] = None,
+        collide_connected: bool = False,
+    ) -> None:
         """Initialize a pogo joint.
 
         Args:
@@ -1827,33 +1834,33 @@ class PogoJoint(Joint):
         )
         self._register()
 
-    rest_length = b2_float(
+    rest_length: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetRestLength,
         lib.b2PogoJoint_SetRestLength,
         doc="Get or set the length the spring settles at.",
     )
-    spring_hertz = b2_float(
+    spring_hertz: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetSpringHertz,
         lib.b2PogoJoint_SetSpringHertz,
         doc="Get or set the spring frequency in Hertz.",
     )
-    spring_damping_ratio = b2_float(
+    spring_damping_ratio: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetSpringDampingRatio,
         lib.b2PogoJoint_SetSpringDampingRatio,
         doc="Get or set the spring damping ratio.",
     )
-    current_length = b2_value(
+    current_length: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetCurrentLength,
         doc="The spring's current length, along the character's pogo axis.",
     )
-    current_speed = b2_value(
+    current_speed: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetCurrentSpeed,
         doc="""The spring's internal velocity.
 
         Pass it to the next pogo as PogoJointDef's velocity.
         """,
     )
-    impulse = b2_value(
+    impulse: B2Accessor[float, float] = b2_float(
         lib.b2PogoJoint_GetImpulse,
         doc="""The spring's internal impulse. Pass it to the next pogo.
 

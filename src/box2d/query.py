@@ -19,7 +19,7 @@ The points are in world coordinates, the same as every other query here.
 
 import math
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, Iterable, List
 
 from ._checked import ffi
 from .math import Vec2, VectorLike
@@ -44,7 +44,7 @@ class ShapeProxy:
     points: List[Vec2] = field(default_factory=list)
     radius: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.points = [Vec2(point) for point in self.points]
         if not self.points:
             raise ValueError("a shape proxy needs at least one point")
@@ -112,7 +112,7 @@ class ShapeProxy:
         )
 
     @classmethod
-    def polygon(cls, points, radius: float = 0.0) -> "ShapeProxy":
+    def polygon(cls, points: Iterable[VectorLike], radius: float = 0.0) -> "ShapeProxy":
         """The convex hull of the given points, in world coordinates.
 
         Box2D computes the hull itself, so the points need not be in order,
@@ -121,7 +121,7 @@ class ShapeProxy:
         return cls(points=list(points), radius=radius)
 
     @property
-    def b2ShapeProxy(self):
+    def b2ShapeProxy(self) -> Any:
         """This proxy as a C struct, owned by the returned cdata."""
         proxy = ffi.new("b2ShapeProxy*")
         for index, point in enumerate(self.points):

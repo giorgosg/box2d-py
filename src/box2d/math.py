@@ -1,5 +1,5 @@
 import math
-from typing import Union, Iterable, Iterator
+from typing import Any, Optional, Union, Iterable, Iterator
 from ._checked import ffi, lib
 
 
@@ -9,10 +9,11 @@ from ._checked import ffi, lib
 # where it can be a cross-reference target that the signatures link to.
 VectorLike = Iterable[float]
 
-b2Vec2_ctype = ffi.getctype("b2Vec2")
-b2Rot_ctype = ffi.getctype("b2Rot")
-b2Vec2_type = type(lib.b2Vec2_zero)
-b2Rot_type = type(lib.b2Rot_identity)
+# cffi's own types, which no type checker can see into.
+b2Vec2_ctype: Any = ffi.getctype("b2Vec2")
+b2Rot_ctype: Any = ffi.getctype("b2Rot")
+b2Vec2_type: Any = type(lib.b2Vec2_zero)
+b2Rot_type: Any = type(lib.b2Rot_identity)
 
 
 def format_num(n: float) -> str:
@@ -57,7 +58,7 @@ class Vec2:
 
     __slots__ = ("_x", "_y", "_b2vec2")
 
-    def __init__(self, x, y=None):
+    def __init__(self, x: Union[float, VectorLike], y: Optional[float] = None) -> None:
         """Initialize a 2D vector.
 
         Accepts the same forms as the rest of box2d-py: two scalars, or a single
@@ -107,17 +108,17 @@ class Vec2:
         self._y = float(components[1])
 
     @property
-    def x(self):
+    def x(self) -> float:
         """The x-component of the vector as a float."""
         return self._x
 
     @property
-    def y(self):
+    def y(self) -> float:
         """The y-component of the vector as a float."""
         return self._y
 
     @classmethod
-    def from_b2Vec2(cls, b2_vec: b2Vec2_type) -> "Vec2":
+    def from_b2Vec2(cls, b2_vec: Any) -> "Vec2":
         """Create from Box2D b2Vec2 structure.
 
         Example:
@@ -128,7 +129,7 @@ class Vec2:
         return cls(b2_vec)
 
     @property
-    def b2Vec2(self) -> b2Vec2_type:
+    def b2Vec2(self) -> Any:
         """Box2D b2Vec2 equivalent (managed by FFI).
 
         Example:
@@ -211,7 +212,7 @@ class Vec2:
         return cls(0.0, -1.0)
 
     @classmethod
-    def from_angle(cls, angle) -> "Vec2":
+    def from_angle(cls, angle: float) -> "Vec2":
         """Create a unit vector from the given angle in radians.
 
         Args:
@@ -227,7 +228,7 @@ class Vec2:
         return cls(math.cos(angle), math.sin(angle))
 
     @property
-    def is_finite(self):
+    def is_finite(self) -> bool:
         """Check if both components are finite numbers.
 
         Returns:
@@ -235,7 +236,7 @@ class Vec2:
         """
         return math.isfinite(self.x) and math.isfinite(self.y)
 
-    def __getitem__(self, index) -> float:
+    def __getitem__(self, index: int) -> float:
         """Allow indexing to access vector components.
 
         Args:
@@ -377,7 +378,7 @@ class Vec2:
         """Return True if the vector is non-zero."""
         return self.x != 0.0 or self.y != 0.0
 
-    def __round__(self, ndigits: int = None) -> "Vec2":
+    def __round__(self, ndigits: Optional[int] = None) -> "Vec2":
         """
         Return a new Vec2 instance with each component rounded to the specified number of digits.
 
@@ -501,7 +502,7 @@ class Vec2:
         other = Vec2(other)
         return self + (other - self) * t
 
-    def perpendicular(self, direction="right") -> "Vec2":
+    def perpendicular(self, direction: str = "right") -> "Vec2":
         """
         Return a perpendicular vector.
 
@@ -592,7 +593,7 @@ class Rot:
 
     __slots__ = ("_s", "_c", "_b2rot")  # sin/cos storage like Box2D
 
-    def __init__(self, angle: Union[float, b2Rot_type] = 0.0):
+    def __init__(self, angle: Union[float, Any] = 0.0) -> None:
         """
         Initialize from rotation angle in radians.
 
@@ -621,7 +622,7 @@ class Rot:
             self._b2rot = None
 
     @property
-    def c(self):
+    def c(self) -> float:
         """**Cosine** component of rotation (read-only).
 
         Example:
@@ -631,7 +632,7 @@ class Rot:
         return self._c
 
     @property
-    def s(self):
+    def s(self) -> float:
         """**Sine** component of rotation (read-only).
 
         Example:
@@ -641,7 +642,7 @@ class Rot:
         return self._s
 
     @classmethod
-    def from_b2Rot(cls, b2_rot: b2Rot_type) -> "Rot":
+    def from_b2Rot(cls, b2_rot: Any) -> "Rot":
         """Create a Rot instance from Box2D's b2Rot structure.
 
         Args:
@@ -655,7 +656,7 @@ class Rot:
         return cls(b2_rot)
 
     @property
-    def b2Rot(self):
+    def b2Rot(self) -> Any:
         """Box2D b2Rot equivalent (managed by FFI).
 
         Always a ``b2Rot*``, mirroring :attr:`Vec2.b2Vec2`, so call sites can
@@ -829,7 +830,7 @@ class Rot:
             )
         return NotImplemented
 
-    def __rmul__(self, other: Union["Vec2", tuple, float]) -> "Vec2":
+    def __rmul__(self, other: Union["Vec2", tuple[float, float], float]) -> "Vec2":
         """
         Handle multiplication when a vector, tuple, or float appears on the left-hand side.
 
@@ -853,7 +854,7 @@ class Rot:
             return self.rotate_vector(other)
         return self.__mul__(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Human-readable string representation of rotation components.
 
@@ -866,7 +867,7 @@ class Rot:
         """
         return f"Rot(c={self.c:.6f}, s={self.s:.6f})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Precise string representation for recreation.
 
@@ -879,7 +880,7 @@ class Rot:
         """
         return f"Rot({self.angle_radians:.6f})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Exact component equality check between rotations.
 
@@ -899,7 +900,7 @@ class Rot:
             return self.c == other.c and self.s == other.s
         return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """
         Hash value based on rotation components.
 
@@ -912,7 +913,7 @@ class Rot:
         """
         return hash((self.c, self.s))
 
-    def normalize(self):
+    def normalize(self) -> "Rot":
         """
         Create normalized rotation with unit-length components.
 
@@ -934,7 +935,7 @@ class Rot:
         s = self.s / length
         return Rot(math.atan2(s, c))
 
-    def __getstate__(self):
+    def __getstate__(self) -> float:
         """
         Get serialization state for pickling.
 
@@ -946,7 +947,7 @@ class Rot:
         """
         return self.angle_radians
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: float) -> None:
         """
         Restore instance state from unpickled data.
 
@@ -959,7 +960,7 @@ class Rot:
         self.__init__(state)
 
     @classmethod
-    def identity(cls):
+    def identity(cls) -> "Rot":
         """
         Create identity rotation (0 angle, no rotation).
 
@@ -973,7 +974,7 @@ class Rot:
         return cls(0.0)
 
     @classmethod
-    def zero(cls):
+    def zero(cls) -> "Rot":
         """
         Create zero rotation (synonym for Identity).
 
@@ -987,7 +988,7 @@ class Rot:
         return cls(0.0)
 
     @property
-    def inverse(self):
+    def inverse(self) -> "Rot":
         """
         Create inverse/opposite rotation.
 
@@ -1000,7 +1001,7 @@ class Rot:
         """
         return Rot(-self.angle_radians)
 
-    def interpolate(self, other: "Rot", t: float, ccw=True) -> "Rot":
+    def interpolate(self, other: "Rot", t: float, ccw: bool = True) -> "Rot":
         """
         Linearly interpolate between two rotations with a forced direction.
 
@@ -1088,7 +1089,7 @@ class Transform:
 
     def __init__(
         self, position: VectorLike = Vec2(0, 0), rotation: Union[float, Rot] = Rot(0)
-    ):
+    ) -> None:
         """
         Initialize transformation with position and rotation.
 
@@ -1123,7 +1124,7 @@ class Transform:
         return t
 
     @property
-    def b2Transform(self):
+    def b2Transform(self) -> Any:
         """Box2D b2Transform equivalent (managed by FFI).
 
         Example:
@@ -1198,7 +1199,7 @@ class Transform:
         inv_rot = Rot.from_sincos(-self.q.s, self.q.c)
         return Transform(inv_rot * (-self.p), inv_rot)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Machine-readable representation of the transform.
 
@@ -1213,7 +1214,7 @@ class Transform:
 
     def __mul__(
         self, other: Union["Transform", "ScaledTransform"]
-    ) -> "Transform|ScaledTransform":
+    ) -> "Transform | ScaledTransform":
         """
         Compose two transformations.
 
@@ -1250,7 +1251,7 @@ class ScaledTransform:
         position: VectorLike = Vec2(0, 0),
         rotation: Union[float, Rot] = Rot(0),
         scale: Union[float, VectorLike] = Vec2(1, 1),
-    ):
+    ) -> None:
         """Initialize a scaled transform.
 
         Args:
@@ -1280,7 +1281,7 @@ class ScaledTransform:
         self._recalc_matrix()
         self._inv_matrix = None
 
-    def _recalc_matrix(self):
+    def _recalc_matrix(self) -> None:
         """
         Recalculate the transformation matrix and store it.
 
@@ -1351,7 +1352,7 @@ class ScaledTransform:
         return self._position
 
     @position.setter
-    def position(self, value: VectorLike):
+    def position(self, value: VectorLike) -> None:
         self._position = value if isinstance(value, Vec2) else Vec2(value)
         self._recalc_matrix()
         self._inv_matrix = None
@@ -1372,7 +1373,7 @@ class ScaledTransform:
         return self._rotation
 
     @rotation.setter
-    def rotation(self, value: Union[float, Rot]):
+    def rotation(self, value: Union[float, Rot]) -> None:
         self._rotation = value if isinstance(value, Rot) else Rot(value)
         self._recalc_matrix()
         self._inv_matrix = None
@@ -1393,7 +1394,7 @@ class ScaledTransform:
         return self._scale
 
     @scale.setter
-    def scale(self, value: Union[float, VectorLike]):
+    def scale(self, value: Union[float, VectorLike]) -> None:
         if isinstance(value, (int, float)):
             self._scale = Vec2(value, value)
         else:
@@ -1572,7 +1573,7 @@ class AABB:
         self,
         lower: VectorLike = Vec2(math.inf, math.inf),
         upper: VectorLike = Vec2(-math.inf, -math.inf),
-    ):
+    ) -> None:
         """
         Initialize AABB with lower and upper bounds.
 
@@ -1619,7 +1620,7 @@ class AABB:
         return self._upper
 
     @classmethod
-    def from_b2AABB(cls, b2_aabb):
+    def from_b2AABB(cls, b2_aabb: Any) -> "AABB":
         """Create AABB from Box2D's b2AABB structure.
 
         Args:
@@ -1635,7 +1636,7 @@ class AABB:
         return cls(lower, upper)
 
     @property
-    def b2AABB(self):
+    def b2AABB(self) -> Any:
         """Box2D b2AABB equivalent (managed by FFI).
 
         Example:
@@ -1703,7 +1704,7 @@ class AABB:
         return aabb
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """
         Check if AABB represents a valid bounded region.
 
@@ -1724,7 +1725,7 @@ class AABB:
         )
 
     @property
-    def center(self):
+    def center(self) -> Vec2:
         """
         Calculate geometric center of AABB.
 
@@ -1738,7 +1739,7 @@ class AABB:
         return (self.lower + self.upper) * 0.5
 
     @property
-    def half_size(self):
+    def half_size(self) -> Vec2:
         """
         Get half dimensions from center to edges.
 
@@ -1856,7 +1857,7 @@ class AABB:
         """
         return self.upper.y - self.lower.y
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Machine-readable representation of the AABB.
 
@@ -1869,7 +1870,7 @@ class AABB:
         """
         return f"AABB(lower={self.lower}, upper={self.upper})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Exact bounds equality check.
 
@@ -1954,7 +1955,12 @@ class Mat22:
 
     __slots__ = ("cx", "cy")
 
-    def __init__(self, *args: Union[float, VectorLike]):
+    #: The first column.
+    cx: Vec2
+    #: The second column.
+    cy: Vec2
+
+    def __init__(self, *args: Union[float, VectorLike]) -> None:
         """
         Initialize matrix from multiple formats.
 
@@ -1988,7 +1994,7 @@ class Mat22:
             raise ValueError("Invalid arguments for Mat22")
 
     @classmethod
-    def from_b2Mat22(cls, b2_mat22):
+    def from_b2Mat22(cls, b2_mat22: Any) -> "Mat22":
         """Create Mat22 from Box2D's b2Mat22 structure.
 
         Args:
@@ -2004,7 +2010,7 @@ class Mat22:
         return cls(cx, cy)
 
     @property
-    def b2Mat22(self):
+    def b2Mat22(self) -> Any:
         """Box2D b2Mat22 equivalent (managed by FFI).
 
         Example:

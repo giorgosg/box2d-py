@@ -15,7 +15,7 @@ It is the same value under two names.
 """
 
 from ._checked import lib, ffi
-from typing import TYPE_CHECKING, List, Optional, Union, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, List, Optional, Union, Iterable, Sequence
 from .math import Vec2, VectorLike, AABB
 from .shapedef import (
     ShapeDef,
@@ -28,11 +28,11 @@ from .shapedef import (
 )
 from .material import SurfaceMaterial, _check_material, _with_fields
 from .collision_filter import CollisionFilter
+from .debug_draw import Color
 from .dataclasses import MassData, CastResult, ContactData
-from .accessors import b2_value
 from .lifetime import IdRef, is_live, join_world, raw_id
 from ._fixed_attributes import FixedAttributes
-from .accessors import b2_bool, b2_float
+from .accessors import B2Accessor, b2_bool, b2_float, b2_int
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
@@ -50,16 +50,16 @@ class Shape(FixedAttributes):
     #: Any Python object the application wants kept with this shape. Other
     #: attributes cannot be added: a misspelt property would silently do
     #: nothing, so setting an unknown one raises instead.
-    user_data = None
+    user_data: Any = None
 
-    def __init__(self, body: "Body", user_data=None):
+    def __init__(self, body: "Body", user_data: Any = None) -> None:
         # Every shape's constructor comes here before asking Box2D for it.
         body.world._refuse_while_locked("shape", "create")
         self._body = body
         join_world(self, body.world)
         self.user_data = user_data
 
-    def _register(self):
+    def _register(self) -> None:
         """Enter this shape in its world's table, and in its body's shapes.
 
         The world's table is how a shape id from Box2D -- a ray cast hit, an
@@ -70,7 +70,7 @@ class Shape(FixedAttributes):
         self._body.world._track_shape(self)
         self._body._shapes.append(self)
 
-    density = b2_float(
+    density: B2Accessor[float, float] = b2_float(
         lib.b2Shape_GetDensity,
         lib.b2Shape_SetDensity,
         extra_set_args=(True,),
@@ -80,7 +80,7 @@ class Shape(FixedAttributes):
         """,
     )
 
-    friction = b2_float(
+    friction: B2Accessor[float, float] = b2_float(
         lib.b2Shape_GetFriction,
         lib.b2Shape_SetFriction,
         doc="""Get or set the Coulomb friction coefficient.
@@ -89,7 +89,7 @@ class Shape(FixedAttributes):
         """,
     )
 
-    restitution = b2_float(
+    restitution: B2Accessor[float, float] = b2_float(
         lib.b2Shape_GetRestitution,
         lib.b2Shape_SetRestitution,
         doc="""Get or set the restitution, or bounciness.
@@ -98,7 +98,7 @@ class Shape(FixedAttributes):
         """,
     )
 
-    is_sensor = b2_bool(
+    is_sensor: B2Accessor[bool, bool] = b2_bool(
         lib.b2Shape_IsSensor,
         doc="Whether this shape is a sensor, detecting overlap without colliding.",
     )
@@ -153,7 +153,7 @@ class Shape(FixedAttributes):
     def filter(self, value: CollisionFilter) -> None:
         lib.b2Shape_SetFilter(self._shape_id, value.b2Filter[0])
 
-    enable_sensor_events = b2_bool(
+    enable_sensor_events: B2Accessor[bool, bool] = b2_bool(
         lib.b2Shape_AreSensorEventsEnabled,
         lib.b2Shape_EnableSensorEvents,
         doc="""Get or set whether this shape takes part in sensor events.
@@ -161,28 +161,28 @@ class Shape(FixedAttributes):
         A sensor reports a shape only when both of them have this set.
         """,
     )
-    enable_contact_events = b2_bool(
+    enable_contact_events: B2Accessor[bool, bool] = b2_bool(
         lib.b2Shape_AreContactEventsEnabled,
         lib.b2Shape_EnableContactEvents,
         doc="""Get or set whether this shape reports begin and end touch events.\n\n        Ignored for sensors. Changing it at run time may lose events.
         """,
     )
 
-    enable_pre_solve_events = b2_bool(
+    enable_pre_solve_events: B2Accessor[bool, bool] = b2_bool(
         lib.b2Shape_ArePreSolveEventsEnabled,
         lib.b2Shape_EnablePreSolveEvents,
         doc="""Get or set whether this shape reports pre-solve events.\n\n        Expensive, and called from worker threads. Dynamic bodies only.
         """,
     )
 
-    enable_hit_events = b2_bool(
+    enable_hit_events: B2Accessor[bool, bool] = b2_bool(
         lib.b2Shape_AreHitEventsEnabled,
         lib.b2Shape_EnableHitEvents,
         doc="""Get or set whether this shape reports hit events above the world's\n        hit threshold. Ignored for sensors.
         """,
     )
 
-    shape_type = b2_value(
+    shape_type: B2Accessor[int, int] = b2_int(
         lib.b2Shape_GetType,
         doc="""The kind of shape this is.
 
@@ -388,7 +388,7 @@ class Shape(FixedAttributes):
         )
         return CastResult.from_b2CastOutput(output)
 
-    contact_capacity = b2_value(
+    contact_capacity: B2Accessor[int, int] = b2_int(
         lib.b2Shape_GetContactCapacity,
         doc="""Get the maximum capacity required for retrieving all the touching
         contacts on this shape.
@@ -439,7 +439,7 @@ class Shape(FixedAttributes):
 
         return result
 
-    sensor_capacity = b2_value(
+    sensor_capacity: B2Accessor[int, int] = b2_int(
         lib.b2Shape_GetSensorCapacity,
         doc="""Get the maximum capacity required for retrieving all the overlapped
         shapes on a sensor shape. Returns 0 if this shape is not a sensor.
@@ -517,7 +517,7 @@ class Circle(Shape):
     A circle shape that can be attached to a body.
     """
 
-    def __init__(self, body: "Body", shapedef: ShapeDef, circledef: CircleDef):
+    def __init__(self, body: "Body", shapedef: ShapeDef, circledef: CircleDef) -> None:
         """
         Initialize a Circle shape from a body a ShapeDef and a CircleDef instance.
         """
@@ -563,11 +563,11 @@ class Circle(Shape):
     @classmethod
     def create(
         cls,
-        body,
-        radius,
+        body: "Body",
+        radius: float,
         center: VectorLike = (0, 0),
-        **shapedef_kwargs,
-    ):
+        **shapedef_kwargs: Any,
+    ) -> "Circle":
         """
         Create and attach a circle shape to a body.
 
@@ -586,7 +586,9 @@ class Capsule(Shape):
     A capsule shape that can be attached to a body.
     """
 
-    def __init__(self, body: "Body", shapedef: ShapeDef, capsuledef: CapsuleDef):
+    def __init__(
+        self, body: "Body", shapedef: ShapeDef, capsuledef: CapsuleDef
+    ) -> None:
         """
         Initialize a Capsule shape from a body and a CapsuleDef instance.
         """
@@ -644,12 +646,12 @@ class Capsule(Shape):
     @classmethod
     def create(
         cls,
-        body,
+        body: "Body",
         point1: VectorLike,
         point2: VectorLike,
-        radius,
-        **shapedef_kwargs,
-    ):
+        radius: float,
+        **shapedef_kwargs: Any,
+    ) -> "Capsule":
         """
         Create and attach a capsule shape to a body.
 
@@ -668,7 +670,9 @@ class Segment(Shape):
     A line segment shape that can be attached to a body.
     """
 
-    def __init__(self, body: "Body", shapedef: ShapeDef, segmentdef: SegmentDef):
+    def __init__(
+        self, body: "Body", shapedef: ShapeDef, segmentdef: SegmentDef
+    ) -> None:
         """
         Initialize a Segment shape from a body and a SegmentDef instance.
         """
@@ -714,11 +718,11 @@ class Segment(Shape):
     @classmethod
     def create(
         cls,
-        body,
+        body: "Body",
         point1: VectorLike,
         point2: VectorLike,
-        **shapedef_kwargs,
-    ):
+        **shapedef_kwargs: Any,
+    ) -> "Segment":
         """
         Create and attach a segment shape to a body.
 
@@ -737,7 +741,9 @@ class Polygon(Shape):
     A convex polygon shape that can be attached to a body.
     """
 
-    def __init__(self, body: "Body", shapedef: ShapeDef, polygondef: PolygonDef):
+    def __init__(
+        self, body: "Body", shapedef: ShapeDef, polygondef: PolygonDef
+    ) -> None:
         """
         Initialize a Polygon shape from a body and a PolygonDef instance.
         """
@@ -791,13 +797,13 @@ class Polygon(Shape):
     @classmethod
     def create(
         cls,
-        body,
+        body: "Body",
         vertices: Sequence[VectorLike],
-        radius=0.0,
+        radius: float = 0.0,
         offset: VectorLike = (0, 0),
-        angle=0.0,
-        **shapedef_kwargs,
-    ):
+        angle: float = 0.0,
+        **shapedef_kwargs: Any,
+    ) -> "Polygon":
         """
         Create and attach a polygon shape to a body.
 
@@ -826,14 +832,14 @@ class Box(Polygon):
     @classmethod
     def create(
         cls,
-        body,
-        width,
-        height,
-        radius=0.0,
+        body: "Body",
+        width: float,
+        height: float,
+        radius: float = 0.0,
         offset: VectorLike = (0, 0),
-        angle=0.0,
-        **shapedef_kwargs,
-    ):
+        angle: float = 0.0,
+        **shapedef_kwargs: Any,
+    ) -> "Box":
         """
         Create and attach a box shape to a body.
 
@@ -857,7 +863,7 @@ class ChainSegment(Shape):
     individual segments within a chain. Each segment has a reference to its parent chain.
     """
 
-    def __init__(self, b2chainsegment, chain: "Chain"):
+    def __init__(self, b2chainsegment: Any, chain: "Chain") -> None:
         """
         Initialize a chain segment with its parent chain and endpoints.
 
@@ -903,9 +909,9 @@ class Chain(FixedAttributes):
     #: Any Python object the application wants kept with this chain. Other
     #: attributes cannot be added: a misspelt property would silently do
     #: nothing, so setting an unknown one raises instead.
-    user_data = None
+    user_data: Any = None
 
-    def __init__(self, body: "Body", chaindef: ChainDef):
+    def __init__(self, body: "Body", chaindef: ChainDef) -> None:
         body.world._refuse_while_locked("chain", "create")
         self._body = body
         join_world(self, body.world)
@@ -930,22 +936,22 @@ class Chain(FixedAttributes):
     @classmethod
     def create(
         cls,
-        body,
+        body: "Body",
         vertices: Sequence[VectorLike],
-        loop=False,
-        ghost1=None,
-        ghost2=None,
-        filter=None,
-        materials=None,
-        friction=None,
-        restitution=None,
-        rolling_resistance=None,
-        tangent_speed=None,
-        user_material=None,
-        custom_color=None,
-        user_data=None,
-        enable_sensor_events=None,
-    ):
+        loop: bool = False,
+        ghost1: Optional[VectorLike] = None,
+        ghost2: Optional[VectorLike] = None,
+        filter: Optional[CollisionFilter] = None,
+        materials: Optional[Sequence[SurfaceMaterial]] = None,
+        friction: Optional[float] = None,
+        restitution: Optional[float] = None,
+        rolling_resistance: Optional[float] = None,
+        tangent_speed: Optional[float] = None,
+        user_material: Optional[int] = None,
+        custom_color: "Optional[Color | int]" = None,
+        user_data: Any = None,
+        enable_sensor_events: Optional[bool] = None,
+    ) -> "Chain":
         """
         Create and attach a chain shape to a body.
 
@@ -987,7 +993,7 @@ class Chain(FixedAttributes):
         return cls(body, shapedef)
 
     @property
-    def body(self):
+    def body(self) -> "Body":
         """Return the body this chain is attached to."""
         return self._body
 
@@ -1049,7 +1055,7 @@ class Chain(FixedAttributes):
 
     def set_surface_material(
         self, material: SurfaceMaterial, segment_index: Optional[int] = None
-    ):
+    ) -> None:
         """Change the material on one segment, or on all of them.
 
         This is how a chain's friction is varied along its length -- an icy
@@ -1071,7 +1077,7 @@ class Chain(FixedAttributes):
             self._chain_id, ffi.addressof(c_material), segment_index
         )
 
-    def _check_segment_index(self, index):
+    def _check_segment_index(self, index) -> None:
         """Box2D only asserts the index, and asserts are compiled out of a
         release build, so an index past the end would read out of bounds.
         """

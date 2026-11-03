@@ -48,6 +48,7 @@ from .events import (
     JointEvent,
 )
 from .jointdef import (
+    JointDef,
     FilterJointDef,
     WeldJointDef,
     RevoluteJointDef,
@@ -65,7 +66,7 @@ from .shape import Shape
 from .lifetime import IdRef, _IdTable, raw_id, is_live, new_liveness
 from ._fixed_attributes import FixedAttributes
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Callable, Optional
 
 
 @dataclass
@@ -101,7 +102,7 @@ class SensorEvents:
     end: list[SensorEvent]
 
 
-def _hold_back(errors):
+def _hold_back(errors) -> None:
     """Keep the exception being handled for after the query.
 
     Box2D calls a query's callback from C, where an exception cannot pass:
@@ -115,7 +116,18 @@ def _hold_back(errors):
         errors.append(sys.exc_info()[1])
 
 
-def make_ray_cast_callback(results: list, *, world: "World", errors: list = None):
+# The world's callbacks, as a type checker sees them. See each property. A
+# shape the world cannot place reaches a callback as None, as in events.
+_CustomFilter = Callable[[Optional[Shape], Optional[Shape]], bool]
+_PreSolve = Callable[[Optional[Shape], Optional[Shape], Manifold], object]
+_PreContinuous = Callable[[Optional[Shape], Optional[Shape], Vec2, Vec2], bool]
+# (friction or restitution, user material, the same for the other shape).
+_Mixer = Callable[[float, int, float, int], float]
+
+
+def make_ray_cast_callback(
+    results: list[Any], *, world: "World", errors: Optional[list[BaseException]] = None
+) -> Any:
     """Create a ray cast callback function.
 
     Args:
@@ -148,12 +160,12 @@ def make_ray_cast_callback(results: list, *, world: "World", errors: list = None
 
 
 def make_overlap_callback(
-    results: list,
-    max_results: int = None,
+    results: list[Any],
+    max_results: Optional[int] = None,
     *,
     world: "World",
-    errors: list = None,
-):
+    errors: Optional[list[BaseException]] = None,
+) -> Any:
     """
     Create an overlap callback that appends detected shapes to the results
     list and stops querying when max_results is reached.
@@ -199,7 +211,7 @@ def make_overlap_callback(
     return overlap_callback
 
 
-def _check_max_results(max_results):
+def _check_max_results(max_results) -> None:
     """Refuse a cap that is not a count: None, or an int from zero up."""
     if max_results is None:
         return
@@ -211,7 +223,7 @@ def _check_max_results(max_results):
         raise ValueError(f"max_results cannot be negative, got {max_results}")
 
 
-def _raise_first(errors: list):
+def _raise_first(errors: list) -> None:
     """Raise what a query callback held back, once Box2D has returned."""
     if errors:
         raise errors[0]
@@ -247,7 +259,7 @@ class World(FixedAttributes):
         gravity: VectorLike = (0, -10),
         threads: int = 1,
         capacity: Optional[Capacity] = None,
-    ):
+    ) -> None:
         """Initialize physics world with specified gravity vector.
 
         Args:
@@ -312,7 +324,7 @@ class World(FixedAttributes):
         self._restitution_mixer = self._restitution_trampoline = None
 
     @property
-    def gravity(self):
+    def gravity(self) -> Vec2:
         """World gravity vector (m/s²).
 
         Example:
@@ -325,12 +337,12 @@ class World(FixedAttributes):
         return Vec2(g.x, g.y)
 
     @gravity.setter
-    def gravity(self, value: VectorLike):
+    def gravity(self, value: VectorLike) -> None:
         """Set world gravity vector"""
         value = Vec2(value)
         lib.b2World_SetGravity(self._world_id, value.b2Vec2[0])
 
-    def step(self, time_step, substep_count=4):
+    def step(self, time_step: float, substep_count: int = 4) -> None:
         """Advance simulation by time step.
 
         Args:
@@ -358,7 +370,7 @@ class World(FixedAttributes):
         finally:
             self._locked = False
 
-    def _refuse_while_locked(self, what: str, action: str = "destroy"):
+    def _refuse_while_locked(self, what: str, action: str = "destroy") -> None:
         """Raise rather than create or destroy something mid-step.
 
         Box2D ignores a destroy while the world is locked, so going ahead would
@@ -376,7 +388,7 @@ class World(FixedAttributes):
                 f"{action} it after the step"
             )
 
-    def new_body(self):
+    def new_body(self) -> BodyBuilder:
         """Create BodyBuilder for constructing bodies. Entry point for body creation.
 
         Returns:
@@ -391,27 +403,27 @@ class World(FixedAttributes):
 
     def add_body(
         self,
-        body_type: "BodyType | str" = None,
-        position: VectorLike = None,
-        rotation: float = None,
-        linear_velocity: VectorLike = None,
-        angular_velocity: float = None,
-        linear_damping: float = None,
-        angular_damping: float = None,
-        gravity_scale: float = None,
-        sleep_threshold: float = None,
-        safety_factor: float = None,
-        name: str = None,
-        user_data=None,
-        enable_sleep: bool = None,
-        is_awake: bool = None,
-        lock_x: bool = None,
-        lock_y: bool = None,
-        lock_rotation: bool = None,
-        is_bullet: bool = None,
-        enable_contact_recycling: bool = None,
-        is_enabled: bool = None,
-        allow_fast_rotation: bool = None,
+        body_type: Optional["BodyType | str"] = None,
+        position: Optional[VectorLike] = None,
+        rotation: Optional[float] = None,
+        linear_velocity: Optional[VectorLike] = None,
+        angular_velocity: Optional[float] = None,
+        linear_damping: Optional[float] = None,
+        angular_damping: Optional[float] = None,
+        gravity_scale: Optional[float] = None,
+        sleep_threshold: Optional[float] = None,
+        safety_factor: Optional[float] = None,
+        name: Optional[str] = None,
+        user_data: Any = None,
+        enable_sleep: Optional[bool] = None,
+        is_awake: Optional[bool] = None,
+        lock_x: Optional[bool] = None,
+        lock_y: Optional[bool] = None,
+        lock_rotation: Optional[bool] = None,
+        is_bullet: Optional[bool] = None,
+        enable_contact_recycling: Optional[bool] = None,
+        is_enabled: Optional[bool] = None,
+        allow_fast_rotation: Optional[bool] = None,
     ) -> Body:
         """Create a body in this world.
 
@@ -508,7 +520,7 @@ class World(FixedAttributes):
 
         return Body(self, body_def)
 
-    def add_joint(self, joint_def):
+    def add_joint(self, joint_def: "JointDef | MouseJointDef") -> Joint:
         """Create a joint in this world from a joint definition.
 
         This is the single place joints are made. The ``add_*_joint`` methods
@@ -537,7 +549,7 @@ class World(FixedAttributes):
         self._check_bodies(joint_def)
         return joint_def.joint_class(self, **joint_def.joint_arguments())
 
-    def _check_bodies(self, joint_def):
+    def _check_bodies(self, joint_def) -> None:
         """Every body a joint connects has to live in this world."""
         bodies = (
             [joint_def.body]
@@ -549,24 +561,29 @@ class World(FixedAttributes):
                 raise ValueError("Every body of a joint must belong to this world")
 
     def add_mouse_joint(
-        self, body, target: VectorLike, max_force=1000.0, damping_ratio=0.7, hertz=5.0
+        self,
+        body: "Body",
+        target: VectorLike,
+        max_force: float = 1000.0,
+        damping_ratio: float = 0.7,
+        hertz: float = 5.0,
     ) -> "MouseJoint":
         """Drag a body toward a world-space target. See :class:`.MouseJointDef`."""
         return self.add_joint(
             MouseJointDef(body, target, max_force, damping_ratio, hertz)
         )
 
-    def add_filter_joint(self, body_a, body_b) -> "FilterJoint":
+    def add_filter_joint(self, body_a: "Body", body_b: "Body") -> "FilterJoint":
         """Stop two bodies colliding. See :class:`.FilterJointDef`."""
         return self.add_joint(FilterJointDef(body_a, body_b))
 
     def add_weld_joint(
         self,
-        body_a,
-        body_b,
-        local_anchor_a: VectorLike = None,
-        local_anchor_b: VectorLike = None,
-        **kwargs,
+        body_a: "Body",
+        body_b: "Body",
+        local_anchor_a: Optional[VectorLike] = None,
+        local_anchor_b: Optional[VectorLike] = None,
+        **kwargs: Any,
     ) -> "WeldJoint":
         """Hold two bodies rigidly together. See :class:`.WeldJointDef`."""
         return self.add_joint(
@@ -575,11 +592,11 @@ class World(FixedAttributes):
 
     def add_revolute_joint(
         self,
-        body_a,
-        body_b,
-        local_anchor_a: VectorLike = None,
-        local_anchor_b: VectorLike = None,
-        **kwargs,
+        body_a: "Body",
+        body_b: "Body",
+        local_anchor_a: Optional[VectorLike] = None,
+        local_anchor_b: Optional[VectorLike] = None,
+        **kwargs: Any,
     ) -> "RevoluteJoint":
         """Pin two bodies at a point they rotate about. See :class:`.RevoluteJointDef`."""
         return self.add_joint(
@@ -588,11 +605,11 @@ class World(FixedAttributes):
 
     def add_prismatic_joint(
         self,
-        body_a,
-        body_b,
-        local_anchor_a: VectorLike = None,
-        local_anchor_b: VectorLike = None,
-        **kwargs,
+        body_a: "Body",
+        body_b: "Body",
+        local_anchor_a: Optional[VectorLike] = None,
+        local_anchor_b: Optional[VectorLike] = None,
+        **kwargs: Any,
     ) -> "PrismaticJoint":
         """Let two bodies slide along one axis. See :class:`.PrismaticJointDef`."""
         return self.add_joint(
@@ -601,11 +618,11 @@ class World(FixedAttributes):
 
     def add_wheel_joint(
         self,
-        body_a,
-        body_b,
-        local_anchor_a: VectorLike = None,
-        local_anchor_b: VectorLike = None,
-        **kwargs,
+        body_a: "Body",
+        body_b: "Body",
+        local_anchor_a: Optional[VectorLike] = None,
+        local_anchor_b: Optional[VectorLike] = None,
+        **kwargs: Any,
     ) -> "WheelJoint":
         """A sliding axis with a spring, as for suspension. See :class:`.WheelJointDef`."""
         return self.add_joint(
@@ -614,55 +631,61 @@ class World(FixedAttributes):
 
     def add_distance_joint(
         self,
-        body_a,
-        body_b,
-        local_anchor_a: VectorLike = None,
-        local_anchor_b: VectorLike = None,
-        **kwargs,
+        body_a: "Body",
+        body_b: "Body",
+        local_anchor_a: Optional[VectorLike] = None,
+        local_anchor_b: Optional[VectorLike] = None,
+        **kwargs: Any,
     ) -> "DistanceJoint":
         """Keep two points a fixed distance apart. See :class:`.DistanceJointDef`."""
         return self.add_joint(
             DistanceJointDef(body_a, body_b, local_anchor_a, local_anchor_b, **kwargs)
         )
 
-    def add_motor_joint(self, body_a, body_b, **kwargs) -> "MotorJoint":
+    def add_motor_joint(
+        self, body_a: "Body", body_b: "Body", **kwargs: Any
+    ) -> "MotorJoint":
         """Drive the relative motion of two bodies. See :class:`.MotorJointDef`."""
         return self.add_joint(MotorJointDef(body_a, body_b, **kwargs))
 
-    def add_mover_joint(self, body_a, body_b, **kwargs) -> "MoverJoint":
+    def add_mover_joint(
+        self, body_a: "Body", body_b: "Body", **kwargs: Any
+    ) -> "MoverJoint":
         """Drive a character body at a commanded velocity. See :class:`.MoverJointDef`."""
         return self.add_joint(MoverJointDef(body_a, body_b, **kwargs))
 
-    def add_pogo_joint(self, body_a, body_b, **kwargs) -> "PogoJoint":
+    def add_pogo_joint(
+        self, body_a: "Body", body_b: "Body", **kwargs: Any
+    ) -> "PogoJoint":
         """Hold a character up on a spring. See :class:`.PogoJointDef`."""
         return self.add_joint(PogoJointDef(body_a, body_b, **kwargs))
 
-    def _track_body(self, body: "Body"):
+    def _track_body(self, body: "Body") -> None:
         """Hold a new body for as long as Box2D has it. Called by the Body."""
         self._bodies.add(body._body_id, body)
 
-    def _untrack_body(self, body_id):
+    def _untrack_body(self, body_id) -> None:
         """Let go of a body Box2D no longer has, by the id it was tracked under."""
         self._bodies.remove(body_id)
 
-    def _track_shape(self, shape: "Shape"):
+    def _track_shape(self, shape: "Shape") -> None:
         """Hold a new shape, chain segments included, while Box2D has it."""
         self._shapes.add(shape._shape_id, shape)
 
-    def _untrack_shape(self, shape_id):
+    def _untrack_shape(self, shape_id) -> None:
         """Let go of a shape Box2D no longer has, by the id it was tracked under."""
         self._shapes.remove(shape_id)
 
-    def _track_joint(self, joint: "Joint"):
+    def _track_joint(self, joint: "Joint") -> None:
         """Hold a new joint for as long as Box2D has it. Called by the Joint."""
         self._joints.add(joint._joint_id, joint)
 
-    def _untrack_joint(self, joint_id):
+    def _untrack_joint(self, joint_id) -> None:
         """Let go of a joint Box2D no longer has, by the id it was tracked under."""
         self._joints.remove(joint_id)
 
     @property
-    def bodies(self):
+    def bodies(self) -> list[Body]:
         """Get list of all active bodies in the world.
 
         Returns:
@@ -682,7 +705,7 @@ class World(FixedAttributes):
         point2: VectorLike,
         radius: float,
         translation: VectorLike,
-        filter: "CollisionFilter" = None,
+        filter: Optional["CollisionFilter"] = None,
     ) -> float:
         """Sweep a capsule through the world and report how far it gets.
 
@@ -725,8 +748,8 @@ class World(FixedAttributes):
         point1: VectorLike,
         point2: VectorLike,
         radius: float,
-        filter: "CollisionFilter" = None,
-    ) -> list:
+        filter: Optional["CollisionFilter"] = None,
+    ) -> list[CollisionPlane]:
         """Find the surfaces a capsule is up against, as collision planes.
 
         Feed the result to :func:`box2d.mover.solve_planes` to work out where
@@ -780,8 +803,8 @@ class World(FixedAttributes):
         position: VectorLike,
         radius: float,
         impulse_per_length: float,
-        falloff: float = None,
-        mask: int = None,
+        falloff: Optional[float] = None,
+        mask: Optional[int] = None,
     ) -> None:
         """Apply a radial impulse to everything within a radius.
 
@@ -816,7 +839,7 @@ class World(FixedAttributes):
             explosion.maskBits = int(mask)
         lib.b2World_Explode(self._world_id, ffi.addressof(explosion))
 
-    def draw(self, debug_draw: DebugDraw):
+    def draw(self, debug_draw: DebugDraw) -> None:
         """Render world state using debug drawing interface.
 
         Args:
@@ -835,9 +858,9 @@ class World(FixedAttributes):
     def query_aabb(
         self,
         aabb: AABB,
-        filter: "CollisionFilter" = None,
-        max_results: int = None,
-    ) -> list:
+        filter: Optional["CollisionFilter"] = None,
+        max_results: Optional[int] = None,
+    ) -> list[Shape]:
         """Find shapes overlapping an axis-aligned bounding box using an optional collision filter.
 
         Args:
@@ -849,7 +872,7 @@ class World(FixedAttributes):
                 int from zero up.
 
         Returns:
-            list: The overlapping shapes.
+            list[Shape]: The overlapping shapes.
 
         Example:
             >>> world = World()
@@ -887,9 +910,9 @@ class World(FixedAttributes):
         self,
         position: VectorLike,
         radius: float,
-        filter: "CollisionFilter" = None,
-        max_results: int = None,
-    ) -> list:
+        filter: Optional["CollisionFilter"] = None,
+        max_results: Optional[int] = None,
+    ) -> list[Shape]:
         """Find shapes overlapping a circle.
 
         Args:
@@ -902,7 +925,7 @@ class World(FixedAttributes):
                 int from zero up. The query stops when this limit is reached.
 
         Returns:
-            list: The overlapping shapes.
+            list[Shape]: The overlapping shapes.
 
         Example:
             >>> world = World()
@@ -923,9 +946,9 @@ class World(FixedAttributes):
     def query_shape(
         self,
         proxy: ShapeProxy,
-        filter: "CollisionFilter" = None,
-        max_results: int = None,
-    ) -> list:
+        filter: Optional["CollisionFilter"] = None,
+        max_results: Optional[int] = None,
+    ) -> list[Shape]:
         """Find shapes overlapping an arbitrary region.
 
         The general form of :meth:`query_circle`: any region a
@@ -937,7 +960,7 @@ class World(FixedAttributes):
             max_results: Stop after this many shapes, an int from zero up.
 
         Returns:
-            list: The overlapping shapes.
+            list[Shape]: The overlapping shapes.
 
         Example:
             >>> world = World()
@@ -972,7 +995,7 @@ class World(FixedAttributes):
         self,
         proxy: ShapeProxy,
         translation: VectorLike,
-        filter: "CollisionFilter" = None,
+        filter: Optional["CollisionFilter"] = None,
         first_hit_only: bool = False,
     ) -> list[RayCastResult]:
         """Sweep a shape through the world and report what it runs into.
@@ -1030,7 +1053,7 @@ class World(FixedAttributes):
         self,
         origin: VectorLike,
         translation: VectorLike,
-        filter: "CollisionFilter" = None,
+        filter: Optional["CollisionFilter"] = None,
         first_hit_only: bool = False,
     ) -> list[RayCastResult]:
         """Cast a ray and find intersecting shapes.
@@ -1159,7 +1182,7 @@ class World(FixedAttributes):
     # the callback as None, as in events, rather than failing the step.
 
     @property
-    def custom_filter(self):
+    def custom_filter(self) -> Optional[_CustomFilter]:
         """Get or set a callback deciding whether two shapes may collide.
 
         Called as ``fn(shape_a, shape_b)`` returning False to cancel the
@@ -1181,7 +1204,7 @@ class World(FixedAttributes):
         return self._custom_filter
 
     @custom_filter.setter
-    def custom_filter(self, function):
+    def custom_filter(self, function: Optional[_CustomFilter]) -> None:
         if function is None:
             lib.b2World_SetCustomFilterCallback(self._world_id, ffi.NULL, ffi.NULL)
             self._custom_filter = self._custom_filter_trampoline = None
@@ -1205,7 +1228,7 @@ class World(FixedAttributes):
         lib.b2World_SetCustomFilterCallback(self._world_id, trampoline, ffi.NULL)
 
     @property
-    def pre_solve(self):
+    def pre_solve(self) -> Optional[_PreSolve]:
         """Get or set a callback run on each contact just before it is solved.
 
         Called as ``fn(shape_a, shape_b, manifold)`` with the contact's
@@ -1232,7 +1255,7 @@ class World(FixedAttributes):
         return self._pre_solve
 
     @pre_solve.setter
-    def pre_solve(self, function):
+    def pre_solve(self, function: Optional[_PreSolve]) -> None:
         if function is None:
             self._pre_solve = self._pre_solve_trampoline = None
             self._register_pre_solve()
@@ -1243,7 +1266,7 @@ class World(FixedAttributes):
         # A callback that raises leaves the contact as it was rather than
         # dropping it, which would look like objects falling through.
         @ffi.callback("void(b2ShapeId, b2ShapeId, b2Manifold*, void*)")
-        def trampoline(shape_id_a, shape_id_b, c_manifold, _context):
+        def trampoline(shape_id_a, shape_id_b, c_manifold, _context) -> None:
             try:
                 manifold = Manifold.from_b2Manifold(c_manifold)
                 function(resolve(shape_id_a), resolve(shape_id_b), manifold)
@@ -1256,7 +1279,7 @@ class World(FixedAttributes):
         self._register_pre_solve()
 
     @property
-    def pre_continuous(self):
+    def pre_continuous(self) -> Optional[_PreContinuous]:
         """Get or set a callback that can veto a continuous collision.
 
         Continuous collision stops a fast body at the first shape it would
@@ -1280,7 +1303,7 @@ class World(FixedAttributes):
         return self._pre_continuous
 
     @pre_continuous.setter
-    def pre_continuous(self, function):
+    def pre_continuous(self, function: Optional[_PreContinuous]) -> None:
         if function is None:
             self._pre_continuous = self._pre_continuous_trampoline = None
             self._register_pre_solve()
@@ -1308,7 +1331,7 @@ class World(FixedAttributes):
         self._pre_continuous_trampoline = trampoline
         self._register_pre_solve()
 
-    def _register_pre_solve(self):
+    def _register_pre_solve(self) -> None:
         """Box2D sets both callbacks in one call, so either setter sends both."""
         lib.b2World_SetPreSolveCallback(
             self._world_id,
@@ -1318,7 +1341,7 @@ class World(FixedAttributes):
         )
 
     @property
-    def friction_mixer(self):
+    def friction_mixer(self) -> Optional[_Mixer]:
         """Get or set how two shapes' frictions combine into a contact friction.
 
         Called as ``fn(friction_a, material_a, friction_b, material_b)``
@@ -1334,7 +1357,7 @@ class World(FixedAttributes):
         return self._friction_mixer
 
     @friction_mixer.setter
-    def friction_mixer(self, function):
+    def friction_mixer(self, function: Optional[_Mixer]) -> None:
         if function is None:
             lib.b2World_SetFrictionCallback(self._world_id, ffi.NULL)
             self._friction_mixer = self._friction_trampoline = None
@@ -1353,7 +1376,7 @@ class World(FixedAttributes):
         lib.b2World_SetFrictionCallback(self._world_id, trampoline)
 
     @property
-    def restitution_mixer(self):
+    def restitution_mixer(self) -> Optional[_Mixer]:
         """Get or set how two shapes' restitutions combine.
 
         Called as ``fn(restitution_a, material_a, restitution_b, material_b)``
@@ -1367,7 +1390,7 @@ class World(FixedAttributes):
         return self._restitution_mixer
 
     @restitution_mixer.setter
-    def restitution_mixer(self, function):
+    def restitution_mixer(self, function: Optional[_Mixer]) -> None:
         if function is None:
             lib.b2World_SetRestitutionCallback(self._world_id, ffi.NULL)
             self._restitution_mixer = self._restitution_trampoline = None
@@ -1447,7 +1470,7 @@ class World(FixedAttributes):
         ]
         return ContactEvents(begin=begin, end=end, hit=hit)
 
-    def get_body_events(self) -> list:
+    def get_body_events(self) -> list[BodyMoveEvent]:
         """Bodies that moved during the last step.
 
         Box2D reports only bodies that actually moved, so this is cheaper than
@@ -1476,7 +1499,7 @@ class World(FixedAttributes):
             )
         return moves
 
-    def get_joint_events(self) -> list:
+    def get_joint_events(self) -> list[JointEvent]:
         """Joints that passed their force or torque threshold last step.
 
         A joint reports nothing until its ``force_threshold`` or
@@ -1503,7 +1526,7 @@ class World(FixedAttributes):
         """Whether this world is still live, i.e. has not been destroyed."""
         return is_live(self, "_world_id", lib.b2World_IsValid)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroy the world.
 
         Destroying a world also destroys every body, shape and joint in it.
@@ -1542,7 +1565,7 @@ class World(FixedAttributes):
             self._shapes.clear()
             self._joints.clear()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up world resources. Automatically called when instance is garbage collected.
 
         Destroys Box2D world instance.
@@ -1562,7 +1585,7 @@ class World(FixedAttributes):
         return lib.b2World_IsSleepingEnabled(self._world_id)
 
     @enable_sleeping.setter
-    def enable_sleeping(self, value: bool):
+    def enable_sleeping(self, value: bool) -> None:
         lib.b2World_EnableSleeping(self._world_id, bool(value))
 
     @property
@@ -1578,7 +1601,7 @@ class World(FixedAttributes):
         return lib.b2World_IsContinuousEnabled(self._world_id)
 
     @enable_continuous.setter
-    def enable_continuous(self, value: bool):
+    def enable_continuous(self, value: bool) -> None:
         lib.b2World_EnableContinuous(self._world_id, bool(value))
 
     @property
@@ -1594,7 +1617,7 @@ class World(FixedAttributes):
         return lib.b2World_GetRestitutionThreshold(self._world_id)
 
     @restitution_threshold.setter
-    def restitution_threshold(self, value: float):
+    def restitution_threshold(self, value: float) -> None:
         lib.b2World_SetRestitutionThreshold(self._world_id, float(value))
 
     @property
@@ -1608,7 +1631,7 @@ class World(FixedAttributes):
         return lib.b2World_GetRestitutionIterations(self._world_id)
 
     @restitution_iterations.setter
-    def restitution_iterations(self, value: int):
+    def restitution_iterations(self, value: int) -> None:
         lib.b2World_SetRestitutionIterations(self._world_id, int(value))
 
     @property
@@ -1622,7 +1645,7 @@ class World(FixedAttributes):
         return bool(lib.b2World_IsRestitutionPropagationEnabled(self._world_id))
 
     @enable_restitution_propagation.setter
-    def enable_restitution_propagation(self, value: bool):
+    def enable_restitution_propagation(self, value: bool) -> None:
         lib.b2World_EnableRestitutionPropagation(self._world_id, bool(value))
 
     @property
@@ -1638,7 +1661,7 @@ class World(FixedAttributes):
         return lib.b2World_GetHitEventThreshold(self._world_id)
 
     @hit_event_threshold.setter
-    def hit_event_threshold(self, value: float):
+    def hit_event_threshold(self, value: float) -> None:
         lib.b2World_SetHitEventThreshold(self._world_id, float(value))
 
     def _contact_tuning(self):
@@ -1647,7 +1670,7 @@ class World(FixedAttributes):
         lib.b2World_GetContactTuning(self._world_id, values, values + 1, values + 2)
         return tuple(values)
 
-    def _set_contact_tuning(self, index: int, value: float):
+    def _set_contact_tuning(self, index: int, value: float) -> None:
         """Set one of the three, keeping the other two: Box2D sets them together."""
         hertz, damping_ratio, push_speed = (
             float(value) if i == index else current
@@ -1671,7 +1694,7 @@ class World(FixedAttributes):
         return self._contact_tuning()[0]
 
     @contact_hertz.setter
-    def contact_hertz(self, value: float):
+    def contact_hertz(self, value: float) -> None:
         self._set_contact_tuning(0, value)
 
     @property
@@ -1691,7 +1714,7 @@ class World(FixedAttributes):
         return self._contact_tuning()[1]
 
     @contact_damping_ratio.setter
-    def contact_damping_ratio(self, value: float):
+    def contact_damping_ratio(self, value: float) -> None:
         self._set_contact_tuning(1, value)
 
     @property
@@ -1712,7 +1735,7 @@ class World(FixedAttributes):
         return self._contact_tuning()[2]
 
     @contact_push_speed.setter
-    def contact_push_speed(self, value: float):
+    def contact_push_speed(self, value: float) -> None:
         self._set_contact_tuning(2, value)
 
     # --- diagnostics --------------------------------------------------------
@@ -1786,7 +1809,7 @@ class World(FixedAttributes):
             upper=Vec2(aabb.upperBound.x, aabb.upperBound.y),
         )
 
-    def dump_memory_stats(self):
+    def dump_memory_stats(self) -> None:
         """Write Box2D's memory breakdown to ``box2d_memory.txt``.
 
         The filename is Box2D's, not a parameter, and the file lands in the
@@ -1806,7 +1829,7 @@ class World(FixedAttributes):
         return lib.b2World_GetMaxLinearSpeed(self._world_id)
 
     @max_linear_speed.setter
-    def max_linear_speed(self, value: float):
+    def max_linear_speed(self, value: float) -> None:
         lib.b2World_SetMaxLinearSpeed(self._world_id, float(value))
 
     @property
@@ -1823,7 +1846,7 @@ class World(FixedAttributes):
         return lib.b2World_GetContactRecycleDistance(self._world_id)
 
     @contact_recycle_distance.setter
-    def contact_recycle_distance(self, value: float):
+    def contact_recycle_distance(self, value: float) -> None:
         lib.b2World_SetContactRecycleDistance(self._world_id, float(value))
 
     @property
@@ -1846,7 +1869,7 @@ class World(FixedAttributes):
         return lib.b2World_GetWorkerCount(self._world_id)
 
     @worker_count.setter
-    def worker_count(self, value: int):
+    def worker_count(self, value: int) -> None:
         lib.b2World_SetWorkerCount(self._world_id, int(value))
 
     @property
@@ -1860,7 +1883,7 @@ class World(FixedAttributes):
         return bool(lib.b2World_IsWarmStartingEnabled(self._world_id))
 
     @enable_warm_starting.setter
-    def enable_warm_starting(self, value: bool):
+    def enable_warm_starting(self, value: bool) -> None:
         lib.b2World_EnableWarmStarting(self._world_id, bool(value))
 
     @property
@@ -1875,7 +1898,7 @@ class World(FixedAttributes):
         """
         return int(lib.b2World_GetStateHash(self._world_id))
 
-    def enable_sse2_fallback(self, value: bool):
+    def enable_sse2_fallback(self, value: bool) -> None:
         """Use the SSE2 contact solver even on a CPU that has AVX2.
 
         Box2D picks the AVX2 solver at runtime when the CPU supports it. This
@@ -1885,7 +1908,7 @@ class World(FixedAttributes):
         """
         lib.b2World_EnableSSE2Fallback(self._world_id, bool(value))
 
-    def rebuild_static_tree(self):
+    def rebuild_static_tree(self) -> None:
         """Rebuild the static broad-phase tree from scratch.
 
         Box2D marks this internal testing. Static shapes are inserted

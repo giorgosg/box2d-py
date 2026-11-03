@@ -18,6 +18,7 @@ Example usage:
 """
 
 import warnings
+from typing import Any, Optional
 from ._checked import ffi
 
 #: The highest bit of Box2D's 64-bit category and mask fields.
@@ -38,8 +39,8 @@ class CollisionCategoryRegistry:
     below is created with auto_create=True for easier prototyping.
     """
 
-    def __init__(self, auto_create: bool = False):
-        self._categories = {}
+    def __init__(self, auto_create: bool = False) -> None:
+        self._categories: dict[str, int] = {}
         self._next_bit = 0x0001  # Start at bit 0x0001
         self.auto_create = auto_create
 
@@ -97,7 +98,7 @@ class CollisionCategoryRegistry:
         except KeyError:
             raise ValueError(f"Category '{name}' is not defined.") from None
 
-    def parse(self, cat) -> int:
+    def parse(self, cat: int | str) -> int:
         """
         Convert a category provided as a string (name) or integer into an integer bitmask.
         When auto_create is enabled, automatically define new categories that haven't been defined.
@@ -126,7 +127,7 @@ class CollisionCategoryRegistry:
             return self.get(cat)
         return int(cat)
 
-    def list_categories(self) -> dict:
+    def list_categories(self) -> dict[str, int]:
         """
         Return a copy of the defined categories.
 
@@ -193,6 +194,12 @@ class CollisionFilter:
         False
     """
 
+    # Documented in the class docstring; declared here for type checkers.
+    registry: CollisionCategoryRegistry
+    category: int
+    mask: int
+    group: int
+
     #: The default mask, with every one of the 64 bits Box2D's masks have set,
     #: as in its own default filters.
     ALL = 0xFFFF_FFFF_FFFF_FFFF
@@ -203,8 +210,8 @@ class CollisionFilter:
         category: int | str | list[int | str] | tuple[int | str] = DEFAULT_CATEGORY,
         mask: int | str | list[int | str] | tuple[int | str] = ALL,
         group: int = 0,
-        registry: "CollisionCategoryRegistry" = None,
-    ):
+        registry: Optional["CollisionCategoryRegistry"] = None,
+    ) -> None:
         """
         Initialize a new CollisionFilter.
 
@@ -256,7 +263,7 @@ class CollisionFilter:
 
         self.group = group
 
-    def add_category(self, *cats) -> "CollisionFilter":
+    def add_category(self, *cats: int | str) -> "CollisionFilter":
         """
         Add one or more collision categories to this filter.
 
@@ -276,7 +283,7 @@ class CollisionFilter:
             self.category |= self.registry.parse(cat)
         return self
 
-    def remove_category(self, *cats) -> "CollisionFilter":
+    def remove_category(self, *cats: int | str) -> "CollisionFilter":
         """
         Remove one or more collision categories from this filter.
 
@@ -305,7 +312,7 @@ class CollisionFilter:
             self.category &= ~bit
         return self
 
-    def allow_collision_with(self, *cats) -> "CollisionFilter":
+    def allow_collision_with(self, *cats: int | str) -> "CollisionFilter":
         """
         Allow collisions with one or more categories by including them in the mask.
 
@@ -326,7 +333,7 @@ class CollisionFilter:
             self.mask |= self.registry.parse(cat)
         return self
 
-    def block_collision_with(self, *cats) -> "CollisionFilter":
+    def block_collision_with(self, *cats: int | str) -> "CollisionFilter":
         """
         Block collisions with the specified categories.
 
@@ -376,7 +383,7 @@ class CollisionFilter:
         return self
 
     @property
-    def b2Filter(self):
+    def b2Filter(self) -> Any:
         """
         Convert this CollisionFilter into a Box2D b2Filter C structure.
 
@@ -400,7 +407,7 @@ class CollisionFilter:
         return c_filter
 
     @property
-    def b2QueryFilter(self):
+    def b2QueryFilter(self) -> Any:
         """
         Convert this CollisionFilter into a Box2D b2QueryFilter C structure. The group is not included in the query filter.
 
@@ -471,7 +478,7 @@ class CollisionFilter:
         """
         return filters_collide(self, other)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return a human-readable string representation of this CollisionFilter.
 
