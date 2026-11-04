@@ -54,7 +54,7 @@ class MassData:
     def b2MassData(self) -> Any:
         mass_data = ffi.new("b2MassData*")
         mass_data.mass = self.mass
-        mass_data.center = self.center.b2Vec2
+        mass_data.center = Vec2(self.center).b2Vec2[0]
         mass_data.rotationalInertia = self.rotational_inertia
         return mass_data
 

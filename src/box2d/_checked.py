@@ -10,7 +10,8 @@ else, typically as a DestroyedError from an object that was never created.
 
 So this module installs a log callback, and wraps every library function
 that can fail a check. The callback records the failure; the wrapper raises
-:class:`InvalidInputError` as soon as the call that failed returns.
+:class:`InvalidInputError` as soon as the call that failed returns, with what
+it can tell of the field concerned from the arguments (see ``_failed_check``).
 
 Getters and validity checks are not wrapped. They contain no checks, and they
 are the hot path: every id access calls an ``_IsValid`` function. A test parses
@@ -24,7 +25,7 @@ import logging
 import re
 import threading
 import types
-from typing import Any, Callable, NoReturn
+from typing import Any, Callable, NoReturn, Optional
 
 from ._box2d import ffi, lib as _raw_lib
 
@@ -37,8 +38,31 @@ class InvalidInputError(ValueError):
     """Box2D rejected an argument.
 
     The message names the Box2D function and the check that failed, e.g.
-    ``b2CreatePogoJoint rejected its input: b2IsValidVec2( def->normal )``.
+    ``b2CreatePogoJoint rejected its input: b2IsValidVec2( def->normal )``, and
+    the same is here as data, for code that shows it by the field concerned.
+
+    Attributes:
+        function: The Box2D function called, such as ``"b2CreateBody"``.
+        condition: The check that failed, as Box2D's source writes it.
+        field: The Python name of the field or argument refused, such as
+            ``"linear_damping"``; None if it cannot be told.
+        value: The value refused, as Python holds it; None if it is not known.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        function: str = "",
+        condition: str = "",
+        field: Optional[str] = None,
+        value: Any = None,
+    ) -> None:
+        super().__init__(message)
+        self.function = function
+        self.condition = condition
+        self.field = field
+        self.value = value
 
 
 # Exported from the package, so report it as living there.
@@ -76,13 +100,17 @@ def _on_log(message) -> None:
 _raw_lib.b2SetLogCallback(_on_log)
 
 
-def _raise_pending(called: str) -> NoReturn:
+def _raise_pending(called: str, args: tuple[Any, ...]) -> NoReturn:
     """Raise for the failed checks, naming the function that was called.
 
     Box2D names the function the check is written in, which is sometimes an
     internal helper -- every create-shape function checks the density in
-    b2CreateShape -- so the helper is mentioned after the public name.
+    b2CreateShape -- so the helper is mentioned after the public name. The
+    first failure is the one the error's attributes describe.
     """
+    # Only here, as it needs the field tables, which need this module.
+    from ._failed_check import describe
+
     messages = list(_pending.checks)
     _pending.checks.clear()
     described = []
@@ -93,7 +121,16 @@ def _raise_pending(called: str) -> NoReturn:
             continue
         where = "" if match["function"] == called else f" (in {match['function']})"
         described.append(f"{called} rejected its input: {match['condition']}{where}")
-    raise InvalidInputError("; ".join(described))
+    match = _INVALID_INPUT.match(messages[0])
+    condition = match["condition"] if match else messages[0]
+    field, value = describe(called, condition, args) if match else (None, None)
+    raise InvalidInputError(
+        "; ".join(described),
+        function=called,
+        condition=condition,
+        field=field,
+        value=value,
+    )
 
 
 # Functions that never check their input, and so are passed through untouched.
@@ -109,7 +146,7 @@ def _checked(function: Callable[..., Any], name: str) -> Callable[..., Any]:
     def call(*args: Any) -> Any:
         result = function(*args)
         if _pending.checks:
-            _raise_pending(name)
+            _raise_pending(name, args)
         return result
 
     call.__name__ = call.__qualname__ = name
