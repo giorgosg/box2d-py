@@ -135,6 +135,33 @@ class Joint(FixedAttributes):
         """
         self.world._track_joint(self)
 
+    def to_def(self) -> Any:
+        """This joint's definition, read back from Box2D.
+
+        The bodies are the joint's, and each setting is read from the joint,
+        anchors as local anchors. Box2D 3.2 keeps an axis or a reference
+        angle as the rotation of the joint's local frames, which they are
+        worked out from. A pogo joint's normal, maximum forces and starting
+        velocity have no way to be read back, so they are the defaults
+        whatever the joint was made with (see :meth:`.DefData.fields`).
+        What is set on a joint once made and is no part of a definition,
+        such as ``force_threshold``, is not read.
+
+        ``world.add_joint`` on the definition, which is of this joint's kind,
+        makes a joint like this one.
+
+        Example:
+            >>> from box2d import World
+            >>> world = World()
+            >>> a = world.add_body()
+            >>> b = world.add_body(body_type="dynamic", position=(1, 0))
+            >>> world.add_weld_joint(a, b, linear_hertz=2.0).to_def().linear_hertz
+            2.0
+        """
+        from .jointdef import _definition_for
+
+        return _definition_for(type(self))._read(self)
+
     def destroy(self) -> None:
         """Destroy the joint and remove it from the world.
 

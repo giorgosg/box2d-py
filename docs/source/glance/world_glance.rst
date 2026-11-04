@@ -63,6 +63,7 @@ Body Management
 
 * ``world.new_body()`` - Start building a new body
 * ``world.add_body(body_type=None, position=None, ...)`` - Create a body directly, with ``BodyDef`` fields as keywords
+* ``world.add_body_def(body_def)`` - Create the body a ``BodyDef`` describes
 * ``world.bodies`` - Get list of all bodies in world
 * ``world.awake_body_count`` - How many bodies are awake; zero once a scene has come to rest
 * ``world.bounds`` - The box containing every shape in the world

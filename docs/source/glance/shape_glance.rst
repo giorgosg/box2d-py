@@ -92,6 +92,11 @@ Forces
 * ``shape.apply_wind(wind, drag=1.0, lift=0.0, wake=True)`` - Push the shape
   with a wind (m/s), using the density of air; call it each step it blows
 
+Definitions
+^^^^^^^^^^^
+
+* ``shape.to_def()`` - The shape's geometry definition, with its settings as ``shape``, read back from Box2D
+
 Circle
 ------
 
@@ -159,6 +164,7 @@ static terrain. Bodies slide across the joins without catching on them.
   other material fields override that field of each of ``materials``, or,
   without them, make one material for the whole chain
 * ``chain.segments`` - The chain's ``ChainSegment`` shapes, in order
+* ``chain.to_def()`` - The chain's ``ChainDef``, read back from Box2D
 * ``chain.get_surface_material(segment_index=0)`` - A copy of one segment's ``SurfaceMaterial``
 * ``chain.set_surface_material(material, segment_index=None)`` - Change one segment's material, or every segment's
 * ``chain.destroy()`` - Remove the chain, and every segment of it, from its body
@@ -223,16 +229,18 @@ Other
 CircleDef
 ---------
 
-* ``CircleDef(radius, center=(0, 0))`` - A circle's geometry
+* ``CircleDef(radius, center=(0, 0), shape=None)`` - A circle's geometry
 * ``radius`` - The radius
 * ``center`` - The centre, in body coordinates, as a ``Vec2``
+* ``shape`` - The shape's own settings, a ``ShapeDef``, or None for the defaults
 * ``circle_def.b2Circle`` - The Box2D structure
 * ``CircleDef.from_b2Circle(circle)`` - Read one back from Box2D's structure
 
 CapsuleDef
 ----------
 
-* ``CapsuleDef(vertex1, vertex2, radius)`` - A capsule's geometry
+* ``CapsuleDef(vertex1, vertex2, radius, shape=None)`` - A capsule's geometry
+* ``shape`` - The shape's own settings, a ``ShapeDef``, or None for the defaults
 * ``vertex1``, ``vertex2`` - The centres of the rounded ends, in body coordinates
 * ``radius`` - The radius
 * ``capsule_def.b2Capsule`` - The Box2D structure
@@ -241,7 +249,8 @@ CapsuleDef
 SegmentDef
 ----------
 
-* ``SegmentDef(vertex1, vertex2)`` - A segment's geometry
+* ``SegmentDef(vertex1, vertex2, shape=None)`` - A segment's geometry
+* ``shape`` - The shape's own settings, a ``ShapeDef``, or None for the defaults
 * ``vertex1``, ``vertex2`` - The ends, in body coordinates
 * ``segment_def.b2Segment`` - The Box2D structure
 * ``SegmentDef.from_b2Segment(segment)`` - Read one back from Box2D's structure
@@ -249,7 +258,8 @@ SegmentDef
 PolygonDef
 ----------
 
-* ``PolygonDef(vertices, radius=None, offset=None, rotation=None)`` - A polygon's geometry; None is no rounding, offset or rotation
+* ``PolygonDef(vertices, radius=None, offset=None, rotation=None, shape=None)`` - A polygon's geometry; None is no rounding, offset or rotation
+* ``shape`` - The shape's own settings, a ``ShapeDef``, or None for the defaults
 * ``vertices`` - The points whose convex hull is the polygon, 3 to 8 of them
 * ``radius`` - The radius of the rounded corners
 * ``offset`` - Where the polygon sits, relative to the body origin
@@ -261,9 +271,10 @@ PolygonDef
 BoxDef
 ------
 
-Importable from ``box2d.shapedef``.
+Importable from ``box2d``.
 
-* ``BoxDef(width, height, radius=0.0, offset=(0, 0), rotation=None)`` - A box's geometry
+* ``BoxDef(width, height, radius=0.0, offset=(0, 0), rotation=None, shape=None)`` - A box's geometry
+* ``shape`` - The shape's own settings, a ``ShapeDef``, or None for the defaults
 * ``width``, ``height`` - The full width and height
 * ``radius`` - The radius of the rounded corners
 * ``offset`` - Where the box's centre sits, relative to the body origin

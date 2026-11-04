@@ -200,6 +200,19 @@ class CollisionFilter:
     mask: int
     group: int
 
+    def __eq__(self, other: object) -> bool:
+        """Two filters are equal if they filter alike, registries aside."""
+        if not isinstance(other, CollisionFilter):
+            return NotImplemented
+        return (self.category, self.mask, self.group) == (
+            other.category,
+            other.mask,
+            other.group,
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.category, self.mask, self.group))
+
     #: The default mask, with every one of the 64 bits Box2D's masks have set,
     #: as in its own default filters.
     ALL = 0xFFFF_FFFF_FFFF_FFFF

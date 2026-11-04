@@ -16,18 +16,42 @@ misspelling, or a name from before a rename -- raises AttributeError
 rather than being kept and never read.
 """
 
+import math
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type
 
-from .math import VectorLike
+from ._checked import lib
+from .defdata import NON_NEGATIVE, ROUNDING, DefData, _f, _kinds, _short
+from .math import Vec2, VectorLike
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
     from .joint import Joint
 
 
-@dataclass(slots=True)
-class JointDef:
+def _shortest_distance() -> float:
+    """The lower limit a distance joint has until told otherwise."""
+    from .joint import _distance_bounds
+
+    return _distance_bounds()[0]
+
+
+def _reference_angle(joint: "Joint") -> float:
+    """The angle body_b rests at turned from body_a: what Box2D 3.2 keeps as
+    the difference between the two local frames' rotations."""
+    angle = joint.local_frame_a.q.angle - joint.local_frame_b.q.angle
+    # A difference of two stored angles, so with both their roundings.
+    return _short(math.remainder(angle, math.tau), ROUNDING)
+
+
+def _axis(joint: "Joint") -> Vec2:
+    """A sliding joint's axis, which Box2D 3.2 keeps as frame A's rotation."""
+    rotation = joint.local_frame_a.q
+    return Vec2(_short(rotation.c, ROUNDING), _short(rotation.s, ROUNDING))
+
+
+@dataclass(slots=True, repr=False, eq=False)
+class JointDef(DefData):
     """Fields common to every joint.
 
     Attributes:
@@ -91,8 +115,23 @@ class JointDef:
         arguments["local_anchor_b"] = (0, 0) if anchor_b is None else anchor_b
         return arguments
 
+    _table = {
+        "body_a": _f("body", c="base.bodyIdA"),
+        "body_b": _f("body", c="base.bodyIdB"),
+        "local_anchor_a": _f("vec2", "m", default=(0, 0), c="base.localFrameA.p"),
+        "local_anchor_b": _f("vec2", "m", default=(0, 0), c="base.localFrameB.p"),
+        "collide_connected": _f("bool", c="base.collideConnected"),
+    }
 
-@dataclass(slots=True)
+    def _written_values(self, full: bool) -> dict[str, Any]:
+        # A world anchor is the local anchors said another way, and a
+        # dictionary holds those.
+        values = self._data_values(full)
+        values["local_anchor_a"], values["local_anchor_b"] = self.resolved_anchors()
+        return values
+
+
+@dataclass(slots=True, repr=False, eq=False)
 class FilterJointDef(JointDef):
     """Stops two bodies colliding without constraining them otherwise.
 
@@ -104,8 +143,20 @@ class FilterJointDef(JointDef):
         """Only the bodies: this joint has no anchors or other settings."""
         return {"body_a": self.body_a, "body_b": self.body_b}
 
+    kind: ClassVar[Optional[str]] = "filter"
+    _c_struct = "b2FilterJointDef"
+    # It has no geometry, and the flag would undo what it is for.
+    _table = {
+        "local_anchor_a": None,
+        "local_anchor_b": None,
+        "collide_connected": None,
+    }
 
-@dataclass(slots=True)
+    def _written_values(self, full: bool) -> dict[str, Any]:
+        return self._data_values(full)
+
+
+@dataclass(slots=True, repr=False, eq=False)
 class WeldJointDef(JointDef):
     """Holds two bodies rigidly together, optionally with some give.
 
@@ -123,8 +174,20 @@ class WeldJointDef(JointDef):
     angular_damping_ratio: Optional[float] = None
     reference_angle: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "weld"
+    _c_struct = "b2WeldJointDef"
+    _table = {
+        "linear_hertz": _f("float", "Hz", NON_NEGATIVE, c="linearHertz"),
+        "linear_damping_ratio": _f("float", range=NON_NEGATIVE, c="linearDampingRatio"),
+        "angular_hertz": _f("float", "Hz", NON_NEGATIVE, c="angularHertz"),
+        "angular_damping_ratio": _f(
+            "float", range=NON_NEGATIVE, c="angularDampingRatio"
+        ),
+        "reference_angle": _f("angle", "rad", live=_reference_angle, default=0.0),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class RevoluteJointDef(JointDef):
     """Pins two bodies together at a point and lets them rotate about it.
 
@@ -155,8 +218,24 @@ class RevoluteJointDef(JointDef):
     spring_damping_ratio: Optional[float] = None
     target_angle: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "revolute"
+    _c_struct = "b2RevoluteJointDef"
+    _table = {
+        "lower_limit": _f("float", "rad", c="lowerAngle"),
+        "upper_limit": _f("float", "rad", c="upperAngle"),
+        "enable_limit": _f("bool", c="enableLimit"),
+        "target_motor_speed": _f("float", "rad/s", c="motorSpeed"),
+        "max_motor_torque": _f("float", "N*m", NON_NEGATIVE, c="maxMotorTorque"),
+        "enable_motor": _f("bool", c="enableMotor"),
+        "reference_angle": _f("angle", "rad", live=_reference_angle, default=0.0),
+        "enable_spring": _f("bool", c="enableSpring"),
+        "spring_hertz": _f("float", "Hz", NON_NEGATIVE, c="hertz"),
+        "spring_damping_ratio": _f("float", range=NON_NEGATIVE, c="dampingRatio"),
+        "target_angle": _f("float", "rad", c="targetAngle"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class PrismaticJointDef(JointDef):
     """Lets two bodies slide along one axis without rotating.
 
@@ -190,8 +269,25 @@ class PrismaticJointDef(JointDef):
     spring_damping_ratio: Optional[float] = None
     target_translation: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "prismatic"
+    _c_struct = "b2PrismaticJointDef"
+    _table = {
+        "axis": _f("vec2", live=_axis),
+        "lower_limit": _f("float", "m", c="lowerTranslation"),
+        "upper_limit": _f("float", "m", c="upperTranslation"),
+        "enable_limit": _f("bool", c="enableLimit"),
+        "target_motor_speed": _f("float", "m/s", c="motorSpeed"),
+        "max_motor_force": _f("float", "N", NON_NEGATIVE, c="maxMotorForce"),
+        "enable_motor": _f("bool", c="enableMotor"),
+        "reference_angle": _f("angle", "rad", live=_reference_angle, default=0.0),
+        "enable_spring": _f("bool", c="enableSpring"),
+        "spring_hertz": _f("float", "Hz", NON_NEGATIVE, c="hertz"),
+        "spring_damping_ratio": _f("float", range=NON_NEGATIVE, c="dampingRatio"),
+        "target_translation": _f("float", "m", c="targetTranslation"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class WheelJointDef(JointDef):
     """A sliding axis with a spring, as between a chassis and a wheel.
 
@@ -225,8 +321,23 @@ class WheelJointDef(JointDef):
     spring_hertz: Optional[float] = None
     spring_damping_ratio: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "wheel"
+    _c_struct = "b2WheelJointDef"
+    _table = {
+        "axis": _f("vec2", live=_axis),
+        "enable_limit": _f("bool", c="enableLimit"),
+        "lower_limit": _f("float", "m", c="lowerTranslation"),
+        "upper_limit": _f("float", "m", c="upperTranslation"),
+        "enable_motor": _f("bool", c="enableMotor"),
+        "target_motor_speed": _f("float", "rad/s", c="motorSpeed"),
+        "max_motor_torque": _f("float", "N*m", NON_NEGATIVE, c="maxMotorTorque"),
+        "enable_spring": _f("bool", c="enableSpring"),
+        "spring_hertz": _f("float", "Hz", NON_NEGATIVE, c="hertz"),
+        "spring_damping_ratio": _f("float", range=NON_NEGATIVE, c="dampingRatio"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class DistanceJointDef(JointDef):
     """Keeps two points a fixed distance apart, optionally springy.
 
@@ -265,8 +376,29 @@ class DistanceJointDef(JointDef):
     lower_spring_force: Optional[float] = None
     upper_spring_force: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "distance"
+    _c_struct = "b2DistanceJointDef"
+    _table = {
+        # Left out, the distance between the anchors when the joint is made.
+        "rest_length": _f("float", "m", NON_NEGATIVE, default=None, c="length"),
+        # Box2D's is 0, but it holds a distance joint's lengths to its slop.
+        "lower_limit": _f(
+            "float", "m", NON_NEGATIVE, default=_shortest_distance, c="minLength"
+        ),
+        "upper_limit": _f("float", "m", NON_NEGATIVE, c="maxLength"),
+        "enable_limit": _f("bool", c="enableLimit"),
+        "enable_spring": _f("bool", c="enableSpring"),
+        "spring_hertz": _f("float", "Hz", NON_NEGATIVE, c="hertz"),
+        "spring_damping_ratio": _f("float", range=NON_NEGATIVE, c="dampingRatio"),
+        "enable_motor": _f("bool", c="enableMotor"),
+        "target_motor_speed": _f("float", "m/s", c="motorSpeed"),
+        "max_motor_force": _f("float", "N", NON_NEGATIVE, c="maxMotorForce"),
+        "lower_spring_force": _f("float", "N", c="lowerSpringForce"),
+        "upper_spring_force": _f("float", "N", c="upperSpringForce"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class MotorJointDef(JointDef):
     """Drives the relative motion of two bodies.
 
@@ -306,8 +438,25 @@ class MotorJointDef(JointDef):
         arguments.pop("local_anchor_b", None)
         return arguments
 
+    kind: ClassVar[Optional[str]] = "motor"
+    _c_struct = "b2MotorJointDef"
+    _table = {
+        "linear_velocity": _f("vec2", "m/s", c="linearVelocity"),
+        "angular_velocity": _f("float", "rad/s", c="angularVelocity"),
+        "max_velocity_force": _f("float", "N", NON_NEGATIVE, c="maxVelocityForce"),
+        "max_velocity_torque": _f("float", "N*m", NON_NEGATIVE, c="maxVelocityTorque"),
+        "linear_hertz": _f("float", "Hz", NON_NEGATIVE, c="linearHertz"),
+        "linear_damping_ratio": _f("float", range=NON_NEGATIVE, c="linearDampingRatio"),
+        "max_spring_force": _f("float", "N", NON_NEGATIVE, c="maxSpringForce"),
+        "angular_hertz": _f("float", "Hz", NON_NEGATIVE, c="angularHertz"),
+        "angular_damping_ratio": _f(
+            "float", range=NON_NEGATIVE, c="angularDampingRatio"
+        ),
+        "max_spring_torque": _f("float", "N*m", NON_NEGATIVE, c="maxSpringTorque"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class MoverJointDef(JointDef):
     """Drives a dynamic character body at a commanded velocity.
 
@@ -332,8 +481,15 @@ class MoverJointDef(JointDef):
         arguments.pop("local_anchor_b", None)
         return arguments
 
+    kind: ClassVar[Optional[str]] = "mover"
+    _c_struct = "b2MoverJointDef"
+    _table = {
+        "linear_velocity": _f("vec2", "m/s", c="linearVelocity"),
+        "max_velocity_force": _f("vec2", "N", c="maxVelocityForce"),
+    }
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, repr=False, eq=False)
 class PogoJointDef(JointDef):
     """A spring holding a character up off the ground. See :class:`.PogoJoint`.
 
@@ -363,9 +519,43 @@ class PogoJointDef(JointDef):
     impulse: Optional[float] = None
     velocity: Optional[float] = None
 
+    kind: ClassVar[Optional[str]] = "pogo"
+    # Box2D has no functions reading these back but the impulse.
+    _c_struct = "b2PogoJointDef"
+    _table = {
+        "normal": _f("vec2", live=None, default=(0, 1), c="normal"),
+        "spring_hertz": _f("float", "Hz", NON_NEGATIVE, c="hertz"),
+        "spring_damping_ratio": _f("float", range=NON_NEGATIVE, c="dampingRatio"),
+        "rest_length": _f("float", "m", NON_NEGATIVE, c="restLength"),
+        "max_tension_force": _f(
+            "float",
+            "N",
+            NON_NEGATIVE,
+            live=None,
+            default=lambda: lib.b2DefaultPogoJointDef().maxTensionForce,
+            c="maxTensionForce",
+        ),
+        "max_compression_force": _f(
+            "float",
+            "N",
+            NON_NEGATIVE,
+            live=None,
+            default=lambda: lib.b2DefaultPogoJointDef().maxCompressionForce,
+            c="maxCompressionForce",
+        ),
+        "impulse": _f("float", "N*s", c="impulse"),
+        "velocity": _f(
+            "float",
+            "m/s",
+            live=None,
+            default=lambda: lib.b2DefaultPogoJointDef().velocity,
+            c="velocity",
+        ),
+    }
 
-@dataclass(slots=True)
-class MouseJointDef:
+
+@dataclass(slots=True, repr=False, eq=False)
+class MouseJointDef(DefData):
     """Drags one body toward a moving world-space target.
 
     Unlike the other definitions this connects a single body to a point rather
@@ -398,6 +588,25 @@ class MouseJointDef:
             for field in fields(self)
             if getattr(self, field.name) is not None
         }
+
+    kind: ClassVar[Optional[str]] = "mouse"
+    _table = {
+        # The joint's body_a is its proxy, and body_b the body dragged.
+        "body": _f("body", live="body_b"),
+        "target": _f("vec2", "m"),
+        "max_force": _f("float", "N", NON_NEGATIVE),
+        "damping_ratio": _f("float", range=NON_NEGATIVE),
+        "hertz": _f("float", "Hz", NON_NEGATIVE),
+    }
+
+
+def _definition_for(joint_class: type) -> Any:
+    """The definition class that makes ``joint_class``, or a base of it."""
+    for klass in joint_class.__mro__:
+        for definition in _kinds.values():
+            if getattr(definition, "joint_class", None) is klass:
+                return definition
+    raise TypeError(f"{joint_class.__name__} has no definition")
 
 
 # Bound at import time rather than in each class body: jointdef must not import

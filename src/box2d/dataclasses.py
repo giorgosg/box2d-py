@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 from enum import IntEnum
-from .math import Vec2, Rot
+from .math import Vec2, Rot, VectorLike
 from ._checked import lib, ffi
+from .defdata import BODY_TYPES, NON_NEGATIVE, DefData, _f
 
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .shape import Shape
@@ -245,17 +246,28 @@ class BodyType(IntEnum):
 _default_body_def = lib.b2DefaultBodyDef()
 
 
-@dataclass
-class BodyDef:
+def _was_awake(body: Any) -> bool:
+    """Whether a body counts as made awake: only one that can sleep can not."""
+    return body.awake or body.type == "static" or not body.enabled
+
+
+@dataclass(repr=False, eq=False)
+class BodyDef(DefData):
     """
     A body definition holds all the data needed to construct a rigid body.
 
     You can safely re-use body definitions. Shapes are added to a body after construction.
 
+    It is data both ways: :meth:`~.DefData.to_dict` and
+    :meth:`~.DefData.from_dict`, and :meth:`.Body.to_def` to read one back
+    from a body (see :mod:`box2d.defdata`).
+
     Attributes:
-        type: The body type: static (0), kinematic (1), or dynamic (2).
+        type: The body type: ``"static"``, ``"kinematic"`` or ``"dynamic"``,
+            or a :class:`BodyType`, which it is kept as.
         position: The initial world position of the body (Vec2).
-        rotation: The initial world rotation of the body (Rot).
+        rotation: The initial world rotation of the body, as a Rot or an
+            angle in radians, which is kept as a Rot.
         linear_velocity: The initial linear velocity of the body's origin.
         angular_velocity: The initial angular velocity of the body in radians per second.
         linear_damping: Linear damping reduces linear velocity. Can be > 1.
@@ -279,10 +291,10 @@ class BodyDef:
         allow_fast_rotation: Bypass rotational speed limits. For circular objects like wheels.
     """
 
-    type: int = _default_body_def.type
-    position: Vec2 = Vec2.from_b2Vec2(_default_body_def.position)
-    rotation: Rot = Rot.from_b2Rot(_default_body_def.rotation)
-    linear_velocity: Vec2 = Vec2.from_b2Vec2(_default_body_def.linearVelocity)
+    type: Union[int, str] = BodyType(_default_body_def.type)
+    position: VectorLike = Vec2.from_b2Vec2(_default_body_def.position)
+    rotation: Union[Rot, float] = Rot.from_b2Rot(_default_body_def.rotation)
+    linear_velocity: VectorLike = Vec2.from_b2Vec2(_default_body_def.linearVelocity)
     angular_velocity: float = _default_body_def.angularVelocity
     linear_damping: float = _default_body_def.linearDamping
     angular_damping: float = _default_body_def.angularDamping
@@ -300,6 +312,47 @@ class BodyDef:
     is_bullet: bool = _default_body_def.isBullet
     is_enabled: bool = _default_body_def.isEnabled
     allow_fast_rotation: bool = _default_body_def.allowFastRotation
+
+    _c_struct = "b2BodyDef"
+    _table = {
+        "type": _f("body_type", c="type"),
+        "position": _f("vec2", "m", c="position"),
+        "rotation": _f("angle", "rad", c="rotation"),
+        "linear_velocity": _f("vec2", "m/s", c="linearVelocity"),
+        "angular_velocity": _f("float", "rad/s", c="angularVelocity"),
+        "linear_damping": _f("float", "1/s", NON_NEGATIVE, c="linearDamping"),
+        "angular_damping": _f("float", "1/s", NON_NEGATIVE, c="angularDamping"),
+        "gravity_scale": _f("float", c="gravityScale"),
+        "sleep_threshold": _f("float", "m/s", NON_NEGATIVE, c="sleepThreshold"),
+        "safety_factor": _f("float", range=NON_NEGATIVE, c="safetyFactor"),
+        # Box2D reads a body with no name back as an empty one.
+        "name": _f("str", live=lambda body: body.name or None, c="name"),
+        "enable_sleep": _f("bool", live="enable_sleeping", c="enableSleep"),
+        # A static or disabled body reads as not awake, though it was made so.
+        "is_awake": _f("bool", live=_was_awake, c="isAwake"),
+        "lock_x": _f("bool", c="motionLocks.linearX"),
+        "lock_y": _f("bool", c="motionLocks.linearY"),
+        "lock_rotation": _f("bool", c="motionLocks.angularZ"),
+        "enable_contact_recycling": _f("bool", c="enableContactRecycling"),
+        "is_bullet": _f("bool", c="isBullet"),
+        "is_enabled": _f("bool", live="enabled", c="isEnabled"),
+        # Box2D keeps the flag, but has no function that reads it back.
+        "allow_fast_rotation": _f("bool", live=None, c="allowFastRotation"),
+    }
+
+    def __post_init__(self) -> None:
+        if isinstance(self.type, str):
+            if self.type not in BODY_TYPES:
+                raise ValueError(
+                    f"a body type is one of {BODY_TYPES}, not {self.type!r}"
+                )
+            self.type = BodyType[self.type.upper()]
+        elif not isinstance(self.type, BodyType) and self.type in BodyType:
+            self.type = BodyType(self.type)
+        if not isinstance(self.rotation, Rot):
+            self.rotation = Rot(self.rotation)
+        self.position = Vec2(self.position)
+        self.linear_velocity = Vec2(self.linear_velocity)
 
     @property
     def b2BodyDef(self) -> Any:

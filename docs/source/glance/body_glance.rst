@@ -29,6 +29,7 @@ Lifetime and Identity
 * ``body.destroy()`` - Destroy the body, with its shapes and every joint attached to it
 * ``body.is_valid`` - Whether the body is still live, i.e. has not been destroyed
 * ``body.world`` - The world the body belongs to
+* ``body.to_def()`` - The body's ``BodyDef``, read back from Box2D
 * ``body.key`` - The body's slot in Box2D, a small integer that identifies it in its world while it lives; what ``world.write_moves`` writes in its place
 * ``body.user_data`` - Any Python object to keep with the body
 * ``body.name`` - Get/set a name, which debug draw can show, or None. Box2D
@@ -96,6 +97,7 @@ the geometry are ``ShapeDef`` fields -- ``density``, ``is_sensor``,
 as ``friction``, or, for a chain, ``ChainDef`` options; see
 :doc:`shape_glance`.
 
+* ``body.add_shape(geometry)`` - Add the shape or chain a geometry definition or ``ChainDef`` describes
 * ``body.add_box(width, height, radius=0.0, offset=(0, 0), angle=0.0, **shapedef_args)`` - Attach a ``Box``, rounded by ``radius``
 * ``body.add_circle(radius, center=(0, 0), **shapedef_args)`` - Attach a ``Circle``
 * ``body.add_capsule(point1, point2, radius, **shapedef_args)`` - Attach a ``Capsule`` between two local points

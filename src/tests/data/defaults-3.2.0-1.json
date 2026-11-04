@@ -1,0 +1,318 @@
+{
+  "BodyDef": {
+    "type": "static",
+    "position": [
+      0.0,
+      0.0
+    ],
+    "rotation": 0.0,
+    "linear_velocity": [
+      0.0,
+      0.0
+    ],
+    "angular_velocity": 0.0,
+    "linear_damping": 0.0,
+    "angular_damping": 0.0,
+    "gravity_scale": 1.0,
+    "sleep_threshold": 0.05,
+    "safety_factor": 0.5,
+    "name": null,
+    "enable_sleep": true,
+    "is_awake": true,
+    "lock_x": false,
+    "lock_y": false,
+    "lock_rotation": false,
+    "enable_contact_recycling": true,
+    "is_bullet": false,
+    "is_enabled": true,
+    "allow_fast_rotation": false
+  },
+  "ShapeDef": {
+    "material": {
+      "friction": 0.6,
+      "restitution": 0.0,
+      "rolling_resistance": 0.0,
+      "tangent_speed": 0.0,
+      "user_material": 0,
+      "custom_color": 0
+    },
+    "density": 1.0,
+    "filter": {
+      "category": 1,
+      "mask": 18446744073709551615,
+      "group": 0
+    },
+    "enable_custom_filtering": false,
+    "is_sensor": false,
+    "enable_sensor_events": false,
+    "enable_contact_events": false,
+    "enable_hit_events": false,
+    "enable_pre_solve_events": false,
+    "invoke_contact_creation": true,
+    "update_body_mass": true
+  },
+  "SurfaceMaterial": {
+    "friction": 0.6,
+    "restitution": 0.0,
+    "rolling_resistance": 0.0,
+    "tangent_speed": 0.0,
+    "user_material": 0,
+    "custom_color": 0
+  },
+  "ChainDef": {
+    "vertices": null,
+    "is_loop": false,
+    "ghost1": null,
+    "ghost2": null,
+    "materials": null,
+    "filter": {
+      "category": 1,
+      "mask": 18446744073709551615,
+      "group": 0
+    },
+    "enable_sensor_events": false
+  },
+  "CircleDef": {
+    "radius": null,
+    "center": [
+      0.0,
+      0.0
+    ],
+    "shape": null
+  },
+  "CapsuleDef": {
+    "vertex1": null,
+    "vertex2": null,
+    "radius": null,
+    "shape": null
+  },
+  "SegmentDef": {
+    "vertex1": null,
+    "vertex2": null,
+    "shape": null
+  },
+  "BoxDef": {
+    "width": null,
+    "height": null,
+    "radius": 0.0,
+    "offset": [
+      0.0,
+      0.0
+    ],
+    "rotation": 0.0,
+    "shape": null
+  },
+  "PolygonDef": {
+    "vertices": null,
+    "radius": 0.0,
+    "offset": [
+      0.0,
+      0.0
+    ],
+    "rotation": 0.0,
+    "shape": null
+  },
+  "FilterJointDef": {
+    "body_a": null,
+    "body_b": null
+  },
+  "WeldJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "linear_hertz": 0.0,
+    "linear_damping_ratio": 0.0,
+    "angular_hertz": 0.0,
+    "angular_damping_ratio": 0.0,
+    "reference_angle": 0.0
+  },
+  "RevoluteJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "lower_limit": 0.0,
+    "upper_limit": 0.0,
+    "enable_limit": false,
+    "target_motor_speed": 0.0,
+    "max_motor_torque": 0.0,
+    "enable_motor": false,
+    "reference_angle": 0.0,
+    "enable_spring": false,
+    "spring_hertz": 0.0,
+    "spring_damping_ratio": 0.0,
+    "target_angle": 0.0
+  },
+  "PrismaticJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "axis": [
+      1.0,
+      0.0
+    ],
+    "lower_limit": 0.0,
+    "upper_limit": 0.0,
+    "enable_limit": false,
+    "target_motor_speed": 0.0,
+    "max_motor_force": 0.0,
+    "enable_motor": false,
+    "reference_angle": 0.0,
+    "enable_spring": false,
+    "spring_hertz": 0.0,
+    "spring_damping_ratio": 0.0,
+    "target_translation": 0.0
+  },
+  "WheelJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "axis": [
+      1.0,
+      0.0
+    ],
+    "enable_limit": false,
+    "lower_limit": 0.0,
+    "upper_limit": 0.0,
+    "enable_motor": false,
+    "target_motor_speed": 0.0,
+    "max_motor_torque": 0.0,
+    "enable_spring": true,
+    "spring_hertz": 1.0,
+    "spring_damping_ratio": 0.7
+  },
+  "DistanceJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "rest_length": null,
+    "lower_limit": 0.005,
+    "upper_limit": 100000.0,
+    "enable_limit": false,
+    "enable_spring": false,
+    "spring_hertz": 0.0,
+    "spring_damping_ratio": 0.0,
+    "enable_motor": false,
+    "target_motor_speed": 0.0,
+    "max_motor_force": 0.0,
+    "lower_spring_force": -3.4028235e+38,
+    "upper_spring_force": 3.4028235e+38
+  },
+  "MotorJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "linear_velocity": [
+      0.0,
+      0.0
+    ],
+    "angular_velocity": 0.0,
+    "max_velocity_force": 0.0,
+    "max_velocity_torque": 0.0,
+    "linear_hertz": 0.0,
+    "linear_damping_ratio": 0.0,
+    "max_spring_force": 0.0,
+    "angular_hertz": 0.0,
+    "angular_damping_ratio": 0.0,
+    "max_spring_torque": 0.0
+  },
+  "MoverJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "linear_velocity": [
+      0.0,
+      0.0
+    ],
+    "max_velocity_force": [
+      0.0,
+      0.0
+    ]
+  },
+  "PogoJointDef": {
+    "body_a": null,
+    "body_b": null,
+    "local_anchor_a": [
+      0.0,
+      0.0
+    ],
+    "local_anchor_b": [
+      0.0,
+      0.0
+    ],
+    "collide_connected": false,
+    "normal": [
+      0.0,
+      1.0
+    ],
+    "spring_hertz": 0.0,
+    "spring_damping_ratio": 0.0,
+    "rest_length": 0.0,
+    "max_tension_force": 0.0,
+    "max_compression_force": 0.0,
+    "impulse": 0.0,
+    "velocity": 0.0
+  },
+  "MouseJointDef": {
+    "body": null,
+    "target": null,
+    "max_force": 1000.0,
+    "damping_ratio": 0.7,
+    "hertz": 5.0
+  }
+}

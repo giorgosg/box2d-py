@@ -564,6 +564,18 @@ class World(FixedAttributes):
         """
         return BodyBuilder(self)
 
+    def add_body_def(self, body_def: BodyDef) -> Body:
+        """Add the body a definition describes, as ``body.to_def()`` or
+        ``BodyDef.from_dict()`` gives.
+
+        Example:
+            >>> from box2d import BodyDef, World
+            >>> world = World()
+            >>> world.add_body_def(BodyDef(type="dynamic")).type
+            'dynamic'
+        """
+        return self._make(Body, self, body_def)
+
     def add_body(
         self,
         body_type: Optional["BodyType | str"] = None,

@@ -21,6 +21,21 @@ only the binding. See
   `struct` format, a numpy dtype and a field table. `World.write_transforms`
   writes the same record for every body, and `World.move_count` sizes the
   buffer.
+- Definitions are data both ways. Each has a field table: `to_dict()` and
+  `from_dict()` give JSON-ready dictionaries of what differs from the
+  defaults (`full=True` for every field), strict about unknown keys;
+  `def_from_dict()` makes shape and joint definitions by their `"kind"`;
+  `fields()` describes each field's type, default, unit and range; and a
+  definition's `repr` is code. `body.to_def()`, `shape.to_def()`,
+  `chain.to_def()` and `joint.to_def()` read a live object back.
+  `box2d.DEFAULTS_VERSION` names the set of defaults.
+- Geometry definitions take `shape=`, a `ShapeDef`, and `body.add_shape()`
+  makes a shape or chain from a definition, as `world.add_body_def()` does a
+  body. `BodyDef` and `BoxDef` are exported at the top level, and `BodyDef`
+  takes its type as a name and its rotation as an angle.
+- Definitions compare by what Box2D would make of them: a field left as None
+  equals its default, and floats compare as 32-bit floats. `CollisionFilter`
+  compares by category, mask and group.
 - The package ships `py.typed`, with its whole public API annotated.
 - `b2_value` is gone from `box2d.accessors`; the properties that used it
   coerce on assignment, as the others do.

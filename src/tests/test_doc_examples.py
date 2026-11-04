@@ -34,6 +34,7 @@ GUIDES = [
         "concepts",
         "lifetime",
         "own_classes",
+        "defs_as_data",
         "events",
         "queries",
         "callbacks_threading",
