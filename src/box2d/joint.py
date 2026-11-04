@@ -147,22 +147,11 @@ class Joint(FixedAttributes):
                 cannot destroy anything then; destroy it after the step.
         """
         # Read past the validity check so destroy stays callable on a joint
-        # Box2D has already reclaimed, e.g. one whose bodies went first.
+        # Box2D has already reclaimed.
         raw = raw_id(self, "_joint_id")
-        if raw is not None and self.is_valid:
-            self.world._refuse_while_locked("joint")
-            lib.b2DestroyJoint(raw)
-        self._release()
-
-    def _release(self) -> None:
-        """Let go of this joint once Box2D no longer has it.
-
-        Box2D has no joint for the id any more, so it leaves the world's
-        table. Called by :meth:`destroy`, and by
-        :meth:`.Body.destroy` for each joint Box2D takes down with the body.
-        """
-        self.world._untrack_joint(raw_id(self, "_joint_id"))
-        del self._joint_id
+        if raw is None:
+            return
+        self.world._destroy(self, "joint", lambda: lib.b2DestroyJoint(raw))
 
     @property
     def is_valid(self) -> bool:
@@ -408,9 +397,16 @@ class MouseJoint(Joint):
 
         # The kinematic proxy the spring pulls towards. It must not sleep, or
         # dragging would stall once the proxy settles.
+        # Made as the class map says, and reported by the world once the joint
+        # exists, before it, so that a report raising cannot leave it behind.
+        # Imported here: body imports this module.
+        from .body import Body
+        from .dataclasses import BodyDef
+
         target = Vec2(target)
-        self._proxy = world.add_body(
-            body_type="kinematic", position=target, enable_sleep=False
+        self._proxy = world.class_for(Body)(
+            world,
+            BodyDef(type=lib.b2_kinematicBody, position=target, enable_sleep=False),
         )
 
         # Nothing else holds the proxy, so if the joint cannot be made -- a
@@ -445,19 +441,9 @@ class MouseJoint(Joint):
             RuntimeError: If called from a world callback during a step. Box2D
                 cannot destroy anything then; destroy it after the step.
         """
+        # The world takes the proxy down too, however the joint goes: on its
+        # own, or with the dragged body or the proxy. See World._doomed.
         super().destroy()
-
-    def _release(self) -> None:
-        """Release the joint, and destroy the proxy body only it was using.
-
-        This runs however the joint went -- destroyed, or taken down with the
-        dragged body or the proxy itself -- so the proxy never outlives it.
-        """
-        super()._release()
-        proxy = getattr(self, "_proxy", None)
-        self._proxy = None
-        if proxy is not None:
-            proxy.destroy()
 
     @property
     def target(self) -> Vec2:

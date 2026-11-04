@@ -999,7 +999,8 @@ class Body(FixedAttributes):
             The created box shape.
         """
 
-        shape = Box.create(
+        shape = self.world._make(
+            Box,
             self,
             width,
             height,
@@ -1007,6 +1008,7 @@ class Body(FixedAttributes):
             offset,
             angle,
             **shapedef_args,
+            _via="create",
         )
         return shape
 
@@ -1029,11 +1031,13 @@ class Body(FixedAttributes):
             The created circle shape.
         """
 
-        shape = Circle.create(
+        shape = self.world._make(
+            Circle,
             self,
             radius,
             center,
             **shapedef_args,
+            _via="create",
         )
         return shape
 
@@ -1058,12 +1062,14 @@ class Body(FixedAttributes):
             The created capsule shape.
         """
 
-        shape = Capsule.create(
+        shape = self.world._make(
+            Capsule,
             self,
             point1,
             point2,
             radius,
             **shapedef_args,
+            _via="create",
         )
         return shape
 
@@ -1086,11 +1092,13 @@ class Body(FixedAttributes):
             The created polygon shape.
         """
 
-        shape = Polygon.create(
+        shape = self.world._make(
+            Polygon,
             self,
             vertices,
             radius,
             **shapedef_args,
+            _via="create",
         )
         return shape
 
@@ -1113,11 +1121,13 @@ class Body(FixedAttributes):
             The created segment shape.
         """
 
-        shape = Segment.create(
+        shape = self.world._make(
+            Segment,
             self,
             point1,
             point2,
             **shapedef_args,
+            _via="create",
         )
         return shape
 
@@ -1139,11 +1149,13 @@ class Body(FixedAttributes):
         Returns:
             The created chain shape.
         """
-        chain = Chain.create(
+        chain = self.world._make(
+            Chain,
             self,
             vertices,
             loop,
             **chaindef_args,
+            _via="create",
         )
         return chain
 
@@ -1174,48 +1186,12 @@ class Body(FixedAttributes):
             RuntimeError: If called from a world callback during a step. Box2D
                 cannot destroy anything then; destroy it after the step.
         """
-        # Read past the validity check: the id is needed to deregister the body
-        # even once Box2D no longer recognises it (e.g. the world went first).
+        # Read past the validity check: an id Box2D no longer recognises still
+        # has to leave the world's table.
         raw = raw_id(self, "_body_id")
         if raw is None:
             return
-        # Box2D destroys the attached joints with the body, so their wrappers
-        # are looked up first, while the ids still lead to them. A joint the
-        # world cannot place is skipped rather than raised: nothing should
-        # leave a body impossible to destroy.
-        joints = []
-        if self.is_valid:
-            self.world._refuse_while_locked("body")
-            joints = self._read_joints(strict=False)
-            lib.b2DestroyBody(raw)
-        world = self.world
-        world._untrack_body(raw)
-        # Box2D took the shapes and chains down with the body.
-        untrack_shape = world._untrack_shape
-        for shape in self._shapes:
-            untrack_shape(raw_id(shape, "_shape_id"))
-        for chain in self._chains:
-            for segment in chain.segments:
-                untrack_shape(raw_id(segment, "_shape_id"))
-        self._forget_ids()
-        for joint in joints:
-            joint._release()
-
-    def _forget_ids(self) -> None:
-        """Let go of the ids of this body, its shapes and its chains.
-
-        For when Box2D has taken them all down at once, with the body or with
-        the world. Each would raise anyway, by its own check or its world's;
-        letting go as well means nothing is left holding an id that a later
-        object could come to own.
-        """
-        for shape in self._shapes:
-            del shape._shape_id
-        for chain in self._chains:
-            for segment in chain.segments:
-                del segment._shape_id
-            del chain._chain_id
-        del self._body_id
+        self.world._destroy(self, "body", lambda: lib.b2DestroyBody(raw))
 
     def get_local_point(self, world_point: VectorLike) -> Vec2:
         """Convert a point from world space to local body space.

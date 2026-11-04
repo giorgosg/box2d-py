@@ -33,6 +33,7 @@ GUIDES = [
     for name in [
         "concepts",
         "lifetime",
+        "own_classes",
         "events",
         "queries",
         "callbacks_threading",

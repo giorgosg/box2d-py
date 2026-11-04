@@ -1,4 +1,4 @@
-from .world import World, HAS_THREADS, HAS_AVX2, BOX2D_VERSION
+from .world import World, HAS_THREADS, HAS_AVX2, BOX2D_VERSION, classes_with
 from .math import Vec2, Rot, Transform, AABB, Mat22, ScaledTransform
 from .body import Body, BodyBuilder
 from .dataclasses import BodyType
@@ -70,6 +70,7 @@ del _find_version
 __all__ = [
     # world
     "World",
+    "classes_with",
     "HAS_THREADS",
     "HAS_AVX2",
     "BOX2D_VERSION",

@@ -20,8 +20,9 @@ The central class representing a complete physics simulation. Contains bodies, j
 Creation and Destruction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* ``World(gravity=(0, -10), threads=1, capacity=None)`` - Create a world with specified gravity;
-  ``capacity`` (a ``Capacity``, e.g. another world's ``max_capacity``) sets room aside up front
+* ``World(gravity=(0, -10), threads=1, capacity=None, classes=None)`` - Create a world with specified gravity;
+  ``capacity`` (a ``Capacity``, e.g. another world's ``max_capacity``) sets room aside up front,
+  and ``classes`` names subclasses to make in place of the library's own
 * ``world.destroy()`` - Destroy the world and every body, shape and joint in it
 * ``world.is_valid`` - Whether the world is still live, i.e. has not been destroyed
 * ``world.user_data`` - Any Python object to keep with the world
@@ -36,6 +37,19 @@ shapes and joints with it, a mouse joint's proxy body included; anything
 destroyed raises ``DestroyedError`` if used. Nothing can be created or
 destroyed from a callback during ``world.step()``, nor the world stepped again:
 each raises ``RuntimeError`` then, so do it after the step.
+
+Your Own Classes
+^^^^^^^^^^^^^^^^
+
+See :doc:`/guides/own_classes`.
+
+* ``World.classes`` - ``{library class: subclass}`` a subclass of World sets, so that ``{Body: Ball}`` makes every body a ``Ball``
+* ``world.class_for(base)`` - The class this world makes where the library would make ``base``
+* ``world.object_created(obj)`` - Override to hear of each body, shape, chain and joint made
+* ``world.object_destroyed(obj, cause)`` - Override to hear of each one destroyed, children first, while it can still be read
+
+``box2d.classes_with(mixin, base)`` builds a class map putting one mixin into
+every kind of ``base`` a world makes: every shape, say, or every joint.
 
 Simulation Control
 ^^^^^^^^^^^^^^^^^^

@@ -5,6 +5,20 @@ Box2D v3.2.0, and a fourth component, as in 3.2.0.1, is a release that changes
 only the binding. See
 [Installation](https://box2d-py.readthedocs.io/en/latest/getting_started/install.html#versions).
 
+## Unreleased
+
+- A world can make the application's own classes: `World(classes={Body:
+  Ball})`, or `classes` on a World subclass, makes every body a `Ball`, and
+  every object handed back is then one. `classes_with(mixin, Shape)` mixes
+  one class into every shape kind, or every joint kind.
+- `World.object_created` and `World.object_destroyed` report each body,
+  shape, chain and joint the world and its bodies make, and each one's
+  destroy, including everything a body, chain, mouse joint or world takes
+  down with it: children first, and while still readable.
+- The package ships `py.typed`, with its whole public API annotated.
+- `b2_value` is gone from `box2d.accessors`; the properties that used it
+  coerce on assignment, as the others do.
+
 ## 3.2.0rc1
 
 The first release of these bindings for Box2D v3.2.0, and a release candidate:
