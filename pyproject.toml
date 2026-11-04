@@ -63,6 +63,11 @@ include = ["box2d*", "box2d_testbed*"]
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs", "py.typed"]
 
+[tool.setuptools.exclude-package-data]
+# The binding's C is compiled into the extension; the sdist carries it
+# (MANIFEST.in), the wheel need not.
+box2d = ["_bulk.c", "_bulk.h"]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 # The gui tests open a real window, so they are excluded by default and run

@@ -28,6 +28,8 @@ from cffi import FFI
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BOX2D_DIR = os.path.join(PROJECT_ROOT, "box2d")
+#: The binding's own C, compiled into the extension beside Box2D.
+BULK_DIR = os.path.join(PROJECT_ROOT, "src", "box2d")
 
 
 def _targeting_emscripten():
@@ -224,10 +226,13 @@ def _preprocess_box2d_headers():
 
 
 def cdef_source():
-    """Everything the extension declares to cffi: Box2D's public API."""
+    """Everything the extension declares to cffi: Box2D's public API, then the
+    binding's bulk exports, whose header is plain declarations already."""
     text = strip_inline_definitions(_preprocess_box2d_headers())
     # Pragmas and the like are left by the preprocessor; cdef() wants none.
-    return "\n".join(line for line in text.splitlines() if not line.startswith("#"))
+    box2d = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
+    with open(os.path.join(BULK_DIR, "_bulk.h")) as header:
+        return box2d + "\n" + header.read()
 
 
 # --- the extension --------------------------------------------------------------
@@ -250,8 +255,10 @@ def ffibuilder():
     ffi.cdef(cdef_source())
     ffi.set_source(
         "box2d._box2d",
-        '#include "box2d/box2d.h"\n',
-        include_dirs=[os.path.join(BOX2D_DIR, "include")],
+        '#include "box2d/box2d.h"\n#include "_bulk.h"\n',
+        # Relative, as setuptools wants sources: the build runs from the root.
+        sources=["src/box2d/_bulk.c"],
+        include_dirs=[os.path.join(BOX2D_DIR, "include"), BULK_DIR],
         **link_config(),
     )
     return ffi

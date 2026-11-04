@@ -15,6 +15,12 @@ only the binding. See
   shape, chain and joint the world and its bodies make, and each one's
   destroy, including everything a body, chain, mouse joint or world takes
   down with it: children first, and while still readable.
+- `World.write_moves(buffer)` writes the last step's moves into any writable
+  buffer as packed 24-byte records, in C, keyed by the new `Body.key`: no
+  Python object per body. `box2d.MOVE_RECORD` describes the record as a
+  `struct` format, a numpy dtype and a field table. `World.write_transforms`
+  writes the same record for every body, and `World.move_count` sizes the
+  buffer.
 - The package ships `py.typed`, with its whole public API annotated.
 - `b2_value` is gone from `box2d.accessors`; the properties that used it
   coerce on assignment, as the others do.

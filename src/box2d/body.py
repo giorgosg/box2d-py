@@ -1169,6 +1169,20 @@ class Body(FixedAttributes):
             shape.destroy()
 
     @property
+    def key(self) -> int:
+        """The body's slot in Box2D's body array, a small integer, never 0.
+
+        A key is the body's for as long as it lives, and identifies it within
+        its world, so it is what :meth:`World.write_moves
+        <box2d.world.World.write_moves>` writes in place of the body. Once the
+        body is destroyed, Box2D gives its slot to the next body made, so a
+        program that maps keys to its own objects updates the map from
+        :meth:`~box2d.world.World.object_destroyed` and
+        :meth:`~box2d.world.World.object_created`.
+        """
+        return self._body_id.index1
+
+    @property
     def is_valid(self) -> bool:
         """Whether this body is still live, i.e. has not been destroyed."""
         return is_live(self, "_body_id", lib.b2Body_IsValid)

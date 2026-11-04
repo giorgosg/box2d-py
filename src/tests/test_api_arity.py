@@ -50,7 +50,17 @@ def declared_arities():
                 elif char == "," and depth == 0:
                     count += 1
             arities[name] = count
+    arities.update(bulk_arities())
     return arities
+
+
+def bulk_arities():
+    """The same for the binding's own C, which declares no B2_API."""
+    text = (PROJECT_ROOT / "src" / "box2d" / "_bulk.h").read_text()
+    return {
+        name: len(params.split(","))
+        for name, params in re.findall(r"^\w+ (b2py_\w+)\(([^;]*?)\)\s*;", text, re.M)
+    }
 
 
 def accessor_declarations():
@@ -110,6 +120,10 @@ def call_sites():
 def test_headers_are_readable():
     """Guard against the audit silently passing because it parsed nothing."""
     assert len(declared_arities()) > 300
+
+
+def test_the_bindings_own_c_is_read_too():
+    assert bulk_arities() == {"b2py_WriteMoves": 3, "b2py_WriteTransforms": 4}
 
 
 def test_call_sites_are_found():
