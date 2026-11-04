@@ -1,3 +1,4 @@
 {
-  "wheel": "box2d_python-0.2.0-cp313-cp313-pyemscripten_2025_0_wasm32.whl"
+  "wheel": "box2d_python-3.2.0rc1-cp313-cp313-pyemscripten_2025_0_wasm32.whl",
+  "testbed": "box2d_testbed-3.2.0rc1-py3-none-any.whl"
 }

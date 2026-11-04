@@ -16,7 +16,8 @@ window of example scenarios to run and edit, and to write your own in.
 pip install --pre box2d-python
 ```
 
-The testbed is the `testbed` extra:
+The testbed is a package of its own, `box2d-testbed`, which the `testbed` extra
+installs:
 
 ```bash
 pip install --pre "box2d-python[testbed]"
@@ -28,7 +29,8 @@ installs from git instead, building Box2D from source with git, a C compiler
 and CMake 3.22 or newer:
 
 ```bash
-pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
+pip install "box2d-python @ git+https://github.com/giorgosg/box2d-py.git" \
+  "box2d-testbed @ git+https://github.com/giorgosg/box2d-py.git#subdirectory=testbed"
 ```
 
 The 0.1.x releases on PyPI predate the Box2D v3.2 port and have a different

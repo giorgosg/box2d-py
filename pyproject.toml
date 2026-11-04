@@ -32,11 +32,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# A package of its own, released at this package's version, so that a game
+# in the browser does not download it.
 testbed = [
-  "imgui_bundle>=1.92.4",
-  "PyOpenGL",
-  "PyOpenGL-accelerate",
-  "numpy"
+  "box2d-testbed==3.2.0rc1",
 ]
 dev = [
     # Pinned, as are the pre-commit hook and CI's lint job (which reads this
@@ -53,20 +52,36 @@ dev = [
     "sphinx-rtd-theme",
 ]
 
-[project.scripts]
-box2d-testbed = "box2d_testbed:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["box2d*", "box2d_testbed*"]
+include = ["box2d", "box2d.*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "*.vs", "*.fs", "py.typed"]
+"*" = ["*.txt", "*.rst", "*.so", "*.pyd", "*.dll", "py.typed"]
 
 [tool.setuptools.exclude-package-data]
 # The binding's C is compiled into the extension; the sdist carries it
 # (MANIFEST.in), the wheel need not.
 box2d = ["_bulk.c", "_bulk.h"]
+
+# The WebAssembly wheel, built by `cibuildwheel --platform pyodide`. The version
+# is the one web/index.html loads: a wheel only runs on Pyodide's matching ABI.
+# The suite runs from the checkout, as for the other wheels, and leaves out
+# the testbed's tests, as that is another package: build_wasm.sh runs them.
+[tool.cibuildwheel.pyodide]
+pyodide-version = "0.29.4"
+test-requires = ["pytest"]
+test-command = [
+  "cd {project} && python -m pytest src/tests -q -p no:cacheprovider --ignore=src/tests/test_build_config.py",
+  "python {project}/src/tools/wasm_budget.py import {project}/wasm-import.json",
+]
+
+# `uv sync --extra testbed` takes the testbed from this checkout, not PyPI.
+[tool.uv.workspace]
+members = ["testbed"]
+
+[tool.uv.sources]
+box2d-testbed = { workspace = true }
 
 [tool.pytest.ini_options]
 minversion = "6.0"

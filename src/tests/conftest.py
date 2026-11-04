@@ -1,7 +1,10 @@
 """Fixtures shared by the whole suite."""
 
+import importlib.util
 import os
+import pathlib
 import random
+import re
 
 import pytest
 
@@ -40,6 +43,23 @@ def world():
     world = World()
     yield world
     world.destroy()
+
+
+def collect_ignore_without_testbed():
+    """The test files that need the testbed, if it is not installed: the
+    wheels are tested on their own, and box2d-testbed is another package."""
+    if importlib.util.find_spec("box2d_testbed") is not None:
+        return []
+    here = pathlib.Path(__file__).parent
+    uses = re.compile(r"^(?:from|import) box2d_testbed", re.M)
+    return [
+        path.name
+        for path in here.glob("*.py")
+        if path.name != "conftest.py" and uses.search(path.read_text(encoding="utf-8"))
+    ]
+
+
+collect_ignore = collect_ignore_without_testbed()
 
 
 @pytest.fixture(autouse=True)

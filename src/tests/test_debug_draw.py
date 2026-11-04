@@ -182,7 +182,7 @@ def test_both_renderers_cull_to_their_camera():
     import pathlib
 
     for name in ("debug_draw_gl.py", "debug_draw_imgui.py"):
-        source = pathlib.Path("src/box2d_testbed", name).read_text()
+        source = pathlib.Path("testbed/src/box2d_testbed", name).read_text()
         tree = ast.parse(source)
         # Find start_frame properly rather than slicing text: the two files
         # put the call at different depths, and a fixed slice missed one.

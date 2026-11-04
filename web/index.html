@@ -97,7 +97,12 @@ async function main() {
     const wheelUrl = new URL(build.wheel, window.location.href).href;
     const micropip = pyodide.pyimport("micropip");
     await micropip.install("munch");
-    await micropip.install(wheelUrl, { deps: false });
+    await micropip.install(wheelUrl);
+    // Without its dependencies: imgui-bundle and numpy are loaded above, and
+    // PyOpenGL has no wasm build. A plain second argument would not be taken
+    // as a keyword, so this needs callKwargs.
+    const testbedUrl = new URL(build.testbed, window.location.href).href;
+    await micropip.install.callKwargs(testbedUrl, { deps: false });
 
     say("Starting…", "");
     await pyodide.runPythonAsync(document.getElementById("app").textContent);

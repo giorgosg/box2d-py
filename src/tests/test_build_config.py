@@ -13,8 +13,10 @@ decided. They do not build anything, and importing the script must not either.
 
 import importlib
 import os
+import pathlib
 import platform
 import sys
+import tomllib
 
 import pytest
 
@@ -150,3 +152,27 @@ def test_macos_architectures_come_from_archflags(monkeypatch):
     assert build._macos_architectures() == ["x86_64", "arm64"]
     monkeypatch.setenv("ARCHFLAGS", "")
     assert build._macos_architectures() == []
+
+
+ROOT = pathlib.Path(__file__).parents[2]
+
+
+def project_of(path):
+    return tomllib.loads(path.read_text())["project"]
+
+
+def test_the_two_packages_are_released_together():
+    binding = project_of(ROOT / "pyproject.toml")
+    testbed = project_of(ROOT / "testbed" / "pyproject.toml")
+    assert testbed["version"] == binding["version"]
+    assert (
+        f"box2d-testbed=={binding['version']}"
+        in (binding["optional-dependencies"]["testbed"])
+    )
+    assert f"box2d-python>={binding['version']}" in testbed["dependencies"]
+
+
+def test_the_wheel_is_built_for_the_pyodide_the_page_loads():
+    settings = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    version = settings["tool"]["cibuildwheel"]["pyodide"]["pyodide-version"]
+    assert f"/pyodide/v{version}/" in (ROOT / "web" / "index.html").read_text()

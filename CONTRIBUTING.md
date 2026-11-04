@@ -29,8 +29,11 @@ pip does the same job, which is what CI uses:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,testbed]"
+pip install -e ".[dev]" -e ./testbed
 ```
+
+Not the `testbed` extra, which would take the testbed from PyPI rather than
+the clone.
 
 Either way, the testbed then runs from the clone:
 
@@ -51,12 +54,14 @@ imgui, but the `gui` tests are the only ones that open a real window and draw
 with the OpenGL renderer, so they matter on an imgui_bundle upgrade. On a
 machine without a display,
 `xvfb-run -a uv run pytest -m gui` gives them one. The testbed's other tests
-skip when the `testbed` extra is not installed, which is how most of the CI
+are left out when `box2d-testbed` is not installed, which is how most of the CI
 matrix runs them.
 
 The sharing server in `server/` has its own suite, run by `npm test`, and the
-WebAssembly build has `src/tools/build_wasm.sh`, which builds the wheel and
-runs the suite inside Pyodide. [`server/README.md`](server/README.md) and
+WebAssembly build has `src/tools/build_wasm.sh`, which builds the wheels and
+runs the suite inside Pyodide. CI builds that wheel with cibuildwheel, runs the
+suite the same way but for the testbed's tests, and fails if the wheel or its
+import goes over the budget in `src/tools/wasm_budget.py`. [`server/README.md`](server/README.md) and
 [`web/README.md`](web/README.md) cover what each needs.
 
 The desktop testbed hides the editor's **Share** and **Open link** buttons,
@@ -104,6 +109,20 @@ errors and every unresolved reference reported:
 ```bash
 uv run sphinx-build -W --keep-going -n -b html docs/source docs/build/html
 ```
+
+## Releasing
+
+The two packages are released together, at one version: `pyproject.toml`,
+`testbed/pyproject.toml`, the `testbed` extra's pin and the testbed's
+dependency on the binding all carry it, and `test_build_config.py` holds them
+together. Publishing a GitHub release runs `publish.yml`, which uploads
+`box2d-testbed` and then `box2d-python` to PyPI and attaches the Pyodide wheel
+to the release. A run that fails part way can be re-run: what is already up is
+skipped. A version PyPI already has cannot be replaced, so bump it first.
+
+Each project on PyPI has to trust `publish.yml` as a trusted publisher, with no
+environment. A project that does not exist yet needs a pending publisher,
+under the account's publishing settings, before its first release.
 
 ## Conventions
 
@@ -174,7 +193,7 @@ Some rules hold across the whole API, and a test holds each one:
 
 ### Shipped scenarios
 
-The scenarios shipped in `src/box2d_testbed/tb_*.py` double as examples of the
+The scenarios shipped in `testbed/src/box2d_testbed/tb_*.py` double as examples of the
 library, so they keep to these:
 
 - The docstring says what the scenario shows, what to look at and why, and any

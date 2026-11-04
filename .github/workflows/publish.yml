@@ -37,6 +37,59 @@ jobs:
         name: sdist
         path: dist/*.tar.gz
 
+  # Pure Python, so one wheel serves everywhere.
+  build-testbed:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Build the testbed
+      run: |
+        python -m pip install --upgrade pip build
+        python -m build --outdir testbed-dist testbed
+
+    - name: Upload the testbed
+      uses: actions/upload-artifact@v7
+      with:
+        name: testbed
+        path: testbed-dist/*
+
+  # Settings in pyproject.toml, shared with build-matrix.yml.
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+
+    - name: Install cibuildwheel
+      run: python -m pip install cibuildwheel==4.3.5
+
+    - name: Build and test the wheel
+      run: python -m cibuildwheel --platform pyodide --output-dir wheelhouse
+      env:
+        CIBW_BUILD: cp313-*
+
+    - name: Check it against the budget
+      run: python src/tools/wasm_budget.py check wheelhouse wasm-import.json
+
+    - name: Upload the wheel
+      uses: actions/upload-artifact@v7
+      with:
+        name: wheel-pyodide
+        path: wheelhouse/*.whl
+
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -99,25 +152,60 @@ jobs:
         path: ./wheelhouse/*.whl
 
   publish:
-    needs: [build-source, build-wheels]
+    needs: [build-source, build-wheels, build-testbed, build-wasm]
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     # PyPI's trusted publishing: GitHub vouches for this workflow with a
-    # short-lived token, so no API token is stored. box2d-python on PyPI
-    # trusts giorgosg/box2d-py's publish.yml, with no environment.
+    # short-lived token, so no API token is stored. box2d-python and
+    # box2d-testbed on PyPI each trust giorgosg/box2d-py's publish.yml, with
+    # no environment.
     permissions:
       id-token: write
+      contents: write  # to attach the Pyodide wheel to the release
     steps:
     - name: Download artifacts
       uses: actions/download-artifact@v8
       with:
-        pattern: '*'
-        path: dist
-        merge-multiple: true
+        path: artifacts
 
-    - name: List files to upload
-      run: find dist -type f | sort
+    # Three uploads, each from a directory of its own: the action uploads a
+    # whole directory, and a failure in one must not lose the others.
+    - name: Sort what goes where
+      run: |
+        mkdir binding testbed pyodide
+        mv artifacts/testbed/* testbed/
+        mv artifacts/wheel-pyodide/* pyodide/
+        mv artifacts/*/* binding/
+        find binding testbed pyodide -type f | sort
 
-    # Both the wheels and the sdist, which download-artifact put in dist/.
-    - name: Publish to PyPI
+    # First and always, so that micropip.install(url) works whatever PyPI says
+    # below. --clobber and skip-existing let a failed run simply be re-run:
+    # nothing else can finish a release half uploaded, as no token is stored.
+    - name: Attach the Pyodide wheel to the release
+      run: gh release upload "$TAG" pyodide/*.whl --clobber --repo "$GITHUB_REPOSITORY"
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event.release.tag_name }}
+
+    # The testbed first: box2d-python's `testbed` extra pins this version, and
+    # should not be live without it.
+    - name: Publish box2d-testbed to PyPI
       uses: pypa/gh-action-pypi-publish@v1.14.3
+      with:
+        packages-dir: testbed
+        skip-existing: true
+
+    - name: Publish box2d-python to PyPI
+      uses: pypa/gh-action-pypi-publish@v1.14.3
+      with:
+        packages-dir: binding
+        skip-existing: true
+
+    # PyPI's support for these wheels is new, so a refusal does not fail a
+    # release whose other files are already up.
+    - name: Publish the Pyodide wheel to PyPI
+      continue-on-error: true
+      uses: pypa/gh-action-pypi-publish@v1.14.3
+      with:
+        packages-dir: pyodide
+        skip-existing: true

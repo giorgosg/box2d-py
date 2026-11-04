@@ -58,17 +58,24 @@ trap - EXIT
 WHEEL="$(ls -t dist/*wasm32.whl | head -1)"
 echo "==> Built $WHEEL"
 
+echo "==> Building the testbed's wheel, which is pure Python"
+(cd testbed && pyodide build --outdir ../dist)
+TESTBED_WHEEL="$(ls -t dist/box2d_testbed-*-none-any.whl | head -1)"
+echo "==> Built $TESTBED_WHEEL"
+
 VENV="${BOX2D_WASM_VENV:-build/pyodide-venv}"
 echo "==> Creating a Pyodide runtime at $VENV"
 rm -rf "$VENV"
 pyodide venv "$VENV"
 
-echo "==> Installing the wheel into it"
+echo "==> Installing the wheels into it"
 "$VENV/bin/pip" install --quiet "$WHEEL" pytest
+# Without its dependencies, which are the last step's business.
+"$VENV/bin/pip" install --quiet --no-deps "$TESTBED_WHEEL"
 
 echo "==> Running the suite inside WebAssembly"
-# The testbed needs imgui and OpenGL, which this runtime has neither of, and
-# the build-config tests inspect the host build rather than this one.
+# The testbed's windows need imgui and OpenGL, which this runtime has neither
+# of, and the build-config tests inspect the host build rather than this one.
 "$VENV/bin/python" -m pytest src/tests -q -p no:cacheprovider \
     --ignore=src/tests/test_testbed.py \
     --ignore=src/tests/test_testbed_ui.py \

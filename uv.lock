@@ -2,6 +2,12 @@ version = 1
 revision = 5
 requires-python = ">=3.12"
 
+[manifest]
+members = [
+    "box2d-python",
+    "box2d-testbed",
+]
+
 [[package]]
 name = "alabaster"
 version = "1.0.0"
@@ -40,21 +46,15 @@ dev = [
     { name = "sphinx-rtd-theme" },
 ]
 testbed = [
-    { name = "imgui-bundle" },
-    { name = "numpy" },
-    { name = "pyopengl" },
-    { name = "pyopengl-accelerate" },
+    { name = "box2d-testbed" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "box2d-testbed", marker = "extra == 'testbed'", editable = "testbed" },
     { name = "cffi", specifier = ">=1.16.0" },
-    { name = "imgui-bundle", marker = "extra == 'testbed'", specifier = ">=1.92.4" },
-    { name = "numpy", marker = "extra == 'testbed'" },
     { name = "pcpp", marker = "extra == 'dev'", specifier = ">=1.30" },
     { name = "pre-commit", marker = "extra == 'dev'" },
-    { name = "pyopengl", marker = "extra == 'testbed'" },
-    { name = "pyopengl-accelerate", marker = "extra == 'testbed'" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.414" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.10" },
@@ -63,6 +63,27 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
 ]
 provides-extras = ["testbed", "dev"]
+
+[[package]]
+name = "box2d-testbed"
+version = "3.2.0rc1"
+source = { editable = "testbed" }
+dependencies = [
+    { name = "box2d-python" },
+    { name = "imgui-bundle" },
+    { name = "numpy" },
+    { name = "pyopengl" },
+    { name = "pyopengl-accelerate" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "box2d-python", editable = "." },
+    { name = "imgui-bundle", specifier = ">=1.92.4" },
+    { name = "numpy" },
+    { name = "pyopengl" },
+    { name = "pyopengl-accelerate" },
+]
 
 [[package]]
 name = "certifi"

@@ -11,8 +11,9 @@ From PyPI
 
     pip install --pre box2d-python
 
-The testbed, a window of example scenarios to run and edit, is the
-``testbed`` extra:
+The testbed, a window of example scenarios to run and edit, is a package of
+its own, ``box2d-testbed``, so a game does not have to install it. The
+``testbed`` extra brings it in:
 
 .. code-block:: bash
 
@@ -33,7 +34,8 @@ building from source does, below:
 
 .. code-block:: bash
 
-    pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
+    pip install "box2d-python @ git+https://github.com/giorgosg/box2d-py.git" \
+        "box2d-testbed @ git+https://github.com/giorgosg/box2d-py.git#subdirectory=testbed"
 
 From source
 -----------
@@ -51,9 +53,9 @@ Box2D is compiled from source as part of the build. That needs:
 
     git clone --recurse-submodules https://github.com/giorgosg/box2d-py.git
     cd box2d-py
-    pip install -e ".[testbed]"
+    pip install -e . -e ./testbed
 
-``-e`` installs in editable mode: ``src/`` is what gets imported, so edits to
+``-e`` installs in editable mode: ``src/`` and ``testbed/src/`` are what get imported, so edits to
 the Python take effect without installing again. The project's
 `CONTRIBUTING.md <https://github.com/giorgosg/box2d-py/blob/main/CONTRIBUTING.md>`_
 covers the rest of development, from the ``uv`` setup to running the tests,

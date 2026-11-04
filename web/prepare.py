@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage the newest WASM wheel and describe it for the browser bootstrap."""
+"""Stage the newest wheels and describe them for the browser bootstrap."""
 
 import json
 import pathlib
@@ -9,27 +9,33 @@ WEB = pathlib.Path(__file__).parent
 DIST = WEB.parent / "dist"
 
 
-def newest_wheel() -> pathlib.Path:
-    wheels = sorted(DIST.glob("*wasm32.whl"), key=lambda path: path.stat().st_mtime)
+def newest_wheel(pattern: str) -> pathlib.Path:
+    wheels = sorted(DIST.glob(pattern), key=lambda path: path.stat().st_mtime)
     if not wheels:
         raise SystemExit(
-            f"no wasm wheel in {DIST}. Build one first with `pyodide build` or "
+            f"no {pattern} in {DIST}. Build the wheels first with "
             "`src/tools/build_wasm.sh`"
         )
     return wheels[-1]
 
 
-def prepare() -> pathlib.Path:
-    wheel = newest_wheel()
+def stage(wheel: pathlib.Path, stale: str) -> pathlib.Path:
     destination = WEB / wheel.name
-    for stale in WEB.glob("box2d_python-*wasm32.whl"):
-        if stale != destination:
-            stale.unlink()
+    for each in WEB.glob(stale):
+        if each != destination:
+            each.unlink()
     shutil.copy2(wheel, destination)
-    (WEB / "build.json").write_text(
-        json.dumps({"wheel": wheel.name}, indent=2) + "\n", encoding="utf-8"
-    )
     return destination
+
+
+def prepare() -> pathlib.Path:
+    binding = stage(newest_wheel("*wasm32.whl"), "box2d_python-*.whl")
+    testbed = stage(newest_wheel("box2d_testbed-*.whl"), "box2d_testbed-*.whl")
+    (WEB / "build.json").write_text(
+        json.dumps({"wheel": binding.name, "testbed": testbed.name}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return binding
 
 
 if __name__ == "__main__":

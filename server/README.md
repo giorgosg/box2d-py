@@ -88,6 +88,7 @@ Build the current WASM wheel once, then run the complete site locally:
 ```bash
 cd ..
 pyodide build
+(cd testbed && pyodide build --outdir ../dist)
 cd server
 npm run migrate:local
 npm run dev          # http://localhost:8787
