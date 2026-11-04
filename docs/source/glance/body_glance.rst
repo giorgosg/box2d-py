@@ -29,6 +29,7 @@ Lifetime and Identity
 * ``body.destroy()`` - Destroy the body, with its shapes and every joint attached to it
 * ``body.is_valid`` - Whether the body is still live, i.e. has not been destroyed
 * ``body.world`` - The world the body belongs to
+* ``body.key`` - The body's slot in Box2D, a small integer that identifies it in its world while it lives; what ``world.write_moves`` writes in its place
 * ``body.user_data`` - Any Python object to keep with the body
 * ``body.name`` - Get/set a name, which debug draw can show, or None. Box2D
   keeps its first 10 bytes of UTF-8; a longer name is cut at the last whole

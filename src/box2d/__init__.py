@@ -59,6 +59,7 @@ from .jointdef import (
     MouseJointDef,
 )
 from .lifetime import DestroyedError
+from .records import MOVE_RECORD, MoveFlags
 from ._checked import InvalidInputError
 from ._version import find_version as _find_version
 
@@ -147,6 +148,9 @@ __all__ = [
     "Capacity",
     "Counters",
     "Profile",
+    # records
+    "MOVE_RECORD",
+    "MoveFlags",
     # errors
     "DestroyedError",
     "InvalidInputError",

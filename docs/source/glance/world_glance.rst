@@ -66,6 +66,7 @@ Body Management
 * ``world.bodies`` - Get list of all bodies in world
 * ``world.awake_body_count`` - How many bodies are awake; zero once a scene has come to rest
 * ``world.bounds`` - The box containing every shape in the world
+* ``world.write_transforms(buffer, bodies=None)`` - Where every body is now, or the ones given, as ``write_moves`` records
 
 Joint Creation
 ^^^^^^^^^^^^^^
@@ -101,6 +102,8 @@ Each describes the step that just finished; the next step replaces it.
 * ``world.get_contact_events()`` - Contacts that began, ended or hit (``ContactEvents``)
 * ``world.get_sensor_events()`` - Sensor overlaps that began or ended (``SensorEvents``)
 * ``world.get_body_events()`` - Bodies that moved (list of ``BodyMoveEvent``)
+* ``world.write_moves(buffer)`` - The same moves as packed ``MOVE_RECORD`` rows in any writable buffer, keyed by ``body.key``; returns how many there are
+* ``world.move_count`` - How many moves the last step reported, to size a buffer
 * ``world.get_joint_events()`` - Joints past their force or torque threshold (list of ``JointEvent``)
 
 Callbacks

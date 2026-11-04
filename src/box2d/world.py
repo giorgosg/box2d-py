@@ -82,12 +82,20 @@ from typing import (
     Callable,
     ClassVar,
     Dict,
+    Iterable,
     Mapping,
     Optional,
     Type,
     TypeVar,
     Union,
 )
+
+
+def _writable(buffer: Any) -> Any:
+    """``buffer`` as a C ``char[]`` for a bulk export to write into, its
+    length in bytes. Used in a ``with``, which lets go of the buffer after,
+    so a ``bytearray`` can be resized again even if the export raised."""
+    return ffi.from_buffer(buffer, require_writable=True)
 
 
 @dataclass
@@ -1899,6 +1907,93 @@ class World(FixedAttributes):
                 )
             )
         return moves
+
+    @property
+    def move_count(self) -> int:
+        """How many moves the last step reported, which sizes a buffer for
+        :meth:`write_moves`.
+
+        It counts bodies destroyed since the step too, so it may be more than
+        :meth:`write_moves` writes, never less.
+        """
+        return lib.b2World_GetBodyEvents(self._world_id).moveCount
+
+    def write_moves(self, buffer: Any) -> int:
+        """Write the last step's moves into ``buffer``, as packed records.
+
+        The same moves :meth:`get_body_events` lists, without an object per
+        body: a :data:`~box2d.records.MOVE_RECORD` each, written in C, keyed by
+        the body's :attr:`~box2d.body.Body.key`. That is what a renderer
+        redrawing hundreds of bodies a frame wants, above all under Pyodide.
+
+        A body destroyed since the step is left out, even when a body made
+        since has taken its slot and so its key. The created and destroyed
+        hooks have run by then, for everything made and destroyed before this
+        call, so a program that keeps a map from keys to its own objects has
+        it up to date before it reads the rows.
+
+        Args:
+            buffer: Anything writable with the buffer protocol: a
+                ``bytearray``, a ``memoryview``, an ``array.array``, a numpy
+                array (``np.dtype(MOVE_RECORD.numpy)`` gives the records
+                fields).
+
+        Returns:
+            int: How many records the moves need. When that is more than the
+            buffer holds, the records that fit are written and the rest left
+            out, so a caller can grow the buffer and call again; nothing
+            raises mid-frame. :attr:`move_count` sizes it first.
+
+        Raises:
+            BufferError: If ``buffer`` is read-only.
+            ValueError: If ``buffer`` is not contiguous.
+
+        Called from a callback during a step, it writes nothing and returns
+        0, as :meth:`get_body_events` lists nothing then: the moves are the
+        step's, and the step has not finished.
+        """
+        with _writable(buffer) as view:
+            return lib.b2py_WriteMoves(self._world_id, view, len(view))
+
+    def write_transforms(
+        self, buffer: Any, bodies: Optional[Iterable[Body]] = None
+    ) -> int:
+        """Write where bodies are now into ``buffer``, moved or not.
+
+        The records are :meth:`write_moves`'s, for a whole frame: the first
+        one drawn, or after bodies were placed by hand. The ``ASLEEP`` flag
+        says whether each body is asleep; a static or disabled body never
+        is.
+
+        Args:
+            buffer: Anything writable with the buffer protocol, as for
+                :meth:`write_moves`.
+            bodies: The bodies to write, in order. Every body in the world,
+                in the order of :attr:`bodies`, if None.
+
+        Returns:
+            int: How many records the bodies need, written as far as the
+            buffer holds, as with :meth:`write_moves`.
+
+        Raises:
+            BufferError: If ``buffer`` is read-only.
+            ValueError: If ``buffer`` is not contiguous, or one of ``bodies``
+                belongs to another world.
+            DestroyedError: If the world, or one of ``bodies``, has been
+                destroyed.
+        """
+        self._world_id  # noqa: B018 -- read to raise if destroyed, bodies or not
+        chosen = self.bodies if bodies is None else list(bodies)
+        ids = []
+        for body in chosen:
+            body_id = body._body_id
+            if not self._bodies.holds(body, body_id):
+                raise ValueError(f"{body!r} belongs to another world")
+            ids.append(body_id)
+        with _writable(buffer) as view:
+            return lib.b2py_WriteTransforms(
+                ffi.new("b2BodyId[]", ids), len(ids), view, len(view)
+            )
 
     def get_joint_events(self) -> list[JointEvent]:
         """Joints that passed their force or torque threshold last step.

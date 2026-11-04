@@ -8,6 +8,7 @@ prune box2d/build
 
 # setup.py builds the extension from this, and src/tools is not a package.
 include src/tools/build_cffi.py
+include src/box2d/_bulk.c src/box2d/_bulk.h
 
 include LICENSE
 include LICENSE-Box2D

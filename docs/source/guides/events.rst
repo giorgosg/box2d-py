@@ -212,6 +212,64 @@ sleeps, so whatever follows that body can stop too:
 Box2D reports what the simulation moved: moving a body by setting its
 position is not reported as a move.
 
+Moves into a buffer
+^^^^^^^^^^^^^^^^^^^
+
+A renderer drawing hundreds of bodies wants their places, not an object per
+body. :meth:`~box2d.world.World.write_moves` writes the same moves into a
+buffer it is given -- a ``bytearray``, a ``memoryview``, an ``array.array``, a
+numpy array -- as packed records, in C. Under Pyodide, with 500 bodies moving,
+that takes about 10 microseconds a frame, where building the events and
+packing them by hand takes about 5 milliseconds (``src/tools/bench_moves.py``
+measures it).
+
+Each record is 24 bytes, little-endian, described by
+:data:`~box2d.records.MOVE_RECORD` so nothing has to hand-code its offsets:
+
+=======  =====  ==========================================================
+offset   type   field
+=======  =====  ==========================================================
+0        u32    ``key``: the body's :attr:`~box2d.body.Body.key`
+4        f32    ``x``
+8        f32    ``y``
+12       f32    ``cos``: the rotation, as Box2D keeps it
+16       f32    ``sin``
+20       u32    ``flags``: :attr:`MoveFlags.ASLEEP <box2d.records.MoveFlags.ASLEEP>` if it fell asleep
+=======  =====  ==========================================================
+
+.. code-block:: python
+
+    >>> import struct
+    >>> from box2d import MOVE_RECORD
+    >>> crate = world.new_body().dynamic().position(0, 3).box(1, 1).build()
+    >>> world.step(1 / 60, 4)
+    >>> buffer = bytearray(MOVE_RECORD.itemsize * world.move_count)
+    >>> count = world.write_moves(buffer)
+    >>> key, x, y, cos, sin, flags = struct.unpack_from(MOVE_RECORD.struct, buffer)
+    >>> key == crate.key, round(y, 2)
+    (True, 3.0)
+
+The key stands in for the body, so the rows need no Python object to be read,
+and can go as they are to a worker or to JavaScript. A program keeps its own
+map from keys to whatever it draws, filled by
+:meth:`~box2d.world.World.object_created` and emptied by
+:meth:`~box2d.world.World.object_destroyed` (see :doc:`own_classes`):
+
+- **A key is the body's while it lives.** Once it is destroyed, Box2D gives
+  the slot to the next body made, which then has the same key.
+- **Rows never name a body that is gone.** A body destroyed after the step is
+  left out, even when a new body has taken its slot.
+- **The hooks come first.** Everything made or destroyed before
+  ``write_moves`` has been reported by then, so the map is up to date before
+  the rows are read.
+
+A buffer too small is not an error: as many records as fit are written, and
+the count returned is how many there are in all, so a caller can grow the
+buffer and call again. :attr:`~box2d.world.World.move_count` gives a size to
+start from. For the first frame, or after placing bodies by hand,
+:meth:`~box2d.world.World.write_transforms` writes the same record for every
+body, moved or not, and sets the flag on those asleep.
+
 Joints under strain
 -------------------
 
