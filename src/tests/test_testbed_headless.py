@@ -691,7 +691,7 @@ def test_the_thread_slider_is_hidden_when_there_is_no_scheduler():
     import ast
     import pathlib
 
-    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    source = pathlib.Path("testbed/src/box2d_testbed/testbed.py").read_text()
     tree = ast.parse(source)
     controls = [
         node

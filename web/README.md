@@ -46,16 +46,19 @@ three other things too; see [Versions have to agree](#versions-have-to-agree).
 
 ## Build the wheel
 
-From the project root:
+The page needs two wheels: the binding, which is WebAssembly, and the testbed,
+which is pure Python and a package of its own. From the project root:
 
 ```bash
 pyodide build
+(cd testbed && pyodide build --outdir ../dist)
 ```
 
-A minute or two from cold, and it leaves a wasm32 wheel in `dist/`:
+A minute or two from cold, and it leaves both in `dist/`:
 
 ```
 dist/box2d_python-<version>-cp313-cp313-pyemscripten_2025_0_wasm32.whl   ~320 KiB
+dist/box2d_testbed-<version>-py3-none-any.whl                            ~145 KiB
 ```
 
 The build prints a different, longer name at the end
@@ -69,8 +72,8 @@ To also check the wheel rather than just build it:
 src/tools/build_wasm.sh
 ```
 
-That builds, creates a Pyodide virtual environment -- a real CPython-on-wasm
-under node -- installs the wheel into it, runs the test suite there, and
+That builds both, creates a Pyodide virtual environment -- a real CPython-on-wasm
+under node -- installs them into it, runs the test suite there, and
 finally runs `src/tools/wasm_testbed_check.py`, which builds and simulates
 every scenario with no canvas. It needs node on `PATH`; emsdk ships one, and
 the script tries to find it under `~/.cache/pyodide-build`. If that lookup
@@ -82,8 +85,8 @@ comes up empty, any node 18+ on `PATH` will do.
 python web/serve.py              # --port 8000 by default
 ```
 
-It runs `prepare.py`, which copies the newest `dist/*wasm32.whl` next to
-`index.html` and records its filename in `build.json` (the wheel has to be
+It runs `prepare.py`, which copies the newest wheels from `dist/` next to
+`index.html` and records their filenames in `build.json` (the wheel has to be
 same-origin for micropip to install it), then serves the directory with
 `Cache-Control: no-store` and logs a line per request. Open
 <http://localhost:8000>.

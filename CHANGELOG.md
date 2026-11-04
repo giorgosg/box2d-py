@@ -41,6 +41,11 @@ only the binding. See
   the definition field, property or argument refused, and `value` what it
   held. Field tables give the C names of geometry definitions too.
 - Assigning `Body.mass_data` works; it always raised a `TypeError`.
+- The testbed is its own package, `box2d-testbed`, so `box2d-python` no longer
+  carries it: the `testbed` extra installs it, and the `box2d-testbed` command
+  comes with it.
+- A WebAssembly wheel for Pyodide 0.29 is built with every release, and held
+  to a budget for its size and import time.
 - The package ships `py.typed`, with its whole public API annotated.
 - `b2_value` is gone from `box2d.accessors`; the properties that used it
   coerce on assignment, as the others do.

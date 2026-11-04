@@ -914,7 +914,7 @@ def test_our_menus_do_not_collide_with_hello_imgui_s():
     """
     from imgui_bundle import hello_imgui
 
-    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    source = pathlib.Path("testbed/src/box2d_testbed/testbed.py").read_text()
     ours = set(re.findall(r'imgui\.begin_menu\(\s*"([^"]+)"', source))
     assert ours, "no menus found; has the menu code moved?"
 
@@ -1046,7 +1046,7 @@ def test_view_declaration_round_trips_into_a_scenario():
 
 def test_status_bar_reports_the_view_it_would_copy():
     """The readout and the button must not drift apart."""
-    source = pathlib.Path("src/box2d_testbed/testbed.py").read_text()
+    source = pathlib.Path("testbed/src/box2d_testbed/testbed.py").read_text()
     status = source[
         source.index("def show_status") : source.index("def show_test_list")
     ]

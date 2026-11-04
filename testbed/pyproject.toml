@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=75.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box2d-testbed"
+# Released with box2d-python, at the same version: see the root pyproject.toml.
+version = "3.2.0rc1"
+description = "An interactive testbed for box2d-python: scenarios, a scene editor and debug drawing"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
+]
+maintainers = [
+  { name = "Giorgos Giagas", email = "giorgosg@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Games/Entertainment :: Simulation",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+  "box2d-python>=3.2.0rc1",
+  "imgui_bundle>=1.92.4",
+  "PyOpenGL",
+  "PyOpenGL-accelerate",
+  "numpy",
+]
+
+[project.urls]
+Source = "https://github.com/giorgosg/box2d-py"
+Documentation = "https://box2d-py.readthedocs.io/en/latest/testbed/running.html"
+
+[project.scripts]
+box2d-testbed = "box2d_testbed:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["box2d_testbed*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.vs", "*.fs"]
+
+[tool.uv.sources]
+box2d-python = { workspace = true }

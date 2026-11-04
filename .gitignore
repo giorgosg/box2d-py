@@ -25,3 +25,7 @@ imgui.ini
 testbed.prof
 /src/box2d_python.egg-info/
 web/*.whl
+/wasm-import.json
+/testbed/build
+/testbed/dist
+/testbed/src/*.egg-info/

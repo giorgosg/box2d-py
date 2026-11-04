@@ -14,6 +14,7 @@ starting ``not run:``, which renders as nothing on GitHub and PyPI.
 
 import contextlib
 import doctest
+import importlib.util
 import io
 import re
 import textwrap
@@ -167,13 +168,20 @@ def console_names(on_teardown):
 PRELUDES = {CONSOLE: console_names}
 
 
+HAS_TESTBED = importlib.util.find_spec("box2d_testbed") is not None
+
+
 @pytest.fixture
 def scenario_registry_left_as_it_was():
     """The README and the scenarios page each define a scenario, which
     registers itself; take it out.
 
-    BaseTest needs nothing from the testbed extra, so this runs everywhere.
+    BaseTest needs no imgui, so this runs wherever the testbed is installed.
+    Without it there is nothing to put back.
     """
+    if not HAS_TESTBED:
+        yield
+        return
     from box2d_testbed.base_test import BaseTest
 
     before = {category: dict(tests) for category, tests in BaseTest.registry.items()}
@@ -188,8 +196,11 @@ def testbed_state_left_as_it_was():
 
     The console page binds it, and a page's code may set it -- the view, the
     pause, the settings -- which every testbed test after it would inherit.
-    Like BaseTest, it needs nothing from the testbed extra.
+    Like BaseTest, it needs no imgui.
     """
+    if not HAS_TESTBED:
+        yield
+        return
     from box2d_testbed.testbed_state import state
 
     before = dict(vars(state))
@@ -225,6 +236,7 @@ def test_every_python_block_is_run(path):
 def test_readme_examples_run(
     scenario_registry_left_as_it_was, testbed_state_left_as_it_was
 ):
+    pytest.importorskip("box2d_testbed", reason="needs box2d-testbed")
     namespace = run_blocks(README, markdown_blocks(README))
 
     # The example simulation ends where its comment says.
@@ -246,6 +258,9 @@ def test_readme_examples_run(
 def test_page_examples_run(
     path, request, scenario_registry_left_as_it_was, testbed_state_left_as_it_was
 ):
+    uses_testbed = path == CONSOLE or "box2d_testbed" in path.read_text("utf-8")
+    if uses_testbed and not HAS_TESTBED:
+        pytest.skip("needs box2d-testbed")
     prelude = PRELUDES.get(path)
     names = prelude(request.addfinalizer) if prelude else None
     run_blocks(path, rst_blocks(path), names)

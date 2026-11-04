@@ -244,5 +244,5 @@ A full controller adds acceleration and friction, a smaller force budget in
 the air, a jump that sets ``max_tension_force`` to zero so the spring does not
 pull the character back down, and a check of the ground's slope. The testbed's
 `dynamic_mover.py
-<https://github.com/giorgosg/box2d-py/blob/main/src/box2d_testbed/dynamic_mover.py>`_
+<https://github.com/giorgosg/box2d-py/blob/main/testbed/src/box2d_testbed/dynamic_mover.py>`_
 is a port of Box2D's own, written to be copied and changed.

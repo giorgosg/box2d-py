@@ -10,12 +10,13 @@ a Python console on the running simulation, described in :doc:`console`.
 Installing and starting it
 --------------------------
 
-The testbed is the ``testbed`` extra, which adds imgui, PyOpenGL and numpy to
-the package:
+The testbed is a package of its own, ``box2d-testbed``, with imgui, PyOpenGL
+and numpy as its dependencies. From git:
 
 .. code-block:: bash
 
-    pip install "box2d-python[testbed] @ git+https://github.com/giorgosg/box2d-py.git"
+    pip install "box2d-python @ git+https://github.com/giorgosg/box2d-py.git" \
+        "box2d-testbed @ git+https://github.com/giorgosg/box2d-py.git#subdirectory=testbed"
 
 It installs a ``box2d-testbed`` command, which opens the window on the first
 scenario:
