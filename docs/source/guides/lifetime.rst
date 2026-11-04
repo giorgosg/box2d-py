@@ -176,6 +176,28 @@ function and the check that failed, and the world is left as it was:
     >>> box.linear_velocity
     Vec2(0.0, 0.0)
 
+The error holds the same as data, in Python's names, for code that wants to
+show it by the field concerned, as an inspector does:
+
+.. code-block:: python
+
+    >>> from box2d import BodyDef, InvalidInputError
+    >>> try:
+    ...     world.add_body_def(BodyDef(linear_damping=-1))
+    ... except InvalidInputError as error:
+    ...     print(error.function, error.field, error.value)
+    ...     print(error.condition)
+    b2CreateBody linear_damping -1.0
+    b2IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f
+
+``field`` is the definition's field, the property or the method's argument that
+was refused, and ``value`` is what it held; either is None if it cannot be
+told. One check can cover several fields, as ``b2IsValidCircle`` covers a
+circle's center and radius: ``field`` is then the first of them holding
+something Box2D would refuse. ``field`` names what reached Box2D, which is not
+always what you wrote: a box's ``offset`` is refused as the ``vertices`` worked
+out from it, and a joint's ``local_anchor_a`` as its ``local_frame_a``.
+
 ``InvalidInputError`` is a :class:`ValueError`. Some arguments are checked in
 Python before Box2D sees them, and raise a plain :class:`ValueError`, so
 catching :class:`ValueError` covers a bad value either way:

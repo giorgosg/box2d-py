@@ -36,6 +36,11 @@ only the binding. See
 - Definitions compare by what Box2D would make of them: a field left as None
   equals its default, and floats compare as 32-bit floats. `CollisionFilter`
   compares by category, mask and group.
+- `InvalidInputError` is data as well as a message: `function` and
+  `condition` give Box2D's own function and check, `field` the Python name of
+  the definition field, property or argument refused, and `value` what it
+  held. Field tables give the C names of geometry definitions too.
+- Assigning `Body.mass_data` works; it always raised a `TypeError`.
 - The package ships `py.typed`, with its whole public API annotated.
 - `b2_value` is gone from `box2d.accessors`; the properties that used it
   coerce on assignment, as the others do.

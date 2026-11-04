@@ -153,6 +153,9 @@ Some rules hold across the whole API, and a test holds each one:
   raises instead of quietly setting nothing (`test_fixed_attributes.py`).
 - An argument Box2D rejects raises `box2d.InvalidInputError` from the call
   that passed it, and leaves the world as it was (`test_invalid_input.py`).
+  Its `field` and `value` come from reading the check against the call:
+  `test_error_structure.py` walks every check in Box2D's sources, and fails on
+  one it cannot answer or a field no table has.
 - Every call into Box2D passes the number of arguments its header declares
   (`test_api_arity.py`), which is what catches a signature that changed on a
   Box2D upgrade while keeping its name.

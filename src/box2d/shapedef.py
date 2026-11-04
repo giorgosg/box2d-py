@@ -18,10 +18,12 @@ def _geometry(
     unit: Optional[str] = None,
     range: Optional[tuple[float, float]] = None,
     default: Any = _UNSET,
+    c: Optional[str] = None,
 ) -> _f:
-    """A row for a geometry field, read back from a live shape's geometry."""
+    """A row for a geometry field, read back from a live shape's geometry.
+    ``c`` is its name in Box2D's structure, if not the same."""
     live = lambda shape: getattr(shape.geometry, name)  # noqa: E731
-    return _f(codec, unit, range, live=live, default=default)
+    return _f(codec, unit, range, live=live, default=default, c=c or name)
 
 
 #: Every geometry definition's last field: the shape's own settings.
@@ -184,6 +186,7 @@ class CircleDef(DefData):
     shape: Optional[ShapeDef] = None
 
     kind: ClassVar[Optional[str]] = "circle"
+    _c_struct = "b2Circle"
     _table = {
         "radius": _geometry("float", "radius", "m", NON_NEGATIVE),
         "center": _geometry("vec2", "center", "m"),
@@ -244,9 +247,10 @@ class CapsuleDef(DefData):
     shape: Optional[ShapeDef] = None
 
     kind: ClassVar[Optional[str]] = "capsule"
+    _c_struct = "b2Capsule"
     _table = {
-        "vertex1": _geometry("vec2", "vertex1", "m"),
-        "vertex2": _geometry("vec2", "vertex2", "m"),
+        "vertex1": _geometry("vec2", "vertex1", "m", c="center1"),
+        "vertex2": _geometry("vec2", "vertex2", "m", c="center2"),
         "radius": _geometry("float", "radius", "m", NON_NEGATIVE),
         "shape": _SHAPE_ROW,
     }
@@ -309,9 +313,10 @@ class SegmentDef(DefData):
     shape: Optional[ShapeDef] = None
 
     kind: ClassVar[Optional[str]] = "segment"
+    _c_struct = "b2Segment"
     _table = {
-        "vertex1": _geometry("vec2", "vertex1", "m"),
-        "vertex2": _geometry("vec2", "vertex2", "m"),
+        "vertex1": _geometry("vec2", "vertex1", "m", c="point1"),
+        "vertex2": _geometry("vec2", "vertex2", "m", c="point2"),
         "shape": _SHAPE_ROW,
     }
 
@@ -484,6 +489,7 @@ class PolygonDef(DefData):
     kind: ClassVar[Optional[str]] = "polygon"
     # Read back, a polygon's vertices are already placed: Box2D keeps no
     # offset or rotation apart from them.
+    _c_struct = "b2Polygon"
     _table = {
         "vertices": _geometry("vec2_list", "vertices", "m"),
         "radius": _geometry("float", "radius", "m", NON_NEGATIVE, default=0.0),

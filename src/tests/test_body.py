@@ -2,6 +2,7 @@
 import pytest
 from box2d import World, Vec2, Box, Circle
 from box2d._box2d import lib
+from box2d.dataclasses import MassData
 from pytest import approx
 
 
@@ -600,3 +601,11 @@ def test_a_long_name_is_not_cut_inside_a_character():
     with pytest.warns(UserWarning):
         assigned.name = "aéééééé"
     assert built.name == assigned.name == "aéééé"
+
+
+@pytest.mark.parametrize("center", [(0.5, 0), [0.5, 0], Vec2(0.5, 0)])
+def test_a_mass_can_be_set_whole(world, center):
+    body = world.add_body(body_type="dynamic")
+    body.mass_data = MassData(2.0, center, 3.0)
+    assert body.mass_data.mass == 2.0
+    assert body.mass_data.center == Vec2(0.5, 0)

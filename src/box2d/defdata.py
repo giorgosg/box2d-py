@@ -474,6 +474,9 @@ def _short_values(value: Any, tolerance: float = 0.0) -> Any:
 #: Every definition with a kind, by kind, as each is defined.
 _kinds: dict[str, type] = {}
 
+#: Every definition, by the name of the Box2D structure it stands for.
+_structs: dict[str, type] = {}
+
 
 class DefData:
     """What every definition can do with its field table.
@@ -506,6 +509,9 @@ class DefData:
         kind = cls.__dict__.get("kind")
         if kind is not None:
             _kinds[kind] = cls
+        struct = cls.__dict__.get("_c_struct")
+        if struct is not None:
+            _structs[struct] = cls
 
     @classmethod
     def fields(cls) -> tuple[DefField, ...]:
