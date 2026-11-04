@@ -7,12 +7,13 @@ from dataclasses import dataclass, fields, replace
 from typing import Any, Mapping
 from ._checked import lib
 from .debug_draw import Color
+from .defdata import NON_NEGATIVE, DefData, _f
 
 _default_material = lib.b2DefaultSurfaceMaterial()
 
 
-@dataclass
-class SurfaceMaterial:
+@dataclass(repr=False, eq=False)
+class SurfaceMaterial(DefData):
     """
     The physical properties of a shape's surface, Box2D's ``b2SurfaceMaterial``.
 
@@ -53,6 +54,16 @@ class SurfaceMaterial:
     tangent_speed: float = _default_material.tangentSpeed
     user_material: int = _default_material.userMaterialId
     custom_color: Color | int = _default_material.customColor
+
+    _c_struct = "b2SurfaceMaterial"
+    _table = {
+        "friction": _f("float", range=NON_NEGATIVE, live="friction", c="friction"),
+        "restitution": _f("float", range=NON_NEGATIVE, c="restitution"),
+        "rolling_resistance": _f("float", range=NON_NEGATIVE, c="rollingResistance"),
+        "tangent_speed": _f("float", "m/s", c="tangentSpeed"),
+        "user_material": _f("int", c="userMaterialId"),
+        "custom_color": _f("color", c="customColor"),
+    }
 
     @classmethod
     def from_b2SurfaceMaterial(cls, material: Any) -> "SurfaceMaterial":

@@ -38,6 +38,7 @@ WebAssembly under Pyodide. It installs as ``box2d-python`` and imports as
    guides/concepts
    guides/lifetime
    guides/own_classes
+   guides/defs_as_data
    guides/events
    guides/queries
    guides/callbacks_threading

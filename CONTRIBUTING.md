@@ -147,6 +147,8 @@ Some rules hold across the whole API, and a test holds each one:
   and `linear_velocity`, also take the two components as separate scalars.
   `src/tests/test_point_conformance.py` tries every point-taking parameter with
   every form, and fails when a new one appears without being added to it.
+  `from_dict` is the exception: it reads data, so it takes what `to_dict`
+  writes, a point as `[x, y]`.
 - Engine objects refuse attributes they do not define, so a misspelt property
   raises instead of quietly setting nothing (`test_fixed_attributes.py`).
 - An argument Box2D rejects raises `box2d.InvalidInputError` from the call

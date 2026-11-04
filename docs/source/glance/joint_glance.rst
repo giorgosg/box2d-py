@@ -48,6 +48,7 @@ Lifetime and Identity
 
 * ``joint.destroy()`` - Destroy the joint, waking both its bodies
 * ``joint.is_valid`` - Whether the joint is still live, i.e. has not been destroyed
+* ``joint.to_def()`` - The joint's definition, read back from Box2D
 * ``joint.world`` - The world the joint belongs to
 * ``joint.user_data`` - Any Python object to keep with the joint
 * ``joint.joint_type`` - Box2D's constant for the kind of joint (read-only)

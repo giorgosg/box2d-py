@@ -1,6 +1,17 @@
+import dataclasses
+
 from ._checked import lib, ffi
 from .math import Vec2, Rot, Transform, VectorLike, AABB
 from .shape import Box, Circle, Capsule, Segment, Polygon, Chain
+from .shapedef import (
+    BoxDef,
+    CapsuleDef,
+    ChainDef,
+    CircleDef,
+    PolygonDef,
+    SegmentDef,
+    ShapeDef,
+)
 from .joint import Joint
 from typing import (
     TYPE_CHECKING,
@@ -1167,6 +1178,79 @@ class Body(FixedAttributes):
         """
         if shape in self._shapes:
             shape.destroy()
+
+    def to_def(self) -> BodyDef:
+        """This body's definition, read back from Box2D.
+
+        ``world.add_body_def(body.to_def())`` makes a body like it, without
+        its shapes: read those with each ``shape.to_def()``. Box2D has no way to read back
+        ``allow_fast_rotation``, so that is the default whatever the body was
+        made with. ``user_data`` is left out.
+
+        Example:
+            >>> from box2d import World
+            >>> world = World()
+            >>> world.add_body(body_type="dynamic", position=(1, 2)).to_def()
+            BodyDef(type='dynamic', position=Vec2(1.0, 2.0))
+        """
+        return BodyDef._read(self)
+
+    def add_shape(self, geometry: Any) -> Any:
+        """Add the shape or chain a definition describes.
+
+        Args:
+            geometry: A :class:`.CircleDef`, :class:`.CapsuleDef`,
+                :class:`.SegmentDef`, :class:`.BoxDef`, :class:`.PolygonDef`
+                or :class:`.ChainDef`, as ``shape.to_def()`` or
+                :func:`~box2d.defdata.def_from_dict` gives. A geometry definition's
+                ``shape`` holds the shape's own settings.
+
+        Returns:
+            The shape made, or the chain.
+
+        Example:
+            >>> from box2d import CircleDef, ShapeDef, World
+            >>> body = World().add_body(body_type="dynamic")
+            >>> body.add_shape(CircleDef(0.5, shape=ShapeDef(density=2.0))).density
+            2.0
+        """
+        if isinstance(geometry, ChainDef):
+            return self.world._make(Chain, self, geometry)
+        if not isinstance(
+            geometry, (CircleDef, CapsuleDef, SegmentDef, BoxDef, PolygonDef)
+        ):
+            raise TypeError(f"{geometry!r} is not a shape or chain definition")
+        settings = geometry.shape if geometry.shape is not None else ShapeDef()
+        keywords = {
+            field.name: getattr(settings, field.name)
+            for field in dataclasses.fields(settings)
+        }
+        if isinstance(geometry, CircleDef):
+            return self.add_circle(geometry.radius, geometry.center, **keywords)
+        if isinstance(geometry, CapsuleDef):
+            return self.add_capsule(
+                geometry.vertex1, geometry.vertex2, geometry.radius, **keywords
+            )
+        if isinstance(geometry, SegmentDef):
+            return self.add_segment(geometry.vertex1, geometry.vertex2, **keywords)
+        rotation = geometry.rotation or 0.0
+        angle = rotation.angle if isinstance(rotation, Rot) else rotation
+        if isinstance(geometry, BoxDef):
+            return self.add_box(
+                geometry.width,
+                geometry.height,
+                radius=geometry.radius,
+                offset=geometry.offset,
+                angle=angle,
+                **keywords,
+            )
+        return self.add_polygon(
+            geometry.vertices,
+            radius=geometry.radius or 0.0,
+            offset=geometry.offset if geometry.offset is not None else (0, 0),
+            angle=angle,
+            **keywords,
+        )
 
     @property
     def key(self) -> int:

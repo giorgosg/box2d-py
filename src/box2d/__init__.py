@@ -1,7 +1,8 @@
 from .world import World, HAS_THREADS, HAS_AVX2, BOX2D_VERSION, classes_with
 from .math import Vec2, Rot, Transform, AABB, Mat22, ScaledTransform
 from .body import Body, BodyBuilder
-from .dataclasses import BodyType
+from .dataclasses import BodyDef, BodyType
+from .defdata import DEFAULTS_VERSION, DefData, DefField, def_from_dict
 from .shape import Box, Capsule, Chain, ChainSegment, Circle, Polygon, Segment, Shape
 from .shapedef import (
     ShapeDef,
@@ -9,6 +10,7 @@ from .shapedef import (
     CapsuleDef,
     SegmentDef,
     PolygonDef,
+    BoxDef,
     ChainDef,
 )
 from .material import SurfaceMaterial
@@ -99,6 +101,7 @@ __all__ = [
     "CapsuleDef",
     "SegmentDef",
     "PolygonDef",
+    "BoxDef",
     "ChainDef",
     "SurfaceMaterial",
     "CollisionFilter",
@@ -148,6 +151,12 @@ __all__ = [
     "Capacity",
     "Counters",
     "Profile",
+    # definitions as data
+    "BodyDef",
+    "DEFAULTS_VERSION",
+    "DefData",
+    "DefField",
+    "def_from_dict",
     # records
     "MOVE_RECORD",
     "MoveFlags",

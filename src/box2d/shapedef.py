@@ -4,18 +4,35 @@ A shape definition is used to create shapes with specific properties.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Any, Iterable, Sequence
+from typing import ClassVar, Optional, Any, Iterable, Sequence
 from ._checked import lib, ffi
 from .material import SurfaceMaterial, _MATERIAL_FIELDS, _check_material, _with_fields
 from .collision_filter import CollisionFilter
 from .math import Vec2, VectorLike, Rot
+from .defdata import BY_TO_DEF, NON_NEGATIVE, _UNSET, DefData, _alike, _f
+
+
+def _geometry(
+    codec: str,
+    name: str,
+    unit: Optional[str] = None,
+    range: Optional[tuple[float, float]] = None,
+    default: Any = _UNSET,
+) -> _f:
+    """A row for a geometry field, read back from a live shape's geometry."""
+    live = lambda shape: getattr(shape.geometry, name)  # noqa: E731
+    return _f(codec, unit, range, live=live, default=default)
+
+
+#: Every geometry definition's last field: the shape's own settings.
+_SHAPE_ROW = _f("shape", live=BY_TO_DEF)
 
 _default_shape_def = lib.b2DefaultShapeDef()
 _default_chain_def = lib.b2DefaultChainDef()
 
 
-@dataclass
-class ShapeDef:
+@dataclass(repr=False, eq=False)
+class ShapeDef(DefData):
     """
     A shape definition is used to create shapes with specific properties.
 
@@ -72,6 +89,22 @@ class ShapeDef:
     enable_pre_solve_events: bool = _default_shape_def.enablePreSolveEvents
     invoke_contact_creation: bool = _default_shape_def.invokeContactCreation
     update_body_mass: bool = _default_shape_def.updateBodyMass
+
+    _c_struct = "b2ShapeDef"
+    _table = {
+        "material": _f("material", live="surface_material", c="material"),
+        "density": _f("float", "kg/m^2", NON_NEGATIVE, c="density"),
+        "filter": _f("filter", default=CollisionFilter, c="filter"),
+        # Box2D has no function reading this flag, or the two last, back.
+        "enable_custom_filtering": _f("bool", live=None, c="enableCustomFiltering"),
+        "is_sensor": _f("bool", c="isSensor"),
+        "enable_sensor_events": _f("bool", c="enableSensorEvents"),
+        "enable_contact_events": _f("bool", c="enableContactEvents"),
+        "enable_hit_events": _f("bool", c="enableHitEvents"),
+        "enable_pre_solve_events": _f("bool", c="enablePreSolveEvents"),
+        "invoke_contact_creation": _f("bool", live=None, c="invokeContactCreation"),
+        "update_body_mass": _f("bool", live=None, c="updateBodyMass"),
+    }
 
     def __post_init__(self) -> None:
         # None is Box2D's default material, as leaving it out is, so a caller
@@ -132,8 +165,8 @@ class ShapeDef:
         return shape_def
 
 
-@dataclass
-class CircleDef:
+@dataclass(repr=False, eq=False)
+class CircleDef(DefData):
     """
     Definition for a circle shape.
 
@@ -142,10 +175,20 @@ class CircleDef:
     Attributes:
         center: Position of the circle's center relative to the body origin
         radius: The radius of the circle
+        shape: The shape's own settings, a :class:`ShapeDef`: density,
+            material, filter and the rest. None is the defaults.
     """
 
     radius: float
     center: VectorLike = Vec2(0, 0)
+    shape: Optional[ShapeDef] = None
+
+    kind: ClassVar[Optional[str]] = "circle"
+    _table = {
+        "radius": _geometry("float", "radius", "m", NON_NEGATIVE),
+        "center": _geometry("vec2", "center", "m"),
+        "shape": _SHAPE_ROW,
+    }
 
     def __post_init__(self) -> None:
         """Convert center to Vec2 if it wasn't already"""
@@ -179,8 +222,8 @@ class CircleDef:
         return cls(radius=circle.radius, center=Vec2.from_b2Vec2(circle.center))
 
 
-@dataclass
-class CapsuleDef:
+@dataclass(repr=False, eq=False)
+class CapsuleDef(DefData):
     """
     Definition for a capsule shape.
 
@@ -191,11 +234,22 @@ class CapsuleDef:
         vertex1: The first endpoint of the capsule's axis
         vertex2: The second endpoint of the capsule's axis
         radius: The radius of the capsule's half-circles
+        shape: The shape's own settings, a :class:`ShapeDef`: density,
+            material, filter and the rest. None is the defaults.
     """
 
     vertex1: VectorLike
     vertex2: VectorLike
     radius: float
+    shape: Optional[ShapeDef] = None
+
+    kind: ClassVar[Optional[str]] = "capsule"
+    _table = {
+        "vertex1": _geometry("vec2", "vertex1", "m"),
+        "vertex2": _geometry("vec2", "vertex2", "m"),
+        "radius": _geometry("float", "radius", "m", NON_NEGATIVE),
+        "shape": _SHAPE_ROW,
+    }
 
     def __post_init__(self) -> None:
         """Convert vertices to Vec2 if they weren't already"""
@@ -235,8 +289,8 @@ class CapsuleDef:
         )
 
 
-@dataclass
-class SegmentDef:
+@dataclass(repr=False, eq=False)
+class SegmentDef(DefData):
     """
     Definition for a segment (line) shape.
 
@@ -246,10 +300,20 @@ class SegmentDef:
     Attributes:
         vertex1: The first endpoint of the segment
         vertex2: The second endpoint of the segment
+        shape: The shape's own settings, a :class:`ShapeDef`: density,
+            material, filter and the rest. None is the defaults.
     """
 
     vertex1: VectorLike
     vertex2: VectorLike
+    shape: Optional[ShapeDef] = None
+
+    kind: ClassVar[Optional[str]] = "segment"
+    _table = {
+        "vertex1": _geometry("vec2", "vertex1", "m"),
+        "vertex2": _geometry("vec2", "vertex2", "m"),
+        "shape": _SHAPE_ROW,
+    }
 
     def __post_init__(self) -> None:
         """Convert vertices to Vec2 if they weren't already"""
@@ -285,6 +349,11 @@ class SegmentDef:
             vertex1=Vec2.from_b2Vec2(segment.point1),
             vertex2=Vec2.from_b2Vec2(segment.point2),
         )
+
+
+def _same_point(a: Any, b: Any) -> bool:
+    """Whether two points are the same as Box2D stores them."""
+    return _alike(list(map(float, Vec2(a))), list(map(float, Vec2(b))))
 
 
 def _compute_hull(vertices: Sequence[VectorLike]):
@@ -325,8 +394,8 @@ def _is_valid_polygon(polygon) -> bool:
     )
 
 
-@dataclass
-class BoxDef:
+@dataclass(repr=False, eq=False)
+class BoxDef(DefData):
     """
     Definition for a box, the most common polygon.
 
@@ -343,6 +412,8 @@ class BoxDef:
         rotation: Rotation of the box relative to the body, in radians or as
             a Rot. Box.create, Body.add_box and BodyBuilder.box take it as
             ``angle``.
+        shape: The shape's own settings, a :class:`ShapeDef`: density,
+            material, filter and the rest. None is the defaults.
     """
 
     width: float
@@ -350,6 +421,19 @@ class BoxDef:
     radius: float = 0.0
     offset: VectorLike = Vec2(0, 0)
     rotation: Optional[float | Rot] = None
+    shape: Optional[ShapeDef] = None
+
+    kind: ClassVar[Optional[str]] = "box"
+    # Box2D keeps a box as the polygon it makes, which Box.geometry reads
+    # back; these are worked out from that, in shape.Box.to_def.
+    _table = {
+        "width": _f("float", "m", NON_NEGATIVE, live=BY_TO_DEF),
+        "height": _f("float", "m", NON_NEGATIVE, live=BY_TO_DEF),
+        "radius": _f("float", "m", NON_NEGATIVE, live=BY_TO_DEF),
+        "offset": _f("vec2", "m", live=BY_TO_DEF),
+        "rotation": _f("angle", "rad", live=BY_TO_DEF, default=0.0),
+        "shape": _SHAPE_ROW,
+    }
 
     @property
     def b2Polygon(self) -> Any:
@@ -371,8 +455,8 @@ class BoxDef:
         )
 
 
-@dataclass
-class PolygonDef:
+@dataclass(repr=False, eq=False)
+class PolygonDef(DefData):
     """
     Definition for a polygon shape.
 
@@ -387,12 +471,26 @@ class PolygonDef:
         rotation: Local rotation of the polygon relative to the body, in
             radians or as a Rot (optional). Polygon.create takes it as
             ``angle``.
+        shape: The shape's own settings, a :class:`ShapeDef`: density,
+            material, filter and the rest. None is the defaults.
     """
 
     vertices: Iterable[VectorLike]
     radius: Optional[float] = None
     offset: Optional[VectorLike] = None
     rotation: Optional[float | Rot] = None
+    shape: Optional[ShapeDef] = None
+
+    kind: ClassVar[Optional[str]] = "polygon"
+    # Read back, a polygon's vertices are already placed: Box2D keeps no
+    # offset or rotation apart from them.
+    _table = {
+        "vertices": _geometry("vec2_list", "vertices", "m"),
+        "radius": _geometry("float", "radius", "m", NON_NEGATIVE, default=0.0),
+        "offset": _f("vec2", "m", live=None, default=(0, 0)),
+        "rotation": _f("angle", "rad", live=None, default=0.0),
+        "shape": _SHAPE_ROW,
+    }
 
     def __post_init__(self) -> None:
         """Convert all vertices to Vec2 objects"""
@@ -488,8 +586,8 @@ class PolygonDef:
         return cls(vertices=vertices, radius=polygon.radius)
 
 
-@dataclass
-class ChainDef:
+@dataclass(repr=False, eq=False)
+class ChainDef(DefData):
     """
     Definition for a chain shape.
 
@@ -540,6 +638,31 @@ class ChainDef:
     filter: Optional[CollisionFilter] = None
     user_data: Optional[Any] = None
     enable_sensor_events: bool = _default_chain_def.enableSensorEvents
+
+    kind: ClassVar[Optional[str]] = "chain"
+    # Read back by Chain.to_def, from the chain's segments.
+    _c_struct = "b2ChainDef"
+    _table = {
+        "vertices": _f("vec2_list", "m", live=BY_TO_DEF, c="points"),
+        "is_loop": _f("bool", live=BY_TO_DEF, c="isLoop"),
+        "ghost1": _f("vec2", "m", live=BY_TO_DEF, default=None, c="ghost1"),
+        "ghost2": _f("vec2", "m", live=BY_TO_DEF, default=None, c="ghost2"),
+        "materials": _f("materials", live=BY_TO_DEF, c="materials"),
+        "filter": _f("filter", live=BY_TO_DEF, default=CollisionFilter, c="filter"),
+        "enable_sensor_events": _f("bool", live=BY_TO_DEF, c="enableSensorEvents"),
+    }
+
+    def _data_values(self, full: bool = False) -> dict[str, Any]:
+        # Ghosts that carry the end segments straight on are the default,
+        # worked out from the points, so they are left out as defaults are.
+        values = super()._data_values(full)
+        if full and not self.is_loop:
+            return values
+        straight = ChainDef(self.vertices, self.is_loop)
+        for ghost in ("ghost1", "ghost2"):
+            if self.is_loop or _same_point(values[ghost], getattr(straight, ghost)):
+                values[ghost] = None
+        return values
 
     def __post_init__(self) -> None:
         self.vertices = [Vec2(v) for v in self.vertices]

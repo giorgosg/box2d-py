@@ -16,7 +16,10 @@ It is the same value under two names.
 
 from ._checked import lib, ffi
 from typing import TYPE_CHECKING, Any, List, Optional, Union, Iterable, Sequence
+import math
+
 from .math import Vec2, VectorLike, AABB
+from .defdata import ROUNDING, _short_values
 from .shapedef import (
     ShapeDef,
     BoxDef,
@@ -37,6 +40,11 @@ from .accessors import B2Accessor, b2_bool, b2_float, b2_int
 if TYPE_CHECKING:  # annotations only; these modules import this one
     from .body import Body
     from .world import World
+
+
+def _alike_points(a: Vec2, b: Vec2) -> bool:
+    """Whether two vectors worked out from Box2D's floats are the same."""
+    return (a - b).length <= ROUNDING * (a.length + 1)
 
 
 class Shape(FixedAttributes):
@@ -288,6 +296,29 @@ class Shape(FixedAttributes):
             bool(wake),
         )
 
+    def _with_settings(self, geometry: Any) -> Any:
+        """``geometry`` with this shape's own settings read back into it."""
+        geometry.shape = ShapeDef._read(self)
+        return geometry
+
+    def to_def(self) -> Any:
+        """This shape's definition, read back from Box2D: its geometry, with
+        its own settings as the definition's ``shape``.
+
+        ``body.add_shape(shape.to_def())`` makes a shape like it. Box2D has no
+        way to read back ``enable_custom_filtering``,
+        ``invoke_contact_creation`` or ``update_body_mass``, so those are the
+        defaults whatever the shape was made with (see
+        :meth:`.DefData.fields`). ``user_data`` is left out.
+
+        Example:
+            >>> from box2d import World
+            >>> body = World().add_body()
+            >>> body.add_circle(radius=0.5, density=2.0).to_def()
+            CircleDef(radius=0.5, shape=ShapeDef(density=2.0))
+        """
+        raise TypeError(f"{type(self).__name__} has no definition of its own")
+
     def destroy(self, update_body_mass: bool = True) -> None:
         """Remove this shape from its body.
 
@@ -523,6 +554,10 @@ class Circle(Shape):
         )
         self._register()
 
+    def to_def(self) -> CircleDef:
+        """This circle's definition, read back: see :meth:`Shape.to_def`."""
+        return self._with_settings(CircleDef._read(self))
+
     @property
     def geometry(self) -> CircleDef:
         """
@@ -593,6 +628,10 @@ class Capsule(Shape):
             body._body_id, ffi.addressof(sd), capsuledef.b2Capsule
         )
         self._register()
+
+    def to_def(self) -> CapsuleDef:
+        """This capsule's definition, read back: see :meth:`Shape.to_def`."""
+        return self._with_settings(CapsuleDef._read(self))
 
     @property
     def geometry(self) -> CapsuleDef:
@@ -678,6 +717,10 @@ class Segment(Shape):
         )
         self._register()
 
+    def to_def(self) -> SegmentDef:
+        """This segment's definition, read back: see :meth:`Shape.to_def`."""
+        return self._with_settings(SegmentDef._read(self))
+
     @property
     def geometry(self) -> SegmentDef:
         """
@@ -752,6 +795,10 @@ class Polygon(Shape):
         )
         self._register()
 
+    def to_def(self) -> Union[PolygonDef, BoxDef]:
+        """This polygon's definition, read back: see :meth:`Shape.to_def`."""
+        return self._with_settings(PolygonDef._read(self))
+
     @property
     def geometry(self) -> PolygonDef:
         """
@@ -824,6 +871,32 @@ class Box(Polygon):
     Inherits from Polygon since a box is a special case of a convex polygon.
     """
 
+    def to_def(self) -> Union[BoxDef, PolygonDef]:
+        """This box's definition, read back: see :meth:`Shape.to_def`.
+
+        Box2D keeps a box as the polygon it made, its corners in order from
+        the one at the box's own lower left, so the size, offset and rotation
+        are worked out from them. A box given other ``geometry`` since, that
+        is not a rectangle any more, reads back as a :class:`.PolygonDef`.
+        """
+        polygon = self.geometry
+        if len(polygon.vertices) != 4:
+            return super().to_def()
+        v0, v1, v2, v3 = polygon.vertices
+        edge, side = v1 - v0, v2 - v1
+        square_on = abs(edge.dot(side)) <= ROUNDING * (edge.length * side.length + 1)
+        if not square_on or not _alike_points(v3 - v0, side):
+            return super().to_def()
+        # Worked out from rotated corners, so with their rounding too.
+        box = BoxDef(
+            _short_values(edge.length, ROUNDING),
+            _short_values(side.length, ROUNDING),
+            radius=_short_values(polygon.radius or 0.0),
+            offset=_short_values((v0 + v2) * 0.5, ROUNDING),
+            rotation=_short_values(math.atan2(edge.y, edge.x), ROUNDING),
+        )
+        return self._with_settings(box)
+
     @classmethod
     def create(
         cls,
@@ -872,6 +945,16 @@ class ChainSegment(Shape):
         # In the world's table, but not in the body's shapes, which leave
         # chain segments out: the chain lists them, in its segments.
         chain.body.world._track_shape(self)
+
+    def to_def(self) -> Any:
+        """Refused: a segment is part of its chain, which has the definition.
+
+        Raises:
+            TypeError: Always; ``segment.parent_chain.to_def()`` is the one.
+        """
+        raise TypeError(
+            "a chain segment is made by its chain: use parent_chain.to_def()"
+        )
 
     def destroy(self, update_body_mass: bool = True) -> None:
         """A segment cannot be removed from its chain; destroy the chain.
@@ -1002,6 +1085,47 @@ class Chain(FixedAttributes):
             **options,
         )
         return cls(body, shapedef)
+
+    def to_def(self) -> ChainDef:
+        """This chain's definition, read back from its segments.
+
+        Every field is read back: one material when the segments share it,
+        and none when that is Box2D's default; the filter and sensor flag of
+        the first segment, as a chain is made with one of each. ``user_data``
+        is left out.
+
+        Example:
+            >>> from box2d import World
+            >>> body = World().add_body()
+            >>> body.add_chain([(0, 0), (1, 0), (2, 1)]).to_def()
+            ChainDef(vertices=[Vec2(0.0, 0.0), Vec2(1.0, 0.0), Vec2(2.0, 1.0)])
+        """
+        pieces = [
+            lib.b2Shape_GetChainSegment(segment._shape_id) for segment in self.segments
+        ]
+        vertices = [Vec2.from_b2Vec2(piece.segment.point1) for piece in pieces]
+        if not self._is_loop:
+            vertices.append(Vec2.from_b2Vec2(pieces[-1].segment.point2))
+        materials = [
+            SurfaceMaterial.from_b2SurfaceMaterial(
+                lib.b2Chain_GetSurfaceMaterial(self._chain_id, i)
+            )
+            for i in range(len(pieces))
+        ]
+        if all(material == materials[0] for material in materials):
+            materials = materials[:1]
+            if not materials[0].to_dict():
+                materials = None
+        first = self.segments[0]
+        return ChainDef(
+            _short_values(vertices),
+            is_loop=self._is_loop,
+            ghost1=_short_values(Vec2.from_b2Vec2(pieces[0].ghost1)),
+            ghost2=_short_values(Vec2.from_b2Vec2(pieces[-1].ghost2)),
+            materials=_short_values(materials),
+            filter=first.filter,
+            enable_sensor_events=first.enable_sensor_events,
+        )
 
     @property
     def body(self) -> "Body":

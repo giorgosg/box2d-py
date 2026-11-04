@@ -57,6 +57,7 @@ nitpick_ignore = [
     # World.class_for's "the class you asked about".
     ("py:class", "box2d.body._F"),
     ("py:class", "box2d.world._T"),
+    ("py:class", "box2d.defdata._D"),
 ]
 
 # The compiled extension is not mocked: readthedocs builds it (see

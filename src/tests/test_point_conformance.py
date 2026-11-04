@@ -20,7 +20,7 @@ import inspect
 
 import pytest
 
-from box2d import World, Vec2
+from box2d import BodyDef, World, Vec2
 from box2d.body import Body, BodyBuilder
 from box2d.shape import Shape
 
@@ -58,6 +58,11 @@ def bodies(world):
 # named parameter. Keep this table in sync with the coverage guard below.
 
 ENTRY_POINTS = {
+    # BodyDef
+    "BodyDef.position": lambda w, bs, p: w.add_body_def(BodyDef(position=p)),
+    "BodyDef.linear_velocity": lambda w, bs, p: w.add_body_def(
+        BodyDef(linear_velocity=p)
+    ),
     # BodyBuilder
     "BodyBuilder.position": lambda w, bs, p: w.new_body().position(p).build(),
     "BodyBuilder.linear_velocity": lambda w, bs, p: (
